@@ -8,6 +8,22 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.6',
+    date: '2026-10-30',
+    title: 'A city full of people',
+    items: [
+      'The whole city is alive now: about ten times as many people out on the streets, spread over every district instead of a handful around the food stalls.',
+      'Everyone has somewhere to be. Commuters stream through the station\'s ticket gates at rush hour, students meet up on the station square after school, and office workers drift to the bars of Golden Lane after dark.',
+      'People pray at the Midori shrine (wash the hands, bow twice, clap twice, bow), climb Inari Hill to the fox shrine and visit the little shrine on the park\'s island.',
+      'Shoppers stop to look in shop windows in the Hikari Ginza arcade, along Center-gai, Minami-dori and the neon avenue.',
+      'Neighbours head to the sento for their evening bath, joggers lap the park pond morning and evening, and dog owners walk shibas and mutts that stop to sniff everything.',
+      'Cyclists and delivery scooters ride the streets, keeping left. Couriers hop off to drop off orders.',
+      'Swan boats pedal round the park pond during the day, and at dawn a group does radio exercises on the park lawn.',
+      'People walk on the pavements of the big avenues, and some walk along with their eyes glued to their phones.',
+      'All of it stays smooth: only people near you are drawn and animated, and the rest of the city carries on quietly in the background.',
+    ],
+  },
+  {
     version: '0.9.5',
     date: '2026-10-30',
     title: 'A pocket map of the city',

@@ -295,3 +295,67 @@ export function buildCat(seed: number): CharModel {
   ];
   return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots };
 }
+
+/** A small dog on the cat skeleton: shiba, black-and-tan, white or brown, with a curled or straight tail. */
+export function buildDog(seed: number): CharModel {
+  const r = rng(seed);
+  const W = 6, H = 10, D = 15;
+  const grid = new Grid(W, H, D);
+  const parts = new Uint8Array(W * H * D);
+  const pal = new Palette();
+  const coats = [[0xd98a45, 0xf6efe2], [0x2a2628, 0xc98f5a], [0xf4f1ea, 0xf4f1ea], [0x8a5a36, 0xd9b48a], [0xe0c49a, 0xf6efe2]];
+  const [main, belly] = coats[Math.floor(r() * coats.length)];
+  const cm = pal.add(main, { vary: 0.04 }), cb = pal.add(belly, { vary: 0.04 });
+  const dark = pal.add(0x1d1a1c, { vary: 0.01 }), collar = pal.add([0xd8372b, 0x3f6e9a, 0x4f9a6b, 0xf2c74a][Math.floor(r() * 4)], { vary: 0.01 });
+  const set = (x: number, y: number, z: number, c: number, part: number) => {
+    if (x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= D) return;
+    grid.set(x, y, z, c); parts[y * W * D + z * W + x] = part;
+  };
+  const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, c: number, part: number) => {
+    for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) set(x, y, z, c, part);
+  };
+  // legs (a little longer than a cat's), white socks on the pale coats
+  const sock = main === 0xd98a45 || main === 0xe0c49a ? cb : cm;
+  for (const [x, z, part] of [[1, 3, PART.legL], [4, 3, PART.legR], [1, 9, PART.armL], [4, 9, PART.armR]] as const) {
+    box(x, 0, z, x, 3, z, cm, part); set(x, 0, z, sock, part);
+  }
+  // body with a pale belly
+  box(1, 4, 2, 4, 6, 10, cm, PART.body);
+  box(2, 4, 3, 3, 4, 9, cb, PART.body);
+  // collar, head, snout, pointed ears
+  box(1, 7, 10, 4, 7, 10, collar, PART.head);
+  box(1, 6, 11, 4, 9, 13, cm, PART.head);
+  box(2, 6, 14, 3, 7, 14, cb, PART.head);
+  set(2, 7, 14, dark, PART.head); set(3, 7, 14, dark, PART.head);
+  set(1, 8, 13, dark, PART.head); set(4, 8, 13, dark, PART.head);
+  if (r() < 0.6) { set(1, 9, 12, cm, PART.head); set(4, 9, 12, cm, PART.head); } // ears up
+  else { box(0, 7, 11, 0, 8, 12, cm, PART.head); box(5, 7, 11, 5, 8, 12, cm, PART.head); } // floppy
+  // tail: curled over the back or straight out
+  if (r() < 0.55) { box(2, 7, 1, 3, 8, 2, cm, PART.tail); set(2, 9, 2, cb, PART.tail); }
+  else box(2, 6, 0, 3, 6, 1, cm, PART.tail);
+  const s = 0.0625; // a touch bigger than a cat
+  const ox = -W / 2 * s, oz = -D / 2 * s;
+  const pivots: [number, number, number][] = [
+    [0, 0, 0],
+    [0, 7 * s, oz + 11 * s],
+    [ox + 1.5 * s, 4 * s, oz + 9.5 * s],
+    [ox + 4.5 * s, 4 * s, oz + 9.5 * s],
+    [ox + 1.5 * s, 4 * s, oz + 3.5 * s],
+    [ox + 4.5 * s, 4 * s, oz + 3.5 * s],
+    [0, 6.5 * s, oz + 2 * s],
+    [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0],
+  ];
+  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots };
+}
+
+/**
+ * A rigid model (a bicycle, a scooter, a boat) for the character renderer, so it is lit by the same
+ * light map as the people on it. `alongX` models (props drawn side-on, front at +x) are turned to face +z.
+ */
+export function rigidModel(src: Grid, pal: Palette, scale: number, alongX = false): CharModel {
+  const W = alongX ? src.sz : src.sx, H = src.sy, D = alongX ? src.sx : src.sz;
+  const grid = new Grid(W, H, D);
+  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) grid.set(x, y, z, alongX ? src.get(z, y, x) : src.get(x, y, z));
+  const pivots: [number, number, number][] = Array.from({ length: PART_COUNT }, () => [0, 0, 0]);
+  return { grid, parts: new Uint8Array(W * H * D), pal, scale, origin: [-W / 2 * scale, 0, -D / 2 * scale], pivots };
+}

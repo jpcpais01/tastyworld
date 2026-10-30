@@ -9,7 +9,8 @@ import { assemble } from './world/assemble';
 import type { WorkerIn, WorkerOut } from './world/worker';
 import { Streamer, StreamView } from './engine/streamer';
 import type { MeshData } from './world/mesher';
-import { buildPerson, buildCat, randomLook, Look } from './world/characters';
+import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
+import { bikeModel, scooterModel, swanBoatModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
@@ -341,7 +342,7 @@ class Game {
     this.lm = w.lightmap;
     this.setDoor(this.s.manekis.length >= 3);
 
-    this.blobs = new Blobs(this.r.scene, 64);
+    this.blobs = new Blobs(this.r.scene, 160);
     this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas]);
     this.beacon = new Beacon(this.r.scene);
@@ -460,7 +461,8 @@ class Game {
     Actor.onStep = (act, run) => { if (act === this.player) this.audio.step(act.position.x, act.position.z, run); };
     this.audio.setRooms(a.rooms.map((rm) => ({ rect: rm.rect, kind: rm.kind })));
 
-    // pedestrians going about their day, a few of them in pairs
+    // the city's people going about their day; bodies are only built when they first come into view
+    const lazy = (act: Actor) => { act.root.visible = false; this.worldGroup.add(act.root); return act; };
     this.crowd = new Crowd(this.navWorld, a, {
       bubble: (key, text, pos, secs) => this.ui.bubble(key, text, pos, secs),
       serve: (id, x, z) => {
@@ -470,18 +472,17 @@ class Game {
         v.actor.targetFacing = Math.atan2(x - v.actor.position.x, z - v.actor.position.z);
       },
       quiet: () => !this.started || this.ui.busy,
+    }, {
+      person: (look) => lazy(new Actor(buildPerson(look), sh, false, true)),
+      dog: (seed) => { const d = lazy(new Actor(buildDog(seed), sh, true, true)); d.dog = true; return d; },
+      vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), sh, true, true)),
+      boat: (seed) => lazy(new Actor(swanBoatModel(seed), sh, true, true)),
     });
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
-    const n = this.r.isMobile ? 10 : 18;
-    const nodes = a.graph.nodes;
-    for (let i = 0, prev = null as ReturnType<Crowd['add']> | null; i < n; i++) {
-      const look = randomLook(1000 + i * 7);
-      const act = new Actor(buildPerson(look), sh);
-      this.worldGroup.add(act.root);
-      // every fourth and fifth walker is the companion of the one before
-      const pair = i % 5 === 4 && prev;
-      prev = this.crowd.add(act, look, (i * 7) % nodes.length, pair ? prev! : undefined);
-    }
+    const m = this.r.isMobile;
+    this.crowd.populate(m
+      ? { walkers: 70, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 }
+      : { walkers: 150, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
     this.crowd.settle(this.tod.hour);
 
     // cats
@@ -1566,7 +1567,8 @@ class Game {
       const pl = this.player;
       const friends: [number, number][] = [];
       for (const rm of this.remotes.values()) if (rm.actor.root.visible) friends.push([rm.actor.position.x, rm.actor.position.z]);
-      this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends);
+      const viewR = this.cam.fp ? Math.min(80, this.viewDist * 0.65) : this.cam.zoom * 1.3 + 8;
+      this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends, viewR);
       this.updateCats(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
@@ -1638,9 +1640,9 @@ class Game {
       a.update(dt);
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
       const d2 = dx * dx + dz * dz;
+      a.light(this.lm);
       if (d2 < 900) {
-        a.light(this.lm);
-        this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);
+        if (!a.noBlob) this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);
         if (d2 < 225) near.push([d2, a]);
       }
     }

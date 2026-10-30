@@ -6,13 +6,14 @@ import { TimeOfDay } from './engine/timeOfDay';
 import type { BakedWorld, LightMap2D } from './world/bake';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, randomLook, Look } from './world/characters';
-import { zoneAt, INTERIOR_ORIGIN } from './world/layout';
+import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ } from './world/layout';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
 import { Actor, Anim, geometryFrom } from './game/actors';
 import { Crowd } from './game/crowd';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
+import { Cutaway } from './game/cutaway';
 import { Audio } from './game/audio';
 import { loadState, saveState, resetState, SaveState } from './game/state';
 import { DISHES } from './data/dishes';
@@ -99,12 +100,12 @@ class Game {
 
   private worldGroup = new THREE.Group();
   private insideGroup = new THREE.Group();
-  private chunks: { mesh: THREE.Mesh; box: THREE.Box3; cut: boolean }[] = [];
+  private chunks: { mesh: THREE.Mesh; box: THREE.Box3; cut: boolean; occ: number[] }[] = [];
+  private cutaway!: Cutaway;
   private matWorld!: THREE.ShaderMaterial;
   private matCut!: THREE.ShaderMaterial;
   private heightWorld!: THREE.DataTexture;
   private heightInside!: THREE.DataTexture;
-  private cutOn = 0;
   private doorClosed = new THREE.Group();
   private shelfClosed = new THREE.Group();
   private shelfOpen = new THREE.Group();
@@ -236,15 +237,17 @@ class Game {
     const w = this.w, a = w.anchors, sh = this.r.shared;
     this.matWorld = voxelMaterial(sh);
     this.matCut = voxelMaterial(sh, { CUTAWAY: 1 });
+    // double-sided so a neighbour's unmeshed party wall shows its far side instead of a hole
+    this.matCut.side = THREE.DoubleSide;
     for (const md of w.chunks) {
       const m = this.mesh(md, this.matWorld, this.worldGroup);
-      this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false });
+      this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false, occ: [] });
     }
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
     const tagGroups: Record<string, THREE.Group> = { 'door-closed': this.doorClosed, 'door-open': this.doorOpen, 'shelf-closed': this.shelfClosed, 'shelf-open': this.shelfOpen };
     for (const t of w.tagged) {
       const m = this.mesh(t.mesh, this.matWorld, tagGroups[t.tag] ?? this.worldGroup);
-      this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false });
+      this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false, occ: [] });
     }
     for (const md of w.interiorChunks) this.mesh(md, this.matCut, this.insideGroup);
     const heightTex = (data: Uint8Array, sx: number, sz: number) => {
@@ -256,7 +259,25 @@ class Game {
     };
     this.heightWorld = heightTex(w.height, w.nav.sx, w.nav.sz);
     this.heightInside = heightTex(w.interiorHeight, w.interiorNav.sx, w.interiorNav.sz);
+    // the Kakurega's two tall walls lower like any building when they come between camera and player
+    const [iox, , ioz] = INTERIOR_ORIGIN;
+    const V = 0.25;
+    this.cutaway = new Cutaway(a.occluders, [
+      { rect: [iox, ioz, iox + 3 * V, ioz + ISZ * V], top: 4.5, low: 0.95, kind: 'landmark' },
+      { rect: [iox, ioz, iox + ISX * V, ioz + 3 * V], top: 4.5, low: 0.95, kind: 'landmark' },
+    ], w.nav, w.interiorNav);
+    sh.tCut.value = this.cutaway.cut;
+    for (const c of this.chunks) {
+      for (let i = 0; i < this.cutaway.occ.length; i++) {
+        const [x0, z0, x1, z1] = this.cutaway.bounds(i);
+        if (x0 < c.box.max.x && x1 > c.box.min.x && z0 < c.box.max.z && z1 > c.box.min.z) c.occ.push(i);
+      }
+    }
     this.setHeightField(false);
+    // compile the cutaway shader up front (the Kakurega uses it too) so the first building to lower doesn't hitch
+    this.insideGroup.visible = true;
+    this.r.gl.compile(this.r.scene, this.r.camera);
+    this.insideGroup.visible = false;
     const shore = new THREE.DataTexture(w.shore, w.nav.sx, w.nav.sz, THREE.RedFormat, THREE.UnsignedByteType);
     shore.magFilter = shore.minFilter = THREE.LinearFilter;
     shore.generateMipmaps = false;
@@ -790,8 +811,7 @@ class Game {
     this.lookPtr = null;
     this.joy = null;
     this.pinch = null;
-    if (on) this.cutOn = 0;
-    else {
+    if (!on) {
       this.player.facing = this.player.targetFacing = this.cam.fpYaw;
       if (document.pointerLockElement) document.exitPointerLock();
     }
@@ -814,6 +834,7 @@ class Game {
     const n = inside ? this.w.interiorNav : this.w.nav;
     const sh = this.r.shared;
     sh.tHeight.value = inside ? this.heightInside : this.heightWorld;
+    sh.tOwner.value = inside ? this.cutaway.ownerInside : this.cutaway.ownerWorld;
     sh.uHeightRect.value.set(n.ox, n.oz, 1 / (n.sx * 0.25), 1 / (n.sz * 0.25));
   }
 
@@ -1387,32 +1408,20 @@ class Game {
   }
 
   /**
-   * Buildings between the camera and the player are sliced just above the street (see CUTAWAY in the
-   * voxel shader). Only chunks that can contain sliced fragments use the more expensive material.
+   * Buildings, landmarks and trees between the camera and the player are lowered as a whole (see
+   * game/cutaway.ts). Only chunks that touch a lowered occluder use the more expensive material.
    */
   private updateCutaway(dt: number): void {
-    const p = this.player.position;
+    const on = this.started && !this.cam.fp;
     const sh = this.r.shared;
-    this.cutOn += ((this.started && !this.cam.fp ? 1 : 0) - this.cutOn) * Math.min(1, dt * 3);
-    const R = THREE.MathUtils.clamp(this.cam.zoom * 0.27, 3.6, 7) * (this.inside ? 0.8 : 1);
-    sh.uCutOn.value = this.cutOn;
-    sh.uCutRadius.value = R;
-    sh.uCutH.value = p.y + 1.1; // between voxel layers so the section cap never z-fights a floor
-    sh.uCutPos.value.set(p.x, p.y, p.z);
+    sh.uCutOn.value = on ? 1 : 0;
     sh.uCamFwd.value.copy(this.cam.fwd);
+    this.cutaway.update(dt, this.player.position, this.cam.fwd, this.inside, on);
     if (this.inside) return;
-    const fx = this.cam.fwd.x, fz = this.cam.fwd.z, fl = Math.hypot(fx, fz) || 1;
-    const ax = fx / fl, az = fz / fl;
+    const act = this.cutaway.active;
     for (const c of this.chunks) {
-      const b = c.box;
-      let aMin = Infinity, lMin = Infinity, lMax = -Infinity;
-      for (let i = 0; i < 4; i++) {
-        const dx = (i & 1 ? b.max.x : b.min.x) - p.x, dz = (i & 2 ? b.max.z : b.min.z) - p.z;
-        const al = dx * ax + dz * az, la = dx * az - dz * ax;
-        aMin = Math.min(aMin, al); lMin = Math.min(lMin, la); lMax = Math.max(lMax, la);
-      }
-      const lat = lMin > 0 ? lMin : lMax < 0 ? -lMax : 0;
-      const cut = this.cutOn > 0.01 && lat < R + 0.5 && aMin < 0.5;
+      let cut = false;
+      for (let i = 0; i < c.occ.length && !cut; i++) cut = act[c.occ[i]];
       if (cut !== c.cut) { c.cut = cut; c.mesh.material = cut ? this.matCut : this.matWorld; }
     }
   }

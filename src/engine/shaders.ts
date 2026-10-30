@@ -140,18 +140,29 @@ uniform vec3 uCharLamp;
 uniform float uFlash;
 #endif
 #ifdef CUTAWAY
-uniform vec3 uCutPos;      // player feet
 uniform vec3 uCamFwd;
-uniform float uCutRadius;  // screen-space radius of the see-through window around the player (m)
-uniform float uCutH;       // world height of the slicing plane
-uniform float uCutOn;      // 0..1 fade
+uniform float uCutOn;      // 0 or 1: off in first person and on the title screen
 uniform sampler2D tHeight; // per-column top of the solid run that starts at street level (0.25 m units)
-uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres)
+uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres), shared by tHeight and tOwner
+uniform sampler2D tOwner;  // per column: R = occluder id, G = 1 on the building's shell (see game/cutaway.ts)
+uniform sampler2D tCut;    // per id: shell height near side, shell height far side, inside height, far-side start
 uniform mat4 uViewProj;
 float solidTop(vec2 xz) {
   vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return -100.0;
   return texture(tHeight, uv).r * 255.0 * 0.25;
+}
+// cut height of the column under xz, and its owner id (0 = nothing to cut)
+float cutAt(vec2 xz, vec2 fwdH, out float id) {
+  vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
+  id = 0.0;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return 1e4;
+  vec2 o = texelFetch(tOwner, ivec2(uv * vec2(textureSize(tOwner, 0))), 0).rg;
+  id = floor(o.r * 255.0 + 0.5);
+  if (id < 0.5) return 1e4;
+  vec4 c = texelFetch(tCut, ivec2(int(id), 0), 0);
+  if (o.g < 0.5) return c.z;
+  return dot(xz, fwdH) > c.w ? c.y : c.x;
 }
 #endif
 flat in vec3 vNormal;
@@ -169,29 +180,22 @@ layout(location = 0) out vec4 outColor;
 
 void main() {
 #ifdef CUTAWAY
-  // Cut a window through whatever stands between the camera and the player. A fragment is removed when
-  // it lies on the camera side of the player (measured on the ground, so facades behind the player
-  // are never touched) and inside a screen-space circle around the player (so buildings off to the
-  // side or far away stay intact). Removed mass is sliced down to a plane just above the floor; where
-  // the view ray enters a solid wall at that plane, a section cap is drawn so rooms read as a dollhouse.
+  // Whole-object cutaway: anything owned by a lowered occluder is removed above that occluder's cut
+  // height. Where the view ray meets solid wall of the same occluder at that height, a section cap is
+  // drawn at the true depth, so walls read as cut stone and rooms open up like a dollhouse.
   bool capped = false;
   vec3 capP = vec3(0.0);
-  if (uCutOn > 0.001 && vWorld.y > uCutH) {
-    vec3 chest = uCutPos + vec3(0.0, 0.9, 0.0);
-    vec3 d = vWorld - chest;
-    float lateral = length(d - uCamFwd * dot(d, uCamFwd));
+  float capH = 0.0;
+  if (uCutOn > 0.5) {
     vec2 fwdH = normalize(uCamFwd.xz);
-    float along = dot(vWorld.xz - uCutPos.xz, fwdH);
-    float edge = uCutRadius * 0.09 + 0.2;
-    float k = uCutOn * (1.0 - smoothstep(uCutRadius - edge, uCutRadius, lateral)) * (1.0 - smoothstep(-0.2, 0.25, along));
-    // dissolve threshold anchored to the voxel, not the screen, so the soft edge doesn't crawl as the view moves
-    ivec3 cc = ivec3(floor(vCell / vScale + 0.001)) + 4096;
-    uint ch = uint(cc.x) * 73856093u ^ uint(cc.y) * 19349663u ^ uint(cc.z) * 83492791u;
-    ch = (ch ^ (ch >> 13u)) * 1274126177u;
-    if (k > (float((ch >> 8u) & 1023u) + 0.5) / 1024.0) {
-      vec3 P = vWorld + uCamFwd * ((vWorld.y - uCutH) / max(0.05, -uCamFwd.y));
-      // only cap mass in front of the player: a ray that lands behind them belongs to the facade there
-      if (dot(P.xz - uCutPos.xz, fwdH) < 0.35 && solidTop(P.xz) > uCutH + 0.04) { capped = true; capP = P; }
+    float id;
+    // step a hair into the voxel this face belongs to, so faces on a column boundary pick the right owner
+    float h = cutAt(vWorld.xz - vNormal.xz * 0.06, fwdH, id);
+    if (vWorld.y > h) {
+      vec3 P = vWorld + uCamFwd * ((vWorld.y - h) / max(0.05, -uCamFwd.y));
+      float idP;
+      float hP = cutAt(P.xz, fwdH, idP);
+      if (idP == id && abs(hP - h) < 0.001 && solidTop(P.xz) > h + 0.02) { capped = true; capP = P; capH = h; }
       else discard;
     }
   }
@@ -258,19 +262,22 @@ void main() {
   }
 #ifdef CUTAWAY
   if (capped) {
-    // section cap: dark poché with faint voxel grid and a warm outline along the walls
-    float e = 0.0, o = 0.07, th = uCutH + 0.04;
+    // section cap: warm cut stone with a darker rim where the wall ends
+    float e = 0.0, o = 0.06, th = capH + 0.02;
     e += step(solidTop(capP.xz + vec2(o, 0.0)), th);
     e += step(solidTop(capP.xz - vec2(o, 0.0)), th);
     e += step(solidTop(capP.xz + vec2(0.0, o)), th);
     e += step(solidTop(capP.xz - vec2(0.0, o)), th);
-    vec2 gq = abs(fract(capP.xz * 4.0) - 0.5);
-    float grid = step(0.44, max(gq.x, gq.y));
-    vec3 lightC = uSkyColor * 0.55 + uSunColor * 0.22 + uLamp * vec3(0.25, 0.16, 0.08);
+    vec3 lightC = uSkyColor * 0.7 + uSunColor * 0.3 + uLamp * vec3(0.35, 0.24, 0.12);
     // colour depends on the cap point only: several fragments along one ray write the same cap, so they must agree
-    vec3 base = srgb2lin(vec3(0.3, 0.26, 0.28)) * (1.0 + grid * 0.35 + (fract(sin(dot(floor(capP.xz * 4.0), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.06);
-    col = base * (0.35 + lightC);
-    col = mix(col, srgb2lin(vec3(0.98, 0.86, 0.68)) * (0.45 + lightC * 0.6), min(1.0, e) * 0.9);
+    float grain = fract(sin(dot(floor(capP.xz * 4.0), vec2(12.9898, 78.233))) * 43758.5453);
+    col = srgb2lin(vec3(0.84, 0.78, 0.7)) * (0.92 + grain * 0.08) * (0.2 + lightC);
+    col *= mix(1.0, 0.62, min(1.0, e));
+  } else if (!gl_FrontFacing) {
+    // inside of a neighbour's wall, seen through a party wall that was never meshed: shade it flat in
+    // its own colour so it reads as the missing wall instead of a hole
+    col = albedo * (uSkyColor * 0.55 + uSunColor * 0.2 + lampL * uLamp * 0.5);
+    col = mix(col, uFogColor, fo);
   }
   if (capped) {
     vec4 cp = uViewProj * vec4(capP, 1.0);

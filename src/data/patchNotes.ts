@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.2.0',
+    date: '2026-10-30',
+    title: 'A fresh coat of paint',
+    items: [
+      'A brand new look for every menu: warm paper cards, rounder buttons and crisp new icons.',
+      'The HUD is calmer and easier to read. A little sun, sunset or moon shows the time of day next to where you are.',
+      'Missions ready to claim now jump to the top of your tracker and passport.',
+      'Stall menus hang a noren curtain over the counter, and vendors greet you in their own speech bubble.',
+      'Tasting cards show flavour as dots and lay the dish story out in tidy sections.',
+      'Settings now use simple switches, grouped into Look, Sound and More.',
+      'Dialogue shows how many lines are left, and cooking results award shiny new stars.',
+    ],
+  },
+  {
     version: '0.1.0',
     date: '2026-10-30',
     title: 'First stop: Tokyo',

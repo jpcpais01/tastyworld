@@ -7,6 +7,7 @@ import { STALL } from '../data/stalls';
 import { MISSIONS, ITEMS, Mission } from '../data/missions';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { CookingGame } from './cooking';
+import { G } from './glyphs';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -17,6 +18,8 @@ const h = (tag: string, cls = '', html = ''): HTMLElement => {
 };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const yen = (n: number) => `¥${n.toLocaleString('en-US')}`;
+const stars = (n: number, of = 3) => G.star.repeat(n) + (of > n ? `<span class="off">${G.star.repeat(of - n)}</span>` : '');
+const touch = () => matchMedia('(pointer: coarse)').matches;
 
 const MISSION_ICONS: Record<string, string> = {
   'first-bite': '🥢', trio: '🍡', sweet: '🍯', apprentice: '👩‍🍳', alley: '🏮', night: '🌙', cats: '🐱', secret: '🚪', stars: '⭐', master: '🏆',
@@ -40,6 +43,22 @@ export interface GameHooks {
 
 interface Label { el: HTMLElement; pos: [number, number, number]; visible: boolean; until?: number; }
 
+/** An on/off switch button. */
+function toggle(on: boolean, set: (v: boolean) => void, label = ''): HTMLElement {
+  const wrap = h('label', 'toggle', label ? `<span>${label}</span>` : '');
+  const sw = h('button', 'sw');
+  sw.setAttribute('role', 'switch');
+  sw.setAttribute('aria-checked', String(on));
+  sw.onclick = (e) => {
+    e.preventDefault();
+    on = !on;
+    sw.setAttribute('aria-checked', String(on));
+    set(on);
+  };
+  wrap.appendChild(sw);
+  return wrap;
+}
+
 export class UI {
   icons: Record<string, string> = {};
   private hud = $('hud');
@@ -49,9 +68,10 @@ export class UI {
   private root = $('panel-root');
   private titleEl = $('title');
   private locName!: HTMLElement;
-  private locJp!: HTMLElement;
   private clockEl!: HTMLElement;
+  private todEl!: HTMLElement;
   private yenEl!: HTMLElement;
+  private yenChip!: HTMLElement;
   private trackerEl!: HTMLElement;
   private ppDot!: HTMLElement;
   private labels = new Map<string, Label>();
@@ -59,6 +79,8 @@ export class UI {
   private dialogueEl: HTMLElement | null = null;
   private promptKey = '';
   private lastZone = '';
+  private lastTod = '';
+  private lastYen = -1;
   onPrompt: (() => void) | null = null;
   onRotate: ((dir: number) => void) | null = null;
   onZoom: ((f: number) => void) | null = null;
@@ -84,16 +106,16 @@ export class UI {
   title(onStart: () => void): void {
     const t = this.titleEl;
     const hasSave = Object.keys(this.s.tasted).length > 0 || this.s.playTime > 30;
+    const got = Object.keys(this.s.tasted).length;
     t.innerHTML = `
       <div class="title-top">
-        <h1 class="title-logo">Tasty World</h1>
-        <div class="title-jp">東京 · 屋台めぐり</div>
-        <div class="title-tag">A street food adventure · First stop, Tokyo</div>
+        <h1 class="title-logo">Tasty<span class="w2">World</span><span class="title-sticker">東京 · 屋台</span></h1>
+        <div class="title-tag">${hasSave ? `Welcome back, traveller · ${got} / ${DISHES.length} stamps` : 'Travel the world through its street food'}</div>
       </div>
-      <div class="title-actions">
-        <button class="btn-hero" id="t-start">${hasSave ? 'Continue journey' : 'Start your journey'}</button>
-        <button class="btn-ghost" id="t-notes">What's new in v${PATCH_NOTES[0].version}</button>
-        <div class="title-hint">${matchMedia('(pointer: coarse)').matches ? 'Tap to walk · Drag to move · Pinch to zoom' : 'Click or WASD to walk · Q/E rotate · Scroll to zoom'}</div>
+      <div class="title-card">
+        <button class="btn btn-hero" id="t-start">${G.play}${hasSave ? 'Continue journey' : 'Start in Tokyo'}</button>
+        <div class="title-row"><button class="btn btn-ghost" id="t-notes">${G.sparkle}What's new · v${PATCH_NOTES[0].version}</button></div>
+        <div class="title-hint">${touch() ? '<b>Tap</b> to walk · <b>Drag</b> to look · <b>Pinch</b> to zoom' : '<b>Click</b> or <b>WASD</b> to walk · <b>Q</b>/<b>E</b> to rotate · <b>Scroll</b> to zoom'}</div>
       </div>`;
     t.classList.remove('hidden');
     $('t-start').onclick = () => { this.audio.start(); this.audio.play('chime'); t.classList.add('hidden'); onStart(); };
@@ -104,28 +126,39 @@ export class UI {
   private buildHud() {
     this.hud.innerHTML = `
       <div class="hud-tl">
-        <div class="chip loc"><div class="loc-city">Tokyo · 東京 <span class="clock" id="h-clock">16:36</span></div><div class="loc-name" id="h-loc">Temple Plaza</div><div class="loc-jp" id="h-jp"></div></div>
-        <div class="chip tracker" id="h-track"></div>
+        <div class="card place">
+          <div class="tod" id="h-tod">${G.sun}</div>
+          <div>
+            <div class="place-meta">Tokyo <span class="clock" id="h-clock">16:36</span></div>
+            <div class="place-name" id="h-loc">Temple Plaza</div>
+          </div>
+        </div>
+        <button class="card tracker" id="h-track" aria-label="Missions"></button>
       </div>
       <div class="hud-tr">
-        <div class="chip yen"><span class="coin">¥</span><span id="h-yen">3,000</span></div>
-        <button class="chip icon-btn" id="h-pass" title="Food Passport (P)">📕<span class="dot hidden" id="h-dot"></span></button>
-        <button class="chip icon-btn" id="h-map" title="World map (M)">🗺️</button>
-        <button class="chip icon-btn" id="h-set" title="Settings">⚙️</button>
+        <div class="card yen" id="h-yenchip" title="Your yen"><span class="coin">¥</span><span id="h-yen">3,000</span></div>
+        <div class="card dock">
+          <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
+          <button id="h-map" title="World map (M)" aria-label="World map">${G.map}</button>
+          <button id="h-set" title="Settings" aria-label="Settings">${G.gear}</button>
+        </div>
       </div>
-      <div class="hud-bl"><div class="chip keys"><b>WASD</b> walk · <b>Q</b><b>E</b> rotate · <b>Space</b> interact · <b>P</b> passport</div></div>
+      <div class="hud-bl"><div class="keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Q</kbd><kbd>E</kbd> rotate</span><span><kbd>Space</kbd> interact</span><span><kbd>P</kbd> passport</span></div></div>
       <div class="hud-br">
-        <button class="chip icon-btn" id="h-rl" title="Rotate (Q)">⟲</button>
-        <button class="chip icon-btn" id="h-rr" title="Rotate (E)">⟳</button>
+        <div class="card dock">
+          <button id="h-rl" title="Rotate left (Q)" aria-label="Rotate left">${G.rotL}</button>
+          <button id="h-rr" title="Rotate right (E)" aria-label="Rotate right">${G.rotR}</button>
+        </div>
       </div>`;
-    this.locName = $('h-loc'); this.locJp = $('h-jp'); this.clockEl = $('h-clock');
-    this.yenEl = $('h-yen'); this.trackerEl = $('h-track'); this.ppDot = $('h-dot');
+    this.locName = $('h-loc'); this.clockEl = $('h-clock'); this.todEl = $('h-tod');
+    this.yenEl = $('h-yen'); this.yenChip = $('h-yenchip'); this.trackerEl = $('h-track'); this.ppDot = $('h-dot');
     const tap = (id: string, fn: () => void) => $(id).addEventListener('click', (e) => { e.stopPropagation(); this.audio.play('click'); fn(); });
     tap('h-pass', () => this.passport());
     tap('h-map', () => this.map());
     tap('h-set', () => this.settings());
     tap('h-rl', () => this.onRotate?.(-1));
     tap('h-rr', () => this.onRotate?.(1));
+    tap('h-track', () => this.passport('missions'));
     for (const el of this.hud.querySelectorAll('button')) el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.refresh();
   }
@@ -135,25 +168,42 @@ export class UI {
   location(name: string, jp: string, clock: string): void {
     if (name !== this.lastZone) {
       this.lastZone = name;
-      this.locName.textContent = name;
-      this.locJp.textContent = jp;
+      this.locName.innerHTML = `${esc(name)}${jp ? `<span class="jp">${jp}</span>` : ''}`;
+      this.locName.classList.remove('swap');
+      void this.locName.offsetWidth;
+      this.locName.classList.add('swap');
     }
-    if (this.clockEl.textContent !== clock) this.clockEl.textContent = clock;
+    if (this.clockEl.textContent !== clock) {
+      this.clockEl.textContent = clock;
+      const hr = parseInt(clock, 10);
+      const tod = hr >= 19 || hr < 5 ? 'night' : hr >= 17 || hr < 7 ? 'dusk' : 'day';
+      if (tod !== this.lastTod) {
+        this.lastTod = tod;
+        this.todEl.className = `tod ${tod}`;
+        this.todEl.innerHTML = tod === 'night' ? G.moon : tod === 'dusk' ? G.sunset : G.sun;
+      }
+    }
   }
 
   /** Re-render yen, the mission tracker and the passport notification dot. */
   refresh(): void {
     this.yenEl.textContent = this.s.yen.toLocaleString('en-US');
+    if (this.lastYen >= 0 && this.s.yen !== this.lastYen) {
+      this.yenChip.classList.remove('bump');
+      void this.yenChip.offsetWidth;
+      this.yenChip.classList.add('bump');
+    }
+    this.lastYen = this.s.yen;
     const open = MISSIONS.filter((m) => !this.s.claimed.includes(m.id));
-    const claimable = open.some((m) => { const [a, b] = m.progress(this.s); return a >= b; });
-    this.ppDot.classList.toggle('hidden', !claimable);
-    const show = open.filter((m) => m.id !== 'secret' || this.s.hiddenFound).slice(0, 3);
-    this.trackerEl.innerHTML = `<h4>Missions</h4>` + (show.length ? show.map((m) => {
+    const ready = open.filter((m) => { const [a, b] = m.progress(this.s); return a >= b; });
+    this.ppDot.classList.toggle('hidden', !ready.length);
+    // claimable missions first, then the ones in progress
+    const show = [...ready, ...open.filter((m) => !ready.includes(m) && (m.id !== 'secret' || this.s.hiddenFound))].slice(0, 3);
+    this.trackerEl.innerHTML = `<div class="eyebrow"><span>Missions</span>${ready.length ? `<em>${ready.length} to claim</em>` : ''}</div>` + (show.length ? show.map((m) => {
       const [a, b] = m.progress(this.s);
       const done = a >= b;
-      return `<div class="m"><span class="bar"><i style="width:${Math.min(100, (a / b) * 100)}%"></i></span><span>${done ? '✅ ' : ''}${esc(m.name)}${done ? ' · claim!' : ` <small style="opacity:.6">${a}/${b}</small>`}</span></div>`;
-    }).join('') : `<div class="m">Tokyo complete! 🎉</div>`);
-    this.trackerEl.onclick = () => this.passport('missions');
+      return `<div class="tm${done ? ' ready' : ''}"><span>${esc(m.name)}</span><small>${done ? 'Claim' : `${a}/${b}`}</small><span class="tb"><i style="width:${Math.min(100, (a / b) * 100)}%"></i></span></div>`;
+    }).join('') : `<div class="tm"><span>Tokyo complete! 🎉</span></div>`);
   }
 
   // ------------------------------------------------------------------ prompt, toasts, labels
@@ -161,7 +211,7 @@ export class UI {
     if (key === this.promptKey) return;
     this.promptKey = key;
     if (!key) { this.promptEl.classList.add('hidden'); return; }
-    this.promptEl.innerHTML = `<span class="pk">${icon}</span><span class="pt">${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><kbd>Space</kbd>`;
+    this.promptEl.innerHTML = `<span class="pk">${icon}</span><span class="pt">${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="pgo"><span class="key">SPACE</span><span class="tap">${G.arrow}</span></span>`;
     this.promptEl.classList.remove('hidden');
     // restart the pop animation
     this.promptEl.style.animation = 'none';
@@ -175,7 +225,7 @@ export class UI {
     t.innerHTML = `<span class="ti">${ic}</span><span><b>${esc(title)}</b>${esc(text)}</span>`;
     this.toasts.appendChild(t);
     while (this.toasts.children.length > 3) this.toasts.firstElementChild!.remove();
-    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 450); }, gold ? 4200 : 3000);
+    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, gold ? 4200 : 3000);
   }
 
   label(key: string, html: string, cls: string, pos: [number, number, number]): HTMLElement {
@@ -236,6 +286,7 @@ export class UI {
     this.close(false);
     const scrim = h('div', 'scrim');
     const p = h('div', cls);
+    p.setAttribute('role', 'dialog');
     scrim.addEventListener('pointerdown', (e) => { if (e.target === scrim) { this.audio.play('click'); onClose?.(); this.close(); } });
     p.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.root.appendChild(scrim);
@@ -245,11 +296,16 @@ export class UI {
     return p;
   }
 
-  private head(p: HTMLElement, title: string, jp = '', sub = '', onClose?: () => void): HTMLElement {
-    const hd = h('div', 'panel-head', `<h2>${title}</h2>${jp ? `<div class="jp">${jp}</div>` : ''}${sub ? `<div class="sub">${sub}</div>` : ''}`);
-    const c = h('button', 'close', '✕');
+  private closeBtn(onClose?: () => void): HTMLElement {
+    const c = h('button', 'close', G.close);
+    c.setAttribute('aria-label', 'Close');
     c.onclick = () => { this.audio.play('click'); onClose?.(); this.close(); };
-    hd.appendChild(c);
+    return c;
+  }
+
+  private head(p: HTMLElement, title: string, jp = '', sub = '', icon = '', onClose?: () => void): HTMLElement {
+    const hd = h('div', 'panel-head', `${icon ? `<div class="ph-icon">${icon}</div>` : ''}<div><h2>${title}${jp ? `<span class="jp">${jp}</span>` : ''}</h2>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`);
+    hd.appendChild(this.closeBtn(onClose));
     p.appendChild(hd);
     return hd;
   }
@@ -268,26 +324,26 @@ export class UI {
   // stall menu ------------------------------------------------------------------------------
   stall(st: StallInfo): void {
     const p = this.panel();
-    this.head(p, st.name, st.jp, `${esc(st.street)} · ${st.hidden ? 'Omakase counter' : 'Street stall'}`);
+    p.appendChild(h('div', 'noren' + (st.hidden ? ' secret' : ''), `<span>${st.jp.split(' ').pop() ?? ''}</span>`));
+    this.head(p, esc(st.name), '', `${esc(st.street)} · ${st.hidden ? 'Omakase counter' : 'Street stall'}`);
     const body = h('div', 'panel-body');
     const greet = st.greeting[Math.floor(Math.random() * st.greeting.length)];
-    body.innerHTML = `<div class="vendor-line"><span class="who">${esc(st.vendor)}</span><span>“${esc(greet)}”</span></div>`;
+    body.innerHTML = `<div class="vendor-line"><span class="ava">${esc(st.vendor.charAt(0))}</span><div class="say"><b>${esc(st.vendor)}</b>“${esc(greet)}”</div></div>`;
     const menu = h('div', 'menu');
     for (const id of st.dishes) {
       const d = DISH[id];
       const got = !!this.s.tasted[id];
       const card = h('div', 'dish-card');
       const canCook = st.recipe.dish === id;
-      const stars = this.s.cooked[id] ?? 0;
+      const cooked = this.s.cooked[id] ?? 0;
       card.innerHTML = `
-        <div class="dimg">${this.icons[id] ? `<img src="${this.icons[id]}" alt="">` : ''}</div>
+        <div class="dimg">${this.icons[id] ? `<img src="${this.icons[id]}" alt="">` : ''}${got ? `<span class="badge">${G.check}Stamped</span>` : '<span class="badge red">New</span>'}</div>
         <div>
-          <h3>${esc(d.name)} <span class="jp">${d.jp}</span></h3>
+          <h3>${esc(d.name)}<span class="jp">${d.jp}</span></h3>
           <p>${esc(d.tagline)}</p>
           <div class="row">
             <button class="btn btn-red" data-a="taste">Taste · ${yen(d.price)}</button>
-            ${canCook ? `<button class="btn btn-ink" data-a="cook">👩‍🍳 Cook it${stars ? ` · ${'★'.repeat(stars)}` : ''}</button>` : ''}
-            ${got ? '<span class="badge">✓ Stamped</span>' : '<span class="badge red">New</span>'}
+            ${canCook ? `<button class="btn btn-soft" data-a="cook">${G.chef}Cook it${cooked ? ` <span class="stars-sm">${G.star.repeat(cooked)}</span>` : ''}</button>` : ''}
           </div>
         </div>`;
       card.querySelector<HTMLButtonElement>('[data-a="taste"]')!.onclick = () => {
@@ -319,32 +375,30 @@ export class UI {
   }
 
   // tasting card --------------------------------------------------------------------------
-  taste(id: FoodId, isNew: boolean, stars = 0, tip = 0): void {
+  taste(id: FoodId, isNew: boolean, cooked = 0, tip = 0): void {
     const d = DISH[id];
     const p = this.panel();
     const hero = h('div', 'taste-hero', `<div class="rays"></div>${this.icons[id] ? `<img src="${this.icons[id]}" alt="${esc(d.name)}">` : ''}
       <div class="stamp${isNew ? ' new' : ''}"><div><span>${d.jp.slice(0, 2)}</span>TOKYO<br>${isNew ? 'NEW!' : 'TASTED'}</div></div>`);
+    hero.appendChild(this.closeBtn());
     p.appendChild(hero);
-    const c = h('button', 'close', '✕');
-    c.onclick = () => { this.audio.play('click'); this.close(); };
-    hero.appendChild(c);
-    const hd = h('div', 'panel-head', `<h2>${esc(d.name)}</h2><div class="jp">${d.jp} · ${esc(d.romaji)}</div><div class="sub">${esc(d.tagline)}</div>`);
-    p.appendChild(hd);
+    p.appendChild(h('div', 'taste-head', `<div class="eyebrow">${isNew ? 'New stamp' : 'Food passport'}</div><h2>${esc(d.name)}</h2><div class="jp-line"><span class="jp">${d.jp}</span>${esc(d.romaji)}</div><div class="tagline">${esc(d.tagline)}</div>`));
     const body = h('div', 'panel-body');
-    const bar = (label: string, v: number) => `<span>${label}</span><span class="fb"><i style="width:${v * 20}%"></i></span>`;
+    const pips = (label: string, v: number) => `<span>${label}</span><span class="pips">${[0, 1, 2, 3, 4].map((i) => `<i class="${i < v ? 'on' : ''}"></i>`).join('')}</span>`;
     body.innerHTML = `
-      ${stars ? `<div class="vendor-line"><span class="who">You cooked it!</span><span>${'★'.repeat(stars)}${'☆'.repeat(3 - stars)} · ${STALL[d.stall]?.vendor ?? 'The vendor'} tipped you ${yen(tip)}.</span></div>` : ''}
+      ${cooked ? `<div class="cooked-note"><span class="stars-big">${stars(cooked)}</span><span>You cooked it! ${esc(STALL[d.stall]?.vendor ?? 'The vendor')} tipped you ${yen(tip)}.</span></div>` : ''}
       <div class="facts">
-        <div class="fact"><h4>Origin</h4>${esc(d.origin)}</div>
-        <div class="fact"><h4>History</h4>${esc(d.history)}</div>
-        <div class="fact"><h4>Ingredients</h4><ul>${d.ingredients.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>
-        <div class="fact"><h4>Culture</h4>${esc(d.culture)}</div>
-        <div class="fact"><h4>Flavour</h4><div class="flavor">${bar('Sweet', d.flavor.sweet)}${bar('Savoury', d.flavor.savory)}${bar('Umami', d.flavor.umami)}${bar('Crunch', d.flavor.crunch)}</div></div>
-        <div class="fact"><h4>Local tip</h4>${esc(d.tip)}</div>
-      </div>
-      <div style="text-align:center;margin-top:16px"><button class="btn btn-red" id="tk-ok">Itadakimasu! いただきます</button></div>`;
+        <div class="sec fact"><h4>Origin</h4>${esc(d.origin)}</div>
+        <div class="sec fact"><h4>Flavour</h4><div class="flavor">${pips('Sweet', d.flavor.sweet)}${pips('Savoury', d.flavor.savory)}${pips('Umami', d.flavor.umami)}${pips('Crunch', d.flavor.crunch)}</div></div>
+        <div class="sec fact wide"><h4>History</h4>${esc(d.history)}</div>
+        <div class="sec fact"><h4>Ingredients</h4><ul>${d.ingredients.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>
+        <div class="sec fact"><h4>Culture</h4>${esc(d.culture)}</div>
+        <div class="sec fact wide"><h4>Local tip</h4>${esc(d.tip)}</div>
+      </div>`;
     p.appendChild(body);
-    body.querySelector<HTMLButtonElement>('#tk-ok')!.onclick = () => { this.audio.play('click'); this.close(); };
+    const foot = h('div', 'taste-foot', `<button class="btn btn-red btn-hero" id="tk-ok">Itadakimasu! <span class="jp">いただきます</span></button>`);
+    p.appendChild(foot);
+    foot.querySelector<HTMLButtonElement>('#tk-ok')!.onclick = () => { this.audio.play('click'); this.close(); };
     if (isNew) setTimeout(() => this.audio.play('stamp'), 520);
   }
 
@@ -352,16 +406,21 @@ export class UI {
   passport(tab: 'stamps' | 'missions' | 'items' | 'tokyo' = 'stamps'): void {
     const p = this.panel('panel passport');
     const got = Object.keys(this.s.tasted).length;
-    this.head(p, 'Food Passport', '日本 · JAPAN', `${got} / ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`);
+    this.head(p, 'Food Passport', '日本', `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
     const tabs = h('div', 'pp-tabs');
+    const seg = h('div', 'seg');
+    seg.setAttribute('role', 'tablist');
+    tabs.appendChild(seg);
     const page = h('div', 'pp-page');
-    const names: [typeof tab, string][] = [['stamps', '🍡 Stamps'], ['missions', '🎯 Missions'], ['items', '🎒 Items'], ['tokyo', '🗼 Tokyo']];
+    const names: [typeof tab, string, string][] = [['stamps', 'Stamps', G.bowl], ['missions', 'Missions', G.target], ['items', 'Bag', G.bag], ['tokyo', 'Tokyo', G.book]];
     const render = (t: typeof tab) => {
-      tabs.innerHTML = '';
-      for (const [k, n] of names) {
-        const b = h('button', 'pp-tab' + (k === t ? ' on' : ''), n);
+      seg.innerHTML = '';
+      for (const [k, n, ic] of names) {
+        const b = h('button', k === t ? 'on' : '', `${ic}${n}`);
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', String(k === t));
         b.onclick = () => { this.audio.play('click'); render(k); };
-        tabs.appendChild(b);
+        seg.appendChild(b);
       }
       page.innerHTML = '';
       if (t === 'stamps') this.ppStamps(page);
@@ -376,18 +435,18 @@ export class UI {
 
   private ppStamps(page: HTMLElement) {
     const got = Object.keys(this.s.tasted).length;
-    page.innerHTML = `<div class="pp-cover"><div class="pp-flag"><i></i></div><div><b style="font-family:var(--display);font-size:20px">Tokyo · 東京</b><div style="font-size:13px;color:var(--ink-soft)">Collect a stamp for every dish you taste or cook.</div><div class="pp-progress"><i style="width:${(got / DISHES.length) * 100}%"></i></div></div></div>`;
+    page.innerHTML = `<div class="pp-cover"><div class="pp-flag"><i></i></div><div><b>Tokyo <span class="jp" style="font-weight:400;font-size:15px">東京</span></b><p>Collect a stamp for every dish you taste or cook.</p><div class="pbar"><span><i style="width:${(got / DISHES.length) * 100}%"></i></span>${got}/${DISHES.length}</div></div></div>`;
     const grid = h('div', 'stamps');
     for (const d of DISHES) {
       const has = !!this.s.tasted[d.id];
       const st = STALL[d.stall];
       const hidden = st?.hidden && !this.s.hiddenFound;
-      const stars = this.s.cooked[d.id] ?? 0;
-      const slot = h('div', 'slot' + (has ? ' got' : ' locked'), `
-        ${stars ? `<span class="stars">${'★'.repeat(stars)}</span>` : ''}
-        ${has ? `<span class="ss">${d.jp.slice(0, 1)}</span>` : ''}
+      const cooked = this.s.cooked[d.id] ?? 0;
+      const slot = h('button', 'slot' + (has ? ' got' : ' locked'), `
+        ${cooked ? `<span class="stars">${G.star.repeat(cooked)}</span>` : ''}
+        ${has ? `<span class="ss">${d.jp.slice(0, 1)}</span>` : `<span class="lk">${hidden ? G.lock : ''}</span>`}
         ${this.icons[d.id] ? `<img src="${this.icons[d.id]}" alt="">` : ''}
-        <div class="sn">${has ? esc(d.name) : hidden ? '???' : esc(d.name)}<br><small style="font-weight:400;color:var(--ink-soft)">${has ? d.jp : hidden ? 'A secret counter' : esc(st?.name ?? '')}</small></div>`);
+        <div class="sn">${hidden && !has ? '???' : esc(d.name)}<small>${has ? d.jp : hidden ? 'A secret counter' : esc(st?.name ?? '')}</small></div>`);
       slot.onclick = () => {
         this.audio.play('click');
         if (has) this.taste(d.id, false);
@@ -399,29 +458,32 @@ export class UI {
   }
 
   private ppMissions(page: HTMLElement, rerender: () => void) {
-    for (const m of MISSIONS) {
+    // ready to claim first, then in progress, then claimed
+    const rank = (m: Mission) => { const [a, b] = m.progress(this.s); return this.s.claimed.includes(m.id) ? 2 : a >= b ? 0 : 1; };
+    for (const m of [...MISSIONS].sort((x, y) => rank(x) - rank(y))) {
       const [a, b] = m.progress(this.s);
       const claimed = this.s.claimed.includes(m.id);
       const done = a >= b;
       const secret = m.id === 'secret' && !this.s.hiddenFound && !done;
       const rw = [m.reward.yen ? yen(m.reward.yen) : '', m.reward.item ? `${ITEMS[m.reward.item].icon} ${ITEMS[m.reward.item].name}` : '', m.reward.title ? `“${m.reward.title}”` : ''].filter(Boolean).join('<br>');
-      const row = h('div', 'mission' + (claimed ? ' done' : ''), `
-        <div class="mi">${claimed ? '✅' : MISSION_ICONS[m.id] ?? '🎯'}</div>
-        <div><h5>${secret ? '???' : esc(m.name)}</h5><p>${secret ? 'Somewhere in this district hides a counter with no sign.' : esc(m.desc)} <b>${Math.min(a, b)}/${b}</b></p></div>
+      const row = h('div', 'mission' + (claimed ? ' done' : done ? ' ready' : ''), `
+        <div class="mi">${claimed ? G.check : MISSION_ICONS[m.id] ?? '🎯'}</div>
+        <div><h5>${secret ? '???' : esc(m.name)}</h5><p>${secret ? 'Somewhere in this district hides a counter with no sign.' : esc(m.desc)}</p>
+          ${claimed ? '' : `<div class="mbar"><span><i style="width:${Math.min(100, (a / b) * 100)}%"></i></span>${Math.min(a, b)}/${b}</div>`}</div>
         <div class="rw"></div>`);
       const rwEl = row.querySelector('.rw')!;
       if (done && !claimed) {
         const btn = h('button', 'btn btn-red', 'Claim');
         btn.onclick = () => { this.hooks.claim(m); rerender(); };
         rwEl.appendChild(btn);
-      } else rwEl.innerHTML = claimed ? 'Claimed' : rw;
+      } else rwEl.innerHTML = claimed ? `<span class="claimed">${G.check}Claimed</span>` : rw;
       page.appendChild(row);
     }
   }
 
   private ppItems(page: HTMLElement) {
     if (!this.s.items.length) {
-      page.innerHTML = `<p style="text-align:center;color:var(--ink-soft);margin-top:60px">Your bag is empty.<br>Complete missions to earn souvenirs for your traveller.</p>`;
+      page.innerHTML = `<div class="empty"><div class="ei">${G.bag}</div>Your bag is empty.<br>Complete missions to earn souvenirs for your traveller.</div>`;
       return;
     }
     const grid = h('div', 'items');
@@ -430,13 +492,11 @@ export class UI {
       if (!it) continue;
       const card = h('div', 'item', `<div class="ii">${it.icon}</div><h5>${esc(it.name)}</h5><div>${esc(it.desc)}</div>`);
       if (WEARABLE.includes(id)) {
-        const sw = h('label', 'switch', `<input type="checkbox" ${this.s.wear[id] ? 'checked' : ''}> Wear it`);
-        sw.querySelector('input')!.onchange = (e) => {
-          this.s.wear[id] = (e.target as HTMLInputElement).checked;
+        card.appendChild(toggle(!!this.s.wear[id], (v) => {
+          this.s.wear[id] = v;
           this.audio.play('pop');
           this.hooks.wearChanged();
-        };
-        card.appendChild(sw);
+        }, 'Wear it'));
       }
       grid.appendChild(card);
     }
@@ -445,16 +505,16 @@ export class UI {
 
   private ppTokyo(page: HTMLElement) {
     page.innerHTML = `
-      <div class="fact" style="margin-bottom:10px"><h4>Tokyo · 東京</h4>Once the fishing village of Edo, Tokyo became the shogun's capital in 1603 and grew into the largest city on Earth. Its food culture was born on the street: sushi, tempura and soba all started as quick snacks sold from stalls to busy workers.</div>
-      <div class="fact" style="margin-bottom:10px"><h4>Yatai &amp; yokochō</h4>Yatai are portable food carts that appear at dusk. Yokochō are narrow alleys packed with tiny counters, many dating from the post-war markets of the 1940s.</div>
-      <div class="fact" style="margin-bottom:10px"><h4>Etiquette</h4><ul><li>Say “itadakimasu” before eating and “gochisōsama” after.</li><li>Eat near the stall instead of walking with your food.</li><li>Slurping noodles is a compliment to the cook.</li><li>No tipping in real Tokyo! Here, vendors reward your help in the kitchen.</li></ul></div>
-      <div class="fact"><h4>Words to know</h4><ul><li><b>Irasshaimase</b>: welcome!</li><li><b>Oishii</b>: delicious</li><li><b>Omakase</b>: “I leave it to you”, the chef's choice</li><li><b>Kanpai</b>: cheers</li></ul></div>`;
+      <div class="sec fact"><h4>Tokyo · 東京</h4>Once the fishing village of Edo, Tokyo became the shogun's capital in 1603 and grew into the largest city on Earth. Its food culture was born on the street: sushi, tempura and soba all started as quick snacks sold from stalls to busy workers.</div>
+      <div class="sec fact"><h4>Yatai &amp; yokochō</h4>Yatai are portable food carts that appear at dusk. Yokochō are narrow alleys packed with tiny counters, many dating from the post-war markets of the 1940s.</div>
+      <div class="sec fact"><h4>Etiquette</h4><ul><li>Say “itadakimasu” before eating and “gochisōsama” after.</li><li>Eat near the stall instead of walking with your food.</li><li>Slurping noodles is a compliment to the cook.</li><li>No tipping in real Tokyo! Here, vendors reward your help in the kitchen.</li></ul></div>
+      <div class="sec fact"><h4>Words to know</h4><div class="words"><b>Irasshaimase</b><span>Welcome!</span><b>Oishii</b><span>Delicious</span><b>Omakase</b><span>“I leave it to you”, the chef's choice</span><b>Kanpai</b><span>Cheers</span></div></div>`;
   }
 
   // world map -----------------------------------------------------------------------------
   map(): void {
     const p = this.panel();
-    this.head(p, 'World Map', '世界地図', 'Every passport you complete opens a new destination.');
+    this.head(p, 'World Map', '世界地図', 'Every passport you complete opens a new destination.', G.plane);
     const wrap = h('div', 'map-wrap');
     const dests = [
       { flag: '🇯🇵', name: 'Japan · Tokyo', desc: 'Kaminari Lane, Lantern Alley, Sakura Canal', here: true, x: 84, y: 40 },
@@ -464,9 +524,11 @@ export class UI {
       { flag: '🇹🇷', name: 'Türkiye · Istanbul', desc: 'Simit, balık ekmek, döner', x: 57, y: 36 },
       { flag: '🇲🇽', name: 'Mexico · Mexico City', desc: 'Tacos al pastor, elotes, tamales', x: 20, y: 46 },
     ];
-    const dots = dests.map((d) => `<circle cx="${d.x}%" cy="${d.y}%" r="${d.here ? 6 : 4}" fill="${d.here ? '#ff6a4a' : '#f2d88a'}" opacity="${d.here ? 1 : 0.55}">${d.here ? '<animate attributeName="r" values="5;8;5" dur="1.6s" repeatCount="indefinite"/>' : ''}</circle>`).join('');
-    wrap.innerHTML = `<div class="globe"><svg viewBox="0 0 100 60" preserveAspectRatio="none">
-      <g fill="rgba(255,255,255,0.13)">
+    const dots = dests.map((d) => d.here
+      ? `<circle cx="${d.x}" cy="${d.y}" r="3" fill="#e9573f" stroke="#fff" stroke-width="1"><animate attributeName="r" values="2.6;3.6;2.6" dur="1.6s" repeatCount="indefinite"/></circle>`
+      : `<circle cx="${d.x}" cy="${d.y}" r="1.6" fill="#fff" stroke="#283a6e" stroke-width="0.6" opacity="0.85"/>`).join('');
+    wrap.innerHTML = `<div class="globe"><svg viewBox="0 0 100 60" preserveAspectRatio="xMidYMid slice">
+      <g fill="#fffaf2" stroke="#e3d2b4" stroke-width="0.5">
         <path d="M8 16 Q18 8 30 12 Q34 20 28 28 Q24 36 20 48 Q16 40 12 30 Q6 24 8 16Z"/>
         <path d="M26 50 Q32 48 34 56 Q30 60 28 58Z"/>
         <path d="M44 14 Q52 10 60 14 Q58 22 52 24 Q46 26 44 20Z"/>
@@ -474,12 +536,13 @@ export class UI {
         <path d="M60 12 Q76 8 90 14 Q92 24 84 28 Q76 32 70 30 Q62 26 60 18Z"/>
         <path d="M78 44 Q86 42 90 48 Q86 52 80 50Z"/>
       </g>
-      <path d="M84 40 Q66 18 51 36 M84 40 Q52 4 20 46" stroke="rgba(242,216,138,0.35)" stroke-width="0.4" fill="none" stroke-dasharray="1 1"/>
+      <path d="M84 40 Q66 18 51 36 M84 40 Q52 4 20 46" stroke="#e9573f" stroke-width="0.5" fill="none" stroke-dasharray="1.2 1.2" opacity="0.7"/>
       ${dots}</svg></div>`;
     const list = h('div', 'tickets');
     const complete = Object.keys(this.s.tasted).length >= DISHES.length;
     for (const d of dests) {
-      const t = h('div', 'ticket' + (d.here ? '' : ' locked'), `<div class="flag">${d.flag}</div><div><h4>${d.name}</h4><p>${d.desc}</p></div><div class="go">${d.here ? 'You are here' : complete && d.name.startsWith('South') ? 'Next stop!' : 'Coming soon'}</div>`);
+      const next = complete && d.name.startsWith('South');
+      const t = h('button', 'ticket' + (d.here ? ' here' : next ? ' next' : ' locked'), `<div class="flag">${d.flag}</div><div><h4>${d.name}</h4><p>${d.desc}</p></div><div class="go">${d.here ? 'You are here' : next ? 'Next stop!' : 'Coming soon'}</div>`);
       t.onclick = () => {
         this.audio.play('click');
         if (d.here) this.close();
@@ -494,11 +557,21 @@ export class UI {
   // settings + notes ----------------------------------------------------------------------
   settings(): void {
     const p = this.panel();
-    this.head(p, 'Settings', '設定');
+    this.head(p, 'Settings', '設定', '', G.gear);
     const body = h('div', 'panel-body');
     const st = this.s.settings;
-    const seg = (label: string, opts: [string, string][], cur: string, set: (v: string) => void) => {
-      const row = h('div', 'set-row', `<span>${label}</span>`);
+    const group = (name: string) => {
+      body.appendChild(h('div', 'eyebrow set-label', name));
+      const g = h('div', 'set-group');
+      body.appendChild(g);
+      return g;
+    };
+    const row = (g: HTMLElement, icon: string, label: string, ctl: HTMLElement) => {
+      const r = h('div', 'set-row', `<span class="sl">${icon}${label}</span>`);
+      r.appendChild(ctl);
+      g.appendChild(r);
+    };
+    const seg = (opts: [string, string][], cur: string, set: (v: string) => void) => {
       const sg = h('div', 'seg');
       for (const [v, n] of opts) {
         const b = h('button', v === cur ? 'on' : '', n);
@@ -511,20 +584,20 @@ export class UI {
         };
         sg.appendChild(b);
       }
-      row.appendChild(sg);
-      body.appendChild(row);
+      return sg;
     };
-    seg('Graphics', [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], st.quality, (v) => { st.quality = v as typeof st.quality; });
-    seg('Music', [['1', 'On'], ['0', 'Off']], st.music ? '1' : '0', (v) => { st.music = v === '1'; });
-    seg('Sound', [['1', 'On'], ['0', 'Off']], st.sfx ? '1' : '0', (v) => { st.sfx = v === '1'; });
-    seg('Miniature focus', [['1', 'On'], ['0', 'Off']], st.tilt ? '1' : '0', (v) => { st.tilt = v === '1'; });
-    seg('Day length', [['360', '6 min'], ['720', '12 min'], ['1440', '24 min']], String(st.dayLength), (v) => { st.dayLength = Number(v); });
-    const row = h('div', 'set-row', `<span>What's new</span>`);
+    const sw = (on: boolean, set: (v: boolean) => void) => toggle(on, (v) => { set(v); this.audio.play('click'); this.hooks.settingsChanged(); });
+    const look = group('Look');
+    row(look, G.monitor, 'Graphics', seg([['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], st.quality, (v) => { st.quality = v as typeof st.quality; }));
+    row(look, G.eye, 'Miniature focus', sw(st.tilt, (v) => { st.tilt = v; }));
+    row(look, G.clock, 'Day length', seg([['360', '6 min'], ['720', '12 min'], ['1440', '24 min']], String(st.dayLength), (v) => { st.dayLength = Number(v); }));
+    const sound = group('Sound');
+    row(sound, G.music, 'Music', sw(st.music, (v) => { st.music = v; }));
+    row(sound, G.speaker, 'Sound effects', sw(st.sfx, (v) => { st.sfx = v; }));
+    const more = group('More');
     const nb = h('button', 'btn btn-soft', `v${PATCH_NOTES[0].version} notes`);
     nb.onclick = () => { this.audio.play('click'); this.notes(); };
-    row.appendChild(nb);
-    body.appendChild(row);
-    const rrow = h('div', 'set-row', `<span>Reset progress</span>`);
+    row(more, G.sparkle, "What's new", nb);
     const rb = h('button', 'btn btn-soft', 'Reset');
     let armed = false;
     rb.onclick = () => {
@@ -533,32 +606,33 @@ export class UI {
       this.hooks.reset();
       this.close();
     };
-    rrow.appendChild(rb);
-    body.appendChild(rrow);
-    body.appendChild(h('p', '', `<small style="color:var(--ink-soft)">Tasty World v${PATCH_NOTES[0].version} · Progress is saved on this device.</small>`));
+    row(more, G.trash, 'Reset progress', rb);
+    body.appendChild(h('p', 'set-foot', `Tasty World v${PATCH_NOTES[0].version} · Progress is saved on this device.`));
     p.appendChild(body);
   }
 
   notes(): void {
     const p = this.panel();
-    this.head(p, 'Patch notes', 'お知らせ', 'What changed in Tasty World.');
+    this.head(p, 'Patch notes', 'お知らせ', 'What changed in Tasty World.', G.sparkle);
     const body = h('div', 'panel-body notes');
-    body.innerHTML = PATCH_NOTES.map((n) => `<h3>v${n.version} · ${esc(n.title)}</h3><div class="nd">${n.date}</div><ul>${n.items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`).join('');
+    body.innerHTML = PATCH_NOTES.map((n, i) => `<div class="note"><div class="nh"><span class="badge${i ? ' gold' : ' red'}">v${n.version}</span><h3>${esc(n.title)}</h3></div><div class="nd">${n.date}</div><ul>${n.items.map((it) => `<li>${esc(it)}</li>`).join('')}</ul></div>`).join('');
     p.appendChild(body);
   }
 
   // dialogue ------------------------------------------------------------------------------
   dialogue(name: string, lines: string[], onDone?: () => void): void {
     this.endDialogue();
-    const el = h('div', 'dialogue', `<div class="dn">${esc(name)}</div><div class="dt"></div><div class="dm"></div>`);
+    const el = h('div', 'dialogue', `<div class="dn">${esc(name)}</div><div class="dt"></div><div class="dm"><span class="pips"></span><span class="more"></span></div>`);
     this.root.appendChild(el);
     this.dialogueEl = el;
     this.hooks.panel(true);
-    const dt = el.querySelector('.dt') as HTMLElement, dm = el.querySelector('.dm') as HTMLElement;
+    const dt = el.querySelector('.dt') as HTMLElement, more = el.querySelector('.more') as HTMLElement, pips = el.querySelector('.pips') as HTMLElement;
     let i = 0, ch = 0, timer = 0;
     const show = () => {
       ch = 0;
-      dm.textContent = i < lines.length - 1 ? 'Tap to continue ▸' : 'Tap to close';
+      const tapWord = touch() ? 'Tap' : 'Click or Space';
+      more.innerHTML = i < lines.length - 1 ? `${tapWord} to continue ${G.arrow}` : `${tapWord} to close`;
+      pips.innerHTML = lines.length > 1 ? lines.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('') : '';
       clearInterval(timer);
       timer = window.setInterval(() => {
         ch += 2;

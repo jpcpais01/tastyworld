@@ -11,11 +11,11 @@ export interface Chunk {
   iz: number;
   /** Tallest solid in the chunk (metres), from the height field, for culling before the mesh exists. */
   top: number;
-  full: THREE.Mesh | null;
-  lod: THREE.Mesh | null;
-  pending: 'full' | 'lod' | null;
-  /** What the view wants right now. */
-  want: 'full' | 'lod' | null;
+  /** Meshes by level of detail: 0 full detail with props, 1 half resolution, 2 quarter resolution. */
+  lv: (THREE.Mesh | null)[];
+  pending: number | null;
+  /** The level the view wants right now (null: not at all). */
+  want: number | null;
   /** Last time (s) the view wanted it at all. */
   seen: number;
   /** Cutaway: occluders the chunk can touch, and whether it currently uses the cutaway material. */
@@ -30,10 +30,16 @@ export interface StreamView {
   focus: THREE.Vector3;
 }
 
+/** Level-of-detail rings for a view distance (metres): full detail inside `full`, half inside `half`, quarter out to `far`. */
+export function lodRings(dist: number): { full: number; half: number; far: number } {
+  const full = Math.min(64, Math.max(40, dist * 0.34));
+  return { full, half: Math.max(full + 16, dist * 0.62), far: dist + CHUNK * V };
+}
+
 /**
  * Keeps the voxel city on the GPU only where the camera can see it. The world workers each own a strip
  * of chunk rows and mesh chunks on request; this decides which chunks are wanted (full detail in or near
- * the view, half resolution in the first-person distance), queues requests nearest first, swaps meshes
+ * the view, then half and quarter resolution with distance), queues requests nearest first, swaps meshes
  * in as they arrive and frees chunks that have been out of sight for a while.
  */
 export class Streamer {
@@ -51,6 +57,8 @@ export class Streamer {
   private waiters: (() => void)[] = [];
   /** Full-detail chunks kept around before the least recently seen are dropped. */
   budget: number;
+  /** View distance in metres (first person draws out to it; the iso view uses coarser chunks when zoomed far out). */
+  dist = 120;
   /** Called for every mesh added to the scene (materials, layers, cutaway bookkeeping). */
   onMesh: (c: Chunk, m: THREE.Mesh) => void = () => {};
 
@@ -69,7 +77,7 @@ export class Streamer {
         let h = 0;
         for (let z = iz * CHUNK; z < (iz + 1) * CHUNK; z++)
           for (let x = ix * CHUNK; x < (ix + 1) * CHUNK; x++) h = Math.max(h, height[z * CHUNKS_X * CHUNK + x]);
-        this.chunks.push({ ix, iz, top: h * V + 6, full: null, lod: null, pending: null, want: null, seen: -1e9, occ: [], cut: false });
+        this.chunks.push({ ix, iz, top: h * V + 6, lv: [null, null, null], pending: null, want: null, seen: -1e9, occ: [], cut: false });
       }
     workers.forEach((w, i) => {
       w.addEventListener('message', (e: MessageEvent<WorkerOut>) => { if (e.data.type === 'mesh') this.arrive(i, e.data); });
@@ -89,7 +97,7 @@ export class Streamer {
 
   /** True when every chunk the view wants at full detail has arrived. */
   get settled(): boolean {
-    for (const c of this.chunks) if (c.want === 'full' && !c.full) return false;
+    for (const c of this.chunks) if (c.want === 0 && !c.lv[0]) return false;
     return true;
   }
 
@@ -127,22 +135,31 @@ export class Streamer {
     }
     this.frustum.setFromProjectionMatrix(this.m4);
     const eye = cam.position;
+    const ring = lodRings(this.dist);
+    const wanted: { c: Chunk; d: number }[] = [];
     for (const c of this.chunks) {
       const [x0, z0, x1, z1] = this.rect(c);
       const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
       const dFocus = Math.hypot(cx - focus.x, cz - focus.z);
       let want: Chunk['want'] = null;
+      this.box.min.set(x0 - 1, -3, z0 - 1);
+      this.box.max.set(x1 + 1, c.top, z1 + 1);
       if (fp) {
+        // all around close by; further out only what the eye can see (turning round streams the rest in)
         const d = Math.hypot(cx - eye.x, cz - eye.z);
-        if (d < 46) want = 'full';
-        else if (d < 92) want = 'lod';
-      } else {
-        this.box.min.set(x0 - 1, -3, z0 - 1);
-        this.box.max.set(x1 + 1, c.top, z1 + 1);
-        if (dFocus < 14 || this.frustum.intersectsBox(this.box)) want = 'full';
+        if (d < 30) want = 0;
+        else if (d < ring.far && this.frustum.intersectsBox(this.box)) want = d < ring.full ? 0 : d < ring.half ? 1 : 2;
+      } else if (dFocus < 14 || this.frustum.intersectsBox(this.box)) {
+        want = 0;
+        wanted.push({ c, d: dFocus });
       }
       c.want = want;
-      if (want) c.seen = this.t;
+      if (want !== null) c.seen = this.t;
+    }
+    // zoomed far out in the iso view: keep full detail near the focus and draw the outskirts coarser
+    if (wanted.length > this.budget * 0.8) {
+      wanted.sort((a, b) => a.d - b.d);
+      for (let i = Math.floor(this.budget * 0.8); i < wanted.length; i++) wanted[i].c.want = 1;
     }
     this.evict(focus);
   }
@@ -150,15 +167,15 @@ export class Streamer {
   /** Send the most urgent requests to idle workers. */
   private pump(focus: THREE.Vector3): void {
     if (this.busy.every((b) => b >= 2)) return;
-    const queue: { c: Chunk; lod: boolean; pri: number }[] = [];
+    const queue: { c: Chunk; lod: number; pri: number }[] = [];
     for (const c of this.chunks) {
-      if (!c.want || c.pending) continue;
-      const lod = c.want === 'lod';
-      if (lod ? c.lod : c.full) continue;
+      if (c.want === null || c.pending !== null) continue;
+      const lod = c.want;
+      if (c.lv[lod]) continue;
       if (this.busy[this.partOf(c.iz)] >= 2) continue;
       const [x0, z0, x1, z1] = this.rect(c);
       const d = Math.hypot((x0 + x1) / 2 - focus.x, (z0 + z1) / 2 - focus.z);
-      queue.push({ c, lod, pri: d + (lod ? 60 : 0) });
+      queue.push({ c, lod, pri: d + lod * 60 });
     }
     queue.sort((a, b) => a.pri - b.pri);
     for (const q of queue) {
@@ -166,7 +183,7 @@ export class Streamer {
       if (this.busy[p] >= 2) continue;
       this.busy[p]++;
       const id = this.nextId++;
-      q.c.pending = q.lod ? 'lod' : 'full';
+      q.c.pending = q.lod;
       this.inflight.set(id, q.c);
       this.workers[p].postMessage({ type: 'mesh', id, ix: q.c.ix, iz: q.c.iz, lod: q.lod });
     }
@@ -178,21 +195,19 @@ export class Streamer {
     this.inflight.delete(msg.id);
     if (!c) return;
     c.pending = null;
+    const lv = msg.lod;
     if (!msg.mesh) {
       // nothing to draw (should not happen for the city, which always has ground): mark as loaded
-      if (msg.lod) c.lod = new THREE.Mesh(); else c.full = new THREE.Mesh();
+      c.lv[lv] = new THREE.Mesh();
       return;
     }
-    if (!c.want && this.t - c.seen > 2) return; // no longer needed
+    if (c.want === null && this.t - c.seen > 2) return; // no longer needed
+    // a coarser mesh is only worth showing while it is still wanted or nothing finer is there
+    if (c.want !== null && c.want < lv && c.lv.some((m, i) => m && i < lv)) return;
     const m = this.make(msg.mesh);
-    if (msg.lod) {
-      if (c.full && c.want !== 'lod') { this.drop(m); return; }
-      if (c.full) { this.drop(c.full); c.full = null; }
-      c.lod = m;
-    } else {
-      c.full = m;
-      if (c.lod) { this.drop(c.lod); c.lod = null; }
-    }
+    // keep one mesh per chunk: the new one replaces whatever was drawn before
+    for (let i = 0; i < 3; i++) if (c.lv[i]) { this.drop(c.lv[i]!); c.lv[i] = null; }
+    c.lv[lv] = m;
     this.group.add(m);
     this.resident.add(c);
     this.onMesh(c, m);
@@ -223,25 +238,25 @@ export class Streamer {
     const stale: Chunk[] = [];
     let full = 0;
     for (const c of this.resident) {
-      if (c.full) full++;
-      if (!c.want) stale.push(c);
+      if (c.lv[0]) full++;
+      if (c.want === null) stale.push(c);
     }
     stale.sort((a, b) => a.seen - b.seen);
     for (const c of stale) {
       const [x0, z0, x1, z1] = this.rect(c);
-      const far = Math.hypot((x0 + x1) / 2 - focus.x, (z0 + z1) / 2 - focus.z) > 130;
+      const far = Math.hypot((x0 + x1) / 2 - focus.x, (z0 + z1) / 2 - focus.z) > Math.max(130, this.dist + 30);
       const old = this.t - c.seen > 20;
       if (full <= this.budget && !far && !old) break;
       if (this.t - c.seen < 1.5) continue;
-      if (c.full) { this.drop(c.full); c.full = null; full--; }
-      if (c.lod) { this.drop(c.lod); c.lod = null; }
+      if (c.lv[0]) full--;
+      for (let i = 0; i < 3; i++) if (c.lv[i]) { this.drop(c.lv[i]!); c.lv[i] = null; }
       c.cut = false;
       this.resident.delete(c);
     }
   }
 
-  /** Mesh objects currently drawn for a chunk (full detail wins over LOD). */
+  /** The mesh currently drawn for a chunk, if any. */
   meshOf(c: Chunk): THREE.Mesh | null {
-    return c.full && c.full.geometry.attributes.position ? c.full : c.lod && c.lod.geometry.attributes.position ? c.lod : null;
+    return c.lv.find((m) => m && m.geometry.attributes.position) ?? null;
   }
 }

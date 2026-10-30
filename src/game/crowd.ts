@@ -2,22 +2,34 @@ import { Actor, Anim, SIT_DROP } from './actors';
 import type { Nav } from './nav';
 import type { Anchors, StallAnchor } from '../world/tokyo';
 import type { RoomAnchor, RoomKind } from '../world/interiors';
-import type { Look } from '../world/characters';
+import { randomLook, type Look } from '../world/characters';
+import { rng } from '../world/grid';
+import { crowdSpots, laneFor, streetAt, Spot } from '../world/crowdspots';
+import { zoneAt } from '../world/layout';
 import { CROWD_CHAT, CROWD_GREET, CROWD_STARTLE, CROWD_ENVY } from '../data/dialogue';
 
 /**
- * Passers-by with a little life of their own. Each one has a persona and a pace, follows the
- * street graph, and at every junction picks something to do based on the time of day: browse a
- * stall and buy a snack, eat it on a bench, pop into a shop or an izakaya, stop for a photo or a
- * phone call, chat with someone they bump into, or head home for the night. Some walk in pairs.
- * They steer around each other and the player, glance at you, greet you if you stop nearby and
- * jump if you run into them.
+ * The city's people, each with a little life of their own. A walker has a persona and a pace and
+ * moves along the street graph. At every junction they pick something to do from the time of day
+ * and where they are: browse a stall and buy a snack, eat it on a bench, look in shop windows, pop
+ * into a shop or an izakaya, stop for a photo or a phone call, or chat with someone they bump into.
+ * Some set off across town on purpose: commuters stream through the station gates at rush hour,
+ * elders pray at the shrine in the morning, students meet on the station square, neighbours take
+ * the evening bath at the sento and office workers drift to the bars of Golden lane after dark.
+ * Joggers lap the park pond, dogs take their owners for walks, cyclists and delivery scooters ride
+ * the streets, swan boats pedal round the pond and a group does radio exercises on the lawn at dawn.
+ *
+ * Only people near the player are simulated in full and drawn; the rest of the city ticks over
+ * a few times a second without their bodies being built at all.
  */
 
 type V2 = [number, number];
-type Persona = 'commuter' | 'local' | 'tourist' | 'student' | 'elder';
+type Persona = 'commuter' | 'local' | 'tourist' | 'student' | 'elder' | 'jogger' | 'dogwalker' | 'cyclist' | 'courier';
+type Mode = 'foot' | 'jog' | 'ride';
 
 interface Seat { x: number; z: number; y: number; face: number; approach: V2; bench: number; taken: Walker | null; }
+interface Taken extends Spot { taken: Walker | null }
+interface Step { anim: Anim; t: number; face?: number; hold?: 'phone' | 'none' }
 
 type Goal =
   | { k: 'node' }
@@ -25,17 +37,26 @@ type Goal =
   | { k: 'shop'; room: RoomAnchor; face: number }
   | { k: 'sit'; seat: Seat }
   | { k: 'home'; room: RoomAnchor }
-  | { k: 'pause' };
+  | { k: 'pause' }
+  | { k: 'seq'; steps: Step[]; spot: Taken | null; then?: (w: Walker) => boolean }
+  /** Through the ticket gates and onto a train, or in at the sento's door. */
+  | { k: 'vanish' };
 
 type Doing =
   | { k: 'wait'; t: number; anim: Anim; face?: number }
   | { k: 'browse'; t: number; face: number; stall?: StallAnchor; served: boolean }
   | { k: 'sit'; seat: Seat; t: number; stage: 0 | 1 | 2; s: number }
-  | { k: 'chat'; t: number; with: Walker; talk: boolean; swap: number };
+  | { k: 'chat'; t: number; with: Walker; talk: boolean; swap: number }
+  | { k: 'seq'; steps: Step[]; i: number; t: number; spot: Taken | null; then?: (w: Walker) => boolean };
+
+interface Pet { actor: Actor; sniff: number; next: number }
+/** A rider: the walker's own actor is the bicycle or scooter, `person` sits on it. */
+interface Ride { person: Actor; seat: number; scooter: boolean; parked: boolean }
 
 interface Walker {
   actor: Actor;
   persona: Persona;
+  mode: Mode;
   node: number;
   prev: number;
   path: V2[];
@@ -46,6 +67,7 @@ interface Walker {
   pace: number;
   v: number;
   lane: number;
+  laneR: number;
   side: number;
   food: number;
   hidden: boolean;
@@ -64,7 +86,23 @@ interface Walker {
   /** Where we last stood up or walked out from (to get back onto the graph). */
   from: V2 | null;
   hideT: number;
+  /** A node across town this walker is heading for, and what they will do there. */
+  dest: number;
+  place: Place | null;
+  /** Joggers: index on the pond ring (-1 when off it) and laps left. */
+  ring: number;
+  laps: number;
+  pet: Pet | null;
+  ride: Ride | null;
+  /** Share of the day this walker is out: out while `out` is below the persona's turnout. */
+  out: number;
+  /** Distance to the player, and how long the body has been out of sight. */
+  dist: number;
+  unseen: number;
+  acc: number;
 }
+
+interface Place { name: string; node: number; weight(w: Walker, h: number): number; go(w: Walker, h: number): boolean }
 
 export interface CrowdPlayer { x: number; z: number; speed: number; running: boolean; eating: boolean; facing: number; }
 
@@ -76,13 +114,32 @@ export interface CrowdHooks {
   quiet(): boolean;
 }
 
-const PERSONA_PACE: Record<Persona, number> = { commuter: 1.35, local: 1.05, tourist: 0.9, student: 1.2, elder: 0.72 };
+/** Builds the bodies (lazily: meshes are made the first time they are drawn). */
+export interface CrowdMaker {
+  person(look: Look): Actor;
+  dog(seed: number): Actor;
+  vehicle(kind: 'bike' | 'scooter', seed: number): Actor;
+  boat(seed: number): Actor;
+}
+
+export interface CrowdSize { walkers: number; joggers: number; dogs: number; cyclists: number; couriers: number; boats: number; exercise: number }
+
+const PERSONA_PACE: Record<Persona, number> = { commuter: 1.35, local: 1.05, tourist: 0.9, student: 1.2, elder: 0.72, jogger: 2.5, dogwalker: 0.85, cyclist: 3.9, courier: 4.9 };
 const SNACK_ROOMS: RoomKind[] = ['bakery', 'cafe', 'konbini'];
+/** Zones bicycles and scooters keep out of. */
+const NO_RIDE = new Set(['ginza', 'park', 'midori', 'inari', 'yokocho', 'passage', 'station', 'plaza', 'kaminari', 'canal', 'farbank']);
+const BIKE_SEAT = 0.42, SCOOTER_SEAT = 0.3; // rider origin above the ground
+const CELL = 2;
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const angTo = (ax: number, az: number, bx: number, bz: number) => Math.atan2(bx - ax, bz - az);
-const bump = (h: number, c: number, w: number) => Math.exp(-((h - c) * (h - c)) / (2 * w * w));
+const bump = (h: number, c: number, w: number) => {
+  let d = Math.abs(h - c);
+  d = Math.min(d, 24 - d);
+  return Math.exp(-(d * d) / (2 * w * w));
+};
+const within = (h: number, a: number, b: number) => (a <= b ? h >= a && h < b : h >= a || h < b);
 
 function personaOf(l: Look): Persona {
   if (l.topStyle === 'suit') return 'commuter';
@@ -92,12 +149,18 @@ function personaOf(l: Look): Persona {
   return 'local';
 }
 
-/** Share of the crowd out on the street at a given hour. */
-function turnout(h: number): number {
-  if (h < 5) return 0.3;
-  if (h < 7) return 0.3 + (h - 5) * 0.3;
-  if (h < 22) return 1;
-  return 1 - (h - 22) * 0.3;
+/** Share of a persona out and about at a given hour. */
+function turnout(p: Persona, h: number): number {
+  const base = h < 5 ? 0.25 : h < 7 ? 0.25 + (h - 5) * 0.37 : h < 22 ? 1 : 1 - (h - 22) * 0.35;
+  switch (p) {
+    case 'elder': return within(h, 5.5, 19) ? 1 : within(h, 19, 22) ? 0.5 : 0.06;
+    case 'student': return within(h, 7, 22.5) ? 1 : 0.06;
+    case 'jogger': return Math.min(1, 0.12 + 1.2 * bump(h, 7, 1.4) + 1.1 * bump(h, 18.5, 1.6));
+    case 'dogwalker': return Math.min(1, 0.15 + 1.1 * bump(h, 7.5, 1.3) + 1.0 * bump(h, 17.5, 1.6) + 0.4 * bump(h, 12, 2));
+    case 'cyclist': return within(h, 6.5, 23) ? 1 : 0.15;
+    case 'courier': return within(h, 10, 23.5) ? 1 : within(h, 9, 10) ? 0.5 : 0;
+    default: return base;
+  }
 }
 
 function roomOpen(kind: RoomKind, h: number): boolean {
@@ -106,6 +169,22 @@ function roomOpen(kind: RoomKind, h: number): boolean {
     case 'konbini': return true;
     case 'cafe': case 'bakery': case 'kissa': return h >= 7 && h < 20;
     default: return h >= 9.5 && h < 21;
+  }
+}
+
+/** How much a district draws people at an hour (for wandering at junctions). */
+function zoneDraw(zone: string, h: number): number {
+  const night = within(h, 18.5, 2.5), day = within(h, 7, 18.5);
+  switch (zone) {
+    case 'neon': case 'center': return night ? 1.8 : 0.9;
+    case 'golden': case 'gado': return night ? 2 : 0.45;
+    case 'park': return day ? 1.4 : 0.25;
+    case 'inari': case 'midori': return day ? 1 : 0.15;
+    case 'ginza': return within(h, 10, 20.5) ? 1.6 : 0.3;
+    case 'yanaka': case 'nishi': return 0.6;
+    case 'ekimae': case 'station': case 'hikari': return 1 + 1.5 * bump(h, 8, 0.9) + 1.5 * bump(h, 18, 1);
+    case '': return 0.7;
+    default: return 1 + 0.8 * bump(h, 12.3, 1.3) + 0.8 * bump(h, 19, 1.5); // the food streets
   }
 }
 
@@ -119,20 +198,54 @@ export class Crowd {
   private chatT = 0;
   private sayT = 4;
   private nodes: V2[];
+  private zones: string[];
+  private rideOk: boolean[];
   private obstacles: V2[] = [];
   private friends: [number, number][] = [];
   private nbrs: number[][];
+  private dist: Float32Array;
+  private places: Place[] = [];
+  private grid = new Map<number, Walker[]>();
+  private pray: Taken[];
+  private purify: Taken[];
+  private gates: { front: V2; back: V2 }[];
+  private meet: Taken[];
+  private windows: Taken[];
+  private sento: { door: V2; front: V2 } | null;
+  private jog: V2[];
+  private parkNode = -1;
+  private viewR = 40;
+  private pl: CrowdPlayer = { x: 0, z: 0, speed: 0, running: false, eating: false, facing: 0 };
+  private boats: Boats | null = null;
+  private exercise: Exercise | null = null;
 
-  constructor(private nav: Nav, private a: Anchors, private hooks: CrowdHooks) {
+  constructor(private nav: Nav, private a: Anchors, private hooks: CrowdHooks, private make?: CrowdMaker) {
     this.nodes = a.graph.nodes;
+    const n = this.nodes.length;
     this.nbrs = this.nodes.map((_, i) => a.graph.edges.filter((e) => e[0] === i || e[1] === i).map((e) => (e[0] === i ? e[1] : e[0])));
+    this.zones = this.nodes.map(([x, z]) => zoneAt(x, z)?.id ?? '');
+    this.rideOk = this.zones.map((zn) => !NO_RIDE.has(zn));
+    // all-pairs distances along the street graph, for walking somewhere on purpose
+    this.dist = new Float32Array(n * n).fill(1e9);
+    for (let i = 0; i < n; i++) this.dist[i * n + i] = 0;
+    for (const [p, q] of a.graph.edges) {
+      const d = Math.hypot(this.nodes[p][0] - this.nodes[q][0], this.nodes[p][1] - this.nodes[q][1]);
+      this.dist[p * n + q] = this.dist[q * n + p] = Math.min(this.dist[p * n + q], d);
+    }
+    for (let k = 0; k < n; k++) for (let i = 0; i < n; i++) {
+      const ik = this.dist[i * n + k];
+      if (ik >= 1e9) continue;
+      for (let j = 0; j < n; j++) { const d = ik + this.dist[k * n + j]; if (d < this.dist[i * n + j]) this.dist[i * n + j] = d; }
+    }
     // two seats per bench, each with a walkable spot to sit down from
     a.benches.forEach(([bx, bz, f], bi) => {
-      const fz = Math.cos(f);
+      const fz = Math.cos(f), fx = Math.sin(f);
+      // seats sit across the bench (perpendicular to the way a sitter faces)
       for (const sx of [-0.38, 0.38]) {
-        const cand: V2[] = [[bx + sx, bz + 0.75 * fz], [bx + sx, bz + 0.62 * fz], [bx + Math.sign(sx) * 1.2, bz + 0.3 * fz], [bx - Math.sign(sx) * 1.2, bz + 0.3 * fz], [bx + Math.sign(sx) * 1.2, bz]];
+        const ox = sx * fz, oz = -sx * fx;
+        const cand: V2[] = [[bx + ox + fx * 0.75, bz + oz + fz * 0.75], [bx + ox + fx * 0.62, bz + oz + fz * 0.62], [bx + Math.sign(sx) * 1.2 * fz + fx * 0.3, bz - Math.sign(sx) * 1.2 * fx + fz * 0.3]];
         const ap = cand.find(([x, z]) => this.free(x, z));
-        if (ap) this.seats.push({ x: bx + sx, z: bz - 0.04 * fz, y: 0.5, face: f, approach: ap, bench: bi, taken: null });
+        if (ap) this.seats.push({ x: bx + ox - fx * 0.04, z: bz + oz - fz * 0.04, y: 0.5, face: f, approach: ap, bench: bi, taken: null });
       }
     });
     // café terrace stools: one seat each, sat down onto from the open side
@@ -149,27 +262,95 @@ export class Crowd {
       const cand: V2[] = [[s.stand[0] - uz * 0.62, s.stand[1] + ux * 0.62], [s.stand[0] + uz * 0.62, s.stand[1] - ux * 0.62], [s.stand[0] + ux * 0.6, s.stand[1] + uz * 0.6]];
       this.stallSpots.set(s.id, cand.filter(([x, z]) => this.free(x, z)).map((p) => ({ p, taken: null })));
     }
+    // the city's special places, keeping only spots that are really free to stand on
+    const sp = crowdSpots();
+    const ok = (s: Spot) => this.free(s.x, s.z);
+    const facade = (s: Spot) => { const x = s.x + Math.sin(s.face) * 0.9, z = s.z + Math.cos(s.face) * 0.9; return !this.nav.canStand(x, z, this.nav.standHeightVox(s.x, s.z), 0.1); };
+    const taken = (l: Spot[]) => l.map((s) => ({ ...s, taken: null as Walker | null }));
+    this.pray = taken(sp.pray.filter(ok));
+    this.purify = taken(sp.purify.filter(ok));
+    this.gates = sp.gates.filter((g) => this.free(g.front[0], g.front[1]) && this.free(g.back[0], g.back[1]));
+    this.meet = taken(sp.meet.filter(ok));
+    this.windows = taken(sp.windows.filter((s) => ok(s) && facade(s)));
+    this.sento = this.free(sp.sento.front[0], sp.sento.front[1]) ? sp.sento : null;
+    this.jog = sp.jog.filter(([x, z]) => this.free(x, z));
+    if (this.jog.length < 10) this.jog = [];
+    this.buildPlaces();
+    if (make) {
+      this.boats = new Boats(sp.boats, make);
+      this.exercise = new Exercise(sp.exercise, make, (x, z) => this.free(x, z, 0.3), (x, z) => this.nav.heightAt(x, z));
+    }
   }
 
-  private free(x: number, z: number): boolean {
-    return this.nav.canStand(x, z, this.nav.standHeightVox(x, z), 0.16);
+  private free(x: number, z: number, r = 0.16): boolean {
+    return this.nav.canStand(x, z, this.nav.standHeightVox(x, z), r);
+  }
+
+  private nearestNode(x: number, z: number, rideOnly = false): number {
+    let best = 0, bd = Infinity;
+    this.nodes.forEach(([nx, nz], i) => {
+      if (rideOnly && !this.rideOk[i]) return;
+      const d = Math.hypot(nx - x, nz - z);
+      if (d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+
+  // ------------------------------------------------------------------ populating
+
+  /** Fills the city: `size` says how many of each kind of people (scaled down on phones). */
+  populate(size: CrowdSize, seed = 1000): void {
+    if (!this.make) return;
+    const mk = this.make;
+    const n = this.nodes.length;
+    const startNode = (ride = false) => { for (;;) { const i = Math.floor(Math.random() * n); if (!ride || this.rideOk[i]) return i; } };
+    let prev: Walker | null = null;
+    for (let i = 0; i < size.walkers; i++) {
+      const look = lookFor(seed + i * 7, null);
+      const pair = i % 5 === 4 && prev && !prev.mate;
+      prev = this.add(mk.person(look), look, pair ? prev!.node : startNode(), pair ? prev! : undefined);
+    }
+    for (let i = 0; i < size.joggers; i++) {
+      const look = lookFor(seed + 5000 + i * 11, 'jogger');
+      this.add(mk.person(look), look, startNode(), undefined, 'jogger');
+    }
+    for (let i = 0; i < size.dogs; i++) {
+      const look = lookFor(seed + 6000 + i * 13, 'dogwalker');
+      const w = this.add(mk.person(look), look, startNode(), undefined, 'dogwalker');
+      w.pet = { actor: mk.dog(seed + 6000 + i), sniff: 0, next: rnd(6, 20) };
+      w.pet.actor.position.copy(w.actor.position);
+    }
+    for (let i = 0; i < size.cyclists + size.couriers; i++) {
+      const courier = i >= size.cyclists;
+      const look = lookFor(seed + 7000 + i * 17, courier ? 'courier' : 'cyclist');
+      const veh = mk.vehicle(courier ? 'scooter' : 'bike', seed + 7000 + i);
+      const w = this.add(veh, look, startNode(true), undefined, courier ? 'courier' : 'cyclist');
+      w.ride = { person: mk.person(look), seat: courier ? SCOOTER_SEAT : BIKE_SEAT, scooter: courier, parked: false };
+      w.ride.person.pedals = !courier;
+      w.ride.person.anim = 'ride';
+    }
+    this.boats?.populate(size.boats, (s) => mk.person(lookFor(s, null)));
+    this.exercise?.populate(size.exercise, (s) => mk.person(lookFor(s, 'elder')));
   }
 
   /** Adds a pedestrian (or a pair walking together when `mateOf` is given). */
-  add(actor: Actor, look: Look, node: number, mateOf?: Walker): Walker {
-    const persona = personaOf(look);
+  add(actor: Actor, look: Look, node: number, mateOf?: Walker, persona?: Persona): Walker {
+    const ps = persona ?? personaOf(look);
+    const mode: Mode = ps === 'jogger' ? 'jog' : ps === 'cyclist' || ps === 'courier' ? 'ride' : 'foot';
     const w: Walker = {
-      actor, persona, node, prev: -1, path: [], tgt: null, goal: { k: 'node' }, doing: null,
-      pace: PERSONA_PACE[persona] * rnd(0.88, 1.12), v: 0, lane: rnd(-0.6, 0.6), side: Math.random() < 0.5 ? 1 : -1,
+      actor, persona: ps, mode, node, prev: -1, path: [], tgt: null, goal: { k: 'node' }, doing: null,
+      pace: PERSONA_PACE[ps] * rnd(0.88, 1.12), v: 0, lane: 0, laneR: Math.random(), side: Math.random() < 0.5 ? 1 : -1,
       food: 0, hidden: false, wantHome: false, lead: null, mate: null, mateSeat: null,
-      chatCool: rnd(5, 25), greetCool: rnd(0, 20), nearT: 0, stuck: 0, stuckRef: [0, 0], run: false, ghost: 0, from: null, hideT: 0,
+      chatCool: rnd(5, 25), greetCool: rnd(0, 20), nearT: 0, stuck: 0, stuckRef: [0, 0], run: mode === 'jog', ghost: 0, from: null, hideT: 0,
+      dest: -1, place: null, ring: -1, laps: 0, pet: null, ride: null, out: Math.random(), dist: 0, unseen: 0, acc: Math.random() * 0.25,
     };
     const [nx, nz] = this.nodes[node];
-    actor.position.set(nx, this.nav.heightAt(nx, nz), nz);
+    actor.position.set(nx + rnd(-1, 1), this.nav.heightAt(nx, nz), nz + rnd(-1, 1));
     if (mateOf) {
       w.lead = mateOf;
       mateOf.mate = w;
       w.pace = mateOf.pace;
+      w.out = mateOf.out;
       actor.position.copy(mateOf.actor.position).x += 0.6;
     }
     this.walkers.push(w);
@@ -181,48 +362,102 @@ export class Crowd {
     this.obstacles.push([x, z]);
   }
 
-  /** Walkers out on the street right now. */
+  /**
+   * Bodies to animate and draw this frame: everyone out on the street within `viewR` of the player.
+   * Bodies further away are hidden, and their meshes freed once they have been out of sight a while.
+   */
   *visible(): Generator<Actor> {
-    for (const w of this.walkers) if (!w.hidden) yield w.actor;
+    // build at most a few new bodies a frame, so walking into a busy street never stalls a frame
+    let builds = 6;
+    for (const w of this.walkers) {
+      let on = !w.hidden && w.dist < this.viewR;
+      if (on && !w.actor.built) on = builds-- > 0;
+      if (on) w.unseen = 0;
+      else if ((w.unseen += 1 / 60) > 45) this.release(w);
+      show(w.actor, on);
+      if (w.pet) show(w.pet.actor, on);
+      if (w.ride) show(w.ride.person, on);
+      if (!on) continue;
+      yield w.actor;
+      if (w.pet) yield w.pet.actor;
+      if (w.ride) yield w.ride.person;
+    }
+    if (this.boats) yield* this.boats.visible(this.pl, this.viewR);
+    if (this.exercise) yield* this.exercise.visible(this.pl, this.viewR);
+  }
+
+  private release(w: Walker): void {
+    if (!w.actor.built) return;
+    w.actor.release();
+    w.pet?.actor.release();
+    w.ride?.person.release();
   }
 
   /** Puts the right share of the crowd indoors for the starting hour. */
   settle(hour: number): void {
-    const units = this.walkers.filter((w) => !w.lead);
-    const out = Math.round(units.length * turnout(hour));
-    for (const w of units.slice(out)) { this.hide(w); if (w.mate) this.hide(w.mate); }
+    for (const w of this.walkers) {
+      if (w.lead) continue;
+      if (w.out >= turnout(w.persona, hour)) { this.hide(w); if (w.mate) this.hide(w.mate); }
+    }
+    this.boats?.settle(hour);
   }
 
-  /** `friends` are co-op travellers, stepped around like the player. */
-  update(dt: number, hour: number, pl: CrowdPlayer, friends: [number, number][] = []): void {
-    this.budget = 1;
+  /** `friends` are co-op travellers, stepped around like the player; `viewR` is how far the camera sees. */
+  update(dt: number, hour: number, pl: CrowdPlayer, friends: [number, number][] = [], viewR = 40): void {
+    this.budget = 2;
     this.friends = friends;
+    this.pl = pl;
+    this.viewR = viewR;
     this.population(dt, hour, pl);
     const ws = this.walkers;
+    // who is where, for stepping around each other
+    this.grid.clear();
+    for (const w of ws) {
+      const p = w.actor.position;
+      w.dist = Math.hypot(p.x - pl.x, p.z - pl.z);
+      if (w.hidden || w.dist > viewR + 12) continue;
+      const k = this.key(p.x, p.z);
+      const l = this.grid.get(k);
+      if (l) l.push(w); else this.grid.set(k, [w]);
+    }
+    const nearR = viewR + 10;
     for (const w of ws) {
       if (w.hidden) continue;
-      w.chatCool -= dt; w.greetCool -= dt;
+      // far from the player: a few cheap ticks a second
+      let step = dt;
+      const near = w.dist < nearR;
+      // going home: slip away as soon as nobody can see
+      if (w.wantHome && !w.lead && w.dist > viewR + 4 && !w.doing) { this.hide(w); if (w.mate) this.hide(w.mate); continue; }
+      if (!near) {
+        w.acc += dt;
+        if (w.acc < 0.25) continue;
+        step = Math.min(w.acc, 0.5);
+        w.acc = 0;
+      }
+      w.chatCool -= step; w.greetCool -= step;
       // a snack lasts a while, longer if it is being saved for a bench
-      if (w.food > 0 && !(w.goal.k === 'sit' && !w.doing)) { w.food -= dt; if (w.food <= 0) w.actor.hold = 'none'; }
-      if (w.lead) this.follow(w, dt, pl);
-      else if (w.doing) this.doing(w, dt, hour);
-      else if (w.tgt || w.path.length) this.walk(w, dt, pl);
+      if (w.food > 0 && !(w.goal.k === 'sit' && !w.doing)) { w.food -= step; if (w.food <= 0) w.actor.hold = 'none'; }
+      if (w.lead) this.follow(w, step, pl);
+      else if (w.doing) this.doing(w, step, hour);
+      else if (w.tgt || w.path.length) this.walk(w, step, pl, near);
       else this.arrive(w, hour);
-      this.react(w, dt, pl, hour);
+      if (near && w.mode === 'foot') this.react(w, step, pl, hour);
       const p = w.actor.position;
       if (w.doing?.k !== 'sit') p.y = this.nav.heightAt(p.x, p.z);
+      if (w.pet) this.walkPet(w, step, near);
+      if (w.ride) this.seatRider(w);
     }
     this.meetings(dt);
     this.overhear(dt, pl);
+    this.boats?.update(dt, hour);
+    this.exercise?.update(dt, hour);
+  }
+
+  private key(x: number, z: number): number {
+    return (Math.floor(x / CELL) + 512) * 1024 + Math.floor(z / CELL) + 512;
   }
 
   // ------------------------------------------------------------------ routes
-
-  private nearestNode(x: number, z: number): number {
-    let best = 0, bd = Infinity;
-    this.nodes.forEach(([nx, nz], i) => { const d = Math.hypot(nx - x, nz - z); if (d < bd) { bd = d; best = i; } });
-    return best;
-  }
 
   /** Cached A* route; undefined when this frame's path budget is spent, [] when unreachable. */
   private route(key: string, ax: number, az: number, bx: number, bz: number): V2[] | undefined {
@@ -244,8 +479,23 @@ export class Crowd {
     w.path = path.slice();
     w.goal = goal;
     w.tgt = null;
-    w.lane = goal.k === 'node' ? rnd(-0.6, 0.6) : rnd(-0.3, 0.3);
+    w.laneR = Math.random();
     w.stuck = 0;
+    // some people walk with their eyes on the phone
+    if (w.mode === 'foot' && w.food <= 0 && !w.pet) w.actor.hold = goal.k === 'node' && Math.random() < (w.persona === 'student' ? 0.3 : 0.1) ? 'phone' : 'none';
+  }
+
+  /** Sideways offset for the next leg of the path: pavements on avenues, the road for riders. */
+  private laneAt(w: Walker, x: number, z: number): number {
+    const st = streetAt(x, z);
+    if (w.mode === 'ride') {
+      if (!st) return (w.laneR - 0.5) * 0.4;
+      // keep left, as traffic does here
+      return st.kind === 'avenue' ? -(1.3 + w.laneR * 1.1) : st.kind === 'street' ? -0.6 : 0;
+    }
+    if (w.goal.k !== 'node') return (w.laneR - 0.5) * 0.5;
+    if (w.mode === 'jog' && w.ring >= 0) return 0;
+    return laneFor(st?.kind ?? null, w.laneR);
   }
 
   /** Back onto the street graph from wherever an activity left us. */
@@ -254,7 +504,7 @@ export class Crowd {
     w.actor.anim = 'idle';
     const p = w.actor.position;
     const from: V2 = w.from ?? [p.x, p.z];
-    const n = this.nearestNode(from[0], from[1]);
+    const n = this.nearestNode(from[0], from[1], !!w.ride);
     const r = this.route(`${from[0].toFixed(1)},${from[1].toFixed(1)}>${n}`, from[0], from[1], this.nodes[n][0], this.nodes[n][1]);
     if (!r) { w.from = from; w.doing = { k: 'wait', t: 0.2, anim: 'idle' }; return; } // out of path budget, try next time
     w.from = null;
@@ -262,12 +512,120 @@ export class Crowd {
     this.setPath(w, r.length ? r : [this.nodes[n]], { k: 'node' });
   }
 
+  // ------------------------------------------------------------------ places across town
+
+  private buildPlaces(): void {
+    const P = (name: string, at: V2 | null, weight: Place['weight'], go: Place['go']) => { if (at) this.places.push({ name, node: this.nearestNode(at[0], at[1]), weight, go }); };
+    const ps = (w: Walker, m: Partial<Record<Persona, number>>) => m[w.persona] ?? 0;
+    // the station: commuters home at the evening rush, students after school, visitors leaving
+    if (this.gates.length) {
+      const g0 = this.gates[Math.floor(this.gates.length / 2)];
+      P('station', g0.front, (w, h) => (h < 5 ? 0 : ps(w, { commuter: 0.15 + 3 * bump(h, 18.3, 1.3) + 0.8 * bump(h, 22.5, 1), student: 0.1 + 1.5 * bump(h, 16, 1.2), tourist: 0.25, local: 0.12, elder: 0.05 })),
+        (w) => this.board(w));
+    }
+    // the shrine: wash the hands, then bow twice, clap twice, pray and bow
+    const midori = this.pray.find((s) => s.z < 0);
+    if (midori) P('midori', [midori.x, midori.z], (w, h) => (within(h, 6, 18.5) ? ps(w, { elder: 0.25 + 1.3 * bump(h, 7.5, 1.8), tourist: 0.5, local: 0.25, student: 0.12, commuter: 0.4 * bump(h, 8, 0.6) }) : 0),
+      (w) => this.toShrine(w));
+    const summit = this.pray.find((s) => s.z > 90 && s.x < 0);
+    if (summit) P('inari', [summit.x, summit.z], (w, h) => (within(h, 7, 17) ? ps(w, { tourist: 0.35, elder: 0.15, local: 0.12, student: 0.1 }) : 0),
+      (w) => this.prayAt(w, this.pray.filter((s) => Math.hypot(s.x - summit.x, s.z - summit.z) < 3)));
+    const isle = this.pray.find((s) => s.x > 100);
+    if (isle) P('isle', [isle.x, isle.z], (_w, h) => (within(h, 8, 18) ? 0.12 : 0), (w) => this.prayAt(w, [isle as Taken]));
+    // the meeting point on the station square
+    if (this.meet.length) P('meet', [this.meet[0].x, this.meet[0].z], (w, h) => (within(h, 9, 22.5) ? ps(w, { student: 0.45, local: 0.3, tourist: 0.2, commuter: 0.1 }) : 0),
+      (w) => this.waitAt(w, this.meet, [['phone', rnd(6, 14)], ['idle', rnd(3, 6)], ['phone', rnd(5, 12)], ['wave', 1.4]]));
+    // the evening bath
+    if (this.sento) P('sento', this.sento.front, (w, h) => (within(h, 15, 23.5) ? ps(w, { elder: 0.55, local: 0.35, commuter: 0.06, student: 0.05 }) : 0),
+      (w) => this.toSento(w));
+    // window shopping streets
+    const shop = (name: string, test: (s: Taken) => boolean, hours: [number, number], m: Partial<Record<Persona, number>>) => {
+      const l = this.windows.filter(test);
+      if (!l.length) return;
+      const c = l[Math.floor(l.length / 2)];
+      P(name, [c.x, c.z], (w, h) => (within(h, hours[0], hours[1]) ? ps(w, m) : 0), (w) => this.waitAt(w, l, w.persona === 'tourist' && Math.random() < 0.4 ? [['browse', rnd(3, 6)], ['photo', 2.5]] : [['browse', rnd(4, 9)]], 26));
+    };
+    shop('ginza', (s) => s.x > 30 && s.x < 41 && s.z > 64, [10, 20.5], { tourist: 0.6, local: 0.5, student: 0.4, elder: 0.35, commuter: 0.1 });
+    shop('center', (s) => s.z > 8 && s.z < 17 && s.x > 82, [11, 23.5], { student: 0.7, tourist: 0.5, local: 0.3, commuter: 0.15 });
+    shop('golden', (s) => s.x > 111 && s.x < 117, [18, 2], { commuter: 0.7, local: 0.4, tourist: 0.4 });
+    shop('minami', (s) => s.z > 55 && s.z < 66, [10, 21], { local: 0.3, elder: 0.25, tourist: 0.25, student: 0.2 });
+    shop('neon', (s) => s.x > 80 && s.x < 82, [16, 2], { student: 0.4, tourist: 0.4, commuter: 0.3, local: 0.2 });
+    // food streets of the old district: lunch and dinner
+    const old = this.zones.map((z, i) => [z, i] as const).filter(([z]) => ['kaminari', 'yokocho', 'plaza', 'canal', 'farbank', 'uramichi'].includes(z)).map(([, i]) => i);
+    for (let k = 0; k < 3 && old.length; k++) {
+      const i = old[Math.floor((k / 3) * old.length)];
+      P('food', this.nodes[i], (w, h) => (w.persona === 'elder' ? 0.2 : 0.3) * (0.4 + 2 * bump(h, 12.3, 1.2) + 1.8 * bump(h, 19, 1.4)), () => false);
+    }
+    // the park: a stroll and a bench by the water
+    const pk = this.zones.findIndex((z) => z === 'park');
+    if (pk >= 0) {
+      this.parkNode = this.nearestNode(113, 76);
+      P('park', this.nodes[this.parkNode], (w, h) => (within(h, 6.5, 19) ? ps(w, { elder: 0.5, local: 0.45, tourist: 0.35, student: 0.25, commuter: 0.05, dogwalker: 1 }) : 0), () => false);
+    }
+  }
+
+  private pickDest(w: Walker, hour: number): boolean {
+    let total = 0;
+    const ws = this.places.map((p) => { const v = p.node === w.node ? 0 : p.weight(w, hour); total += v; return v; });
+    if (total <= 0) return false;
+    let roll = Math.random() * total;
+    for (let i = 0; i < ws.length; i++) {
+      roll -= ws[i];
+      if (roll <= 0) { w.dest = this.places[i].node; w.place = this.places[i]; return this.roam(w, hour, false); }
+    }
+    return false;
+  }
+
+  /** Through a free ticket gate to the platforms (and out of the simulation until later). */
+  private board(w: Walker): boolean {
+    const g = pick(this.gates);
+    const ok = this.plan(w, `gate:${g.front[0]}`, g.front, { k: 'vanish' });
+    if (ok) { w.path.push(g.back); if (w.mate) w.mate.wantHome = true; }
+    return ok;
+  }
+
+  private toShrine(w: Walker): boolean {
+    const near = this.pray.filter((s) => s.z < 0);
+    if (this.purify.length && Math.random() < 0.7) {
+      const s = this.purify.find((q) => !q.taken);
+      if (s) return this.planSeq(w, s, [{ anim: 'idle', t: 0.5 }, { anim: 'browse', t: rnd(2.5, 4) }, { anim: 'idle', t: 0.6 }], (ww) => this.prayAt(ww, near));
+    }
+    return this.prayAt(w, near);
+  }
+
+  private prayAt(w: Walker, spots: Taken[]): boolean {
+    const s = spots.find((q) => !q.taken);
+    if (!s) return false;
+    return this.planSeq(w, s, [{ anim: 'idle', t: 0.6 }, { anim: 'bow', t: 1.0 }, { anim: 'idle', t: 0.3 }, { anim: 'bow', t: 1.0 }, { anim: 'pray', t: rnd(4, 6.5) }, { anim: 'bow', t: 1.1 }, { anim: 'idle', t: 0.6 }]);
+  }
+
+  private waitAt(w: Walker, spots: Taken[], steps: [Anim, number][], maxD = 1e9): boolean {
+    const [nx, nz] = this.nodes[w.node];
+    const free = spots.filter((s) => !s.taken && Math.hypot(s.x - nx, s.z - nz) < maxD);
+    if (!free.length) return false;
+    const s = pick(free);
+    return this.planSeq(w, s, steps.map(([anim, t]) => ({ anim, t, hold: anim === 'phone' ? 'phone' : 'none' })));
+  }
+
+  private toSento(w: Walker): boolean {
+    const s = this.sento!;
+    const ok = this.plan(w, 'sento', s.front, { k: 'vanish' });
+    if (ok) { w.path.push(s.door); if (w.mate) w.mate.wantHome = true; }
+    return ok;
+  }
+
+  private planSeq(w: Walker, s: Taken, steps: Step[], then?: (w: Walker) => boolean): boolean {
+    const ok = this.plan(w, `spot:${s.x.toFixed(2)},${s.z.toFixed(2)}`, [s.x, s.z], { k: 'seq', steps: steps.map((st) => ({ ...st, face: st.face ?? s.face })), spot: s, then }, w.from ?? undefined);
+    if (ok) s.taken = w;
+    return ok;
+  }
+
   // ------------------------------------------------------------------ deciding
 
   private arrive(w: Walker, hour: number): void {
     const g = w.goal, p = w.actor.position;
-    w.actor.anim = 'idle';
-    w.run = false;
+    if (!w.ride) w.actor.anim = 'idle';
+    w.run = w.mode === 'jog';
     switch (g.k) {
       case 'browse':
         w.doing = { k: 'browse', t: rnd(2.5, 4.5), face: g.face, stall: g.stall, served: false };
@@ -282,19 +640,35 @@ export class Crowd {
         w.doing = { k: 'sit', seat: g.seat, t: rnd(14, 38) + (w.food > 0 ? 8 : 0), stage: 0, s: 0 };
         w.from = g.seat.approach;
         return;
-      case 'home':
+      case 'home': case 'vanish':
         this.hide(w);
+        if (w.mate && !w.mate.hidden) w.mate.hideT = 2;
         return;
       case 'pause': {
         const anim: Anim = w.persona === 'tourist' && Math.random() < 0.6 ? 'photo' : Math.random() < 0.55 ? 'phone' : 'idle';
         w.doing = { k: 'wait', t: rnd(3, 7), anim, face: w.actor.facing + rnd(-1.2, 1.2) };
         return;
       }
+      case 'seq':
+        w.doing = { k: 'seq', steps: g.steps, i: 0, t: g.steps[0].t, spot: g.spot, then: g.then };
+        w.from = [p.x, p.z];
+        w.actor.hold = 'none';
+        return;
     }
     this.choose(w, hour);
   }
 
   private choose(w: Walker, hour: number): void {
+    if (w.mode === 'jog') { this.chooseJog(w, hour); return; }
+    if (w.mode === 'ride') { this.chooseRide(w, hour); return; }
+    // on the way somewhere: keep going, or do the thing on arrival
+    if (w.dest >= 0) {
+      if (w.node === w.dest) {
+        const pl = w.place;
+        w.dest = -1; w.place = null;
+        if (pl && pl.go(w, hour)) return;
+      } else if (Math.random() < 0.85 && this.roam(w, hour, false)) return;
+    }
     const [nx, nz] = this.nodes[w.node];
     const rush = w.persona === 'commuter' && (bump(hour, 8, 0.9) > 0.3 || bump(hour, 18, 0.8) > 0.3);
     const meal = 0.35 + 1.3 * bump(hour, 12.3, 1.2) + 1.0 * bump(hour, 19, 1.3) + 0.4 * bump(hour, 15.5, 0.8);
@@ -305,8 +679,10 @@ export class Crowd {
       const homes = this.a.rooms.filter((r) => Math.hypot(r.door[0] - nx, r.door[1] - nz) < 16);
       const r = homes.length ? pick(homes) : null;
       if (r) opts.push({ w: 6, go: () => this.plan(w, `home:${r.id}`, r.door, { k: 'home', room: r }) });
+      if (this.gates.length && w.persona !== 'elder' && w.persona !== 'dogwalker') opts.push({ w: 3, go: () => { const st = this.places.find((q) => q.name === 'station')!; w.dest = st.node; w.place = st; return this.roam(w, hour, false); } });
     }
     opts.push({ w: 1.6 + (rush ? 4 : 0), go: () => this.roam(w, hour, rush) });
+    opts.push({ w: w.wantHome ? 0 : 1.1, go: () => this.pickDest(w, hour) });
     if (!rush) {
       opts.push({ w: w.persona === 'tourist' ? 0.5 : 0.18, go: () => { w.goal = { k: 'pause' }; return true; } });
       if (w.food <= 0) {
@@ -353,6 +729,11 @@ export class Crowd {
           },
         });
       }
+      // a look in a shop window on the way
+      if (within(hour, 9.5, 23) && !w.pet) {
+        const near = this.windows.filter((s) => !s.taken && Math.abs(s.x - nx) < 9 && Math.abs(s.z - nz) < 9);
+        if (near.length) opts.push({ w: w.persona === 'tourist' ? 0.45 : 0.25, go: () => this.waitAt(w, near, [['browse', rnd(3, 7)]]) });
+      }
     }
     let total = 0;
     for (const o of opts) total += o.w;
@@ -364,11 +745,67 @@ export class Crowd {
     if (!this.roam(w, hour, rush)) w.doing = { k: 'wait', t: 0.3, anim: 'idle' };
   }
 
+  /** Joggers lap the pond a few times, then run off somewhere else. */
+  private chooseJog(w: Walker, hour: number): void {
+    const J = this.jog;
+    if (J.length && w.ring >= 0) {
+      if (w.laps <= 0) {
+        w.ring = -1;
+        w.from = [w.actor.position.x, w.actor.position.z];
+        w.dest = Math.floor(Math.random() * this.nodes.length);
+        this.leave(w);
+        return;
+      }
+      const i = w.ring, j = (i + 1) % J.length;
+      const r = this.route(`jog:${i}`, J[i][0], J[i][1], J[j][0], J[j][1]);
+      if (!r) { w.doing = { k: 'wait', t: 0.1, anim: 'idle' }; return; }
+      w.ring = j;
+      if (j === 0) w.laps--;
+      this.setPath(w, r.length ? r : [J[j]], { k: 'node' });
+      w.run = true;
+      return;
+    }
+    if (J.length && this.parkNode >= 0 && w.node === this.parkNode && within(hour, 5, 21)) {
+      // join the ring at its nearest point
+      const [nx, nz] = this.nodes[w.node];
+      let bi = 0, bd = Infinity;
+      J.forEach(([x, z], i) => { const d = Math.hypot(x - nx, z - nz); if (d < bd) { bd = d; bi = i; } });
+      if (this.plan(w, `jogin:${bi}`, J[bi], { k: 'node' })) { w.ring = bi; w.laps = 1 + Math.floor(Math.random() * 3); w.run = true; return; }
+    }
+    if (w.dest < 0 || w.node === w.dest) w.dest = this.parkNode >= 0 && Math.random() < 0.8 ? this.parkNode : Math.floor(Math.random() * this.nodes.length);
+    w.run = true;
+    if (!this.roam(w, hour, false)) w.doing = { k: 'wait', t: 0.3, anim: 'idle' };
+  }
+
+  /** Riders keep to the streets; couriers stop now and then to drop off an order. */
+  private chooseRide(w: Walker, hour: number): void {
+    if (w.persona === 'courier' && Math.random() < 0.22 && w.ride) {
+      w.ride.parked = true;
+      w.doing = { k: 'seq', steps: [{ anim: 'idle', t: 0.6 }, { anim: 'phone', t: rnd(2, 4), hold: 'phone' }, { anim: 'bow', t: 1 }, { anim: 'idle', t: rnd(1, 3) }], i: 0, t: 0.6, spot: null };
+      return;
+    }
+    if (!this.roam(w, hour, false)) w.doing = { k: 'wait', t: 0.4, anim: 'idle' };
+  }
+
+  /** On to the next junction: towards the walker's destination, or wherever the districts draw them. */
   private roam(w: Walker, hour: number, rush: boolean): boolean {
-    const nb = this.nbrs[w.node];
+    const nb = w.ride ? this.nbrs[w.node].filter((v) => this.rideOk[v]) : this.nbrs[w.node];
     if (!nb.length) return false;
-    let next = pick(nb);
-    if (nb.length > 1 && next === w.prev) next = nb.find((x) => x !== w.prev)!;
+    let next = -1;
+    const n = this.nodes.length;
+    if (w.dest >= 0 && w.dest !== w.node && !w.ride) {
+      let bd = Infinity;
+      for (const v of nb) {
+        const d = this.edgeLen(w.node, v) + this.dist[v * n + w.dest] + (v === w.prev ? 4 : 0) + Math.random() * 3;
+        if (d < bd) { bd = d; next = v; }
+      }
+    } else {
+      let total = 0;
+      const ws = nb.map((v) => { const x = zoneDraw(this.zones[v], hour) * (v === w.prev && nb.length > 1 ? 0.15 : 1); total += x; return x; });
+      let roll = Math.random() * total;
+      for (let i = 0; i < nb.length; i++) { roll -= ws[i]; if (roll <= 0) { next = nb[i]; break; } }
+      if (next < 0) next = nb[nb.length - 1];
+    }
     const a = this.nodes[w.node], b = this.nodes[next];
     const r = this.route(`${w.node}-${next}`, a[0], a[1], b[0], b[1]);
     if (!r) return false;
@@ -376,14 +813,18 @@ export class Crowd {
     w.node = next;
     this.setPath(w, r.length ? r : [b], { k: 'node' });
     // late for the train
-    w.run = rush && hour < 9.5 && Math.random() < 0.18 && !w.mate;
+    w.run = w.mode === 'jog' || (rush && hour < 9.5 && Math.random() < 0.18 && !w.mate && !w.pet);
     return true;
   }
 
-  /** Path from the current node to an activity spot. */
-  private plan(w: Walker, key: string, to: V2, goal: Goal): boolean {
-    const [nx, nz] = this.nodes[w.node];
-    const r = this.route(`${w.node}>${key}`, nx, nz, to[0], to[1]);
+  private edgeLen(p: number, q: number): number {
+    return Math.hypot(this.nodes[p][0] - this.nodes[q][0], this.nodes[p][1] - this.nodes[q][1]);
+  }
+
+  /** Path from the current node (or from `from`) to an activity spot. */
+  private plan(w: Walker, key: string, to: V2, goal: Goal, from?: V2): boolean {
+    const [nx, nz] = from ?? this.nodes[w.node];
+    const r = this.route(`${from ? `${nx.toFixed(1)},${nz.toFixed(1)}` : w.node}>${key}`, nx, nz, to[0], to[1]);
     if (!r || !r.length) return false;
     this.setPath(w, r, goal);
     return true;
@@ -393,9 +834,10 @@ export class Crowd {
     let best: Seat | null = null, bd = 16;
     for (const s of this.seats) {
       if (s.taken) continue;
-      if (pair && !this.seats.some((o) => o.bench === s.bench && o !== s && !o.taken)) continue;
       const d = Math.hypot(s.x - x, s.z - z);
-      if (d < bd) { bd = d; best = s; }
+      if (d >= bd) continue;
+      if (pair && !this.seats.some((o) => o.bench === s.bench && o !== s && !o.taken)) continue;
+      bd = d; best = s;
     }
     return best;
   }
@@ -409,14 +851,17 @@ export class Crowd {
 
   /**
    * Steers towards (tx, tz) around other people, sliding along walls. Returns the distance left.
-   * Japanese pavements have no strict side, so each walker dodges towards their own lane.
+   * Japanese pavements have no strict side, so each walker dodges towards their own lane. Riders
+   * mostly slow down behind people rather than swerve.
    */
-  private steer(w: Walker, tx: number, tz: number, speed: number, dt: number, pl: CrowdPlayer, ignore: Walker | null): number {
+  private steer(w: Walker, tx: number, tz: number, speed: number, dt: number, pl: CrowdPlayer, ignore: Walker | null, near = true): number {
     const a = w.actor, p = a.position;
     const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
     if (d < 1e-4) { w.v = 0; return 0; }
     const ux = dx / d, uz = dz / d;
     let ax = 0, az = 0, slow = 1;
+    const ride = w.mode === 'ride';
+    const dodge = ride ? 0.5 : 1.4;
     const avoid = (ox: number, oz: number, r: number) => {
       const rx = ox - p.x, rz = oz - p.z, r2 = rx * rx + rz * rz;
       if (r2 > r * r || r2 < 1e-6) return;
@@ -425,18 +870,26 @@ export class Crowd {
       const lat = rx * -uz + rz * ux;
       const push = (r - od) / r;
       const sd = lat > 0.04 ? -1 : lat < -0.04 ? 1 : (w.lane >= 0 ? 1 : -1);
-      ax += -uz * sd * push * 1.4; az += ux * sd * push * 1.4;
-      if (od < 0.55 && ahead > 0.12) slow = Math.min(slow, Math.max(0.15, (od - 0.32) / 0.23));
+      ax += -uz * sd * push * dodge; az += ux * sd * push * dodge;
+      if (ride) { if (ahead > 0.2 && Math.abs(lat) < 0.8 && w.ghost <= 0) slow = Math.min(slow, Math.max(0.1, (od - 0.9) / 1.6)); }
+      else if (od < 0.55 && ahead > 0.12) slow = Math.min(slow, Math.max(0.15, (od - 0.32) / 0.23));
     };
-    for (const o of this.walkers) if (o !== w && o !== ignore && !o.hidden) avoid(o.actor.position.x, o.actor.position.z, 1.1);
-    avoid(pl.x, pl.z, 1.3);
-    for (const [ox, oz] of this.obstacles) avoid(ox, oz, 0.9);
-    for (const [ox, oz] of this.friends) avoid(ox, oz, 1.3);
+    if (near) {
+      const kx = Math.floor(p.x / CELL) + 512, kz = Math.floor(p.z / CELL) + 512;
+      for (let ix = kx - 1; ix <= kx + 1; ix++) for (let iz = kz - 1; iz <= kz + 1; iz++) {
+        const l = this.grid.get(ix * 1024 + iz);
+        if (!l) continue;
+        for (const o of l) if (o !== w && o !== ignore && !o.hidden) avoid(o.actor.position.x, o.actor.position.z, ride || o.mode === 'ride' ? 2.2 : o.mode === 'jog' ? 1.4 : 1.1);
+      }
+      avoid(pl.x, pl.z, ride ? 2.4 : 1.3);
+      for (const [ox, oz] of this.obstacles) if (Math.abs(ox - p.x) < 2 && Math.abs(oz - p.z) < 2) avoid(ox, oz, 0.9);
+      for (const [ox, oz] of this.friends) avoid(ox, oz, ride ? 2.4 : 1.3);
+    }
     let mx = ux + ax, mz = uz + az;
     const ml = Math.hypot(mx, mz) || 1;
     mx /= ml; mz /= ml;
     const want = speed * slow;
-    w.v += (want - w.v) * Math.min(1, dt * (want > w.v ? 3.5 : 6));
+    w.v += (want - w.v) * Math.min(1, dt * (want > w.v ? (ride ? 1.6 : 3.5) : 6));
     const step = Math.min(w.v * dt, d);
     if (step > 1e-4) {
       // path cells are walkable even where a full body would brush a wall, so fall back to the path
@@ -452,11 +905,13 @@ export class Crowd {
       else w.v = 0;
     }
     a.speed = w.v;
-    a.anim = w.v < 0.06 ? 'idle' : w.run && w.v > 1.9 ? 'run' : 'walk';
+    if (w.ride) a.anim = 'idle';
+    else a.anim = w.v < 0.06 ? 'idle' : w.run && w.v > 1.9 ? 'run' : 'walk';
+    if (!near) a.facing = a.targetFacing;
     return Math.hypot(tx - p.x, tz - p.z);
   }
 
-  private walk(w: Walker, dt: number, pl: CrowdPlayer): void {
+  private walk(w: Walker, dt: number, pl: CrowdPlayer, near: boolean): void {
     const p = w.actor.position;
     if (!w.tgt) {
       const wp = w.path[0];
@@ -464,19 +919,27 @@ export class Crowd {
       // shift the waypoint sideways into this walker's lane, if there is room
       let t: V2 = [wp[0], wp[1]];
       if (!last || w.goal.k === 'node') {
+        w.lane = this.laneAt(w, (wp[0] + p.x) / 2, (wp[1] + p.z) / 2);
         const dx = wp[0] - p.x, dz = wp[1] - p.z, dl = Math.hypot(dx, dz) || 1;
-        const ox = wp[0] - (dz / dl) * w.lane, oz = wp[1] + (dx / dl) * w.lane;
+        const st = streetAt((wp[0] + p.x) / 2, (wp[1] + p.z) / 2);
+        // along a straight street, hold the lane measured from its centre line; elsewhere offset the waypoint
+        let ox = wp[0] - (dz / dl) * w.lane, oz = wp[1] + (dx / dl) * w.lane;
+        if (st && Math.abs(st.ew ? dz : dx) < dl * 0.25 && Math.abs((st.ew ? wp[1] : wp[0]) - st.centre) < 1.5) {
+          const sgn = st.ew ? (dx > 0 ? 1 : -1) : (dz > 0 ? -1 : 1);
+          if (st.ew) { ox = wp[0]; oz = st.centre + sgn * w.lane; } else { ox = st.centre + sgn * w.lane; oz = wp[1]; }
+        }
         if (this.free(ox, oz)) t = [ox, oz];
+        else if (this.free((ox + wp[0]) / 2, (oz + wp[1]) / 2)) t = [(ox + wp[0]) / 2, (oz + wp[1]) / 2];
       }
       w.tgt = t;
     }
     const last = w.path.length <= 1;
-    const speed = w.run ? 2.7 : w.pace;
-    const left = this.steer(w, w.tgt[0], w.tgt[1], speed * (last && w.goal.k !== 'node' ? Math.min(1, 0.45 + Math.hypot(w.tgt[0] - p.x, w.tgt[1] - p.z)) : 1), dt, pl, w.mate);
-    if (left < (last ? 0.12 : 0.35)) {
+    const speed = w.run ? (w.mode === 'jog' ? w.pace : 2.7) : w.pace;
+    const left = this.steer(w, w.tgt[0], w.tgt[1], speed * (last && w.goal.k !== 'node' ? Math.min(1, 0.45 + Math.hypot(w.tgt[0] - p.x, w.tgt[1] - p.z)) : 1), dt, pl, w.mate, near);
+    if (left < (last ? 0.12 : w.mode === 'ride' ? 0.8 : 0.35)) {
       w.path.shift();
       w.tgt = null;
-      if (!w.path.length) { w.v *= 0.5; w.actor.anim = 'idle'; w.actor.speed = 0; }
+      if (!w.path.length) { w.v *= w.mode === 'foot' ? 0.5 : 1; if (w.mode === 'foot') { w.actor.anim = 'idle'; w.actor.speed = 0; } }
     }
     // hardly moving: drop the lane and walk straight down the path for a moment
     w.ghost = Math.max(0, w.ghost - dt);
@@ -487,6 +950,64 @@ export class Crowd {
       if (moved < 0.4 && w.path.length) { w.lane = 0; w.tgt = null; w.ghost = 1.2; w.side = -w.side; }
       w.stuck = 0;
     }
+    // the dog wants to sniff something: wait for it
+    if (w.pet && near && (w.pet.next -= dt) <= 0 && !w.mate) {
+      w.pet.next = rnd(10, 26);
+      const t = rnd(2.5, 5);
+      w.pet.sniff = t;
+      w.doing = { k: 'wait', t, anim: Math.random() < 0.4 ? 'phone' : 'idle' };
+    }
+  }
+
+  /** The dog trots at its owner's heel, sits when they stop for long and sniffs when it likes. */
+  private walkPet(w: Walker, dt: number, near: boolean): void {
+    const pet = w.pet!, a = pet.actor, p = a.position, o = w.actor.position, f = w.actor.facing;
+    const tx = o.x - Math.sin(f) * 0.55 + Math.cos(f) * 0.5, tz = o.z - Math.cos(f) * 0.55 - Math.sin(f) * 0.5;
+    const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+    if (!near || d > 4) { p.set(tx, this.nav.heightAt(tx, tz), tz); a.facing = a.targetFacing = f; a.anim = 'idle'; a.speed = 0; return; }
+    if (pet.sniff > 0) {
+      pet.sniff -= dt;
+      a.anim = 'browse'; a.speed = 0;
+      if (w.doing?.k === 'wait') w.actor.targetFacing = angTo(o.x, o.z, p.x, p.z);
+      return;
+    }
+    if (d > 0.06) {
+      const sp = Math.min(d * 3.2, Math.max(1.2, w.v * 1.5));
+      const step = Math.min(d, sp * dt);
+      const m = this.nav.slide(p.x, p.z, dx / d, dz / d, step, this.nav.standHeightVox(p.x, p.z), 1);
+      if (m) { p.x = m.x; p.z = m.z; } else { p.x += (dx / d) * step; p.z += (dz / d) * step; }
+      a.targetFacing = Math.atan2(dx, dz);
+      a.speed = sp;
+      a.anim = sp > 0.15 ? 'walk' : 'idle';
+    } else {
+      a.speed = 0;
+      a.anim = w.doing?.k === 'sit' || (w.doing && w.v < 0.05) ? 'sit' : 'idle';
+      if (a.anim !== 'idle') a.targetFacing = f;
+    }
+    p.y = this.nav.heightAt(p.x, p.z);
+  }
+
+  /** Puts the rider on the saddle, or beside the parked scooter. */
+  private seatRider(w: Walker): void {
+    const r = w.ride!, v = w.actor, b = r.person, f = v.facing;
+    if (r.parked) {
+      const x = v.position.x + Math.cos(f) * 0.7, z = v.position.z - Math.sin(f) * 0.7;
+      b.position.set(x, this.nav.heightAt(x, z), z);
+      b.targetFacing = f - Math.PI / 2;
+      if (b.anim === 'ride') b.facing = b.targetFacing;
+      const d = w.doing;
+      b.anim = d?.k === 'seq' ? d.steps[d.i].anim : 'idle';
+      b.hold = d?.k === 'seq' && d.steps[d.i].hold === 'phone' ? 'phone' : 'none';
+      b.speed = 0;
+      return;
+    }
+    b.position.set(v.position.x, v.position.y + r.seat, v.position.z);
+    b.position.x -= Math.sin(f) * (r.scooter ? 0.05 : 0.12);
+    b.position.z -= Math.cos(f) * (r.scooter ? 0.05 : 0.12);
+    b.facing = b.targetFacing = f;
+    b.anim = 'ride';
+    b.hold = 'none';
+    b.speed = w.v;
   }
 
   // ------------------------------------------------------------------ activities
@@ -495,17 +1016,36 @@ export class Crowd {
     const d = w.doing!, a = w.actor, p = a.position;
     a.speed = 0;
     w.v = 0;
+    if (w.ride && d.k !== 'seq') a.anim = 'idle';
     switch (d.k) {
       case 'wait':
-        a.anim = d.anim;
+        if (!w.ride) a.anim = d.anim;
         if (d.face !== undefined) a.targetFacing = d.face;
+        if (d.anim === 'phone') a.hold = 'phone';
         if ((d.t -= dt) <= 0) {
           w.doing = null;
-          a.anim = 'idle';
+          if (!w.ride) a.anim = 'idle';
+          if (d.anim === 'phone') a.hold = 'none';
           if (w.from) this.leave(w); // done at an activity spot
           else if (!w.path.length && !w.tgt) this.choose(w, hour);
         }
         return;
+      case 'seq': {
+        const st = d.steps[d.i];
+        if (!w.ride) { a.anim = st.anim; a.hold = st.hold === 'phone' ? 'phone' : 'none'; }
+        else a.anim = 'idle';
+        if (st.face !== undefined && !w.ride) a.targetFacing = st.face;
+        if ((d.t -= dt) > 0) return;
+        d.i++;
+        if (d.i < d.steps.length) { d.t = d.steps[d.i].t; return; }
+        if (d.spot && d.spot.taken === w) d.spot.taken = null;
+        a.hold = 'none';
+        w.doing = null;
+        if (w.ride) { w.ride.parked = false; this.chooseRideOn(w, hour); return; }
+        if (d.then) { w.from = [p.x, p.z]; if (d.then(w)) { w.from = null; return; } }
+        this.leave(w);
+        return;
+      }
       case 'browse':
         a.targetFacing = d.face;
         d.t -= dt;
@@ -583,6 +1123,10 @@ export class Crowd {
     }
   }
 
+  private chooseRideOn(w: Walker, hour: number): void {
+    if (!this.roam(w, hour, false)) w.doing = { k: 'wait', t: 0.4, anim: 'idle' };
+  }
+
   private giveFood(w: Walker): void {
     w.food = rnd(22, 40);
     w.actor.hold = 'food';
@@ -649,13 +1193,16 @@ export class Crowd {
     if (still && gap < 0.25) {
       a.speed = 0; w.v = 0;
       a.targetFacing = angTo(p.x, p.z, q.x, q.z);
-      a.anim = ld?.k === 'browse' ? 'browse' : ld?.k === 'wait' && ld.anim === 'eat' ? 'eat' : ld?.k === 'chat' ? 'listen' : (Math.sin(L.actor.animT * 0.4 + 1) > 0 ? 'talk' : 'listen');
+      const la = ld?.k === 'seq' ? ld.steps[ld.i].anim : null;
+      a.anim = ld?.k === 'browse' ? 'browse' : ld?.k === 'wait' && ld.anim === 'eat' ? 'eat' : ld?.k === 'chat' ? 'listen'
+        : la === 'pray' || la === 'bow' ? la : la === 'browse' ? 'browse' : (Math.sin(L.actor.animT * 0.4 + 1) > 0 ? 'talk' : 'listen');
+      if (la === 'pray' || la === 'bow') a.targetFacing = L.actor.targetFacing;
       if (ld?.k === 'wait' && ld.anim === 'eat') a.hold = 'none';
       return;
     }
     const sp = still ? Math.min(w.pace, 0.4 + gap) : L.v * (1 + Math.max(-0.4, Math.min(0.7, (gap - 0.15) * 0.9)));
     w.run = L.run;
-    this.steer(w, tx, tz, Math.max(0.3, sp), dt, pl, L);
+    this.steer(w, tx, tz, Math.max(0.3, sp), dt, pl, L, w.dist < this.viewR + 10);
   }
 
   // ------------------------------------------------------------------ social
@@ -665,7 +1212,7 @@ export class Crowd {
     this.chatT -= dt;
     if (this.chatT > 0) return;
     this.chatT = 0.5;
-    const free = this.walkers.filter((w) => !w.hidden && !w.lead && !w.mate && !w.doing && w.chatCool <= 0 && w.goal.k === 'node' && w.path.length > 0);
+    const free = this.walkers.filter((w) => !w.hidden && w.mode === 'foot' && w.dist < this.viewR + 10 && !w.lead && !w.mate && !w.doing && w.chatCool <= 0 && w.goal.k === 'node' && w.path.length > 0);
     for (let i = 0; i < free.length; i++) for (let j = i + 1; j < free.length; j++) {
       const a = free[i], b = free[j];
       if (a.doing || b.doing) continue;
@@ -677,12 +1224,13 @@ export class Crowd {
       const t = rnd(6, 13);
       a.doing = { k: 'chat', t, with: b, talk: true, swap: rnd(2, 3.5) };
       b.doing = { k: 'chat', t, with: a, talk: false, swap: rnd(2, 3.5) };
+      a.actor.hold = b.actor.hold = 'none';
     }
   }
 
   private react(w: Walker, dt: number, pl: CrowdPlayer, hour: number): void {
     const a = w.actor, p = a.position;
-    const dx = pl.x - p.x, dz = pl.z - p.z, d = Math.hypot(dx, dz);
+    const dx = pl.x - p.x, dz = pl.z - p.z, d = w.dist;
     const rel = Math.atan2(Math.sin(Math.atan2(dx, dz) - a.facing), Math.cos(Math.atan2(dx, dz) - a.facing));
     const sitting = w.doing?.k === 'sit';
     // glance at the traveller
@@ -718,7 +1266,7 @@ export class Crowd {
   private overhear(dt: number, pl: CrowdPlayer): void {
     if ((this.sayT -= dt) > 0) return;
     this.sayT = rnd(5, 10);
-    const talkers = this.walkers.filter((w) => !w.hidden && w.actor.anim === 'talk' && Math.hypot(pl.x - w.actor.position.x, pl.z - w.actor.position.z) < 7);
+    const talkers = this.walkers.filter((w) => !w.hidden && w.dist < 7 && w.actor.anim === 'talk');
     if (talkers.length) {
       const w = pick(talkers);
       this.say(`chat-${this.walkers.indexOf(w)}`, pick(CROWD_CHAT), w.actor.position, 2.8, pl);
@@ -729,41 +1277,211 @@ export class Crowd {
 
   private hide(w: Walker): void {
     w.hidden = true;
-    w.actor.root.visible = false;
+    show(w.actor, false);
+    if (w.pet) { show(w.pet.actor, false); w.pet.sniff = 0; }
+    if (w.ride) { show(w.ride.person, false); w.ride.parked = false; }
+    if (w.doing?.k === 'seq' && w.doing.spot?.taken === w) w.doing.spot.taken = null;
+    if (w.goal.k === 'seq' && w.goal.spot?.taken === w) w.goal.spot.taken = null;
     w.doing = null;
     w.path = [];
     w.tgt = null;
     w.wantHome = false;
     w.food = 0;
+    w.dest = -1; w.place = null; w.ring = -1;
     w.actor.hold = 'none';
     for (const s of this.seats) if (s.taken === w) s.taken = null;
     for (const l of this.stallSpots.values()) for (const q of l) if (q.taken === w) q.taken = null;
+    for (const l of [this.pray, this.purify, this.meet, this.windows]) for (const q of l) if (q.taken === w) q.taken = null;
   }
 
+  /** People come out (from the station, a doorway, round a corner out of sight) and go home by the hour. */
   private population(dt: number, hour: number, pl: CrowdPlayer): void {
     if ((this.popT -= dt) > 0) return;
-    this.popT = 2.5;
-    const units = this.walkers.filter((w) => !w.lead);
-    const out = units.filter((w) => !w.hidden);
-    const want = Math.round(units.length * turnout(hour));
-    if (out.length > want) {
-      const w = out.find((u) => !u.wantHome && !u.doing);
-      if (w) w.wantHome = true;
-    } else if (out.length < want) {
-      const w = pick(units.filter((u) => u.hidden));
+    this.popT = 1;
+    let spawns = 4, homes = 4;
+    const order = this.walkers.slice().sort(() => Math.random() - 0.5);
+    for (const w of order) {
+      if (w.lead) continue;
+      const want = w.out < turnout(w.persona, hour);
+      if (!w.hidden && !want && !w.wantHome && homes > 0) { w.wantHome = true; homes--; continue; }
+      if (!w.hidden || !want || spawns <= 0) continue;
+      spawns--;
+      this.spawn(w, hour, pl);
+    }
+  }
+
+  private spawn(w: Walker, hour: number, pl: CrowdPlayer): void {
+    const n = this.nodes.length;
+    let at: V2 | null = null;
+    const roll = Math.random();
+    // off the train
+    if (w.mode === 'foot' && !w.pet && this.gates.length && within(hour, 5.5, 0.5) && roll < ({ commuter: 0.6, student: 0.45, tourist: 0.45 } as Record<string, number>)[w.persona]) at = pick(this.gates).back;
+    // out of a shop or home doorway
+    else if (w.mode === 'foot' && roll < 0.7 && this.a.rooms.length) {
       const doors = this.a.rooms.filter((r) => Math.hypot(r.door[0] - pl.x, r.door[1] - pl.z) > 10);
-      if (!w || !doors.length) return;
-      // step out of a doorway somewhere off camera
-      const r = pick(doors);
-      for (const m of w.mate ? [w, w.mate] : [w]) {
-        m.hidden = false;
-        m.actor.root.visible = true;
-        m.actor.position.set(r.door[0] + (m === w ? 0 : 0.4), this.nav.heightAt(r.door[0], r.door[1]), r.door[1]);
-        m.actor.anim = 'idle';
-        m.v = 0;
+      if (doors.length) at = pick(doors).door;
+    }
+    if (!at && w.mode === 'foot' && this.sento && within(hour, 16, 23.5) && Math.random() < 0.15) at = this.sento.door;
+    // round a corner out of sight
+    if (!at) {
+      for (let k = 0; k < 12; k++) {
+        const i = Math.floor(Math.random() * n);
+        if (w.ride && !this.rideOk[i]) continue;
+        const [x, z] = this.nodes[i];
+        if (Math.hypot(x - pl.x, z - pl.z) > this.viewR + 4 || k === 11) { at = [x + rnd(-1, 1), z + rnd(-1, 1)]; break; }
       }
-      w.from = [r.door[0], r.door[1]];
-      this.leave(w);
+    }
+    if (!at) return;
+    for (const m of w.mate ? [w, w.mate] : [w]) {
+      m.hidden = false;
+      m.actor.position.set(at[0] + (m === w ? 0 : 0.4), this.nav.heightAt(at[0], at[1]), at[1]);
+      m.actor.anim = 'idle';
+      m.v = 0;
+      m.wantHome = false;
+      m.dist = Math.hypot(at[0] - pl.x, at[1] - pl.z);
+    }
+    if (w.pet) { w.pet.actor.position.copy(w.actor.position); w.pet.next = rnd(5, 15); }
+    if (w.ride) w.ride.parked = false;
+    w.from = [at[0], at[1]];
+    w.run = w.mode === 'jog';
+    this.leave(w);
+  }
+}
+
+function show(a: Actor, on: boolean): void {
+  if (a.root.visible !== on) a.root.visible = on;
+}
+
+/** A look that suits the persona (or a random one, whose persona follows from it). */
+export function lookFor(seed: number, persona: Persona | null): Look {
+  const r = rng(seed + 31);
+  const l: Look = { ...randomLook(seed) };
+  switch (persona) {
+    case 'jogger': {
+      const sport = [0xd9534a, 0x3f6e9a, 0xf2c74a, 0x4f9a6b, 0xf08ac0, 0xf4f1ea, 0x2f2f35][Math.floor(r() * 7)];
+      Object.assign(l, { topStyle: 'tee', top: sport, accent: sport, bottom: 0x2f2f35, skirt: false, backpack: undefined, glasses: false, hat: r() < 0.4 ? 'cap' : r() < 0.5 ? 'headband' : 'none', hatColor: 0xf4f1ea, shoes: [0xf2efe7, 0xc9463d, 0x3f6e9a][Math.floor(r() * 3)] });
+      break;
+    }
+    case 'courier': {
+      const co = [0xd8372b, 0x3f9a5b, 0x2b6cb0, 0xf2a03a][Math.floor(r() * 4)];
+      Object.assign(l, { topStyle: 'jacket', top: co, accent: 0xf4f1ea, bottom: 0x2f2f35, skirt: false, backpack: undefined, hat: 'cap', hatColor: co });
+      break;
+    }
+    case 'cyclist': Object.assign(l, { skirt: false, backpack: r() < 0.3 ? 0x3a3a40 : undefined }); break;
+    case 'dogwalker': Object.assign(l, { topStyle: r() < 0.5 ? 'cardigan' : 'jacket', backpack: undefined }); break;
+    case 'elder': Object.assign(l, { hair: r() < 0.5 ? 0xb9b6b0 : 0x6b6b70, topStyle: r() < 0.5 ? 'cardigan' : 'vest', backpack: undefined }); break;
+  }
+  return l;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Swan boats on the park pond
+
+interface Boat { hull: Actor; riders: Actor[]; t: number; speed: number; out: boolean; dock: number }
+
+class Boats {
+  private list: Boat[] = [];
+  private time = 0;
+  constructor(private o: { cx: number; cz: number; rx: number; rz: number; y: number; dock: V2 }, private make: CrowdMaker) {}
+
+  populate(n: number, person: (seed: number) => Actor): void {
+    for (let i = 0; i < n; i++) {
+      const riders = [person(8100 + i * 3)];
+      if (i % 3 !== 2) riders.push(person(8101 + i * 3));
+      for (const r of riders) { r.anim = 'sit'; r.noBlob = true; }
+      const hull = this.make.boat(8000 + i);
+      hull.noBlob = true;
+      this.list.push({ hull, riders, t: (i / Math.max(1, n)) * Math.PI * 2, speed: rnd(0.28, 0.4), out: false, dock: i });
+    }
+  }
+
+  settle(hour: number): void {
+    for (const b of this.list) b.out = within(hour, 9, 17.5);
+  }
+
+  update(dt: number, hour: number): void {
+    this.time += dt;
+    const o = this.o;
+    const open = within(hour, 9, 17.5);
+    for (const b of this.list) {
+      if (b.out !== open) b.out = open;
+      const h = b.hull, p = h.position;
+      if (b.out) {
+        b.t += (b.speed * dt) / ((o.rx + o.rz) / 2);
+        const x = o.cx + Math.cos(b.t) * o.rx, z = o.cz + Math.sin(b.t) * o.rz;
+        p.set(x, o.y - 0.12 + Math.sin(this.time * 1.4 + b.dock) * 0.02, z);
+        h.facing = h.targetFacing = Math.atan2(-Math.sin(b.t) * o.rx, Math.cos(b.t) * o.rz);
+      } else {
+        p.set(o.dock[0] - 1.2 + b.dock * 1.9, o.y - 0.12 + Math.sin(this.time * 0.9 + b.dock) * 0.012, o.dock[1] - 0.6);
+        h.facing = h.targetFacing = Math.PI;
+      }
+      h.root.rotation.z = Math.sin(this.time * 1.1 + b.dock * 2) * 0.03;
+      h.root.rotation.x = Math.sin(this.time * 0.8 + b.dock) * 0.02;
+      const f = h.facing;
+      b.riders.forEach((r, i) => {
+        const side = b.riders.length === 1 ? 0 : i ? 0.36 : -0.36;
+        r.position.set(p.x + Math.cos(f) * side - Math.sin(f) * 0.62, p.y + 0.5 - SIT_DROP, p.z - Math.sin(f) * side - Math.cos(f) * 0.62);
+        r.facing = r.targetFacing = f;
+        r.anim = 'sit';
+        r.headYawTarget = Math.sin(this.time * 0.2 + i * 2 + b.dock) * 0.7;
+      });
+    }
+  }
+
+  *visible(pl: CrowdPlayer, viewR: number): Generator<Actor> {
+    for (const b of this.list) {
+      const on = Math.hypot(b.hull.position.x - pl.x, b.hull.position.z - pl.z) < viewR + 4;
+      show(b.hull, on);
+      for (const r of b.riders) show(r, on && b.out);
+      if (!on) continue;
+      yield b.hull;
+      if (b.out) yield* b.riders;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Radio calisthenics on the park lawn at dawn
+
+class Exercise {
+  private people: Actor[] = [];
+  private spots: { x: number; z: number; face: number }[] = [];
+  constructor(private centres: V2[], _make: CrowdMaker, private free: (x: number, z: number) => boolean, private height: (x: number, z: number) => number) {}
+
+  populate(n: number, person: (seed: number) => Actor): void {
+    if (n < 3) return;
+    // the first lawn with room for a leader and rows of followers facing them
+    for (const [cx, cz] of this.centres) {
+      const s: { x: number; z: number; face: number }[] = [{ x: cx, z: cz - 2.2, face: 0 }];
+      for (let row = 0; row < 2; row++) for (let col = -2; col <= 2; col++) s.push({ x: cx + col * 1.3, z: cz + row * 1.4, face: Math.PI });
+      const ok = s.filter((q) => this.free(q.x, q.z));
+      if (!this.free(cx, cz - 2.2) || ok.length < n) continue;
+      this.spots = [s[0], ...ok.filter((q) => q !== s[0]).slice(0, n - 1)];
+      break;
+    }
+    if (!this.spots.length) return;
+    this.people = this.spots.map((q, i) => {
+      const a = person(9000 + i * 5);
+      a.position.set(q.x, this.height(q.x, q.z), q.z);
+      a.facing = a.targetFacing = q.face;
+      a.anim = 'exercise';
+      return a;
+    });
+  }
+
+  private active = false;
+
+  update(_dt: number, hour: number): void {
+    // gathering a few minutes early, then the broadcast starts at half past six
+    this.active = within(hour, 6.2, 7.6);
+    for (const a of this.people) a.anim = within(hour, 6.2, 6.5) ? 'idle' : 'exercise';
+  }
+
+  *visible(pl: CrowdPlayer, viewR: number): Generator<Actor> {
+    for (const a of this.people) {
+      const on = this.active && Math.hypot(a.position.x - pl.x, a.position.z - pl.z) < viewR;
+      show(a, on);
+      if (on) yield a;
     }
   }
 }

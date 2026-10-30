@@ -1,7 +1,7 @@
 import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
-import { Renderer, voxelMaterial, Quality, groundApron } from './engine/renderer';
+import { Renderer, voxelMaterial, Quality, groundApron, distantSkyline } from './engine/renderer';
 import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
 import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
@@ -9,7 +9,8 @@ import { assemble } from './world/assemble';
 import type { WorkerIn, WorkerOut } from './world/worker';
 import { Streamer, StreamView } from './engine/streamer';
 import type { MeshData } from './world/mesher';
-import { buildPerson, buildCat, randomLook, Look } from './world/characters';
+import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
+import { bikeModel, scooterModel, swanBoatModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
@@ -20,7 +21,7 @@ import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
 import { Cutaway } from './game/cutaway';
 import { Audio } from './game/audio';
-import { loadState, saveState, resetState, SaveState } from './game/state';
+import { loadState, saveState, resetState, SaveState, viewMetres, VIEW_DEFAULT } from './game/state';
 import { DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
@@ -31,6 +32,8 @@ import type { RoomAnchor } from './world/interiors';
 import { UI, GameHooks } from './ui/ui';
 import { renderDishIcons } from './ui/icons';
 import { Travel } from './ui/travel';
+import { CityMap, type Pin } from './ui/citymap';
+import { Beacon } from './game/guide';
 import type { Destination } from './data/destinations';
 import type { Coop, Peer } from './net/coop';
 
@@ -62,7 +65,6 @@ const SEND_EVERY = 0.1; // seconds between co-op movement samples
 
 const PLAYER_SPEED = 3.2;
 const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
-const FP_FOG = 0.036; // first-person haze density, hides the draw distance
 const BODY_R = 0.32; // how wide a person is to the sway shader (a cat is 0.1)
 const VIEW_KEY = 'tastyworld.view';
 const VENDOR_CALLS = ['Irasshaimase!', 'Fresh and hot!', 'Oishii yo!', 'Come, come!', 'Hai, dōzo!', 'Just made!'];
@@ -100,6 +102,13 @@ class Game {
   /** The travel map covers the screen, so the 3D world can rest. */
   private covered = false;
   private remotes = new Map<string, Remote>();
+  private cityMap!: CityMap;
+  private beacon!: Beacon;
+  /** The walk to the pinned spot: corners still ahead of the player, last one the pin. */
+  private route: [number, number][] | null = null;
+  private routeT = 0;
+  private guideEl: HTMLElement | null = null;
+  private walkLeft = 0;
   private sendT = 0;
   private waveT = 0;
   private lookColor = 0;
@@ -111,6 +120,8 @@ class Game {
   private workers: Worker[] = [];
   private partOf: (iz: number) => number = () => 0;
   private streamer!: Streamer;
+  /** View distance in metres (settings). */
+  private viewDist = 120;
   private matWorld!: THREE.ShaderMaterial;
   /** Scratch list of people near the player, nearest first, for the sway shader. */
   private nudgers: [number, Actor][] = [];
@@ -197,7 +208,7 @@ class Game {
       close: () => this.ui.close(),
       toast: (i, t, x) => this.ui.toast(i, t, x),
     });
-    this.ui.onMap = () => this.travel.openMap('view');
+    this.ui.onMap = () => this.openCityMap();
     this.ui.onParty = () => this.travel.ticket();
     this.ui.onWave = () => this.wave();
     this.applySettings();
@@ -279,6 +290,8 @@ class Game {
     this.matCut.side = THREE.DoubleSide;
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
     this.worldGroup.add(groundApron(sh, [WX0, WZ0, WX1, WZ1]));
+    // the rest of Tokyo beyond the map, with gaps where the canal and the two avenues carry on
+    this.worldGroup.add(distantSkyline(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]]));
     sh.uBounds.value.set(WX0, WZ0, WX1, WZ1);
     this.cam.bounds = [WX0 + 2, WZ0 + 2, WX1 - 2, WZ1 - 2];
     this.r.composite.uniforms.uWaterBounds.value.set(WX0 - 5, WZ0 - 5, WX1 + 5, WZ1 + 5);
@@ -301,6 +314,7 @@ class Game {
     sh.tCut.value = this.cutaway.cut;
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
     this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile);
+    this.streamer.dist = this.viewDist;
     this.streamer.onMesh = (c, m) => {
       const [x0, z0, x1, z1] = this.streamer.rect(c);
       c.occ = this.cutaway.touching(x0, z0, x1, z1);
@@ -324,9 +338,27 @@ class Game {
     this.lm = w.lightmap;
     this.setDoor(this.s.manekis.length >= 3);
 
-    this.blobs = new Blobs(this.r.scene, 64);
+    this.blobs = new Blobs(this.r.scene, 160);
     this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas]);
+    this.beacon = new Beacon(this.r.scene);
+    this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand }, {
+      player: () => {
+        const [x, z] = this.mapPos();
+        const f = this.cam.fwd, fl = Math.hypot(f.x, f.z) || 1;
+        return { x, z, facing: this.player.facing, view: [f.x / fl, f.z / fl] };
+      },
+      friends: () => (this.coop?.list ?? []).filter((p) => p.st && p.inWorld).map((p) => {
+        const st = p.st!, [x, z] = st[6] === 1 ? this.w.anchors.hiddenDoor.stand : [st[0], st[2]];
+        return { id: p.id, name: p.name, color: p.color, x, z };
+      }),
+      pin: () => this.s.pin ?? null,
+      route: () => this.route,
+      setPin: (p) => this.setPin(p),
+      worldMap: () => this.travel.openMap('view'),
+      close: () => this.ui.close(),
+      click: () => this.audio.play('click'),
+    });
     for (const i of this.s.manekis) this.particles.hideSparkle(i);
     for (const i of this.s.darumas) this.particles.hideSparkle(a.manekis.length + i);
 
@@ -425,7 +457,8 @@ class Game {
     Actor.onStep = (act, run) => { if (act === this.player) this.audio.step(act.position.x, act.position.z, run); };
     this.audio.setRooms(a.rooms.map((rm) => ({ rect: rm.rect, kind: rm.kind })));
 
-    // pedestrians going about their day, a few of them in pairs
+    // the city's people going about their day; bodies are only built when they first come into view
+    const lazy = (act: Actor) => { act.root.visible = false; this.worldGroup.add(act.root); return act; };
     this.crowd = new Crowd(this.navWorld, a, {
       bubble: (key, text, pos, secs) => this.ui.bubble(key, text, pos, secs),
       serve: (id, x, z) => {
@@ -435,18 +468,17 @@ class Game {
         v.actor.targetFacing = Math.atan2(x - v.actor.position.x, z - v.actor.position.z);
       },
       quiet: () => !this.started || this.ui.busy,
+    }, {
+      person: (look) => lazy(new Actor(buildPerson(look), sh, false, true)),
+      dog: (seed) => { const d = lazy(new Actor(buildDog(seed), sh, true, true)); d.dog = true; return d; },
+      vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), sh, true, true)),
+      boat: (seed) => lazy(new Actor(swanBoatModel(seed), sh, true, true)),
     });
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
-    const n = this.r.isMobile ? 10 : 18;
-    const nodes = a.graph.nodes;
-    for (let i = 0, prev = null as ReturnType<Crowd['add']> | null; i < n; i++) {
-      const look = randomLook(1000 + i * 7);
-      const act = new Actor(buildPerson(look), sh);
-      this.worldGroup.add(act.root);
-      // every fourth and fifth walker is the companion of the one before
-      const pair = i % 5 === 4 && prev;
-      prev = this.crowd.add(act, look, (i * 7) % nodes.length, pair ? prev! : undefined);
-    }
+    const m = this.r.isMobile;
+    this.crowd.populate(m
+      ? { walkers: 70, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 }
+      : { walkers: 150, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
     this.crowd.settle(this.tod.hour);
 
     // cats
@@ -695,6 +727,7 @@ class Game {
       }
       this.setCoop(coop);
     }
+    if (this.s.pin) this.setPin(this.s.pin);
     this.cam.setOrbit(0);
     this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
     this.cam.zoom = this.r.isMobile ? 15 : 17;
@@ -731,6 +764,17 @@ class Game {
     this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
     this.r.composite.uniforms.uTilt.value = st.tilt && !this.cam.fp ? 0.6 : 0;
     this.tod.dayLength = st.dayLength;
+    this.tod.setTarget(st.timeOfDay);
+    // view distance: how far first person draws (the haze thickens to meet it) and how far out the iso view zooms
+    const tier: Quality = st.quality === 'auto' ? (mobile ? 'medium' : 'high') : st.quality;
+    const dist = viewMetres(st.viewDist ?? VIEW_DEFAULT[tier]);
+    this.viewDist = dist;
+    if (this.streamer) this.streamer.dist = dist;
+    this.r.persp.far = dist + 10;
+    this.r.persp.fov = st.fov;
+    this.r.persp.updateProjectionMatrix();
+    this.cam.maxZoom = 34 + THREE.MathUtils.clamp((dist - 80) / 220, 0, 1) * 46;
+    this.cam.zoom = Math.min(this.cam.zoom, this.cam.maxZoom);
   }
 
   private buy(d: FoodId, _st: StallInfo): boolean {
@@ -982,6 +1026,8 @@ class Game {
     if (this.coop && this.coop !== coop) this.coop.leave();
     this.coop = coop;
     for (const id of [...this.remotes.keys()]) this.dropRemote(id);
+    this.tod.follower = false;
+    this.ui.skyFromLeader = false;
     if (!coop) { this.ui.party('', null); return; }
     this.shareProfile();
     if (this.started) coop.setInWorld(true);
@@ -1043,6 +1089,121 @@ class Game {
     this.remotes.delete(id);
   }
 
+  // ------------------------------------------------------------------ pocket map + guide
+  /** Where the player is on the city map (inside the hidden restaurant: its door). */
+  private mapPos(): [number, number] {
+    const p = this.player.position;
+    return this.inside ? this.w.anchors.hiddenDoor.stand : [p.x, p.z];
+  }
+
+  private openCityMap(): void {
+    if (!this.started) return;
+    this.ui.overlay(this.cityMap.open(this.s, this.ui.icons), () => this.cityMap.closed());
+  }
+
+  /** Pin a spot (or clear it with null): the beacon, the compass and the route all follow it. */
+  private setPin(p: Pin | null): void {
+    this.s.pin = p;
+    this.save();
+    this.route = null;
+    this.routeT = 0;
+    if (!p) { this.beacon.clear(); return; }
+    this.beacon.set(p.x, this.navWorld.heightAt(p.x, p.z), p.z);
+    this.reroute();
+  }
+
+  private reroute(): void {
+    const pin = this.s.pin;
+    if (!pin) return;
+    const [x, z] = this.mapPos();
+    this.route = this.navWorld.findPath(x, z, pin.x, pin.z);
+    // no way there (out over the water, say): just point at it rather than searching again and again
+    this.routeT = this.route ? 2.5 : Infinity;
+  }
+
+  /** Every frame: the HUD compass, the beacon and the tag that points the way. */
+  private updateGuide(dt: number): void {
+    const pin = this.started ? this.s.pin : null;
+    const [px, pz] = this.mapPos();
+    const f = this.cam.fwd, fl = Math.hypot(f.x, f.z) || 1, fx = f.x / fl, fz = f.z / fl;
+    // clockwise screen angle of a ground direction: the camera's right is (-fz, fx)
+    const ang = (dx: number, dz: number) => Math.atan2(-dx * fz + dz * fx, dx * fx + dz * fz);
+    let dist = Infinity;
+    if (pin) {
+      this.routeT -= dt;
+      const r = this.route;
+      // walk the corners off as they are reached; find the way again when the player wanders off it
+      while (r && r.length > 1 && Math.hypot(r[0][0] - px, r[0][1] - pz) < 1.6) r.shift();
+      if (this.routeT <= 0 && (!r || (r.length && Math.hypot(r[0][0] - px, r[0][1] - pz) > 9))) this.reroute();
+      const route = this.route;
+      dist = Math.hypot(pin.x - px, pin.z - pz);
+      let walk = dist;
+      if (route?.length) {
+        walk = 0;
+        let ax = px, az = pz;
+        for (const [bx, bz] of route) { walk += Math.hypot(bx - ax, bz - az); ax = bx; az = bz; }
+      }
+      const next = route?.length ? route[0] : [pin.x, pin.z];
+      this.walkLeft = walk;
+      const here = dist < 3;
+      this.ui.compass(ang(0, -1), ang(next[0] - px, next[1] - pz), here ? 'here' : walk < 1000 ? `${Math.max(1, Math.round(walk))} m` : `${(walk / 1000).toFixed(1)} km`);
+      if (here && !this.inside && !this.ui.busy) {
+        this.audio.play('chime');
+        this.ui.toast('📍', pin.name === 'Pinned spot' ? 'You made it' : `You made it to ${pin.name}`, 'Your pin has been taken off the map.');
+        this.setPin(null);
+      }
+    } else this.ui.compass(ang(0, -1), null, '');
+    this.beacon.update(dt, dist, !!pin && !this.inside);
+    this.placeGuide(this.s.pin ?? null, dist, this.walkLeft);
+  }
+
+  /** A small tag over the beacon; when it is off screen the tag waits at the edge, pointing the way. */
+  private placeGuide(pin: Pin | null, dist: number, walk: number): void {
+    if (!pin || !this.started || this.ui.open || this.inside || dist < 4) {
+      if (this.guideEl) this.guideEl.style.display = 'none';
+      return;
+    }
+    let el = this.guideEl;
+    if (!el) {
+      el = this.guideEl = document.createElement('div');
+      el.className = 'guide';
+      el.innerHTML = '<span class="gd"><i></i><span class="gn"></span><em></em></span><span class="stem"></span><span class="arr"></span>';
+      document.getElementById('labels')!.appendChild(el);
+    }
+    el.style.display = '';
+    const name = pin.name, m = `${Math.round(walk)} m`;
+    const gn = el.querySelector('.gn') as HTMLElement, em = el.querySelector('em') as HTMLElement;
+    if (gn.textContent !== m) gn.textContent = m;
+    if (em.textContent !== name) em.textContent = name;
+    const W = window.innerWidth, H = window.innerHeight, mg = 52;
+    this.v3.set(pin.x, this.navWorld.heightAt(pin.x, pin.z) + 3.2, pin.z);
+    const ok = this.cam.project(this.v3, this.v2);
+    let x = this.v2.x, y = this.v2.y;
+    if (!ok) { x = W - x; y = H; }
+    const edge = !ok || x < mg || x > W - mg || y < mg + 60 || y > H - mg - 40;
+    el.classList.toggle('edge', edge);
+    if (edge) {
+      const cx = W / 2, cy = H / 2, dx = x - cx, dy = y - cy;
+      const k = Math.min((W / 2 - mg - 40) / Math.max(1e-3, Math.abs(dx)), (H / 2 - mg - 50) / Math.max(1e-3, Math.abs(dy)));
+      x = cx + dx * k; y = cy + dy * k;
+      (el.querySelector('.arr') as HTMLElement).style.transform = `rotate(${Math.atan2(dy, dx).toFixed(3)}rad)`;
+    }
+    el.style.left = `${x.toFixed(1)}px`;
+    el.style.top = `${y.toFixed(1)}px`;
+  }
+
+  /** Stalls show up on the map once you have walked past them. */
+  private discover(): void {
+    if (this.inside || !this.started) return;
+    const p = this.player.position;
+    for (const st of this.w.anchors.stalls) {
+      if (this.s.seen.includes(st.id) || STALL[st.id]?.hidden) continue;
+      if (Math.hypot(st.vendor[0] - p.x, st.vendor[2] - p.z) > 12) continue;
+      this.s.seen.push(st.id);
+      this.save();
+    }
+  }
+
   /** Send our movement to friends at a steady rate. */
   private syncCoop(dt: number): void {
     const c = this.coop;
@@ -1093,7 +1254,9 @@ class Game {
       a.speed = st[5];
       a.root.visible = (st[6] === 1) === this.inside && this.started;
       if (!c.host && st[7] >= 0) {
-        // keep the sky in step with the trip leader
+        // keep the sky in step with the trip leader (their time of day setting wins)
+        this.tod.follower = true;
+        this.ui.skyFromLeader = true;
         let dh = st[7] - this.tod.hour;
         dh -= Math.round(dh / 24) * 24;
         if (Math.abs(dh) > 0.25) this.tod.hour = st[7];
@@ -1400,7 +1563,8 @@ class Game {
       const pl = this.player;
       const friends: [number, number][] = [];
       for (const rm of this.remotes.values()) if (rm.actor.root.visible) friends.push([rm.actor.position.x, rm.actor.position.z]);
-      this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends);
+      const viewR = this.cam.fp ? Math.min(80, this.viewDist * 0.65) : this.cam.zoom * 1.3 + 8;
+      this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends, viewR);
       this.updateCats(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
@@ -1472,9 +1636,9 @@ class Game {
       a.update(dt);
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
       const d2 = dx * dx + dz * dz;
+      a.light(this.lm);
       if (d2 < 900) {
-        a.light(this.lm);
-        this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);
+        if (!a.noBlob) this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);
         if (d2 < 225) near.push([d2, a]);
       }
     }
@@ -1531,8 +1695,7 @@ class Game {
       if (cut !== c.cut) {
         c.cut = cut;
         const mat = cut ? this.matCut : this.matWorld;
-        if (c.full) c.full.material = mat;
-        if (c.lod) c.lod.material = mat;
+        for (const m of c.lv) if (m) m.material = mat;
       }
     }
   }
@@ -1591,9 +1754,13 @@ class Game {
     // in first person the body shows while eating, so the food is seen in your own hands (the camera sits inside the head)
     this.player.root.visible = !fp || !!this.meal;
     const eye = this.r.persp.position;
-    sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? FP_FOG : 0);
+    // first-person haze, thick enough to hide the far edge of the view distance
+    sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi.update(sh.uTime.value);
+    this.updateGuide(dt);
+    // paint the pocket map a sliver at a time once the trip is under way, so opening it is instant
+    if (this.started) this.cityMap.prepare(2);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     const pl = this.player.position;
     this.ui.updateLabels((p) => this.screen(p));
@@ -1608,6 +1775,7 @@ class Game {
         this.roomHere = rm;
         if (rm && this.started && !this.s.rooms.includes(rm.id)) { this.s.rooms.push(rm.id); this.afterChange(); }
       }
+      this.discover();
       const rn = rm ? roomName(rm.kind, rm.nth) : null;
       const z = this.inside ? { name: 'Kakurega · Hidden Counter', jp: '隠れ家' } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: 'Tokyo', jp: '東京' };
       this.ui.location(z.name, z.jp, this.tod.label());
@@ -1623,7 +1791,8 @@ class Game {
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }
     this.audio.tick(this.tod.night);
-    this.r.render();
+    // the pocket map covers the screen, so the world can rest under it
+    if (!this.cityMap.isOpen) this.r.render();
     this.r.adapt(raw, now);
   }
 }

@@ -28,7 +28,7 @@ const CORNER_SV = [-1, -1, 1, 1];
 const AO_CURVE = [0.4, 0.62, 0.82, 1.0];
 
 /** Voxel sizes known to the shader (index stored per vertex). */
-export const SCALES = [0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5];
+export const SCALES = [0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5, 1.0];
 
 export const STRIDE = 16; // attribute bytes per vertex
 

@@ -37,7 +37,8 @@ export function sampleLightmap(lm: LightMap2D, x: number, z: number, out: Float3
 
 export type Anim =
   | 'idle' | 'walk' | 'run' | 'cook' | 'eat' | 'wave' | 'sit' | 'sitEat' | 'bow'
-  | 'talk' | 'listen' | 'phone' | 'photo' | 'browse' | 'startle';
+  | 'talk' | 'listen' | 'phone' | 'photo' | 'browse' | 'startle'
+  | 'pray' | 'exercise' | 'ride';
 /** Something carried in the hands while walking or standing. */
 export type Hold = 'none' | 'food' | 'phone';
 
@@ -78,9 +79,11 @@ export class Actor {
   /** Called whenever a foot touches the ground in the walk or run cycle (footstep sounds). */
   static onStep: ((a: Actor, run: boolean) => void) | null = null;
   readonly root = new THREE.Group();
-  readonly mesh: THREE.Mesh;
-  readonly mat: THREE.ShaderMaterial;
-  private depthMat: THREE.ShaderMaterial;
+  /** Built on first use (see ensure), so a big crowd only pays for the bodies near the player. */
+  private mesh: THREE.Mesh | null = null;
+  private mat: THREE.ShaderMaterial | null = null;
+  private depthMat: THREE.ShaderMaterial | null = null;
+  private piv: THREE.Vector3[];
   private rot: THREE.Vector3[];
   private uOffset = { value: new THREE.Vector3() };
   private uCharLight = { value: new THREE.Vector3(1, 1, 0) };
@@ -88,6 +91,12 @@ export class Actor {
   private uFlash = { value: 0 };
   anim: Anim = 'idle';
   hold: Hold = 'none';
+  /** Riding: pedal a bicycle (true) or rest the feet on a scooter's floorboard. */
+  pedals = true;
+  /** Four-legged actors: a dog wags its tail and trots rather than slinks. */
+  dog = false;
+  /** No contact shadow on the ground (boats and the people in them). */
+  noBlob = false;
   phase = Math.random() * 10;
   /** Ground speed in m/s; drives the stride. */
   speed = 0;
@@ -126,13 +135,24 @@ export class Actor {
   private fidgetSide = 1;
   // a little personality in every body
   private seed = Math.random() * 100;
+  /** Seconds since the current action began (for sequenced actions like praying). */
+  private baseT = 0;
+  private pedal = 0;
   private swing = 0.85 + Math.random() * 0.3;
   private posture = (Math.random() - 0.4) * 0.07;
   private bounce = 0.8 + Math.random() * 0.4;
 
-  constructor(model: CharModel, shared: SharedUniforms, isCat = false) {
+  constructor(private model: CharModel, private shared: SharedUniforms, isCat = false, lazy = false) {
     this.isCat = isCat;
-    const piv = Array.from({ length: NP }, (_, i) => new THREE.Vector3(...(model.pivots[i] ?? [0, 0, 0])));
+    this.piv = Array.from({ length: NP }, (_, i) => new THREE.Vector3(...(model.pivots[i] ?? [0, 0, 0])));
+    this.rot = Array.from({ length: NP }, () => new THREE.Vector3());
+    if (!lazy) this.ensure();
+  }
+
+  /** Builds the mesh if it is not there yet (lazy actors are built the first time they are shown). */
+  ensure(): void {
+    if (this.mesh) return;
+    const model = this.model, piv = this.piv;
     const opts = { pal: model.pal, scale: model.scale, origin: model.origin, greedy: false };
     let md = meshGrid({ ...opts, grid: model.grid, parts: model.parts });
     if (model.caps) {
@@ -145,8 +165,7 @@ export class Actor {
       md = mergeMeshes([md, cm]) ?? md;
     }
     const geo = geometryFrom(md);
-    this.rot = Array.from({ length: NP }, () => new THREE.Vector3());
-    this.mat = voxelMaterial(shared, { CHARACTER: 1 }, {
+    this.mat = voxelMaterial(this.shared, { CHARACTER: 1 }, {
       uPivot: { value: piv },
       uRot: { value: this.rot },
       uOffset: this.uOffset,
@@ -157,10 +176,23 @@ export class Actor {
     this.mesh = new THREE.Mesh(geo, this.mat);
     this.mesh.frustumCulled = true;
     // casts a real sun shadow, posed by the same skeleton uniforms
-    this.depthMat = voxelDepthMaterial({ CHARACTER: 1 }, { uTime: shared.uTime, uPivot: this.mat.uniforms.uPivot, uRot: this.mat.uniforms.uRot, uOffset: this.uOffset });
+    this.depthMat = voxelDepthMaterial({ CHARACTER: 1 }, { uTime: this.shared.uTime, uPivot: this.mat.uniforms.uPivot, uRot: this.mat.uniforms.uRot, uOffset: this.uOffset });
     this.mesh.userData.shadowMat = this.depthMat;
     this.mesh.layers.enable(SHADOW_DYNAMIC);
     this.root.add(this.mesh);
+  }
+
+  /** True once the mesh exists. */
+  get built(): boolean {
+    return !!this.mesh;
+  }
+
+  /** Frees the mesh of someone far away; it is rebuilt when they are next shown. */
+  release(): void {
+    if (!this.mesh) return;
+    this.root.remove(this.mesh);
+    this.dispose();
+    this.mesh = this.mat = this.depthMat = null;
   }
 
   /** Light uniforms shared with things held in the hands, so they are lit like the body. */
@@ -169,9 +201,9 @@ export class Actor {
   }
 
   dispose(): void {
-    this.mesh.geometry.dispose();
-    this.mat.dispose();
-    this.depthMat.dispose();
+    this.mesh?.geometry.dispose();
+    this.mat?.dispose();
+    this.depthMat?.dispose();
   }
 
   get position(): THREE.Vector3 {
@@ -191,7 +223,10 @@ export class Actor {
   }
 
   update(dt: number): void {
+    this.ensure();
     this.animT += dt;
+    this.baseT += dt;
+    if (this.anim === 'ride') this.pedal += dt * this.speed * 2.6;
     // smooth facing; remember how fast we turn to lean into curves
     let d = this.targetFacing - this.facing;
     d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -218,6 +253,7 @@ export class Actor {
       this.from.set(this.cur);
       this.fade = 0;
       this.base = base;
+      this.baseT = 0;
       if (base !== 'idle') this.fidget = -1;
     }
     this.fade = Math.min(1, this.fade + dt * 4);
@@ -390,6 +426,66 @@ export class Actor {
         set(p, PART.armR, -0.45, -0.45, 0); set(p, PART.foreR, -1.95, 0, 0);
         set(p, PART.armL, -0.35, 0.6, 0); set(p, PART.foreL, -1.35, 0, 0);
         add(p, PART.head, 0.14 + Math.sin(t * 0.5) * 0.06, Math.sin(t * 0.6 + this.seed) * 0.35, 0.04);
+        break;
+      }
+      case 'pray': {
+        // two bows have been made already; two claps, then hands pressed together and the head bowed
+        this.stance(p, t);
+        const u = this.baseT;
+        const clap = u < 1.3 ? Math.abs(Math.sin(u * Math.PI * 1.55)) : 0;
+        const settle = sstep(1.2, 1.8, u);
+        set(p, PART.armL, -0.5, 0.62 - clap * 0.35, 0); set(p, PART.foreL, -1.62, 0, 0);
+        set(p, PART.armR, -0.5, -0.62 + clap * 0.35, 0); set(p, PART.foreR, -1.62, 0, 0);
+        add(p, PART.body, 0.12 * settle, 0, 0);
+        add(p, PART.head, 0.05 + 0.32 * settle, 0, 0);
+        break;
+      }
+      case 'exercise': {
+        // morning radio calisthenics: four moves, eight counts each, everyone in step
+        this.stance(p, t);
+        const beat = t * 1.6;
+        const move = Math.floor(beat / 8) % 4, ph = Math.sin(beat * Math.PI * 0.5);
+        const a = Math.abs(ph);
+        if (move === 0) { // arms up and over, rising on the toes
+          set(p, PART.armL, -2.9 * a, 0, -0.2 - 0.3 * (1 - a)); set(p, PART.armR, -2.9 * a, 0, 0.2 + 0.3 * (1 - a));
+          set(p, PART.foreL, -0.15, 0, 0); set(p, PART.foreR, -0.15, 0, 0);
+          p[OFF + 1] += 0.02 * a;
+        } else if (move === 1) { // side bends
+          set(p, PART.body, 0.02, 0, 0.32 * ph); set(p, PART.hips, 0, 0, -0.05 * ph);
+          set(p, PART.armL, 0, 0, ph > 0 ? -2.6 * a : -0.2); set(p, PART.armR, 0, 0, ph < 0 ? 2.6 * a : 0.2);
+          set(p, PART.foreL, 0, 0, 0); set(p, PART.foreR, 0, 0, 0);
+        } else if (move === 2) { // knee bends with arms forward
+          const k = a * 0.9;
+          set(p, PART.legL, -k * 0.6, 0, -0.05); set(p, PART.legR, -k * 0.6, 0, 0.05);
+          set(p, PART.shinL, k * 1.2, 0, 0); set(p, PART.shinR, k * 1.2, 0, 0);
+          set(p, PART.body, 0.15 * a, 0, 0);
+          set(p, PART.armL, -1.5 * a, 0, -0.08); set(p, PART.armR, -1.5 * a, 0, 0.08);
+          set(p, PART.foreL, -0.1, 0, 0); set(p, PART.foreR, -0.1, 0, 0);
+          p[OFF + 1] -= k * 0.14;
+        } else { // big arm circles and a twist
+          const c = beat * Math.PI * 0.5;
+          set(p, PART.armL, -1.5 + Math.sin(c) * 1.4, 0, -0.5 - Math.cos(c) * 0.4); set(p, PART.armR, -1.5 + Math.sin(c) * 1.4, 0, 0.5 + Math.cos(c) * 0.4);
+          set(p, PART.foreL, -0.1, 0, 0); set(p, PART.foreR, -0.1, 0, 0);
+          set(p, PART.body, 0.02, 0.35 * ph, 0);
+        }
+        break;
+      }
+      case 'ride': {
+        // on a bicycle (pedalling) or a scooter (feet on the floorboard), hands on the bars
+        const c = this.pedal;
+        if (this.pedals) {
+          set(p, PART.legL, -1.05 + 0.32 * Math.sin(c), 0, -0.04); set(p, PART.shinL, 0.95 + 0.45 * Math.cos(c - 0.4), 0, 0);
+          set(p, PART.legR, -1.05 - 0.32 * Math.sin(c), 0, 0.04); set(p, PART.shinR, 0.95 - 0.45 * Math.cos(c - 0.4), 0, 0);
+          set(p, PART.body, 0.32 + this.posture * 0.5, 0, Math.sin(c) * 0.025);
+        } else {
+          set(p, PART.legL, -1.35, 0, -0.1); set(p, PART.shinL, 1.3, 0, 0);
+          set(p, PART.legR, -1.35, 0, 0.1); set(p, PART.shinR, 1.3, 0, 0);
+          set(p, PART.body, 0.08 + this.posture * 0.5, 0, 0);
+        }
+        const lean = p[PART.body * 3];
+        set(p, PART.armL, -1.05 + lean, 0.12, -0.12); set(p, PART.foreL, -0.35, 0, 0);
+        set(p, PART.armR, -1.05 + lean, -0.12, 0.12); set(p, PART.foreR, -0.35, 0, 0);
+        set(p, PART.head, -lean * 0.7 + Math.sin(t * 0.5) * 0.03, 0, 0);
         break;
       }
       case 'startle':
@@ -610,7 +706,7 @@ export class Actor {
   private catPose(dt: number, p: Float32Array): void {
     const t = this.animT;
     if (this.locoW > 0.01) {
-      this.phase += dt * this.vs * 8;
+      this.phase += dt * this.vs * (this.dog ? 9.5 : 8);
       const s = Math.sin(this.phase) * 0.7 * this.locoW;
       set(p, PART.armL, s, 0, 0); set(p, PART.armR, -s, 0, 0); set(p, PART.legL, -s, 0, 0); set(p, PART.legR, s, 0, 0);
       p[OFF + 1] = Math.abs(Math.cos(this.phase)) * 0.015 * this.locoW;
@@ -620,7 +716,12 @@ export class Actor {
       set(p, PART.head, Math.sin(t * 0.5) * 0.05, 0, Math.sin(t * 0.31) * 0.06);
       p[OFF + 1] = -0.04;
     }
-    set(p, PART.tail, 0.3 + Math.sin(t * 1.3) * 0.15, Math.sin(t * 2.2) * 0.5, 0);
+    if (this.base === 'browse') { // nose to the ground, sniffing
+      set(p, PART.head, 0.55 + Math.sin(t * 13) * 0.04, Math.sin(t * 0.9) * 0.3, 0);
+      set(p, PART.armL, 0.12, 0, 0); set(p, PART.armR, 0.12, 0, 0);
+    }
+    if (this.dog) set(p, PART.tail, -0.2, Math.sin(t * (this.locoW > 0.3 ? 9 : 6)) * 0.45, 0);
+    else set(p, PART.tail, 0.3 + Math.sin(t * 1.3) * 0.15, Math.sin(t * 2.2) * 0.5, 0);
   }
 }
 

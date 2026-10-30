@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.1',
+    date: '2026-10-30',
+    title: 'Smoother streets',
+    items: [
+      'The people of Tokyo now find their way around town in the background, so the game no longer hitches for a moment when lots of them set off at once. Busy streets stay smooth.',
+      'The route to your map pin is worked out in the background too, so pinning a spot across town or wandering off the route never stutters.',
+      'Speech bubbles and markers follow people more cheaply on screen.',
+      'New performance overlay: press F3 (or add ?perf to the address) to see your frame rate, frame times, CPU and GPU time, draw calls and triangles. Press F3 again to hide it.',
+    ],
+  },
+  {
     version: '0.10.0',
     date: '2026-10-30',
     title: 'A city to the horizon',

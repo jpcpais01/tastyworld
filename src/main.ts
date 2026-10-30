@@ -412,8 +412,8 @@ class Game {
       });
     }
 
-    // footsteps follow the walk cycle; the player's own are always heard, even in first person
-    Actor.onStep = (act, run) => { if (act === this.player || act.root.visible) this.audio.step(act.position.x, act.position.z, run, act === this.player); };
+    // your own footsteps follow the walk cycle, softly
+    Actor.onStep = (act, run) => { if (act === this.player) this.audio.step(act.position.x, act.position.z, run); };
     this.audio.setRooms(a.rooms.map((rm) => ({ rect: rm.rect, kind: rm.kind })));
 
     // pedestrians going about their day, a few of them in pairs
@@ -626,14 +626,6 @@ class Game {
     this.afterChange();
   }
 
-  /** Tell the audio where we are and how busy the street is. */
-  private audioScene(): void {
-    const pl = this.player.position;
-    let crowd = 0;
-    if (!this.inside) for (const a of this.crowd.visible()) if (Math.hypot(a.position.x - pl.x, a.position.z - pl.z) < 22) crowd++;
-    this.audio.scene(pl.x, pl.z, this.cam.right.x, this.cam.right.z, crowd);
-  }
-
   private roomAt(x: number, z: number): RoomAnchor | null {
     for (const rm of this.w.anchors.rooms) {
       const [x0, z0, x1, z1] = rm.rect;
@@ -726,8 +718,7 @@ class Game {
     const mobile = matchMedia('(pointer: coarse)').matches;
     if (st.quality === 'auto') { this.r.autoQuality = true; this.r.setQuality(mobile ? 'medium' : 'high'); }
     else { this.r.autoQuality = false; this.r.renderScale = 1; this.r.setQuality(st.quality); this.r.resize(); }
-    this.audio.setMusic(st.music);
-    this.audio.setSfx(st.sfx);
+    this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
     this.r.composite.uniforms.uTilt.value = st.tilt && !this.cam.fp ? 0.6 : 0;
     this.tod.dayLength = st.dayLength;
   }
@@ -1540,7 +1531,7 @@ class Game {
       }
       const water = this.inside ? 0 : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
       this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
-      this.audioScene();
+      this.audio.scene(pl.x, pl.z);
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }
     this.audio.tick(this.tod.night);

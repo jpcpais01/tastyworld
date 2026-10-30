@@ -72,6 +72,19 @@ function toggle(on: boolean, set: (v: boolean) => void, label = ''): HTMLElement
   return wrap;
 }
 
+/** A volume slider (0..1); reports while dragging and once more on release. */
+function slider(v: number, set: (v: number, done: boolean) => void): HTMLElement {
+  const r = document.createElement('input');
+  r.type = 'range'; r.min = '0'; r.max = '100'; r.step = '1';
+  r.value = String(Math.round(v * 100));
+  r.className = 'vol';
+  const paint = () => r.style.setProperty('--p', `${r.value}%`);
+  paint();
+  r.oninput = () => { paint(); set(Number(r.value) / 100, false); };
+  r.onchange = () => set(Number(r.value) / 100, true);
+  return r;
+}
+
 export class UI {
   icons: Record<string, string> = {};
   private hud = $('hud');
@@ -645,8 +658,16 @@ export class UI {
     row(look, G.eye, 'Miniature focus', sw(st.tilt, (v) => { st.tilt = v; }));
     row(look, G.clock, 'Day length', seg([['360', '6 min'], ['720', '12 min'], ['1440', '24 min']], String(st.dayLength), (v) => { st.dayLength = Number(v); }));
     const sound = group('Sound');
-    row(sound, G.music, 'Music', sw(st.music, (v) => { st.music = v; }));
-    row(sound, G.speaker, 'Sound effects', sw(st.sfx, (v) => { st.sfx = v; }));
+    const vol = (get: () => number, put: (v: number) => void) => slider(get(), (v, done) => {
+      put(v);
+      this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol); // live while dragging; saved on release
+      if (!done) return;
+      this.hooks.settingsChanged();
+      this.audio.play('click');
+    });
+    row(sound, G.music, 'Music', vol(() => st.musicVol, (v) => { st.musicVol = v; }));
+    row(sound, G.wind, 'Ambience', vol(() => st.ambVol, (v) => { st.ambVol = v; }));
+    row(sound, G.speaker, 'Effects', vol(() => st.sfxVol, (v) => { st.sfxVol = v; }));
     const more = group('More');
     const nb = h('button', 'btn btn-soft', `v${PATCH_NOTES[0].version} notes`);
     nb.onclick = () => { this.audio.play('click'); this.notes(); };

@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.5',
+    date: '2026-10-30',
+    title: 'Peace and quiet',
+    items: [
+      'The street is much quieter now: just a soft city hush, the canal lapping when you are near it, a sparrow now and then by day and a few bell crickets at night.',
+      'Gone: the crowd murmur, shop radios, temple bell, crows, bicycle bells and the passing train. Grills only crackle faintly when you stand right next to them.',
+      'Your footsteps are barely there, and you no longer hear everyone else\'s.',
+      'New volume sliders in Settings for Music, Ambience and Effects, so you can set each one just how you like it.',
+    ],
+  },
+  {
     version: '0.8.4',
     date: '2026-10-30',
     title: 'Everything in its place',

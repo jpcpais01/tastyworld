@@ -2,6 +2,7 @@ import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
 import { Renderer, voxelMaterial, Quality, groundApron } from './engine/renderer';
+import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
 import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
 import { assemble } from './world/assemble';
@@ -12,12 +13,12 @@ import { buildPerson, buildCat, randomLook, Look } from './world/characters';
 import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
-import { Actor, Anim, geometryFrom } from './game/actors';
+import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
 import { Cutaway } from './game/cutaway';
-import { Audio, Talker } from './game/audio';
+import { Audio } from './game/audio';
 import { loadState, saveState, resetState, SaveState } from './game/state';
 import { DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
@@ -248,6 +249,7 @@ class Game {
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
     const m = new THREE.Mesh(geometryFrom(md), mat);
+    m.layers.enable(SHADOW_STATIC);
     m.matrixAutoUpdate = false;
     m.updateMatrix();
     group.add(m);
@@ -294,6 +296,7 @@ class Game {
       const [x0, z0, x1, z1] = this.streamer.rect(c);
       c.occ = this.cutaway.touching(x0, z0, x1, z1);
       m.material = c.cut ? this.matCut : this.matWorld;
+      m.layers.enable(SHADOW_STATIC);
     };
     this.setHeightField(false);
     // compile the cutaway shader up front (the Kakurega uses it too) so the first building to lower doesn't hitch
@@ -504,7 +507,7 @@ class Game {
       const keeper = n.role === 'keeper';
       const info = keeper ? keeperOf(rm.kind, rm.nth, n.seed) : { name: 'Regular', look: randomLook(n.seed) };
       const act = new Actor(buildPerson(info.look), sh);
-      act.position.set(n.pos[0], n.sit ? n.pos[1] - 0.58 : this.navWorld.heightAt(n.pos[0], n.pos[2]), n.pos[2]);
+      act.position.set(n.pos[0], n.sit ? n.pos[1] - SIT_DROP : this.navWorld.heightAt(n.pos[0], n.pos[2]), n.pos[2]);
       act.facing = act.targetFacing = n.facing;
       const anim = n.sit ? 'sit' : keeper && (rm.kind === 'izakaya' || rm.kind === 'bakery') ? 'cook' : 'idle';
       act.anim = anim;
@@ -623,25 +626,12 @@ class Game {
     this.afterChange();
   }
 
-  /** Tell the audio where we are, who's chatting nearby (walkers, vendors calling out, regulars in shops) and how busy it is. */
+  /** Tell the audio where we are and how busy the street is. */
   private audioScene(): void {
     const pl = this.player.position;
-    const talkers: Talker[] = [];
     let crowd = 0;
-    if (!this.inside) {
-      for (const a of this.crowd.visible()) {
-        const d = Math.hypot(a.position.x - pl.x, a.position.z - pl.z);
-        if (d < 22) crowd++;
-        if (d < 15 && a.anim === 'talk') talkers.push({ x: a.position.x, z: a.position.z, key: a });
-      }
-      for (const v of this.vendors) if (v.waveT > 0) talkers.push({ x: v.actor.position.x, z: v.actor.position.z, key: v.actor });
-      for (const e of this.roomActors) {
-        if (e.keeper || !e.actor.root.visible) continue;
-        const q = e.actor.position;
-        if (Math.hypot(q.x - pl.x, q.z - pl.z) < 12) talkers.push({ x: q.x, z: q.z, key: e.actor, busy: 0.3 });
-      }
-    }
-    this.audio.scene(pl.x, pl.z, this.cam.right.x, this.cam.right.z, talkers, crowd);
+    if (!this.inside) for (const a of this.crowd.visible()) if (Math.hypot(a.position.x - pl.x, a.position.z - pl.z) < 22) crowd++;
+    this.audio.scene(pl.x, pl.z, this.cam.right.x, this.cam.right.z, crowd);
   }
 
   private roomAt(x: number, z: number): RoomAnchor | null {

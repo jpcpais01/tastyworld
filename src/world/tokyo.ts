@@ -60,6 +60,8 @@ export interface Anchors {
   idlers: { id: string; pos: [number, number, number] }[];
   /** Street benches: centre x, z and the angle a sitter faces. */
   benches: [number, number, number][];
+  /** Single outdoor seats (café terrace stools): x, z and the angle a sitter faces. */
+  stools: [number, number, number][];
   cats: [number, number, number][];
   emitters: Emitter[];
   vending: [number, number, number][];
@@ -88,7 +90,8 @@ type Side = 's' | 'n' | 'e' | 'w';
 const TURNS: Record<Side, number> = { s: 0, e: 1, n: 2, w: 3 };
 
 function worldColors(pal: Palette) {
-  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean } = {}) => pal.add(hex, { vary, ...o });
+  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean } = {}) => pal.add(hex, { vary, ...o });
+  const F = { leaf: true };
   return {
     earth: a(0x6b5644, 0.1), bedrock: a(0x5b5550, 0.1),
     paveA: a(0xa59d92, 0.07), paveB: a(0x968e84, 0.07), paveC: a(0xb4ab9e, 0.06), grout: a(0x6f6962, 0.05),
@@ -114,7 +117,7 @@ function worldColors(pal: Palette) {
     gold: a(0xd8a940, 0.05), stoneStep: a(0xb3ada3, 0.05), stone: a(0x9c978e, 0.1),
     awnRed: a(0xc9463d, 0.03), awnWhite: a(0xf1ece2, 0.03), awnGreen: a(0x3f7f5f, 0.03), awnBlue: a(0x35609a, 0.03), awnOrange: a(0xdf8a3c, 0.03), awnNavy: a(0x2b3a62, 0.03),
     trunk: a(0x4a3a32, 0.1), trunkDark: a(0x3a2d27, 0.1),
-    sakura: a(0xf6bfd0, 0.1), sakuraB: a(0xf1a8bf, 0.1), sakuraC: a(0xfad6e0, 0.08), sakuraD: a(0xe892ad, 0.1),
+    sakura: a(0xf6bfd0, 0.1, F), sakuraB: a(0xf1a8bf, 0.1, F), sakuraC: a(0xfad6e0, 0.08, F), sakuraD: a(0xe892ad, 0.1, F),
     boat: a(0x7d5536, 0.07), boatDark: a(0x5a3b26, 0.07), boatRim: a(0xa8774a, 0.06), tarp: a(0x3f6e9a, 0.05),
     goodsA: a(0xe9504a, 0.05), goodsB: a(0xf2c74a, 0.05), goodsC: a(0x4aa3e9, 0.05), goodsD: a(0x6cc06a, 0.05), goodsE: a(0xf08ac0, 0.05), goodsF: a(0xffffff, 0.02),
     tableCloth: a(0xb83a32, 0.03),
@@ -125,7 +128,7 @@ function worldColors(pal: Palette) {
     tatami: a(0xc8c084, 0.06), tatamiEdge: a(0x3a5a3a, 0.04), plaster: a(0xe9e0cc, 0.04), shoji: a(0xf8f2e2, 0.02, { emit: 0.25 }),
     counterTop: a(0xe6cc9c, 0.03),
     tactile: a(0xe2b93a, 0.04), tactileDot: a(0xc99f28, 0.04), manholeBlue: a(0x3a5f8a, 0.05), manholeRed: a(0xa8443a, 0.05),
-    leaf: a(0x4f8a3a, 0.14), leafDark: a(0x35662c, 0.14), pipe: a(0x9a9c98, 0.04), ivy: a(0x3f6e34, 0.16),
+    leaf: a(0x4f8a3a, 0.14, F), leafDark: a(0x35662c, 0.14, F), pipe: a(0x9a9c98, 0.04), ivy: a(0x3f6e34, 0.16, F),
     namako: a(0x5d636b, 0.04), plasterWhite: a(0xf1ede4, 0.03), kuraBase: a(0x3a3638, 0.04), steelStair: a(0x6d7378, 0.04),
     awnYellow: a(0xe9b83a, 0.03), awnBrown: a(0x7a4a2e, 0.03), awnPink: a(0xe58aa6, 0.03),
   };
@@ -161,6 +164,7 @@ export class Builder {
   }
   /** Footprints of props standing on the ground, so later ones can keep clear of them. */
   standing: [number, number, number, number][] = [];
+  stools: [number, number, number][] = [];
 
   constructor(win?: Window) {
     const w = win ?? [VX0, VZ0, VX0 + SX, VZ0 + SZ];
@@ -1453,12 +1457,17 @@ export function buildTokyo(win?: Window): BuildResult {
     // jizō statues keeping watch beside the hokora
     for (const x of [2.45, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); } // on the gravel, off the temple's stone base
     // café terrace tables on the promenade
+    const tablesAt: number[] = [];
     for (const [x0, col] of [[9.6, k.c.fabricRed], [11.4, k.c.fabricWhite], [43.6, k.c.fabricGreen], [45.4, k.c.fabricWhite], [65.2, k.c.fabricOrange]] as [number, number][]) {
       const x = dodge(x0, 38.65, 0.6);
       if (x === null) continue;
+      // a table nudged out of a doorway must not land on its neighbour's stool
+      if (tablesAt.some((t) => Math.abs(t - x) < 1.4)) continue;
+      tablesAt.push(x);
       b.place(cafeTable(k, col), x, 0, 38.65, 0);
       solid(x, 38.65, 0.3, 0.3);
-      b.place(stool(k, k.c.woodLight), x + 0.62, 0, 38.65);
+      b.place(stool(k, k.c.woodLight), x + 0.6, 0, 38.65);
+      b.stools.push([x + 0.6, 38.65, -Math.PI / 2]);
     }
     // a scooter and planters on the far bank lane
     // (in front of the far bank's row houses, whose fronts are at z = 54)
@@ -1545,6 +1554,7 @@ export function buildTokyo(win?: Window): BuildResult {
       { id: 'florist', pos: [58.5, 0, 9.7] },
     ],
     benches: b.benches,
+    stools: b.stools,
     cats: [[34.4, 0, 30.4], [12.2, 0, 40.2], [49.4, 0, 52.3]],
     emitters: b.emitters,
     vending,

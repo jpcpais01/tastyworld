@@ -8,6 +8,76 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.4',
+    date: '2026-10-30',
+    title: 'Everything in its place',
+    items: [
+      'Tidied up the little things: no more beer crates standing in front of the yakitori counter, stools poking into crates or counters, or menus, planters and bikes parked on top of each other.',
+      'Scooters, bikes and café tables on the pavement now find a free spot by the kerb, never in front of a shop door, and skip it if the pavement is too busy.',
+      'Stone lanterns, jizō statues, benches and street lamps sit cleanly on the ground, off temple steps and out of the cherry blossoms. The lanterns strung along the canal no longer hide inside the trees.',
+      'Inside, gachapon machines stand side by side instead of in each other, and storeroom crates sit in the corner rather than in the wall.',
+      'Under the hood: the town is now built by several helpers at once and streamed in piece by piece as you look around, so loading is quicker and phones use less memory. This makes room for a much bigger Tokyo, coming next.',
+    ],
+  },
+  {
+    version: '0.8.3',
+    date: '2026-10-30',
+    title: 'Real sun shadows',
+    items: [
+      'Everything in the street now casts a proper shadow in the sun: shop signs, lanterns, awnings, stools, air conditioners on the roofs, and every person and cat walking by, you included.',
+      'Shadows are crisp near the ground with soft edges, and they stay perfectly still while the camera follows you, no flicker or crawling edges.',
+      'Cherry trees keep their soft glow in the sun instead of getting speckled.',
+      'At dusk the sharp shadows fade gently into the moonlit night, and the lanterns take over as before.',
+      'Built to be light: the street\'s shadows are only redrawn when you walk far or zoom a lot, so phones stay smooth. Low quality uses a lighter version.',
+    ],
+  },
+  {
+    version: '0.8.2',
+    date: '2026-10-30',
+    title: 'Solid all round',
+    items: [
+      'Fixed being able to see through the sides of everyone\'s body: torsos, hips, shoulders and necks are solid from every angle now, for you, the locals and your co-op friends.',
+      'Bent elbows and knees no longer open a hole on the outside of the joint. Swing an arm, sit down or break into a run and the limb stays in one piece.',
+    ],
+  },
+  {
+    version: '0.8.1',
+    date: '2026-10-30',
+    title: 'A quieter, cozier street',
+    items: [
+      'No more chattering voices in your ear. Busy streets now have a soft, distant murmur of people instead, which fades away when the street empties out and at night.',
+      'Footsteps are much quieter and softer, like rubber soles on stone, with gentle variation from step to step. Other people\'s steps only reach you when they pass close by.',
+      'Shop radios play a little lower, and the presenter now lets the music do the talking: just a soft chime between songs.',
+      'Crows, bicycle bells and the passing train come by less often, so the street stays calm.',
+    ],
+  },
+  {
+    version: '0.8.0',
+    date: '2026-10-30',
+    title: 'A cozier HUD',
+    items: [
+      'A brand new HUD made of small pieces of warm, smoky glass that sit in the world instead of covering it.',
+      'Where you are and the time now share one slim pill, with a little sun, sunset or moon.',
+      'Missions are down to a single chip with a progress ring. When a reward is ready it glows red: tap it to claim.',
+      'Your yen, passport, map and settings live together in one bar.',
+      'The controls list shows for a few seconds when you arrive, then tucks behind a small keyboard button. Hover it to see them again.',
+      'Stall and shop curtains are real noren now: fabric panels hanging from a wooden rod, one character per panel, swaying gently.',
+      'Menus got a makeover: a dark stall-front header over warm paper, with softer cards and no more glaring white.',
+      'Dialogue and notifications use the same warm glass as the HUD.',
+    ],
+  },
+  {
+    version: '0.7.6',
+    date: '2026-10-30',
+    title: 'Take a seat',
+    items: [
+      'Fixed customers in some cafés sitting on top of each other: smaller cafés squeezed a table in where the counter stools were. Every seat now has room around it and one person on it.',
+      'People sit on their seats properly now, on the stool rather than sunk into it, at every café, izakaya, soba counter and bench. Stools at the counters and tables moved out a little so knees fit underneath instead of through the wood.',
+      'The kissa booths are deeper, with a proper padded seat in front of each high back and a table on one leg, so the people across from each other no longer bump knees.',
+      'Passers-by can now also take a coffee break on the café terrace stools along the canal promenade.',
+    ],
+  },
+  {
     version: '0.7.5',
     date: '2026-10-30',
     title: 'Solid ground all the way',

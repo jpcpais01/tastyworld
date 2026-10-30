@@ -1,3 +1,4 @@
+import { buildTokyo } from '../src/world/tokyo';
 import { bakeWorld } from '../src/world/bake';
 const t = performance.now();
 const w = bakeWorld((s, f) => process.stdout.write(`${s} ${(f * 100) | 0}%  ${((performance.now() - t) | 0)}ms\n`));
@@ -57,3 +58,25 @@ if (a.secret) {
   console.log('secret note reachable when open', reach(a.secret.noteStand[0], a.secret.noteStand[1]));
 }
 console.log('rooms with problems', bad);
+
+// ---- seating: one sitter per seat, every sitter on a stool, no stool inside a table or another stool
+const town = buildTokyo();
+let seatBad = 0;
+for (const r of town.anchors.rooms) {
+  const n = r.npcs;
+  for (let i = 0; i < n.length; i++) for (let j = i + 1; j < n.length; j++) {
+    const d = Math.hypot(n[i].pos[0] - n[j].pos[0], n[i].pos[2] - n[j].pos[2]);
+    if (d < 0.7) { seatBad++; console.log('OVERLAP', r.id, d.toFixed(2), n[i].sit, n[j].sit); }
+  }
+}
+const stools = town.props.filter((p) => p.prop.sx === 3 && p.prop.sy === 4 && p.prop.sz === 3 && p.prop.scale === 0.125).map((p) => [p.origin[0] + 0.1875, p.origin[2] + 0.1875]);
+const tables = town.props.filter((p) => p.prop.sx === 9 && p.prop.sy === 18 && p.prop.scale === 0.0625).map((p) => [p.origin[0] + 0.28, p.origin[2] + 0.28]);
+for (let i = 0; i < stools.length; i++) {
+  for (let j = i + 1; j < stools.length; j++) if (Math.hypot(stools[i][0] - stools[j][0], stools[i][1] - stools[j][1]) < 0.55) { seatBad++; console.log('STOOLS', stools[i], stools[j]); }
+  for (const tb of tables) if (Math.hypot(stools[i][0] - tb[0], stools[i][1] - tb[1]) < 0.4) { seatBad++; console.log('STOOL IN TABLE', stools[i], tb); }
+}
+for (const r of town.anchors.rooms) for (const n of r.npcs) if (n.sit && !['kissa', 'soba'].includes(r.kind)) {
+  const d = Math.min(...stools.map((s) => Math.hypot(s[0] - n.pos[0], s[1] - n.pos[2])));
+  if (d > 0.15) { seatBad++; console.log('NO STOOL', r.id, d.toFixed(2)); }
+}
+console.log('stools', stools.length, 'tables', tables.length, 'seating problems', seatBad);

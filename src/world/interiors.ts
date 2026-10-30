@@ -208,6 +208,8 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
   };
   const npc = (role: RoomNpc['role'], a: number, d: number, dir: number, sit = false, y = sit ? 0.5 : 0) => {
     const [x, z] = P(a, d);
+    // one body per spot: never seat someone on top of someone else
+    if (room.npcs.some((q) => Math.hypot(q.pos[0] - x, q.pos[2] - z) < 0.6)) return;
     room.npcs.push({ role, pos: [x, y, z], facing: face(dir), sit, seed: o.seed * 31 + room.npcs.length * 7 });
   };
   const spot = (kindS: RoomSpot['kind'], a: number, d: number, y: number, sa: number, sd: number) => {
@@ -456,31 +458,36 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       lot.box(A0, 6, D1, a1, 6, D1, c.hinoki);
       lot.box(A0, 7, D1, a1, 7, D1, (a) => [ic.cup, 0, ic.bottleA, ic.cup, ic.bottleB][a % 5]);
       // counter stools
-      for (let a = A0 + 1; a <= a1 - 1; a += 3) put(stool(k, kissa ? k.c.lacquer : k.c.woodLight), a + 0.5, D1 - 4.3, 0, OUT);
-      npc('guest', A0 + 1.5, D1 - 4.3, IN, true);
-      // tables: booths along the walls in the kissa, small round tables in the café
-      const rows = Math.max(1, Math.floor((D1 - 6 - (D0 + 2)) / 5));
-      for (let i = 0; i < rows; i++) {
-        const d = D0 + 3 + i * 5;
+      const sd = D1 - 4.3;
+      for (let a = A0 + 1; a <= a1 - 1; a += 3) put(stool(k, kissa ? k.c.lacquer : k.c.woodLight), a + 0.5, sd, 0, OUT);
+      npc('guest', A0 + 1.5, sd, IN, true);
+      // tables: booths along the walls in the kissa, small round tables in the café, only as many
+      // rows as fit in front of the counter stools with room for the sitters' backs
+      const rowEnd = kissa ? 5 : 3.3, rowStep = kissa ? 6 : 5;
+      for (let i = 0; ; i++) {
+        const d = D0 + 3 + i * rowStep;
+        if (d + rowEnd + 2.2 > sd) break;
         for (const side of [0, 1]) {
           const ta = side === 0 ? A0 + 1 : A1 - 1;
-          if (side === 1 && back && d + 2 >= D1 - 3) continue;
-          if (d > D1 - 9) continue; // too shallow: the far stool would sit among the counter stools
+          if (side === 1 && back && d + rowEnd - 1 >= D1 - 3) continue;
           if (kissa) {
-            // booth: two bench seats facing each other across a table along the wall
-            const a0 = side === 0 ? A0 : A1 - 2, a1b = a0 + 2;
-            lot.box(a0, 0, d - 1, a1b, 1, d - 1, ic.velvet); lot.box(a0, 2, d - 1, a1b, 4, d - 1, ic.velvetDark);
-            lot.box(a0, 0, d + 3, a1b, 1, d + 3, ic.velvet); lot.box(a0, 2, d + 3, a1b, 4, d + 3, ic.velvetDark);
-            lot.box(a0, 0, d + 1, a1b, 2, d + 1, ic.wainDark);
-            lot.box(a0, 3, d + 1, a1b, 3, d + 1, c.hinoki);
-            if (i === 0 || r() < 0.7) npc('guest', (a0 + a1b + 1) / 2, d + 0.4, IN, true);
-            if (r() < 0.5) npc('guest', (a0 + a1b + 1) / 2, d + 3.6, OUT, true);
-            put(pendant(k, k.c.lanternAmber), (a0 + a1b + 1) / 2, d + 1.5, 2.15, OUT);
+            // booth: padded benches with high backs facing each other across a table on one leg by the
+            // wall, deep enough that both sitters' knees fit under it
+            const a0 = side === 0 ? A0 : A1 - 2, a1b = a0 + 2, wallA = side === 0 ? a0 : a1b;
+            lot.box(a0, 0, d - 1, a1b, 4, d - 1, ic.velvetDark); lot.box(a0, 0, d, a1b, 1, d, ic.velvet);
+            lot.box(a0, 0, d + 4, a1b, 4, d + 4, ic.velvetDark); lot.box(a0, 0, d + 3, a1b, 1, d + 3, ic.velvet);
+            lot.box(wallA, 0, d + 1, wallA, 2, d + 2, ic.wainDark);
+            lot.box(a0, 3, d + 1, a1b, 3, d + 2, c.hinoki);
+            if (i === 0 || r() < 0.7) npc('guest', (a0 + a1b + 1) / 2, d + 0.5, IN, true);
+            if (r() < 0.5) npc('guest', (a0 + a1b + 1) / 2, d + 3.5, OUT, true);
+            put(pendant(k, k.c.lanternAmber), (a0 + a1b + 1) / 2, d + 2, 2.15, OUT);
           } else {
+            // stools far enough out that a sitter's chest clears the round top and the knees tuck under it
             put(cafeTable(k, [k.c.fabricWhite, k.c.fabricRed, k.c.fabricGreen][(i + side) % 3]), ta + 0.5, d + 1.5, 0, OUT, 0.32);
-            put(stool(k, k.c.woodLight), ta + 0.5, d - 0.15, 0, OUT);
-            put(stool(k, k.c.woodLight), ta + 0.5, d + 3.15, 0, OUT);
-            if ((i + side) % 2 === 0) npc('guest', ta + 0.5, d - 0.1, IN, true);
+            put(stool(k, k.c.woodLight), ta + 0.5, d - 0.3, 0, OUT);
+            put(stool(k, k.c.woodLight), ta + 0.5, d + 3.3, 0, OUT);
+            if ((i + side) % 2 === 0) npc('guest', ta + 0.5, d - 0.3, IN, true);
+            else if (r() < 0.5) npc('guest', ta + 0.5, d + 3.3, OUT, true);
           }
         }
       }
@@ -516,13 +523,14 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       for (let d = cd0; d <= cd1; d += 2) lot.box(A1, 7, d, A1, 10, d, (_a, y) => (y % 2 ? ic.paper : ic.ink));
       let n = 0;
       for (let d = cd0 + 1; d <= cd1; d += 3) {
-        put(stool(k, k.c.lacquer), A0 + 4.9, d + 0.5, 0, NA); // just clear of the counter front
-        if (n++ % 2 === 0 && n < 5) npc('guest', A0 + 4.8, d + 0.5, NA, true);
+        // a thigh's length out from the counter, so knees tuck under the overhang instead of into it
+        put(stool(k, k.c.lacquer), A0 + 5.2, d + 0.5, 0, NA);
+        if (n++ % 2 === 0 && n < 5) npc('guest', A0 + 5.2, d + 0.5, NA, true);
       }
       put(lantern(k, o.lanterns ?? k.c.lanternRed, 4, 5, o.seed + 2), A0 + 3, (cd0 + cd1) / 2, 2.3, OUT);
       lot.set(A0, 6, cd0 + 1, 0); lot.set(A0, 7, cd0 + 1, 0);
       darumaAt(A0 + 0.5, cd0 + 1.5, 1.5);
-      spot('buy', A0 + 3, (cd0 + cd1 + 1) / 2 + 1, 1.2, A0 + 5.2, (cd0 + cd1 + 1) / 2 + 1);
+      spot('buy', A0 + 3, (cd0 + cd1 + 1) / 2 + 1, 1.2, A0 + 6.4, (cd0 + cd1 + 1) / 2 + 1);
       lampAt(A0 + 3.5, (cd0 + cd1) / 2, 2.3, [1.0, 0.55, 0.3], 6, 1.2);
       break;
     }
@@ -647,11 +655,11 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       const [ex, ez] = P(A1 + 0.5, D1 - 2);
       b.emitters.push({ kind: 'steam', pos: [ex, 1.15, ez], rate: 0.9 });
       b.place(bowlStack(ic, o.seed), ...withY(P(ca + 1, D0 + 5.5), 1.0), turn(NA));
-      for (let d = D0 + 6; d <= D1 - 1; d += 3) put(stool(k, k.c.woodDark), ca - 0.6, d + 0.5, 0, PA);
-      npc('guest', ca - 0.65, D0 + 9.5, PA, true);
+      for (let d = D0 + 6; d <= D1 - 1; d += 3) put(stool(k, k.c.woodDark), ca - 1.2, d + 0.5, 0, PA);
+      npc('guest', ca - 1.2, D0 + 9.5, PA, true);
       npc('keeper', A1, D0 + 8, NA);
       put(lantern(k, k.c.lanternWhite, 4, 5, o.seed + 3), (A0 + A1 + 1) / 2, D0 + 6, 2.3, OUT);
-      spot('buy', ca, D0 + 8, 1.2, ca - 1.6, D0 + 7.5);
+      spot('buy', ca, D0 + 8, 1.2, ca - 2.4, D0 + 8);
       lampAt((A0 + A1 + 1) / 2, D0 + 6, 2.3, WARM, 7, 1.2);
       lampAt(A1 - 1, D1 - 3, 2.3, WHITE, 5, 0.8);
       if (o.restaurant) room.stall = o.restaurant.id;

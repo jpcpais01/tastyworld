@@ -1,6 +1,6 @@
 // Checks the procedural walk cycle keeps a foot on the ground and planted feet from skating.
 import * as THREE from 'three';
-import { Actor } from '../src/game/actors';
+import { Actor, SIT_DROP } from '../src/game/actors';
 import { buildPerson, randomLook, PART } from '../src/world/characters';
 import { makeSharedUniforms } from '../src/engine/renderer';
 
@@ -54,6 +54,16 @@ for (let i = 0; i < 300; i++) { a.update(1 / 60); best = Math.min(best, xform(PA
 console.log('eat: closest hand-to-mouth', best.toFixed(3));
 a.anim = 'sit';
 for (let i = 0; i < 120; i++) a.update(1 / 60);
+{
+  // the underside of the thighs should rest on the seat: lowest thigh corner ~ SIT_DROP above the origin
+  let low = 9;
+  for (const [part, x0] of [[PART.legL, 2], [PART.legR, 5]] as const)
+    for (const x of [x0, x0 + 3]) for (const y of [4, 8]) for (const z of [2, 6])
+      low = Math.min(low, xform(part, new THREE.Vector3(model.origin[0] + x * s, y * s, oz + z * s)).y);
+  const ok = Math.abs(low - SIT_DROP) < 0.015;
+  if (!ok) bad++;
+  console.log('sit: thigh underside', low.toFixed(3), 'SIT_DROP', SIT_DROP, ok ? 'ok' : 'MISMATCH');
+}
 console.log('sit: knee', xform(PART.legL, new THREE.Vector3(model.origin[0] + 3.5 * s, 4 * s, oz + 4 * s)).toArray().map((v) => v.toFixed(2)), 'sole', xform(PART.shinL, soleL).toArray().map((v) => v.toFixed(2)));
 a.anim = 'wave';
 for (let i = 0; i < 120; i++) a.update(1 / 60);

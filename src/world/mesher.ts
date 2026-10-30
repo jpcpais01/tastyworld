@@ -12,7 +12,7 @@ import { Palette } from './palette';
  * Vertex layout (28 bytes):
  *   position: float32 x3 (object space)
  *   pack:  u8 x4 [face | scaleIdx << 3, ao, edgeBits | vary << 4, sky | partId]
- *   color: u8 x4 [r, g, b, emissive code]  (code 1..127 always on, 128..255 night only)
+ *   color: u8 x4 [r, g, b, emissive code]  (code 1..127 always on, 129..255 night only, 128 foliage)
  *   light: u8 x4 [lamp r, lamp g, lamp b (x2 range), sun]
  *   quad:  u8 x4 [dist to u-min edge, to u-max, to v-min, to v-max] in voxels (for the bevel highlight)
  */
@@ -110,9 +110,13 @@ export function meshGrid(o: MeshOpts): MeshData {
   const gb = o.groundBelow ?? -1;
   const gsx = grid.sx, gsy = grid.sy, gsz = grid.sz;
   const pyOf = (vi: number) => Math.floor(vi / sxz);
+  // Animated characters: each body part is its own closed solid, so faces where two parts touch are
+  // kept (they show when a limb swings away) and AO / edges only see voxels of the same part.
+  let curPart = -1;
   const solid = (x: number, y: number, z: number) => {
     if (x < 0 || y < 0 || z < 0 || x >= gsx || y >= gsy || z >= gsz) return y < gb;
-    return data[y * sxz + z * sx + x] !== 0;
+    const i = y * sxz + z * sx + x;
+    return data[i] !== 0 && (curPart < 0 || parts![i] === curPart);
   };
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
@@ -129,7 +133,8 @@ export function meshGrid(o: MeshOpts): MeshData {
     b.ensure(4);
     const base = b.nv;
     const bx = px + (n[0] > 0 ? 1 : 0), by = py + (n[1] > 0 ? 1 : 0), bz = pz + (n[2] > 0 ? 1 : 0);
-    const em = pal.emit[col] > 0 ? (pal.night[col] ? 128 : 0) + Math.max(1, Math.round(pal.emit[col] * 127)) : 0;
+    // code 128 (night-only, zero strength) never emits: it marks foliage for the shadow lookup
+    const em = pal.emit[col] > 0 ? (pal.night[col] ? 128 : 0) + Math.max(1, Math.round(pal.emit[col] * 127)) : pal.leaf[col] ? 128 : 0;
     const vary = Math.min(15, Math.round(pal.vary[col] / 0.02));
     for (let k = 0; k < 4; k++) {
       const cu = k === 1 || k === 2 ? 1 : 0;
@@ -199,7 +204,8 @@ export function meshGrid(o: MeshOpts): MeshData {
           vi += sU;
           const col = data[vi];
           if (col === 0) continue;
-          if (nIn ? data[vi + dn * sN] !== 0 : outsideSolid || (na !== 1 && pyOf(vi) < gb)) continue;
+          if (nIn ? data[vi + dn * sN] !== 0 && (!parts || parts[vi + dn * sN] === parts[vi]) : outsideSolid || (na !== 1 && pyOf(vi) < gb)) continue;
+          curPart = parts ? parts[vi] : -1;
           const mi = iv * U + iu;
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
           const x = p[0], y = p[1], z = p[2];

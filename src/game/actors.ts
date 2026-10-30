@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { meshGrid, STRIDE, MeshData } from '../world/mesher';
+import { meshGrid, mergeMeshes, STRIDE, MeshData } from '../world/mesher';
 import { CharModel, PART, PART_COUNT, CHAR_SCALE } from '../world/characters';
 import { voxelMaterial, SharedUniforms } from '../engine/renderer';
+import { voxelDepthMaterial, SHADOW_DYNAMIC } from '../engine/shadows';
 import type { LightMap2D } from '../world/bake';
 
 export function geometryFrom(m: MeshData): THREE.BufferGeometry {
@@ -44,6 +45,12 @@ const NP = PART_COUNT;
 /** Pose layout: pitch, yaw, roll per part, then the root offset. */
 const PS = NP * 3 + 3, OFF = NP * 3;
 const HIP_H = 8 * CHAR_SCALE; // hip pivot to sole
+/**
+ * How far below a seat's top surface a seated character's feet origin goes: in the sit pose the
+ * underside of the thighs is this far above the origin (hip height minus half a thigh's thickness,
+ * tilted). Checked by scripts/gait-check.ts.
+ */
+export const SIT_DROP = 0.415;
 const TAU = Math.PI * 2;
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const expK = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);
@@ -63,6 +70,7 @@ export class Actor {
   readonly root = new THREE.Group();
   readonly mesh: THREE.Mesh;
   readonly mat: THREE.ShaderMaterial;
+  private depthMat: THREE.ShaderMaterial;
   private rot: THREE.Vector3[];
   private uOffset = { value: new THREE.Vector3() };
   private uCharLight = { value: new THREE.Vector3(1, 1, 0) };
@@ -107,10 +115,20 @@ export class Actor {
 
   constructor(model: CharModel, shared: SharedUniforms, isCat = false) {
     this.isCat = isCat;
-    const md = meshGrid({ grid: model.grid, pal: model.pal, scale: model.scale, origin: model.origin, parts: model.parts, greedy: false });
+    const piv = Array.from({ length: NP }, (_, i) => new THREE.Vector3(...(model.pivots[i] ?? [0, 0, 0])));
+    const opts = { pal: model.pal, scale: model.scale, origin: model.origin, greedy: false };
+    let md = meshGrid({ ...opts, grid: model.grid, parts: model.parts });
+    if (model.caps) {
+      // shrink the joint caps a hair towards their hinge so they never z-fight the limb they hide in
+      const cm = meshGrid({ ...opts, grid: model.caps.grid, parts: model.caps.parts });
+      for (let v = 0; v < cm.vertexCount; v++) {
+        const c = piv[cm.attrs[v * STRIDE + 3]];
+        for (let k = 0; k < 3; k++) cm.positions[v * 3 + k] = c.getComponent(k) + (cm.positions[v * 3 + k] - c.getComponent(k)) * 0.96;
+      }
+      md = mergeMeshes([md, cm]) ?? md;
+    }
     const geo = geometryFrom(md);
     this.rot = Array.from({ length: NP }, () => new THREE.Vector3());
-    const piv = Array.from({ length: NP }, (_, i) => new THREE.Vector3(...(model.pivots[i] ?? [0, 0, 0])));
     this.mat = voxelMaterial(shared, { CHARACTER: 1 }, {
       uPivot: { value: piv },
       uRot: { value: this.rot },
@@ -121,12 +139,17 @@ export class Actor {
     });
     this.mesh = new THREE.Mesh(geo, this.mat);
     this.mesh.frustumCulled = true;
+    // casts a real sun shadow, posed by the same skeleton uniforms
+    this.depthMat = voxelDepthMaterial({ CHARACTER: 1 }, { uTime: shared.uTime, uPivot: this.mat.uniforms.uPivot, uRot: this.mat.uniforms.uRot, uOffset: this.uOffset });
+    this.mesh.userData.shadowMat = this.depthMat;
+    this.mesh.layers.enable(SHADOW_DYNAMIC);
     this.root.add(this.mesh);
   }
 
   dispose(): void {
     this.mesh.geometry.dispose();
     this.mat.dispose();
+    this.depthMat.dispose();
   }
 
   get position(): THREE.Vector3 {

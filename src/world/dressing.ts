@@ -6,17 +6,18 @@
 // and gardens it was told about), never the voxel grid, so every worker strip places exactly the same things.
 import { hash3, rng } from './grid';
 import { G, V, HILL } from './layout';
-import { Builder, Lot, Ground, Style, RED, WARM, WHITEWARM } from './tokyo';
+import { Builder, Lot, Ground, Style, RED, WARM, WHITEWARM, COOL } from './tokyo';
 import {
   Prop, rotateProp, potCluster, plantPot, bicycle, umbrellaStand, gasTanks, crateStack, binCorner, hangingSign, furin,
-  lantern, wire, bunting, streetPlanter, bannerPole, bench, bush, grassTuft, laundryRack, swingSet, slide, vendingMachine,
+  lantern, wire, bunting, streetPlanter, bannerPole, utilityBox, workBarrier, trafficCone, bench, bush, grassTuft, laundryRack, swingSet, slide, vendingMachine,
 } from './props';
+import { roadMarks, signals, lanes, paper } from './details';
 import { STREETS, Street, streetAt, tree, hillAt, INARI_PATH, CityResult } from './city';
 
 // ---------------------------------------------------------------------------------------------
 // What the city tells us while it builds
 
-interface Front { lot: Lot; ground: Ground; style: Style; mix: string; H: number; seed: number; doors: number[]; low: boolean }
+export interface Front { lot: Lot; ground: Ground; style: Style; mix: string; H: number; seed: number; doors: number[]; low: boolean }
 type Rect = [number, number, number, number];
 const notes = new WeakMap<Builder, { fronts: Front[]; gardens: Rect[]; trees: [number, number][] }>();
 const notesOf = (b: Builder) => {
@@ -78,7 +79,7 @@ class Space {
 
 interface PutOpts { y?: number; block?: boolean; pad?: number }
 
-class Dresser {
+export class Dresser {
   space = new Space();
   /** The crowd's walking graph (metres): street furniture keeps off it. */
   paths: [number, number, number, number][] = [];
@@ -133,10 +134,13 @@ export function dress(b: Builder, city: CityResult): void {
     const [x0, z0] = f.lot.front(a - h, 0), [x1, z1] = f.lot.front(a + h, 1.4);
     d.take([Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1)]);
   }
+  roadMarks(b);
+  signals(d);
   pedestrianStreets(d);
   plaza(d);
-  for (const f of n.fronts) front(d, f);
+  for (const f of n.fronts) { front(d, f); paper(b, f); }
   overheads(d, n.fronts);
+  lanes(d, n.fronts);
   park(d, n.trees);
   shrineWood(d);
   hill(d);
@@ -199,7 +203,7 @@ function front(d: Dresser, f: Front): void {
   if (f.ground === 'shop' || avenue || f.mix === 'tower' && r() < 0.6) return; // goods tables, or a pavement too narrow for the crowd
 
   // the clutter, in slots along the facade
-  type Item = { p: () => Prop; len: number; turns?: number };
+  type Item = { p: () => Prop; len: number; turns?: number; after?: (a: number) => void };
   const pots = (): Item => ({ p: () => potCluster(k, Math.floor(r() * 1e6)), len: 4 });
   const pot = (): Item => ({ p: () => plantPot(k, (['bamboo', 'pine', 'shrub', 'flowers'] as const)[Math.floor(r() * 4)], Math.floor(r() * 1e6)), len: 3 });
   const bike = (): Item => ({ p: () => bicycle(k, [k.c.bikeSilver, k.c.bikeMint, k.c.bikeRed, k.c.vmBlue, k.c.cubCream][Math.floor(r() * 5)]), len: 5.6 });
@@ -207,9 +211,19 @@ function front(d: Dresser, f: Front): void {
   const gas = (): Item => ({ p: () => gasTanks(k), len: 2.6 });
   const crates = (): Item => ({ p: () => crateStack(k, Math.floor(r() * 1e6)), len: 4.2 });
   const bins = (): Item => ({ p: () => binCorner(k), len: 3.6 });
-  const menu: [number, () => Item][] = home ? [[5, pots], [2, pot], [2.5, bike], [1, brolly], [1.2, gas], [0.6, bins]]
-    : bar ? [[3, crates], [2, brolly], [1.5, pots], [1, pot], [0.8, gas]]
-    : [[3, pots], [2.5, pot], [1.5, bike], [1.5, brolly], [0.5, crates]];
+  const vend = (): Item => ({ p: () => vendingMachine(k, [k.c.vmRed, k.c.vmBlue, k.c.vmWhite][Math.floor(r() * 3)], Math.floor(r() * 1e5)), len: 4.4, after: (a) => {
+    const [x, z] = lot.front(a, 0.9);
+    b.lamp(x, 1.2, z, COOL, 3, 0.7);
+  } });
+  const cabinet = (): Item => ({ p: () => utilityBox(k, Math.floor(r() * 100)), len: 3.4 });
+  // a little road works against the wall: a barrier, cones either side
+  const works = (): Item => ({ p: () => workBarrier(k), len: 9.5, after: (a) => {
+    for (const da of [-3.9, 3.9]) d.wallPut(lot, trafficCone(k), a + da, out + 0.05);
+  } });
+  const lane = !st || st.kind === 'lane' || st.kind === 'alley';
+  const menu: [number, () => Item][] = home ? [[5, pots], [2, pot], [2.5, bike], [1, brolly], [1.2, gas], [0.6, bins], [0.8, cabinet], [lane ? 0.9 : 0, vend], [lane ? 0.12 : 0, works]]
+    : bar ? [[3, crates], [2, brolly], [1.5, pots], [1, pot], [0.8, gas], [0.4, vend]]
+    : [[3, pots], [2.5, pot], [1.5, bike], [1.5, brolly], [0.5, crates], [0.5, vend], [0.3, cabinet]];
   const total = menu.reduce((s, [wgt]) => s + wgt, 0);
   const pickItem = () => { let t = r() * total; for (const [wgt, f] of menu) if ((t -= wgt) < 0) return f(); return menu[0][1](); };
   let placed = 0;
@@ -218,7 +232,7 @@ function front(d: Dresser, f: Front): void {
     const it = pickItem();
     if (a + it.len > w - 1.5) { a += 1; continue; }
     if (nearDoor(a, a + it.len)) { a += 2; continue; }
-    if (d.wallPut(lot, it.p(), a + it.len / 2, out, it.turns ?? 0)) { placed++; a += it.len + 0.5 + r() * 3; } else a += 2;
+    if (d.wallPut(lot, it.p(), a + it.len / 2, out, it.turns ?? 0)) { it.after?.(a + it.len / 2); placed++; a += it.len + 0.5 + r() * 3; } else a += 2;
   }
 }
 

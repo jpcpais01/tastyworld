@@ -696,6 +696,34 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
     darumaAt(A0 + 0.6, D0 + 1.1, 0);
   }
 
+  // ---- the walls: a clock over the counter side, a calendar and a picture, menu strips or a poster
+  {
+    const wd = back ? pb : dep - 2; // the wall the room faces from the door
+    const wr = rng(o.seed * 17 + 5); // (only outside the box callbacks, which a worker skips off its strip)
+    // repaint wall cells only, never fill an opening
+    const paint = (a0: number, y0: number, d0: number, a1: number, y1: number, d1: number, col: number | ((a: number, y: number, d: number) => number)) =>
+      lot.box(a0, y0, d0, a1, y1, d1, (a, y, d) => (lot.get(a, y, d) ? (typeof col === 'number' ? col : col(a, y, d)) : 0));
+    if (A0 + 3 < bda - 1) {
+      paint(A0 + 1, 8, wd, A0 + 3, 10, wd, (a, y) => (a === A0 + 2 && y === 9 ? ic.ink : c.trim));
+      paint(A0 + 2, 9, wd, A0 + 2, 9, wd, ic.paper);
+      paint(A0 + 2, 10, wd, A0 + 2, 10, wd, ic.ink);
+    }
+    if (kind === 'izakaya' || kind === 'soba') {
+      // tanzaku: the paper menu strips along the wall, a brushed dish name on each
+      for (let a = A0 + 5; a <= bda - 2; a += 2) paint(a, 5, wd, a, 9, wd, (aa, y) => (y === 9 ? c.lacquer : (y === 7 || y === 6) && hash3(aa, y, o.seed) < 0.7 ? ic.ink : ic.paper));
+    } else if (A0 + 8 < bda - 1 && kind !== 'konbini' && kind !== 'pharmacy') {
+      const bg = [k.c.signRed, k.c.signBlue, k.c.signYellow, k.c.fabricGreen][Math.floor(wr() * 4)];
+      paint(A0 + 5, 5, wd, A0 + 7, 8, wd, (a, y) => (y === 8 || a === A0 + 6 && y === 6 ? ic.paper : bg));
+    }
+    const sideA = wr() < 0.5 ? A0 - 1 : A1 + 1;
+    if (D1 - D0 >= 8) {
+      // a calendar with its red top, and a framed print further along
+      paint(sideA, 5, D0 + 3, sideA, 7, D0 + 4, (_a, y) => (y === 7 ? c.lacquer : ic.paper));
+      const art = [k.c.fabricBlue, k.c.pink, k.c.leaf][Math.floor(wr() * 3)];
+      paint(sideA, 6, D0 + 6, sideA, 8, D0 + 8, (_a, y, d) => (y === 6 || y === 8 || d === D0 + 6 || d === D0 + 8 ? c.woodDark : art));
+    }
+  }
+
   void G;
   b.rooms.push(room);
 }

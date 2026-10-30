@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.2',
+    date: '2026-10-30',
+    title: 'The little things',
+    items: [
+      'The roads look like real Tokyo roads now: manhole covers (painted ones on the shopping streets), drains along the gutters, stop lines, arrows and crossing diamonds on the avenues, patches of newer asphalt, and 止まれ painted where the lanes meet the bigger streets.',
+      'Traffic signals with walk lights stand at the avenue crossings, and convex mirrors watch the blind corners of the lanes.',
+      'Cables are strung between the houses across the lanes, the way they are all over the city.',
+      'House fronts gained vending machines, grey utility cabinets and the odd bit of road works with cones, and every building now sits on a darker stone or concrete plinth.',
+      'Posters and sale stickers in the shop windows, paper notices on closed shutters and bills pasted on bare side walls.',
+      'Inside the shops: a clock on the wall, a calendar, a framed print, and the paper menu strips that line every izakaya and soba shop.',
+    ],
+  },
+  {
     version: '0.10.1',
     date: '2026-10-30',
     title: 'Smoother streets',

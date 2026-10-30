@@ -54,7 +54,7 @@ export interface MeshOpts {
   light?: LightFn;
   /** Optional per-voxel part id grid (same dims) written into pack.w instead of sky. */
   parts?: Uint8Array;
-  /** Disable merging (e.g. for animated characters where it does not matter). */
+  /** Disable merging (one quad per voxel face). */
   greedy?: boolean;
   /** Treat cells outside the grid below this layer as solid (hides the underside and cut edges of the ground). */
   groundBelow?: number;
@@ -95,14 +95,14 @@ const q = (val: number, m: number) => Math.min(63, Math.round(val * m));
 // Scratch buffers shared by all mesh calls (slices are at most 300 x 300).
 const MAXS = 320 * 320;
 let scr: {
-  keys: Float64Array; edgesM: Uint8Array; colM: Uint16Array; swM: Uint16Array; lightM: Uint8Array; used: Uint8Array;
+  keys: Float64Array; edgesM: Uint8Array; colM: Uint16Array; swM: Uint16Array; partM: Int8Array; lightM: Uint8Array; used: Uint8Array;
   cornerStamp: Int32Array; cornerVals: Float32Array;
 } | null = null;
 let stampBase = 1;
 function scratch() {
   if (!scr) {
     scr = {
-      keys: new Float64Array(MAXS), edgesM: new Uint8Array(MAXS), colM: new Uint16Array(MAXS), swM: new Uint16Array(MAXS),
+      keys: new Float64Array(MAXS), edgesM: new Uint8Array(MAXS), colM: new Uint16Array(MAXS), swM: new Uint16Array(MAXS), partM: new Int8Array(MAXS),
       lightM: new Uint8Array(MAXS * 6), used: new Uint8Array(MAXS),
       cornerStamp: new Int32Array(322 * 322), cornerVals: new Float32Array(322 * 322 * 5),
     };
@@ -132,7 +132,7 @@ export function meshGrid(o: MeshOpts): MeshData {
   };
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-  const { keys, edgesM, colM, swM, lightM, used, cornerStamp, cornerVals } = scratch();
+  const { keys, edgesM, colM, swM, partM, lightM, used, cornerStamp, cornerVals } = scratch();
   const maxU = keys.length;
 
   const cAo = [0, 0, 0, 0];
@@ -268,7 +268,8 @@ export function meshGrid(o: MeshOpts): MeshData {
           const part = parts ? parts[vi] : -1;
           const sw = sway ? sway(vi) : 0;
           // uniform test on quantised values
-          let uniform = greedy && part < 0 && cAo[0] === cAo[1] && cAo[1] === cAo[2] && cAo[2] === cAo[3];
+          // character parts merge too, but only within one part (each part moves on its own)
+          let uniform = greedy && cAo[0] === cAo[1] && cAo[1] === cAo[2] && cAo[2] === cAo[3];
           let qs = 0, qk = 0, qr = 0, qg = 0, qb = 0;
           if (uniform) {
             qs = q(cL[0], 63); qk = q(cL[1], 63); qr = q(cL[2], 31.875); qg = q(cL[3], 31.875); qb = q(cL[4], 31.875);
@@ -280,9 +281,10 @@ export function meshGrid(o: MeshOpts): MeshData {
             emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
             continue;
           }
-          keys[mi] = ((((((col * 4 + cAo[0]) * 64 + qs) * 64 + qk) * 64 + qr) * 64 + qg) * 64 + qb) * 2 + (seamFace ? 1 : 0);
+          keys[mi] = (((((((col * 4 + cAo[0]) * 64 + qs) * 64 + qk) * 64 + qr) * 64 + qg) * 64 + qb) * 16 + part + 1) * 2 + (seamFace ? 1 : 0);
           edgesM[mi] = edges;
           colM[mi] = col;
+          partM[mi] = part;
           swM[mi] = sw;
           const lo6 = mi * 6;
           lightM[lo6] = cAo[0]; lightM[lo6 + 1] = qs; lightM[lo6 + 2] = qk; lightM[lo6 + 3] = qr; lightM[lo6 + 4] = qg; lightM[lo6 + 5] = qb;
@@ -317,7 +319,7 @@ export function meshGrid(o: MeshOpts): MeshData {
             if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
           }
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
-          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, -1, sw, key % 2);
+          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, partM[mi], sw, key % 2);
         }
     }
   }

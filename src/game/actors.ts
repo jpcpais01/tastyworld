@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { meshGrid, mergeMeshes, STRIDE, MeshData } from '../world/mesher';
 import { CharModel, PART, PART_COUNT, CHAR_SCALE } from '../world/characters';
-import { voxelMaterial, SharedUniforms } from '../engine/renderer';
-import { voxelDepthMaterial, SHADOW_DYNAMIC } from '../engine/shadows';
+import { POSE, type CharacterBatch } from './charbatch';
 import type { LightMap2D } from '../world/bake';
 
 export function geometryFrom(m: MeshData): THREE.BufferGeometry {
@@ -79,10 +78,12 @@ export class Actor {
   /** Called whenever a foot touches the ground in the walk or run cycle (footstep sounds). */
   static onStep: ((a: Actor, run: boolean) => void) | null = null;
   readonly root = new THREE.Group();
-  /** Built on first use (see ensure), so a big crowd only pays for the bodies near the player. */
-  private mesh: THREE.Mesh | null = null;
-  private mat: THREE.ShaderMaterial | null = null;
-  private depthMat: THREE.ShaderMaterial | null = null;
+  /**
+   * The body in the character batch (built on first use, see ensure, so a big crowd only pays for the
+   * bodies near the player): its id, and its texels in the batch's pose data, written every update. -1 / null when not built.
+   */
+  private body = -1;
+  private texels: Float32Array | null = null;
   private piv: THREE.Vector3[];
   private rot: THREE.Vector3[];
   private uOffset = { value: new THREE.Vector3() };
@@ -142,18 +143,19 @@ export class Actor {
   private posture = (Math.random() - 0.4) * 0.07;
   private bounce = 0.8 + Math.random() * 0.4;
 
-  constructor(private model: CharModel, private shared: SharedUniforms, isCat = false, lazy = false) {
+  /** `batch` draws the body; null for a pose-only actor (tests). */
+  constructor(private model: CharModel, private batch: CharacterBatch | null, isCat = false, lazy = false) {
     this.isCat = isCat;
     this.piv = Array.from({ length: NP }, (_, i) => new THREE.Vector3(...(model.pivots[i] ?? [0, 0, 0])));
     this.rot = Array.from({ length: NP }, () => new THREE.Vector3());
     if (!lazy) this.ensure();
   }
 
-  /** Builds the mesh if it is not there yet (lazy actors are built the first time they are shown). */
+  /** Builds the body if it is not there yet (lazy actors are built the first time they are shown). */
   ensure(): void {
-    if (this.mesh) return;
+    if (this.body >= 0 || !this.batch) return;
     const model = this.model, piv = this.piv;
-    const opts = { pal: model.pal, scale: model.scale, origin: model.origin, greedy: false };
+    const opts = { pal: model.pal, scale: model.scale, origin: model.origin };
     let md = meshGrid({ ...opts, grid: model.grid, parts: model.parts });
     if (model.caps) {
       // shrink the joint caps a hair towards their hinge so they never z-fight the limb they hide in
@@ -164,35 +166,24 @@ export class Actor {
       }
       md = mergeMeshes([md, cm]) ?? md;
     }
-    const geo = geometryFrom(md);
-    this.mat = voxelMaterial(this.shared, { CHARACTER: 1 }, {
-      uPivot: { value: piv },
-      uRot: { value: this.rot },
-      uOffset: this.uOffset,
-      uCharLight: this.uCharLight,
-      uCharLamp: this.uCharLamp,
-      uFlash: this.uFlash,
-    });
-    this.mesh = new THREE.Mesh(geo, this.mat);
-    this.mesh.frustumCulled = true;
-    // casts a real sun shadow, posed by the same skeleton uniforms
-    this.depthMat = voxelDepthMaterial({ CHARACTER: 1 }, { uTime: this.shared.uTime, uPivot: this.mat.uniforms.uPivot, uRot: this.mat.uniforms.uRot, uOffset: this.uOffset });
-    this.mesh.userData.shadowMat = this.depthMat;
-    this.mesh.layers.enable(SHADOW_DYNAMIC);
-    this.root.add(this.mesh);
+    // drawn (and shadowed) by the batch, posed by the texels this actor writes
+    this.body = this.batch.add(md, piv, this.root);
+    this.texels = this.batch.data.subarray(this.body * 32 * 4, (this.body + 1) * 32 * 4);
+    this.writePose();
+    this.writeLight();
   }
 
-  /** True once the mesh exists. */
+  /** True once the body exists. */
   get built(): boolean {
-    return !!this.mesh;
+    return this.body >= 0;
   }
 
-  /** Frees the mesh of someone far away; it is rebuilt when they are next shown. */
+  /** Frees the body of someone far away; it is rebuilt when they are next shown. */
   release(): void {
-    if (!this.mesh) return;
-    this.root.remove(this.mesh);
-    this.dispose();
-    this.mesh = this.mat = this.depthMat = null;
+    if (this.body < 0) return;
+    this.batch?.remove(this.body);
+    this.body = -1;
+    this.texels = null;
   }
 
   /** Light uniforms shared with things held in the hands, so they are lit like the body. */
@@ -201,9 +192,22 @@ export class Actor {
   }
 
   dispose(): void {
-    this.mesh?.geometry.dispose();
-    this.mat?.dispose();
-    this.depthMat?.dispose();
+    this.release();
+  }
+
+  private writePose(): void {
+    const o = this.texels;
+    if (!o) return;
+    for (let i = 0; i < NP; i++) this.rot[i].toArray(o, (POSE.rot + i) * 4);
+    this.uOffset.value.toArray(o, POSE.offset * 4);
+    o[POSE.offset * 4 + 3] = this.uFlash.value;
+  }
+
+  private writeLight(): void {
+    const o = this.texels;
+    if (!o) return;
+    this.uCharLight.value.toArray(o, POSE.light * 4);
+    this.uCharLamp.value.toArray(o, POSE.lamp * 4);
   }
 
   get position(): THREE.Vector3 {
@@ -220,6 +224,7 @@ export class Actor {
     this.sun = tmpL[0];
     this.uCharLight.value.set(tmpL[0], Math.max(0.35, tmpL[1]), 0);
     this.uCharLamp.value.set(tmpL[2], tmpL[3], tmpL[4]);
+    this.writeLight();
   }
 
   update(dt: number): void {
@@ -285,6 +290,7 @@ export class Actor {
     for (let i = 0; i < NP; i++) r[i].set(cur[i * 3], cur[i * 3 + 1], cur[i * 3 + 2]);
     r[PART.head].y += this.headYaw;
     this.uOffset.value.set(cur[OFF], cur[OFF + 1], cur[OFF + 2]);
+    this.writePose();
   }
 
   private tickFidget(dt: number, base: Anim): void {

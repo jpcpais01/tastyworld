@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.7',
+    date: '2026-10-30',
+    title: 'A lighter crowd',
+    items: [
+      'Everyone in the city (people, cats, dogs, bikes and swan boats) is now drawn together in a single pass instead of one at a time. Busy streets and the big crowds at the station and the park cost far less to draw, which helps most on slower computers and phones.',
+      'Character bodies are built from bigger, cleaner blocks: they look exactly the same with about a quarter of the geometry.',
+      'Shopkeepers and regulars inside the shops are now only built when you first come near, so the city loads lighter.',
+    ],
+  },
+  {
     version: '0.10.6',
     date: '2026-10-30',
     title: 'Steady cutaway',

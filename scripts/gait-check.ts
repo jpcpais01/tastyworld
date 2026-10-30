@@ -2,11 +2,10 @@
 import * as THREE from 'three';
 import { Actor, SIT_DROP } from '../src/game/actors';
 import { buildPerson, randomLook, PART } from '../src/world/characters';
-import { makeSharedUniforms } from '../src/engine/renderer';
 
 const PARENT = [-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3];
 const model = buildPerson(randomLook(3));
-const a = new Actor(model, makeSharedUniforms() as any);
+const a = new Actor(model, null);
 const rot = (a as any).rot as THREE.Vector3[];
 const off = (a as any).uOffset.value as THREE.Vector3;
 const piv = model.pivots.map((p) => new THREE.Vector3(...p));

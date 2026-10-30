@@ -40,7 +40,6 @@ export interface GameHooks {
   settingsChanged(): void;
   reset(): void;
   panel(open: boolean): void;
-  travel(): void;
 }
 
 interface Label { el: HTMLElement; pos: [number, number, number]; visible: boolean; until?: number; }
@@ -68,7 +67,6 @@ export class UI {
   private labelsEl = $('labels');
   private toasts = $('toasts');
   private root = $('panel-root');
-  private titleEl = $('title');
   private locName!: HTMLElement;
   private clockEl!: HTMLElement;
   private todEl!: HTMLElement;
@@ -87,7 +85,12 @@ export class UI {
   onRotate: ((dir: number) => void) | null = null;
   onZoom: ((f: number) => void) | null = null;
   onView: (() => void) | null = null;
+  onMap: (() => void) | null = null;
+  onParty: (() => void) | null = null;
+  onWave: (() => void) | null = null;
   open: string | null = null;
+  private closeHook: (() => void) | null = null;
+  private partyEl!: HTMLElement;
 
   constructor(private s: SaveState, private audio: Audio, private hooks: GameHooks) {
     this.buildHud();
@@ -106,25 +109,6 @@ export class UI {
     $('load-stage').innerHTML = `${esc(msg)}<br><small>Try reloading the page.</small>`;
   }
 
-  title(onStart: () => void): void {
-    const t = this.titleEl;
-    const hasSave = Object.keys(this.s.tasted).length > 0 || this.s.playTime > 30;
-    const got = Object.keys(this.s.tasted).length;
-    t.innerHTML = `
-      <div class="title-top">
-        <h1 class="title-logo">Tasty<span class="w2">World</span><span class="title-sticker">東京 · 屋台</span></h1>
-        <div class="title-tag">${hasSave ? `Welcome back, traveller · ${got} / ${DISHES.length} stamps` : 'Travel the world through its street food'}</div>
-      </div>
-      <div class="title-card">
-        <button class="btn btn-hero" id="t-start">${G.play}${hasSave ? 'Continue journey' : 'Start in Tokyo'}</button>
-        <div class="title-row"><button class="btn btn-ghost" id="t-notes">${G.sparkle}What's new · v${PATCH_NOTES[0].version}</button></div>
-        <div class="title-hint">${touch() ? '<b>Tap</b> to walk · <b>Double-tap</b> to run · <b>Drag</b> to look · <b>Pinch</b> to zoom' : '<b>Click</b> or <b>WASD</b> to walk · <b>Q</b>/<b>E</b> to rotate · <b>Scroll</b> to zoom'}</div>
-      </div>`;
-    t.classList.remove('hidden');
-    $('t-start').onclick = () => { this.audio.start(); this.audio.play('chime'); t.classList.add('hidden'); onStart(); };
-    $('t-notes').onclick = () => { this.audio.start(); this.notes(); };
-  }
-
   // ------------------------------------------------------------------ HUD
   private buildHud() {
     this.hud.innerHTML = `
@@ -136,6 +120,7 @@ export class UI {
             <div class="place-name" id="h-loc">Temple Plaza</div>
           </div>
         </div>
+        <button class="card party hidden" id="h-party" aria-label="Your co-op trip"></button>
         <button class="card tracker" id="h-track" aria-label="Missions"></button>
       </div>
       <div class="hud-tr">
@@ -149,6 +134,7 @@ export class UI {
       <div class="hud-bl"><div class="keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Q</kbd><kbd>E</kbd> rotate</span><span><kbd>V</kbd> view</span><span><kbd>Space</kbd> interact</span><span><kbd>P</kbd> passport</span></div></div>
       <div class="hud-br">
         <div class="card dock">
+          <button id="h-wave" class="hidden" title="Wave (G)" aria-label="Wave to your friends">${G.wave}</button>
           <button id="h-view" title="First-person view (V)" aria-label="First-person view" aria-pressed="false">${G.eye}</button>
           <button id="h-rl" title="Rotate left (Q)" aria-label="Rotate left">${G.rotL}</button>
           <button id="h-rr" title="Rotate right (E)" aria-label="Rotate right">${G.rotR}</button>
@@ -156,10 +142,12 @@ export class UI {
       </div>
       <div class="xhair" aria-hidden="true"></div>`;
     this.locName = $('h-loc'); this.clockEl = $('h-clock'); this.todEl = $('h-tod');
-    this.yenEl = $('h-yen'); this.yenChip = $('h-yenchip'); this.trackerEl = $('h-track'); this.ppDot = $('h-dot');
+    this.yenEl = $('h-yen'); this.yenChip = $('h-yenchip'); this.trackerEl = $('h-track'); this.ppDot = $('h-dot'); this.partyEl = $('h-party');
     const tap = (id: string, fn: () => void) => $(id).addEventListener('click', (e) => { e.stopPropagation(); this.audio.play('click'); fn(); });
     tap('h-pass', () => this.passport());
     tap('h-map', () => this.map());
+    tap('h-party', () => this.onParty?.());
+    tap('h-wave', () => this.onWave?.());
     tap('h-set', () => this.settings());
     tap('h-rl', () => this.onRotate?.(-1));
     tap('h-rr', () => this.onRotate?.(1));
@@ -170,6 +158,28 @@ export class UI {
   }
 
   showHud(on: boolean): void { this.hud.classList.toggle('hidden', !on); }
+
+  /** The co-op chip: who is on this trip (null hides it). */
+  party(code: string, crew: { name: string; color: number; here: boolean }[] | null): void {
+    $('h-wave').classList.toggle('hidden', !crew);
+    this.partyEl.classList.toggle('hidden', !crew);
+    if (!crew) return;
+    const n = crew.length;
+    this.partyEl.innerHTML = `<span class="avas">${crew.slice(0, 4).map((p) => `<span class="ava${p.here ? '' : ' away'}" style="--c:#${p.color.toString(16).padStart(6, '0')}">${esc(p.name.charAt(0).toUpperCase())}</span>`).join('')}</span>
+      <span class="pt"><b>${n > 1 ? `${n} travelling together` : 'Waiting for a friend'}</b><small>${G.ticket}${code}</small></span>`;
+  }
+
+  /** The world map is drawn by the travel screens. */
+  map(): void { this.onMap?.(); }
+
+  /** A full-screen layer (the travel map, a boarding pass). onClose runs when it is closed for any reason. */
+  overlay(el: HTMLElement, onClose: () => void): void {
+    this.close(false);
+    this.root.appendChild(el);
+    this.open = 'overlay';
+    this.closeHook = onClose;
+    this.hooks.panel(true);
+  }
 
   /** First-person HUD: crosshair on, view button lit. */
   setFirstPerson(on: boolean): void {
@@ -329,6 +339,9 @@ export class UI {
     this.cooking?.stop();
     this.cooking = null;
     this.root.innerHTML = '';
+    const hook = this.closeHook;
+    this.closeHook = null;
+    hook?.();
     const was = this.open;
     this.open = null;
     if (notify && was) this.hooks.panel(false);
@@ -559,49 +572,6 @@ export class UI {
       <div class="sec fact"><h4>Yatai &amp; yokochō</h4>Yatai are portable food carts that appear at dusk. Yokochō are narrow alleys packed with tiny counters, many dating from the post-war markets of the 1940s.</div>
       <div class="sec fact"><h4>Etiquette</h4><ul><li>Say “itadakimasu” before eating and “gochisōsama” after.</li><li>Eat near the stall instead of walking with your food.</li><li>Slurping noodles is a compliment to the cook.</li><li>No tipping in real Tokyo! Here, vendors reward your help in the kitchen.</li></ul></div>
       <div class="sec fact"><h4>Words to know</h4><div class="words"><b>Irasshaimase</b><span>Welcome!</span><b>Oishii</b><span>Delicious</span><b>Omakase</b><span>“I leave it to you”, the chef's choice</span><b>Kanpai</b><span>Cheers</span></div></div>`;
-  }
-
-  // world map -----------------------------------------------------------------------------
-  map(): void {
-    const p = this.panel();
-    this.head(p, 'World Map', '世界地図', 'Every passport you complete opens a new destination.', G.plane);
-    const wrap = h('div', 'map-wrap');
-    const dests = [
-      { flag: '🇯🇵', name: 'Japan · Tokyo', desc: 'Kaminari Lane, Lantern Alley, Sakura Canal', here: true, x: 84, y: 40 },
-      { flag: '🇰🇷', name: 'South Korea · Seoul', desc: 'Tteokbokki, hotteok and night markets', x: 80, y: 40 },
-      { flag: '🇮🇹', name: 'Italy · Naples', desc: 'Pizza fritta, sfogliatella, cuoppo', x: 51, y: 36 },
-      { flag: '🇵🇹', name: 'Portugal · Lisbon', desc: 'Pastéis de nata, bifanas, sardines', x: 45, y: 37 },
-      { flag: '🇹🇷', name: 'Türkiye · Istanbul', desc: 'Simit, balık ekmek, döner', x: 57, y: 36 },
-      { flag: '🇲🇽', name: 'Mexico · Mexico City', desc: 'Tacos al pastor, elotes, tamales', x: 20, y: 46 },
-    ];
-    const dots = dests.map((d) => d.here
-      ? `<circle cx="${d.x}" cy="${d.y}" r="3" fill="#e9573f" stroke="#fff" stroke-width="1"><animate attributeName="r" values="2.6;3.6;2.6" dur="1.6s" repeatCount="indefinite"/></circle>`
-      : `<circle cx="${d.x}" cy="${d.y}" r="1.6" fill="#fff" stroke="#283a6e" stroke-width="0.6" opacity="0.85"/>`).join('');
-    wrap.innerHTML = `<div class="globe"><svg viewBox="0 0 100 60" preserveAspectRatio="xMidYMid slice">
-      <g fill="#fffaf2" stroke="#e3d2b4" stroke-width="0.5">
-        <path d="M8 16 Q18 8 30 12 Q34 20 28 28 Q24 36 20 48 Q16 40 12 30 Q6 24 8 16Z"/>
-        <path d="M26 50 Q32 48 34 56 Q30 60 28 58Z"/>
-        <path d="M44 14 Q52 10 60 14 Q58 22 52 24 Q46 26 44 20Z"/>
-        <path d="M46 28 Q56 26 58 36 Q56 48 50 52 Q46 44 46 36Z"/>
-        <path d="M60 12 Q76 8 90 14 Q92 24 84 28 Q76 32 70 30 Q62 26 60 18Z"/>
-        <path d="M78 44 Q86 42 90 48 Q86 52 80 50Z"/>
-      </g>
-      <path d="M84 40 Q66 18 51 36 M84 40 Q52 4 20 46" stroke="#e9573f" stroke-width="0.5" fill="none" stroke-dasharray="1.2 1.2" opacity="0.7"/>
-      ${dots}</svg></div>`;
-    const list = h('div', 'tickets');
-    const complete = Object.keys(this.s.tasted).length >= DISHES.length;
-    for (const d of dests) {
-      const next = complete && d.name.startsWith('South');
-      const t = h('button', 'ticket' + (d.here ? ' here' : next ? ' next' : ' locked'), `<div class="flag">${d.flag}</div><div><h4>${d.name}</h4><p>${d.desc}</p></div><div class="go">${d.here ? 'You are here' : next ? 'Next stop!' : 'Coming soon'}</div>`);
-      t.onclick = () => {
-        this.audio.play('click');
-        if (d.here) this.close();
-        else this.toast(d.flag, `${d.name.split(' · ')[1]} is coming soon`, complete ? 'Your Tokyo passport is complete. Stay tuned, traveller!' : 'Fill your Tokyo passport while you wait.');
-      };
-      list.appendChild(t);
-    }
-    wrap.appendChild(list);
-    p.appendChild(wrap);
   }
 
   // settings + notes ----------------------------------------------------------------------

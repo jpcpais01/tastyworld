@@ -32,6 +32,16 @@ export const G = {
   monitor: svg('<rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/>'),
   trash: svg('<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>'),
   coin: svg('<circle cx="12" cy="12" r="9"/><path d="M8.5 7.5 12 12l3.5-4.5M12 12v5M9 12.5h6M9 15h6"/>'),
+  backpack: svg('<path d="M6 9.5a6 6 0 0 1 12 0V20a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V9.5Z"/><path d="M9.5 4.5V3.5h5v1M9 14h6v4H9z"/>'),
+  people: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 19.5a6 6 0 0 1 12 0"/><path d="M15.5 4.9a3.2 3.2 0 0 1 0 6.2M17.5 13.6a6 6 0 0 1 3.5 5.9"/>'),
+  ticket: svg('<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h15A1.5 1.5 0 0 1 21 7.5v2.2a2.3 2.3 0 0 0 0 4.6v2.2a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 16.5v-2.2a2.3 2.3 0 0 0 0-4.6V7.5Z"/><path d="M15 6v12" stroke-dasharray="2 2.5"/>'),
+  copy: svg('<rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V5A1.5 1.5 0 0 0 14 3.5H5A1.5 1.5 0 0 0 3.5 5v9A1.5 1.5 0 0 0 5 15.5h3.5"/>'),
+  share: svg('<path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7"/>'),
+  back: svg('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
+  wave: svg('<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11.5V5a1.5 1.5 0 0 1 3 0v6.5M14 11.5V6.5a1.5 1.5 0 0 1 3 0v7.5a6.5 6.5 0 0 1-11.6 4L3 14.6a1.5 1.5 0 0 1 2.3-1.9L8 15"/>'),
+  home: svg('<path d="M4 10.5 12 4l8 6.5V20H4v-9.5Z"/><path d="M10 20v-5.5h4V20"/>'),
+  exit: svg('<path d="M14 4.5h4.5A1.5 1.5 0 0 1 20 6v12a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/>'),
+  plus: svg('<path d="M12 5v14M5 12h14"/>'),
 };
 
 export type GlyphName = keyof typeof G;

@@ -31,6 +31,8 @@ import type { RoomAnchor } from './world/interiors';
 import { UI, GameHooks } from './ui/ui';
 import { renderDishIcons } from './ui/icons';
 import { Travel } from './ui/travel';
+import { CityMap, type Pin } from './ui/citymap';
+import { Beacon } from './game/guide';
 import type { Destination } from './data/destinations';
 import type { Coop, Peer } from './net/coop';
 
@@ -99,6 +101,13 @@ class Game {
   /** The travel map covers the screen, so the 3D world can rest. */
   private covered = false;
   private remotes = new Map<string, Remote>();
+  private cityMap!: CityMap;
+  private beacon!: Beacon;
+  /** The walk to the pinned spot: corners still ahead of the player, last one the pin. */
+  private route: [number, number][] | null = null;
+  private routeT = 0;
+  private guideEl: HTMLElement | null = null;
+  private walkLeft = 0;
   private sendT = 0;
   private waveT = 0;
   private lookColor = 0;
@@ -198,7 +207,7 @@ class Game {
       close: () => this.ui.close(),
       toast: (i, t, x) => this.ui.toast(i, t, x),
     });
-    this.ui.onMap = () => this.travel.openMap('view');
+    this.ui.onMap = () => this.openCityMap();
     this.ui.onParty = () => this.travel.ticket();
     this.ui.onWave = () => this.wave();
     this.applySettings();
@@ -335,6 +344,24 @@ class Game {
     this.blobs = new Blobs(this.r.scene, 64);
     this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas]);
+    this.beacon = new Beacon(this.r.scene);
+    this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand }, {
+      player: () => {
+        const [x, z] = this.mapPos();
+        const f = this.cam.fwd, fl = Math.hypot(f.x, f.z) || 1;
+        return { x, z, facing: this.player.facing, view: [f.x / fl, f.z / fl] };
+      },
+      friends: () => (this.coop?.list ?? []).filter((p) => p.st && p.inWorld).map((p) => {
+        const st = p.st!, [x, z] = st[6] === 1 ? this.w.anchors.hiddenDoor.stand : [st[0], st[2]];
+        return { id: p.id, name: p.name, color: p.color, x, z };
+      }),
+      pin: () => this.s.pin ?? null,
+      route: () => this.route,
+      setPin: (p) => this.setPin(p),
+      worldMap: () => this.travel.openMap('view'),
+      close: () => this.ui.close(),
+      click: () => this.audio.play('click'),
+    });
     for (const i of this.s.manekis) this.particles.hideSparkle(i);
     for (const i of this.s.darumas) this.particles.hideSparkle(a.manekis.length + i);
 
@@ -703,6 +730,7 @@ class Game {
       }
       this.setCoop(coop);
     }
+    if (this.s.pin) this.setPin(this.s.pin);
     this.cam.setOrbit(0);
     this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
     this.cam.zoom = this.r.isMobile ? 15 : 17;
@@ -1059,6 +1087,121 @@ class Game {
     rm.actor.dispose();
     rm.tag.remove();
     this.remotes.delete(id);
+  }
+
+  // ------------------------------------------------------------------ pocket map + guide
+  /** Where the player is on the city map (inside the hidden restaurant: its door). */
+  private mapPos(): [number, number] {
+    const p = this.player.position;
+    return this.inside ? this.w.anchors.hiddenDoor.stand : [p.x, p.z];
+  }
+
+  private openCityMap(): void {
+    if (!this.started) return;
+    this.ui.overlay(this.cityMap.open(this.s, this.ui.icons), () => this.cityMap.closed());
+  }
+
+  /** Pin a spot (or clear it with null): the beacon, the compass and the route all follow it. */
+  private setPin(p: Pin | null): void {
+    this.s.pin = p;
+    this.save();
+    this.route = null;
+    this.routeT = 0;
+    if (!p) { this.beacon.clear(); return; }
+    this.beacon.set(p.x, this.navWorld.heightAt(p.x, p.z), p.z);
+    this.reroute();
+  }
+
+  private reroute(): void {
+    const pin = this.s.pin;
+    if (!pin) return;
+    const [x, z] = this.mapPos();
+    this.route = this.navWorld.findPath(x, z, pin.x, pin.z);
+    // no way there (out over the water, say): just point at it rather than searching again and again
+    this.routeT = this.route ? 2.5 : Infinity;
+  }
+
+  /** Every frame: the HUD compass, the beacon and the tag that points the way. */
+  private updateGuide(dt: number): void {
+    const pin = this.started ? this.s.pin : null;
+    const [px, pz] = this.mapPos();
+    const f = this.cam.fwd, fl = Math.hypot(f.x, f.z) || 1, fx = f.x / fl, fz = f.z / fl;
+    // clockwise screen angle of a ground direction: the camera's right is (-fz, fx)
+    const ang = (dx: number, dz: number) => Math.atan2(-dx * fz + dz * fx, dx * fx + dz * fz);
+    let dist = Infinity;
+    if (pin) {
+      this.routeT -= dt;
+      const r = this.route;
+      // walk the corners off as they are reached; find the way again when the player wanders off it
+      while (r && r.length > 1 && Math.hypot(r[0][0] - px, r[0][1] - pz) < 1.6) r.shift();
+      if (this.routeT <= 0 && (!r || (r.length && Math.hypot(r[0][0] - px, r[0][1] - pz) > 9))) this.reroute();
+      const route = this.route;
+      dist = Math.hypot(pin.x - px, pin.z - pz);
+      let walk = dist;
+      if (route?.length) {
+        walk = 0;
+        let ax = px, az = pz;
+        for (const [bx, bz] of route) { walk += Math.hypot(bx - ax, bz - az); ax = bx; az = bz; }
+      }
+      const next = route?.length ? route[0] : [pin.x, pin.z];
+      this.walkLeft = walk;
+      const here = dist < 3;
+      this.ui.compass(ang(0, -1), ang(next[0] - px, next[1] - pz), here ? 'here' : walk < 1000 ? `${Math.max(1, Math.round(walk))} m` : `${(walk / 1000).toFixed(1)} km`);
+      if (here && !this.inside && !this.ui.busy) {
+        this.audio.play('chime');
+        this.ui.toast('📍', pin.name === 'Pinned spot' ? 'You made it' : `You made it to ${pin.name}`, 'Your pin has been taken off the map.');
+        this.setPin(null);
+      }
+    } else this.ui.compass(ang(0, -1), null, '');
+    this.beacon.update(dt, dist, !!pin && !this.inside);
+    this.placeGuide(this.s.pin ?? null, dist, this.walkLeft);
+  }
+
+  /** A small tag over the beacon; when it is off screen the tag waits at the edge, pointing the way. */
+  private placeGuide(pin: Pin | null, dist: number, walk: number): void {
+    if (!pin || !this.started || this.ui.open || this.inside || dist < 4) {
+      if (this.guideEl) this.guideEl.style.display = 'none';
+      return;
+    }
+    let el = this.guideEl;
+    if (!el) {
+      el = this.guideEl = document.createElement('div');
+      el.className = 'guide';
+      el.innerHTML = '<span class="gd"><i></i><span class="gn"></span><em></em></span><span class="stem"></span><span class="arr"></span>';
+      document.getElementById('labels')!.appendChild(el);
+    }
+    el.style.display = '';
+    const name = pin.name, m = `${Math.round(walk)} m`;
+    const gn = el.querySelector('.gn') as HTMLElement, em = el.querySelector('em') as HTMLElement;
+    if (gn.textContent !== m) gn.textContent = m;
+    if (em.textContent !== name) em.textContent = name;
+    const W = window.innerWidth, H = window.innerHeight, mg = 52;
+    this.v3.set(pin.x, this.navWorld.heightAt(pin.x, pin.z) + 3.2, pin.z);
+    const ok = this.cam.project(this.v3, this.v2);
+    let x = this.v2.x, y = this.v2.y;
+    if (!ok) { x = W - x; y = H; }
+    const edge = !ok || x < mg || x > W - mg || y < mg + 60 || y > H - mg - 40;
+    el.classList.toggle('edge', edge);
+    if (edge) {
+      const cx = W / 2, cy = H / 2, dx = x - cx, dy = y - cy;
+      const k = Math.min((W / 2 - mg - 40) / Math.max(1e-3, Math.abs(dx)), (H / 2 - mg - 50) / Math.max(1e-3, Math.abs(dy)));
+      x = cx + dx * k; y = cy + dy * k;
+      (el.querySelector('.arr') as HTMLElement).style.transform = `rotate(${Math.atan2(dy, dx).toFixed(3)}rad)`;
+    }
+    el.style.left = `${x.toFixed(1)}px`;
+    el.style.top = `${y.toFixed(1)}px`;
+  }
+
+  /** Stalls show up on the map once you have walked past them. */
+  private discover(): void {
+    if (this.inside || !this.started) return;
+    const p = this.player.position;
+    for (const st of this.w.anchors.stalls) {
+      if (this.s.seen.includes(st.id) || STALL[st.id]?.hidden) continue;
+      if (Math.hypot(st.vendor[0] - p.x, st.vendor[2] - p.z) > 12) continue;
+      this.s.seen.push(st.id);
+      this.save();
+    }
   }
 
   /** Send our movement to friends at a steady rate. */
@@ -1612,6 +1755,9 @@ class Game {
     sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi.update(sh.uTime.value);
+    this.updateGuide(dt);
+    // paint the pocket map a sliver at a time once the trip is under way, so opening it is instant
+    if (this.started) this.cityMap.prepare(2);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     const pl = this.player.position;
     this.ui.updateLabels((p) => this.screen(p));
@@ -1626,6 +1772,7 @@ class Game {
         this.roomHere = rm;
         if (rm && this.started && !this.s.rooms.includes(rm.id)) { this.s.rooms.push(rm.id); this.afterChange(); }
       }
+      this.discover();
       const rn = rm ? roomName(rm.kind, rm.nth) : null;
       const z = this.inside ? { name: 'Kakurega · Hidden Counter', jp: '隠れ家' } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: 'Tokyo', jp: '東京' };
       this.ui.location(z.name, z.jp, this.tod.label());
@@ -1641,7 +1788,8 @@ class Game {
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }
     this.audio.tick(this.tod.night);
-    this.r.render();
+    // the pocket map covers the screen, so the world can rest under it
+    if (!this.cityMap.isOpen) this.r.render();
     this.r.adapt(raw, now);
   }
 }

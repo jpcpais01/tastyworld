@@ -1,6 +1,7 @@
 import type { SaveState } from '../game/state';
 import { DISH, DISHES } from './dishes';
 import { CAPSULES } from './places';
+import { STALLS } from './stalls';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -33,6 +34,33 @@ export const MISSIONS: Mission[] = [
   { id: 'daruma', name: 'Daruma Hunt', desc: 'Find the eight tiny daruma hidden inside the shops.', progress: (s) => [s.darumas.length, 8], reward: { yen: 2000, item: 'daruma' } },
   { id: 'master', name: 'Master of Tokyo', desc: `Collect all ${DISHES.length} food passport stamps.`, progress: (s) => [tasted(s).length, DISHES.length], reward: { yen: 3000, title: 'Tokyo Gourmet', item: 'gold' } },
 ];
+
+/** The one mission the HUD follows: a reward to claim first, otherwise the one closest to done. */
+export function trackedMission(s: SaveState): { next: Mission | null; ready: Mission[] } {
+  const open = MISSIONS.filter((m) => !s.claimed.includes(m.id));
+  const ready = open.filter((m) => { const [a, b] = m.progress(s); return a >= b; });
+  const live = open.filter((m) => m.id !== 'secret' || s.hiddenFound);
+  const frac = (m: Mission) => { const [a, b] = m.progress(s); return a / b; };
+  return { next: ready[0] ?? [...live].sort((x, y) => frac(y) - frac(x))[0] ?? null, ready };
+}
+
+/** Stalls where the player can move a mission along, for the city map. */
+export function missionStalls(m: Mission, s: SaveState): string[] {
+  const [a, b] = m.progress(s);
+  if (a >= b) return [];
+  const all = STALLS.filter((st) => !st.hidden || s.hiddenFound);
+  const untasted = (pick: (d: (typeof DISHES)[number]) => boolean) =>
+    all.filter((st) => DISHES.some((d) => d.stall === st.id && !s.tasted[d.id] && pick(d))).map((st) => st.id);
+  switch (m.id) {
+    case 'first-bite': case 'trio': case 'master': return untasted(() => true);
+    case 'sweet': return untasted((d) => d.dessert);
+    case 'alley': return untasted((d) => ['yakitori', 'karaage', 'ramen', 'gyoza'].includes(d.id));
+    case 'tables': return ['komorebi', 'kikyo'].filter((id) => !Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === id));
+    case 'apprentice': case 'stars': return all.filter((st) => !st.hidden).map((st) => st.id);
+    case 'secret': return s.hiddenFound ? ['kakurega'] : [];
+    default: return [];
+  }
+}
 
 export const ITEMS: Record<string, { name: string; icon: string; desc: string }> = {
   headband: { name: 'Hachimaki headband', icon: '🎌', desc: 'A red-and-white headband worn by festival cooks. Now you look the part.' },

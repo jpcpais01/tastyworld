@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.10.3',
+    version: '0.10.4',
     date: '2026-10-30',
     title: 'The little things',
     items: [
@@ -18,6 +18,16 @@ export const PATCH_NOTES: PatchNote[] = [
       'House fronts gained vending machines, grey utility cabinets and the odd bit of road works with cones, and every building now sits on a darker stone or concrete plinth.',
       'Posters and sale stickers in the shop windows, paper notices on closed shutters and bills pasted on bare side walls.',
       'Inside the shops: a clock on the wall, a calendar, a framed print, and the paper menu strips that line every izakaya and soba shop.',
+    ],
+  },
+  {
+    version: '0.10.3',
+    date: '2026-10-30',
+    title: 'Better fitting clothes',
+    items: [
+      'Skirts no longer stick out from the hips like a wide box. They now sit on the legs, swing with each step and end at the knee with a small flare.',
+      'Yukata robes and shop aprons move with the legs too, so they no longer look stiff when people walk or sit down.',
+      'Some people now wear shorts.',
     ],
   },
   {

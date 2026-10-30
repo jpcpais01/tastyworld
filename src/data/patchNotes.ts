@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.8',
+    date: '2026-10-30',
+    title: 'Steadier frames while exploring',
+    items: [
+      'Sun shadows no longer get redrawn from scratch every time a new piece of the city streams in. New streets are added to the shadows on their own, which removes the small hitches you could feel while walking or running into a new area.',
+      'The drifting cloud shadows are now much cheaper to draw and look the same.',
+    ],
+  },
+  {
     version: '0.10.7',
     date: '2026-10-30',
     title: 'A lighter crowd',

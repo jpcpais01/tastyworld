@@ -1113,3 +1113,60 @@ export function bannerPole(k: PropKit, cloth: number, fg: number, seed = 1): Pro
   p.sway({ ...SWAY.noren, push: 0 }, [4.5, 27, 1.5], [1, 0, 0], (x, y) => x >= 3 && y <= 26, 0);
   return p;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Street detail: signals, cones, utility boxes (see world/dressing.ts)
+
+/** Traffic signal on a pole with its arm reaching out along +X over the road, a walk signal on the pole facing +Z. */
+export function trafficLight(k: PropKit, phase = 0): Prop {
+  const { c } = k;
+  const p = new Prop(14, 38, 3);
+  p.box(0, 0, 0, 2, 1, 2, c.poleGray);
+  p.box(1, 2, 1, 1, 36, 1, c.poleGray);
+  p.box(1, 35, 1, 13, 35, 1, c.poleGray);
+  // three-lamp head hanging under the arm, facing +Z: one lamp lit
+  p.box(6, 32, 0, 13, 34, 2, c.charcoal);
+  const lit = [c.neonGreen, c.neonYellow, c.neonRed][phase % 3];
+  for (const [i, x] of [[0, 7], [1, 9.5], [2, 12]] as [number, number][]) p.box(Math.floor(x), 33, 2, Math.floor(x) + (i === 1 ? 0 : 0), 33, 2, i === (phase % 3) ? lit : c.black);
+  // pedestrian signal: red man over blue-green man
+  p.box(2, 20, 0, 4, 25, 2, c.charcoal);
+  p.box(3, 23, 2, 3, 24, 2, phase % 3 === 0 ? c.black : c.neonRed);
+  p.box(3, 21, 2, 3, 22, 2, phase % 3 === 0 ? c.neonGreen : c.black);
+  // push-button box
+  p.box(2, 10, 1, 2, 12, 2, c.signYellow);
+  return p;
+}
+
+/** Red and white traffic cone. */
+export function trafficCone(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(5, 9, 5, 0.0625);
+  p.box(0, 0, 0, 4, 0, 4, c.fabricRed);
+  for (let y = 1; y < 9; y++) {
+    const r = 2.2 - y * 0.2;
+    p.cylY(2.5, 2.5, r, y, y, y === 4 || y === 5 ? c.white : c.fabricRed);
+  }
+  return p;
+}
+
+/** Yellow and black road-works barrier, 1.5 m along +X. */
+export function workBarrier(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(24, 12, 3, 0.0625);
+  for (const x of [1, 21]) { p.box(x, 0, 0, x + 1, 11, 0, c.steelDark); p.box(x - 1, 0, 0, x + 2, 0, 2, c.steelDark); }
+  p.box(0, 7, 1, 23, 10, 1, (x) => ((x >> 2) % 2 ? c.signYellow : c.black));
+  p.box(0, 3, 1, 23, 4, 1, (x) => ((x >> 2) % 2 ? c.signYellow : c.black));
+  return p;
+}
+
+/** Grey utility cabinet on its plinth (electric or telecom), 0.75 m wide, door facing +Z. */
+export function utilityBox(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const p = new Prop(12, 18, 6, 0.0625);
+  p.box(0, 0, 0, 11, 1, 5, c.stoneDark);
+  p.box(0, 2, 0, 11, 17, 5, c.acGray);
+  p.box(1, 3, 5, 10, 16, 5, c.poleGray);
+  p.box(9, 9, 5, 9, 10, 5, c.steelDark);
+  p.box(2, 13, 5, 4, 15, 5, (seed & 1) ? c.signYellow : c.white); // warning sticker
+  return p;
+}

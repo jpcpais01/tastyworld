@@ -115,7 +115,7 @@ export class UI {
       <div class="title-card">
         <button class="btn btn-hero" id="t-start">${G.play}${hasSave ? 'Continue journey' : 'Start in Tokyo'}</button>
         <div class="title-row"><button class="btn btn-ghost" id="t-notes">${G.sparkle}What's new · v${PATCH_NOTES[0].version}</button></div>
-        <div class="title-hint">${touch() ? '<b>Tap</b> to walk · <b>Drag</b> to look · <b>Pinch</b> to zoom' : '<b>Click</b> or <b>WASD</b> to walk · <b>Q</b>/<b>E</b> to rotate · <b>Scroll</b> to zoom'}</div>
+        <div class="title-hint">${touch() ? '<b>Tap</b> to walk · <b>Double-tap</b> to run · <b>Drag</b> to look · <b>Pinch</b> to zoom' : '<b>Click</b> or <b>WASD</b> to walk · <b>Q</b>/<b>E</b> to rotate · <b>Scroll</b> to zoom'}</div>
       </div>`;
     t.classList.remove('hidden');
     $('t-start').onclick = () => { this.audio.start(); this.audio.play('chime'); t.classList.add('hidden'); onStart(); };
@@ -143,7 +143,7 @@ export class UI {
           <button id="h-set" title="Settings" aria-label="Settings">${G.gear}</button>
         </div>
       </div>
-      <div class="hud-bl"><div class="keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Q</kbd><kbd>E</kbd> rotate</span><span><kbd>Space</kbd> interact</span><span><kbd>P</kbd> passport</span></div></div>
+      <div class="hud-bl"><div class="keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Q</kbd><kbd>E</kbd> rotate</span><span><kbd>Space</kbd> interact</span><span><kbd>P</kbd> passport</span></div></div>
       <div class="hud-br">
         <div class="card dock">
           <button id="h-rl" title="Rotate left (Q)" aria-label="Rotate left">${G.rotL}</button>

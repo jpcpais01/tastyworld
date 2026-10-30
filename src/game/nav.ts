@@ -3,12 +3,17 @@ import { G, V } from '../world/layout';
 
 const BLOCKED = 255;
 const MAX_STEP = 2; // voxels a character can step up or down between neighbouring cells
+/** Player body radius in metres: slim and round so it slips between chairs, trees and props. */
+export const PLAYER_R = 0.13;
+const TIGHT_COST = 2.5; // extra A* cost for squeezing through cells without clearance
+const NUDGE = [0.4, 0.8, 1.2]; // radians to deflect around an obstacle before giving up
 
 /** Walkable heightfield queries + A* pathfinding over 25 cm cells. */
 export class Nav {
   readonly sx: number;
   readonly sz: number;
   private clear: Uint8Array;
+  private pass: Uint8Array;
   private g: Float32Array;
   private came: Int32Array;
   private state: Uint8Array;
@@ -34,6 +39,19 @@ export class Nav {
             if (nh === BLOCKED || Math.abs(nh - h) > MAX_STEP) ok = 0;
           }
         this.clear[z * d.sx + x] = ok;
+      }
+    // passable: walkable and not pinched between blockers on opposite sides (gaps of 2+ cells, ~50 cm)
+    this.pass = new Uint8Array(n);
+    const open = (x: number, z: number, h: number) => {
+      if (x < 0 || z < 0 || x >= d.sx || z >= d.sz) return false;
+      const nh = d.height[z * d.sx + x];
+      return nh !== BLOCKED && Math.abs(nh - h) <= MAX_STEP;
+    };
+    for (let z = 0; z < d.sz; z++)
+      for (let x = 0; x < d.sx; x++) {
+        const h = d.height[z * d.sx + x];
+        if (h === BLOCKED) continue;
+        this.pass[z * d.sx + x] = (open(x - 1, z, h) || open(x + 1, z, h)) && (open(x, z - 1, h) || open(x, z + 1, h)) ? 1 : 0;
       }
     this.g = new Float32Array(n);
     this.came = new Int32Array(n);
@@ -78,13 +96,35 @@ export class Nav {
   }
 
   /** Can a character of the given radius stand at (x,z), coming from height hFrom (voxels)? */
-  canStand(x: number, z: number, hFrom: number, r = 0.2): boolean {
-    const pts = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [r * 0.7, r * 0.7], [-r * 0.7, r * 0.7], [r * 0.7, -r * 0.7], [-r * 0.7, -r * 0.7]];
+  canStand(x: number, z: number, hFrom: number, r = PLAYER_R): boolean {
+    const d = r * 0.707;
+    const pts = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [d, d], [-d, d], [d, -d], [-d, -d]];
     for (const [dx, dz] of pts) {
       const h = this.rawHeight(this.cell(x + dx, z + dz));
       if (h === BLOCKED || Math.abs(h - hFrom) > MAX_STEP + (dx === 0 && dz === 0 ? 0 : 1)) return false;
     }
     return true;
+  }
+
+  /**
+   * Moves a character from (x,z) by dist along (dx,dz), sliding along walls and nudging round
+   * corners instead of stopping dead. `side` (+1/-1) is the deflection tried first, so a slide
+   * keeps going the same way. Returns the new position, or null if every direction is blocked.
+   */
+  slide(x: number, z: number, dx: number, dz: number, dist: number, hFrom: number, side = 1): { x: number; z: number; side: number } | null {
+    // already wedged (e.g. after a teleport): let any step onto walkable floor through
+    const r = this.canStand(x, z, hFrom) ? PLAYER_R : 0;
+    const ok = (ax: number, az: number) => this.canStand(ax, az, hFrom, r);
+    if (ok(x + dx * dist, z + dz * dist)) return { x: x + dx * dist, z: z + dz * dist, side };
+    for (const a of NUDGE) {
+      const c = Math.cos(a), sn = Math.sin(a), d = dist * Math.max(0.45, c);
+      for (const sd of [side, -side]) {
+        const rx = dx * c - dz * sn * sd, rz = dz * c + dx * sn * sd;
+        const nx = x + rx * d, nz = z + rz * d;
+        if (ok(nx, nz)) return { x: nx, z: nz, side: sd };
+      }
+    }
+    return null;
   }
 
   standHeightVox(x: number, z: number): number {
@@ -112,10 +152,15 @@ export class Nav {
     return -1;
   }
 
+  /** The cell itself if it can be stood on, otherwise the nearest roomy one. */
+  private nearestWalkable(i: number, maxR: number): number {
+    return i >= 0 && this.pass[i] ? i : this.nearestClear(i, maxR);
+  }
+
   /** A* path from a to b. Returns smoothed waypoints in metres (excluding the start), or null. */
   findPath(ax: number, az: number, bx: number, bz: number): [number, number][] | null {
-    const start = this.nearestClear(this.cell(ax, az), 6);
-    const goal = this.nearestClear(this.cell(bx, bz), 24);
+    const start = this.nearestWalkable(this.cell(ax, az), 6);
+    const goal = this.nearestWalkable(this.cell(bx, bz), 24);
     if (start < 0 || goal < 0) return null;
     const { sx } = this;
     const H = this.d.height;
@@ -171,10 +216,11 @@ export class Nav {
         const nx = cx + dx, nz = cz + dz;
         if (nx < 0 || nz < 0 || nx >= sx || nz >= this.sz) continue;
         const ni = nz * sx + nx;
-        if (!this.clear[ni] || this.state[ni] === 2) continue;
+        if (!this.pass[ni] || this.state[ni] === 2) continue;
         if (Math.abs(H[ni] - ch) > MAX_STEP) continue;
-        if (dx && dz && (!this.clear[cz * sx + nx] || !this.clear[nz * sx + cx])) continue;
-        const ng = this.g[cur] + cost;
+        if (dx && dz && (!this.pass[cz * sx + nx] || !this.pass[nz * sx + cx])) continue;
+        // narrow gaps are allowed but cost more, so open ground is still preferred
+        const ng = this.g[cur] + cost * (this.clear[ni] ? 1 : TIGHT_COST);
         if (this.state[ni] === 1 && ng >= this.g[ni]) continue;
         this.g[ni] = ng;
         this.came[ni] = cur;
@@ -198,8 +244,11 @@ export class Nav {
     }
     if (cells.length > 1) out.push(this.centre(cells[cells.length - 1]));
     // finish exactly at the requested point if it is reachable
-    const last = this.cell(bx, bz);
-    if (last >= 0 && this.clear[last] && this.los(cells[cells.length - 1], last)) out.push([bx, bz]);
+    const last = this.cell(bx, bz), end = cells[cells.length - 1];
+    if (last === end) {
+      if (out.length) out[out.length - 1] = [bx, bz];
+      else out.push([bx, bz]);
+    } else if (last >= 0 && this.clear[last] && this.los(end, last)) out.push([bx, bz]);
     return out;
   }
 

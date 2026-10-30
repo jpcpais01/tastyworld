@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.1',
+    date: '2026-10-30',
+    title: 'Light on your feet',
+    items: [
+      'Walking feels much smoother: you now slip around chairs, tree trunks, signs and other props instead of getting stuck on them, and glide along walls when you walk into them at an angle.',
+      'Tap-to-walk finds its way through narrow gaps between stalls and tables that it used to give up on, and takes shorter routes.',
+      'You can run! Hold Shift on a keyboard, drag the joystick further out on a phone, or double-tap where you want to go.',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-10-30',
     title: 'Clear views, busier streets',

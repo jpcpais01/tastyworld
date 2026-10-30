@@ -86,7 +86,7 @@ export interface BuildResult {
   indoor: [number, number, number, number, number, number][];
 }
 
-type Side = 's' | 'n' | 'e' | 'w';
+export type Side = 's' | 'n' | 'e' | 'w';
 const TURNS: Record<Side, number> = { s: 0, e: 1, n: 2, w: 3 };
 
 function worldColors(pal: Palette) {
@@ -131,6 +131,16 @@ function worldColors(pal: Palette) {
     leaf: a(0x4f8a3a, 0.14, F), leafDark: a(0x35662c, 0.14, F), pipe: a(0x9a9c98, 0.04), ivy: a(0x3f6e34, 0.16, F),
     namako: a(0x5d636b, 0.04), plasterWhite: a(0xf1ede4, 0.03), kuraBase: a(0x3a3638, 0.04), steelStair: a(0x6d7378, 0.04),
     awnYellow: a(0xe9b83a, 0.03), awnBrown: a(0x7a4a2e, 0.03), awnPink: a(0xe58aa6, 0.03),
+    // the city around the old district
+    neonPink: a(0xff5fb4, 0.03, { emit: 0.95 }), neonCyan: a(0x5ff0ff, 0.03, { emit: 0.95 }), neonViolet: a(0xa47bff, 0.03, { emit: 0.95 }),
+    neonYellow: a(0xffdc5a, 0.03, { emit: 0.95 }), neonGreen: a(0x7dffa8, 0.03, { emit: 0.95 }), neonOrange: a(0xff9a4a, 0.03, { emit: 0.95 }),
+    screenDark: a(0x1c2238, 0.04), screenA: a(0x4f7dff, 0.06, { emit: 0.85 }), screenB: a(0xff7ac2, 0.06, { emit: 0.85 }), screenC: a(0xfff1c2, 0.04, { emit: 0.9 }),
+    glassBlue: a(0x5f87a8, 0.04), glassTeal: a(0x4d8a92, 0.04), glassNight: a(0x8fb4d6, 0.05, { emit: 0.7, night: true }),
+    steel: a(0x7d8389, 0.04), steelDark: a(0x50565c, 0.04), rail: a(0x8a8580, 0.05), ballast: a(0x6d675f, 0.12), sleeper: a(0x5a4636, 0.06),
+    lineYellow: a(0xe8c547, 0.03), roadRed: a(0x8a4c45, 0.05),
+    pine: a(0x2f5b3c, 0.12, F), pineB: a(0x3c6e46, 0.12, F), maple: a(0xd65a3a, 0.12, F), mapleB: a(0xe9853f, 0.12, F), keyaki: a(0x5d9a48, 0.14, F), keyakiB: a(0x7bb55a, 0.12, F),
+    moss: a(0x5f7f3a, 0.14), torii: a(0xe0452e, 0.04), toriiBlack: a(0x2b2624, 0.03), foxWhite: a(0xf1ede6, 0.03),
+    brick: a(0x9a5a44, 0.08), brickDark: a(0x7a4434, 0.08), water: a(0x3f6f7a, 0.05),
   };
 }
 
@@ -198,10 +208,10 @@ export class Builder {
   }
 }
 
-const RED: [number, number, number] = [1.0, 0.42, 0.22];
-const WARM: [number, number, number] = [1.0, 0.72, 0.42];
-const WHITEWARM: [number, number, number] = [1.0, 0.86, 0.66];
-const COOL: [number, number, number] = [0.62, 0.84, 1.0];
+export const RED: [number, number, number] = [1.0, 0.42, 0.22];
+export const WARM: [number, number, number] = [1.0, 0.72, 0.42];
+export const WHITEWARM: [number, number, number] = [1.0, 0.86, 0.66];
+export const COOL: [number, number, number] = [0.62, 0.84, 1.0];
 
 /** Facade-relative coordinate frame on a building lot. */
 export class Lot {
@@ -262,11 +272,11 @@ export class Lot {
 
 // ---------------------------------------------------------------------------------------------
 
-type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba';
+export type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba';
 const ROOM_GROUNDS: Ground[] = ['shop', 'cafe', 'izakaya', 'konbini', 'florist', 'books', 'fish', 'bakery', 'pharmacy', 'kissa', 'soba'];
-type Style = 'modern' | 'showa' | 'machiya' | 'izakaya' | 'apartment' | 'kura';
+export type Style = 'modern' | 'showa' | 'machiya' | 'izakaya' | 'apartment' | 'kura';
 
-interface BuildingOpts {
+export interface BuildingOpts {
   floors: number;
   style: Style;
   ground: Ground;
@@ -282,7 +292,7 @@ interface BuildingOpts {
   doorA?: number;
 }
 
-function building(lot: Lot, o: BuildingOpts): { H: number } {
+export function building(lot: Lot, o: BuildingOpts): { H: number } {
   const b = lot.b, c = b.c, k = b.k;
   const r = rng(o.seed);
   const pick = <T,>(arr: T[]) => arr[Math.floor(r() * arr.length)];
@@ -558,7 +568,7 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
   return { H };
 }
 
-function flatRoof(lot: Lot, H: number, r: () => number, billboardOk = false) {
+export function flatRoof(lot: Lot, H: number, r: () => number, billboardOk = false) {
   const b = lot.b, c = b.c, k = b.k;
   const w = lot.width, dep = lot.depth;
   lot.box(0, H, 0, w - 1, H, dep - 1, (a, _y, d) => (a === 0 || d === 0 || a === w - 1 || d === dep - 1 ? c.parapet : 0));
@@ -608,7 +618,7 @@ function flatRoof(lot: Lot, H: number, r: () => number, billboardOk = false) {
   }
 }
 
-function tiledRoof(lot: Lot, H: number, eave = 2, run = 2) {
+export function tiledRoof(lot: Lot, H: number, eave = 2, run = 2) {
   const b = lot.b, c = b.c;
   const w = lot.width, dep = lot.depth;
   // gable roof with ridge parallel to the facade
@@ -801,7 +811,7 @@ function terrain(b: Builder) {
   }
 }
 
-function surface(b: Builder, x: number, z: number): number {
+export function surface(b: Builder, x: number, z: number): number {
   const c = b.c;
   // street 1: running-bond pavers
   if (z >= 36 && z < 64 && x >= 24) {
@@ -864,7 +874,7 @@ function surface(b: Builder, x: number, z: number): number {
 
 const TREE_X = [20, 44, 92, 116, 156, 180, 248, 272];
 
-function sakuraTree(b: Builder, x: number, z: number, seed: number, yBase = G) {
+export function sakuraTree(b: Builder, x: number, z: number, seed: number, yBase = G) {
   const g = b.grid, c = b.c;
   const r = rng(seed);
   const h = 14 + Math.floor(r() * 5);
@@ -907,7 +917,7 @@ function sakuraTree(b: Builder, x: number, z: number, seed: number, yBase = G) {
   }
 }
 
-function boat(b: Builder, x0: number, z0: number, len: number, seed: number) {
+export function boat(b: Builder, x0: number, z0: number, len: number, seed: number) {
   const g = b.grid, c = b.c;
   const r = rng(seed);
   const yb = 8; // keel below the water line
@@ -928,7 +938,7 @@ function boat(b: Builder, x0: number, z0: number, len: number, seed: number) {
   if (r() < 0.6) g.box(x0 + Math.floor(len / 2) - 2, yb + 2, z0 + 2, x0 + Math.floor(len / 2) + 1, yb + 3, z0 + 4, c.tarp);
 }
 
-function bridge(b: Builder, x0: number, x1: number, style: 'red' | 'stone') {
+export function bridge(b: Builder, x0: number, x1: number, style: 'red' | 'stone') {
   const g = b.grid, c = b.c, k = b.k;
   const zA = 166, zB = 205;
   for (let z = zA; z <= zB; z++) {
@@ -1266,8 +1276,8 @@ export function buildTokyo(win?: Window): BuildResult {
       g.box(x, G, 170, x, G + 2, 170, c.stone);
       if (x + 4 < OSX - 4 && !(x + 4 >= 54 && x + 4 <= 73) && !(x + 4 >= 210 && x + 4 <= 229) && !(x + 4 >= 122 && x + 4 <= 137)) g.box(x, G + 2, 170, x + 3, G + 2, 170, c.stone);
     }
-    for (let lx of [8, 32, 75, 104, 140, 168, 200, 236, 260]) { // (75: clear of the red bridge's ramp)
-      for (const dx of [0, -4, 4, -8, 8]) if (b.clear((lx + dx) * V + 0.3, 3.9, 168.6 * V)) { lx += dx; break; } // lamp head out of the cherry canopies
+    // (75: clear of the red bridge's ramp; 4 and 28: lamp heads out of the cherry canopies)
+    for (const lx of [4, 28, 75, 104, 140, 168, 200, 236, 260]) {
       b.place(streetLamp(k), lx * V + 0.3, 0, 168.6 * V, 0);
       b.lamp(lx * V + 0.8, 3.4, 168.6 * V, WHITEWARM, 7, 1.0);
       b.block(lx * V, 168.6 * V - 0.25, lx * V + 0.5, 168.6 * V + 0.25);
@@ -1417,17 +1427,12 @@ export function buildTokyo(win?: Window): BuildResult {
   {
     const solid = (x: number, z: number, hx: number, hz: number) => b.block(x - hx, z - hz, x + hx, z + hz);
     // slide parked things along the kerb so they never sit in front of a shop door
-    // ...or on top of something already standing there (A-frame menus, planters, other parked bikes)
-    const clearGround = (x0: number, z0: number, x1: number, z1: number) => {
-      for (let vz = Math.floor(z0 / V); vz <= Math.floor(z1 / V); vz++)
-        for (let vx = Math.floor(x0 / V); vx <= Math.floor(x1 / V); vx++)
-          for (let y = G + 1; y < G + 5; y++) if (g.get(vx, y, vz)) return false; // (G may be kerb or paving)
-      return true;
-    };
+    // ...or on top of something already standing there (A-frame menus, planters, other parked bikes).
+    // (No voxel reads here: the café stools become crowd seats, and only part of the grid exists in each worker.)
     const dodge = (x0: number, z: number, half = 0.8) => {
       const hit = ([ax, az, bx, bz]: [number, number, number, number], x: number) => ax < x + half + 0.05 && bx > x - half - 0.05 && az < z + 0.3 && bz > z - 0.3;
       const door = (x: number) => b.rooms.some((rm) => Math.abs(rm.door[0] - x) < 0.8 + half && Math.abs(rm.door[1] - z) < 2.4);
-      const free = (x: number) => !door(x) && !b.blockers.some((o) => hit(o, x)) && !b.standing.some((o) => hit(o, x)) && clearGround(x - half, z - 0.15, x + half, z + 0.15);
+      const free = (x: number) => !door(x) && !b.blockers.some((o) => hit(o, x)) && !b.standing.some((o) => hit(o, x));
       // nearest free spot, searching outwards along the kerb; if there is none nearby, it isn't parked there at all
       for (let k = 0; k < 40; k++) {
         const x = x0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.25;

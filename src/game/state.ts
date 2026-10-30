@@ -8,7 +8,16 @@ export interface Settings {
   sfxVol: number;
   tilt: boolean;
   dayLength: number;
+  /** View distance 0..1 (see viewMetres); null follows the graphics quality. */
+  viewDist: number | null;
+  /** First-person field of view, degrees. */
+  fov: number;
 }
+
+/** View distance setting (0..1) to metres. */
+export const viewMetres = (v: number) => Math.round(60 + v * 240);
+/** The view distance each graphics quality starts at. */
+export const VIEW_DEFAULT: Record<Quality, number> = { low: 0.2, medium: 0.35, high: 0.55 };
 
 export interface SaveState {
   v: 1;
@@ -39,7 +48,7 @@ const KEY = 'tastyworld.save.v1';
 export function defaultState(): SaveState {
   return {
     v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [],
-    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
+    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, viewDist: null, fov: 72 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
   };
 }
 

@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.3',
+    date: '2026-10-30',
+    title: 'See for miles',
+    items: [
+      'You can see much further now. In first person the streets now stretch far out ahead of you before they fade into the haze.',
+      'New View distance slider in Settings. Slide it up to see right across the city, or down for a smoother game on older phones. It starts at a sensible distance for your graphics setting.',
+      'The view distance also sets how far you can zoom out in the overhead view, so you can take in whole districts at once.',
+      'Far-off streets are drawn in simpler blocks that blend into the haze, so long views stay smooth.',
+      'Tokyo no longer stops at the edge of the map: the rest of the city rises beyond it, low streets near by and towers further out, with windows lighting up and neon on the tallest ones at night.',
+      'New First-person FOV slider in Settings, from a narrow 50° to a wide 100°.',
+    ],
+  },
+  {
     version: '0.9.2',
     date: '2026-10-30',
     title: 'A much bigger Tokyo',

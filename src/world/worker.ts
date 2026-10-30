@@ -7,13 +7,13 @@ declare const self: DedicatedWorkerGlobalScope;
 /** Messages a world worker understands. */
 export type WorkerIn =
   | { type: 'init'; part: number; parts: number }
-  | { type: 'mesh'; id: number; ix: number; iz: number; lod: boolean };
+  | { type: 'mesh'; id: number; ix: number; iz: number; lod: number };
 
 /** Messages a world worker sends back. */
 export type WorkerOut =
   | { type: 'progress'; stage: string; f: number }
   | { type: 'ready'; init: PartInit }
-  | { type: 'mesh'; id: number; ix: number; iz: number; lod: boolean; mesh: MeshData | null };
+  | { type: 'mesh'; id: number; ix: number; iz: number; lod: number; mesh: MeshData | null };
 
 const meshBuffers = (m: MeshData, out: Transferable[]) => out.push(m.positions.buffer, m.attrs.buffer, m.indices.buffer, m.sway.buffer);
 

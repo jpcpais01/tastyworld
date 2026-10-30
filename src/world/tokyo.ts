@@ -1,7 +1,10 @@
-import { Grid, rng, hash3 } from './grid';
+import { SparseGrid, rng, hash3 } from './grid';
 import { Palette } from './palette';
 import type { Lamp } from './lighting';
-import { G, SX, SY, SZ, V, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
+import { G, SX, SY, SZ, V, VX0, VZ0, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
+
+/** Extent of the original district (voxels from the origin), which the city grows around. */
+const OSX = 288;
 import {
   Prop, rotateProp, makePropColors, PropKit, lantern, giantLantern, verticalSign, boardSign, noren, vendingMachine,
   acUnit, crateStack, stool, plantPot, stoneLantern, incenseBurner, streetLamp, bench, bicycle, nobori, manekiNeko, wire,
@@ -73,12 +76,12 @@ export interface Anchors {
 }
 
 export interface BuildResult {
-  grid: Grid;
+  grid: SparseGrid;
   pal: Palette;
   props: PlacedProp[];
   lamps: Lamp[];
   anchors: Anchors;
-  interior: { grid: Grid; props: PlacedProp[]; lamps: Lamp[] };
+  interior: { grid: SparseGrid; props: PlacedProp[]; lamps: Lamp[] };
   /** Voxel boxes of indoor air that get a soft ambient light. */
   indoor: [number, number, number, number, number, number][];
 }
@@ -133,8 +136,11 @@ function worldColors(pal: Palette) {
 
 export type WC = ReturnType<typeof worldColors>;
 
+/** Builder voxel columns a worker keeps: [x0, z0, x1, z1), exclusive end. */
+export type Window = [number, number, number, number];
+
 export class Builder {
-  grid = new Grid(SX, SY, SZ);
+  grid: SparseGrid;
   pal = new Palette();
   c: WC;
   k: PropKit;
@@ -152,9 +158,17 @@ export class Builder {
   stallAnchors: StallAnchor[] = [];
   occluders: Occluder[] = [];
   benches: [number, number, number][] = [];
+  /** True when there is open air at a point (metres). */
+  clear(x: number, y: number, z: number): boolean {
+    return this.grid.get(Math.floor(x / V), Math.floor(y / V) + G, Math.floor(z / V)) === 0;
+  }
+  /** Footprints of props standing on the ground, so later ones can keep clear of them. */
+  standing: [number, number, number, number][] = [];
   stools: [number, number, number][] = [];
 
-  constructor() {
+  constructor(win?: Window) {
+    const w = win ?? [VX0, VZ0, VX0 + SX, VZ0 + SZ];
+    this.grid = new SparseGrid(VX0, VZ0, SX, SY, SZ, w[0], w[1], w[2], w[3]);
     this.c = worldColors(this.pal);
     this.k = { pal: this.pal, c: makePropColors(this.pal) };
     this.ic = interiorColors(this.pal);
@@ -165,6 +179,7 @@ export class Builder {
     const p = rotateProp(prop, turns);
     const sx = p.sx * p.scale, sz = p.sz * p.scale;
     this.props.push({ prop: p, origin: [cx - sx / 2, y, cz - sz / 2], tag });
+    if (!tag && y < 0.3) this.standing.push([cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2]);
     return p;
   }
 
@@ -225,6 +240,8 @@ export class Lot {
     return this.b.grid.get(x, G + y, z);
   }
   box(a0: number, y0: number, d0: number, a1: number, y1: number, d1: number, c: number | ((a: number, y: number, d: number) => number)) {
+    const [xa, za] = this.xz(a0, d0), [xb, zb] = this.xz(a1, d1);
+    if (!this.b.grid.touches(xa, za, xb, zb)) return;
     for (let a = Math.min(a0, a1); a <= Math.max(a0, a1); a++)
       for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
         for (let d = Math.min(d0, d1); d <= Math.max(d0, d1); d++) this.set(a, y, d, typeof c === 'function' ? c(a, y, d) : c);
@@ -719,14 +736,15 @@ function equipment(k: PropKit, kind: StallSpec['equip']): Prop {
 function terrain(b: Builder) {
   const g = b.grid, c = b.c;
   // bedrock + earth
-  g.box(0, 0, 0, SX - 1, G - 2, SZ - 1, c.earth);
-  // surface layer
-  for (let z = 0; z < SZ; z++)
-    for (let x = 0; x < SX; x++) g.set(x, G - 1, z, surface(b, x, z));
-  // canal
-  g.box(0, 4, 172, SX - 1, G - 1, 199, 0);
+  const XE = VX0 + SX - 1, ZE = VZ0 + SZ - 1;
+  g.box(VX0, 0, VZ0, XE, G - 2, ZE, c.earth);
+  // surface layer: the original district keeps its hand-laid paving, the rest of the city is painted by city.ts
+  for (let z = 0; z < 224; z++)
+    for (let x = 0; x < OSX; x++) if (g.inside(x, G - 1, z)) g.set(x, G - 1, z, surface(b, x, z));
+  // canal, running the full width of the city
+  g.box(VX0, 4, 172, XE, G - 1, 199, 0);
   for (let z = 172; z <= 199; z++)
-    for (let x = 0; x < SX; x++) {
+    for (let x = VX0; x <= XE; x++) {
       const h = hash3(x, 3, z);
       g.set(x, 3, z, h < 0.5 ? c.pebble : h < 0.8 ? c.sand : c.canalStoneDark);
       if (h > 0.985) g.set(x, 4, z, c.canalStoneDark);
@@ -734,7 +752,7 @@ function terrain(b: Builder) {
     }
   // canal walls
   for (const zw of [171, 200])
-    for (let x = 0; x < SX; x++)
+    for (let x = VX0; x <= XE; x++)
       for (let y = 4; y < G; y++) {
         const course = Math.floor((y - 4) / 2);
         const off = course % 2 ? 3 : 0;
@@ -754,7 +772,7 @@ function terrain(b: Builder) {
   const boulder = (cx: number, cz: number, rad: number, top: number, seed: number) => {
     for (let z = Math.floor(cz - rad); z <= cz + rad; z++)
       for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
-        if (x < 0 || x >= SX || z < 172 || z > 199) continue;
+        if (x < VX0 || x > XE || z < 172 || z > 199) continue;
         const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz) / rad;
         if (d > 1) continue;
         const h = Math.round(top - d * d * 2.5 + (hash3(x, seed, z) - 0.5));
@@ -762,7 +780,7 @@ function terrain(b: Builder) {
       }
   };
   const rr = rng(4242);
-  for (let x = 2; x < SX - 2; x += 3 + Math.floor(rr() * 6)) {
+  for (let x = VX0 + 2; x < XE - 2; x += 3 + Math.floor(rr() * 6)) {
     if (free(x, bridgesX)) boulder(x + rr() * 2, 172.4 + rr() * 1.2, 1.2 + rr() * 1.3, 8 + Math.floor(rr() * 3), x);
     if (free(x, bridgesX) && free(x, boatsX)) boulder(x + rr() * 2, 198.6 - rr() * 1.2, 1.2 + rr() * 1.5, 8 + Math.floor(rr() * 3), x + 999);
   }
@@ -1038,8 +1056,8 @@ function gate(b: Builder) {
 
 // ---------------------------------------------------------------------------------------------
 
-export function buildTokyo(): BuildResult {
-  const b = new Builder();
+export function buildTokyo(win?: Window): BuildResult {
+  const b = new Builder(win);
   const g = b.grid, c = b.c, k = b.k;
   const r = b.r;
   const pick = <T,>(arr: T[]) => arr[Math.floor(r() * arr.length)];
@@ -1063,7 +1081,8 @@ export function buildTokyo(): BuildResult {
     const awning = ground0 === 'shop' || ground0 === 'cafe' ? pick(awnPairs) : undefined;
     const ground = force?.ground ?? ground0, style = force?.style ?? style0, floors = force?.floors ?? floors0;
     building(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' || ground === 'kissa' ? awning ?? awnPairs[seed % awnPairs.length] : undefined, restaurant: force?.restaurant, secret: force?.secret });
-    if (style !== 'machiya' && style !== 'kura') {
+    const [fx, fz] = lot.front(lot.width / 2, 0.3);
+    if (style !== 'machiya' && style !== 'kura' && b.clear(fx, 3.6, fz)) {
       lot.wallProp(lantern(k, lanternAlt ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
       const [lx, lz] = lot.front(lot.width / 2, 0.5);
       b.lamp(lx, 3.4, lz, lanternAlt ? RED : WHITEWARM, 3.5, 0.8);
@@ -1086,7 +1105,7 @@ export function buildTokyo(): BuildResult {
       x += w;
       i++;
     }
-    g.box(40, G, 0, SX - 1, G + 10, 3, c.concreteWall);
+    g.box(40, G, 0, OSX - 1, G + 10, 3, c.concreteWall);
   }
 
   // --- Kaminari Lane, south side (facades face -z at z=64)
@@ -1137,7 +1156,7 @@ export function buildTokyo(): BuildResult {
   fillBlock(42, 82, 111, 91, 34);
   fillBlock(174, 92, 279, 117, 32);
   fillBlock(182, 118, 279, 127, 33);
-  g.box(0, G, 82, 27, G + 10, 91, c.concreteWall);
+  g.box(0, G, 82, 23, G + 10, 91, c.concreteWall); // stops short of the café's potted bamboo
 
   // --- Lantern Alley (x 136..149): west side faces +x at x=135, east side faces -x at x=150
   {
@@ -1193,10 +1212,6 @@ export function buildTokyo(): BuildResult {
       b.place(boardSign(k, k.c.signRed, k.c.neonWhite, 5, Math.round(zz)), 35.75, 4.3, zz * V, 0);
       b.lamp(35.75, 4.8, zz * V, [1, 0.5, 0.4], 4, 0.6);
     }
-    b.place(crateStack(k, 91), 34.4, 0, 36.6);
-    b.block(33.9, 36.1, 34.9, 37.1);
-    b.place(crateStack(k, 92), 34.4, 0, 22.0);
-    b.block(33.9, 21.5, 34.9, 22.5);
   }
 
   // --- Nameless passage (z 118..125, x 150..181)
@@ -1246,19 +1261,21 @@ export function buildTokyo(): BuildResult {
       sakuraTree(b, tx, 165, 700 + tx);
       b.block(tx * V - 0.1, 165 * V - 0.1, tx * V + 0.65, 165 * V + 0.65);
     }
-    for (let x = 4; x < SX - 4; x += 4) {
+    for (let x = 4; x < OSX - 4; x += 4) {
       if ((x >= 54 && x <= 73) || (x >= 210 && x <= 229) || (x >= 122 && x <= 137)) continue;
       g.box(x, G, 170, x, G + 2, 170, c.stone);
-      if (x + 4 < SX - 4 && !(x + 4 >= 54 && x + 4 <= 73) && !(x + 4 >= 210 && x + 4 <= 229) && !(x + 4 >= 122 && x + 4 <= 137)) g.box(x, G + 2, 170, x + 3, G + 2, 170, c.stone);
+      if (x + 4 < OSX - 4 && !(x + 4 >= 54 && x + 4 <= 73) && !(x + 4 >= 210 && x + 4 <= 229) && !(x + 4 >= 122 && x + 4 <= 137)) g.box(x, G + 2, 170, x + 3, G + 2, 170, c.stone);
     }
-    for (const lx of [8, 32, 68, 104, 140, 168, 200, 236, 260]) {
+    for (let lx of [8, 32, 75, 104, 140, 168, 200, 236, 260]) { // (75: clear of the red bridge's ramp)
+      for (const dx of [0, -4, 4, -8, 8]) if (b.clear((lx + dx) * V + 0.3, 3.9, 168.6 * V)) { lx += dx; break; } // lamp head out of the cherry canopies
       b.place(streetLamp(k), lx * V + 0.3, 0, 168.6 * V, 0);
       b.lamp(lx * V + 0.8, 3.4, 168.6 * V, WHITEWARM, 7, 1.0);
       b.block(lx * V, 168.6 * V - 0.25, lx * V + 0.5, 168.6 * V + 0.25);
     }
-    for (const bx of [80, 196, 240]) { b.place(bench(k), bx * V, 0, 167.2 * V, 0); b.benches.push([bx * V, 167.2 * V, 0]); b.block(bx * V - 0.9, 167.2 * V - 0.35, bx * V + 0.9, 167.2 * V + 0.35); }
+    for (const bx of [80, 196, 243]) { b.place(bench(k), bx * V, 0, 167.2 * V, 0); b.benches.push([bx * V, 167.2 * V, 0]); b.block(bx * V - 0.9, 167.2 * V - 0.35, bx * V + 0.9, 167.2 * V + 0.35); }
     const clearOf = (x: number, half: number) => {
       for (const rm of b.rooms) if (Math.abs(rm.door[1] - 38.4) < 2.4 && Math.abs(rm.door[0] - x) < 1.0 + half) return false;
+      for (const [ax, az, bx, bz] of b.standing) if (ax < x + half && bx > x - half && az < 38.8 && bz > 38.0) return false; // planters by the doors
       return true;
     };
     for (const [vx0, vc] of [[29.6, k.c.vmRed], [30.7, k.c.vmBlue], [60.5, k.c.vmWhite]] as [number, number][]) {
@@ -1277,6 +1294,7 @@ export function buildTokyo(): BuildResult {
     for (let x = 6; x < 70; x += 2.6) {
       if ((x > 13.5 && x < 18.3) || (x > 52.5 && x < 57.3)) continue;
       const red = Math.round(x) % 2 === 1;
+      if (!b.clear(x, 2.8, 42.55)) continue; // lost in a cherry canopy
       b.place(lantern(k, red ? k.c.lanternRed : k.c.lanternWhite, 4, 5, Math.round(x * 10)), x, 2.55, 42.55);
       b.lamp(x, 2.7, 42.55, red ? RED : WHITEWARM, 3.2, 0.55);
     }
@@ -1311,7 +1329,7 @@ export function buildTokyo(): BuildResult {
     b.place(buildFood('takoyaki', b.pal), cx - 0.9, 1.25, front - 0.35, 0);
     b.place(buildFood('monjayaki', b.pal), cx + 0.9, 1.25, front - 0.35, 0);
     for (const sx of [-1.6, 0, 1.6]) b.place(stool(k, k.c.lacquer), cx + sx, 0, front + 0.45);
-    b.place(boardSign(k, k.c.signRed, k.c.white, 4, 83), cx, 3.05, front + 0.2, 0);
+    b.place(boardSign(k, k.c.signRed, k.c.white, 4, 83), cx, 3.05, front + 0.42, 0); // hangs off the eave, clear of the roof
     b.place(nobori(k, k.c.norenWhite, k.c.norenRed, 84), (x0 - 1.4) * V, 0, (z0 + 6) * V, 0);
     b.block(x0 * V, z0 * V, (x0 + 20) * V, front);
   }
@@ -1336,8 +1354,8 @@ export function buildTokyo(): BuildResult {
       b.block(tx * V - 0.1, 213 * V - 0.1, tx * V + 0.65, 213 * V + 0.65);
     }
     let x = 0;
-    while (x < SX) {
-      const w = Math.min(SX - x, 20 + Math.floor(r() * 3) * 4);
+    while (x < OSX) {
+      const w = Math.min(OSX - x, 20 + Math.floor(r() * 3) * 4);
       const lot = new Lot(b, x, 216, x + w - 1, 223, 'n');
       lot.box(0, 0, 0, w - 1, 9, lot.depth - 1, pick([c.plaster, c.woodDark, c.cedar]));
       lot.box(2, 1, 0, w - 3, 7, 0, (a) => (a % 2 ? c.woodDark : c.shoji));
@@ -1358,7 +1376,7 @@ export function buildTokyo(): BuildResult {
     b.block(3.9, 11.4, 6.1, 13.6);
     b.emitters.push({ kind: 'incense', pos: [5.0, 2.6, 12.5], rate: 1 });
     b.lamp(5.0, 1.4, 12.5, [1, 0.5, 0.2], 3, 0.8);
-    for (const [x, z] of [[3.6, 7.0], [6.2, 7.0], [3.6, 18.2], [6.2, 18.2]] as [number, number][]) {
+    for (const [x, z] of [[3.6, 7.0], [3.6, 18.2], [6.2, 18.2]] as [number, number][]) { // (one at the north corner: the corner shop takes the other spot)
       b.place(stoneLantern(k), x, 0, z);
       b.lamp(x, 1.5, z, WARM, 3.2, 0.7);
       b.block(x - 0.5, z - 0.5, x + 0.5, z + 0.5);
@@ -1399,21 +1417,32 @@ export function buildTokyo(): BuildResult {
   {
     const solid = (x: number, z: number, hx: number, hz: number) => b.block(x - hx, z - hz, x + hx, z + hz);
     // slide parked things along the kerb so they never sit in front of a shop door
-    const dodge = (x: number, z: number, half = 0.8) => {
-      for (let i = 0; i < 8; i++) {
-        const d = b.rooms.find((rm) => Math.abs(rm.door[0] - x) < 1.0 + half && Math.abs(rm.door[1] - z) < 2.4);
-        if (!d) return x;
-        x = d.door[0] + (x >= d.door[0] ? 1.05 + half : -1.05 - half);
+    // ...or on top of something already standing there (A-frame menus, planters, other parked bikes)
+    const clearGround = (x0: number, z0: number, x1: number, z1: number) => {
+      for (let vz = Math.floor(z0 / V); vz <= Math.floor(z1 / V); vz++)
+        for (let vx = Math.floor(x0 / V); vx <= Math.floor(x1 / V); vx++)
+          for (let y = G + 1; y < G + 5; y++) if (g.get(vx, y, vz)) return false; // (G may be kerb or paving)
+      return true;
+    };
+    const dodge = (x0: number, z: number, half = 0.8) => {
+      const hit = ([ax, az, bx, bz]: [number, number, number, number], x: number) => ax < x + half + 0.05 && bx > x - half - 0.05 && az < z + 0.3 && bz > z - 0.3;
+      const door = (x: number) => b.rooms.some((rm) => Math.abs(rm.door[0] - x) < 0.8 + half && Math.abs(rm.door[1] - z) < 2.4);
+      const free = (x: number) => !door(x) && !b.blockers.some((o) => hit(o, x)) && !b.standing.some((o) => hit(o, x)) && clearGround(x - half, z - 0.15, x + half, z + 0.15);
+      // nearest free spot, searching outwards along the kerb; if there is none nearby, it isn't parked there at all
+      for (let k = 0; k < 40; k++) {
+        const x = x0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.25;
+        if (free(x)) return x;
       }
-      return x;
+      return null;
     };
     // parked delivery scooters and bicycles along the north facades of Kaminari Lane
     for (const [x0, col] of [[19.6, k.c.cubRed], [46.8, k.c.vmBlue], [61.4, k.c.cubRed]] as [number, number][]) {
       const x = dodge(x0, 9.42);
+      if (x === null) continue;
       b.place(scooter(k, col), x, 0, 9.42, 0);
       solid(x, 9.42, 0.8, 0.22);
     }
-    const bx = dodge(39.5, 9.35, 1.2);
+    const bx = dodge(39.5, 9.35, 1.2) ?? 39.5;
     for (const x of [bx - 0.8, bx, bx + 0.8]) b.place(bicycle(k, [k.c.bikeSilver, k.c.bikeMint, k.c.bikeRed][Math.round(x * 10) % 3]), x, 0, 9.35, 0);
     solid(bx, 9.35, 1.2, 0.2);
     // post box and recycling corner by the konbini
@@ -1426,11 +1455,12 @@ export function buildTokyo(): BuildResult {
     solid(34.2, 16.3, 0.12, 0.12);
     for (const x of [34.9, 36.6]) { b.place(bollard(k), x, 0, 16.15, 0); solid(x, 16.15, 0.12, 0.12); }
     // jizō statues keeping watch beside the hokora
-    for (const x of [1.95, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); }
+    for (const x of [2.45, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); } // on the gravel, off the temple's stone base
     // café terrace tables on the promenade
     const tablesAt: number[] = [];
     for (const [x0, col] of [[9.6, k.c.fabricRed], [11.4, k.c.fabricWhite], [43.6, k.c.fabricGreen], [45.4, k.c.fabricWhite], [65.2, k.c.fabricOrange]] as [number, number][]) {
       const x = dodge(x0, 38.65, 0.6);
+      if (x === null) continue;
       // a table nudged out of a doorway must not land on its neighbour's stool
       if (tablesAt.some((t) => Math.abs(t - x) < 1.4)) continue;
       tablesAt.push(x);
@@ -1440,15 +1470,16 @@ export function buildTokyo(): BuildResult {
       b.stools.push([x + 0.6, 38.65, -Math.PI / 2]);
     }
     // a scooter and planters on the far bank lane
-    b.place(scooter(k, k.c.cubCream), 22.5, 0, 54.4, 2);
-    solid(22.5, 54.4, 0.8, 0.22);
-    for (const x of [40, 48.5, 57]) { b.place(plantPot(k, 'shrub', Math.round(x)), x, 0, 54.6); solid(x, 54.6, 0.3, 0.3); }
+    // (in front of the far bank's row houses, whose fronts are at z = 54)
+    b.place(scooter(k, k.c.cubCream), 24.3, 0, 53.7, 2); // beside the cherry tree, not on its trunk
+    solid(24.3, 53.7, 0.8, 0.22);
+    for (const x of [40, 48.5, 57]) { b.place(plantPot(k, 'shrub', Math.round(x)), x, 0, 53.5); solid(x, 53.5, 0.3, 0.3); }
   }
 
   // --- Lucky cats (hidden clue statues)
   const manekis: [number, number, number][] = [
     [3.15, 0, 6.3], // in front of the little hokora shrine
-    [34.3, 0, 37.55], // tucked behind the crates at the south end of the alley
+    [34.3, 0, 36.6], // tucked beside the crates at the south end of the alley
     [64.15, 0, 52.6], // by the stone lantern under the cherry trees on the far bank
   ];
   for (const m of manekis) b.place(manekiNeko(k), m[0], m[1], m[2], 1);
@@ -1544,7 +1575,7 @@ export function buildTokyo(): BuildResult {
 // Kakurega: the hidden sushi counter, a dollhouse diorama with the two camera-facing walls removed.
 
 function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
-  const g = new Grid(ISX, ISY, ISZ);
+  const g = new SparseGrid(0, 0, ISX, ISY, ISZ);
   const c = b.c, k = b.k;
   const props: PlacedProp[] = [];
   const lamps: Lamp[] = [];

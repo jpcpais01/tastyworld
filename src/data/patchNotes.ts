@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.7',
+    date: '2026-10-30',
+    title: 'Every street dressed',
+    items: [
+      'The streets of the bigger city feel lived in now. House fronts have little potted gardens, bikes leaning on the wall, umbrella stands, gas bottles and beer crates by the bars.',
+      'Wind chimes tinkle under the eaves and small shop signs swing on their brackets.',
+      'Strings of paper lanterns hang across the lanes and Golden Lane, and bunting flutters over the shopping streets.',
+      'Minami-dori and Nishi-dori have rows of zelkova trees, flower planters, benches, bike stands and banner lamp posts.',
+      'The station square has more trees and benches, Midori Park has a playground with swings and a slide, flower patches and bushes, and grass and shrubs grow in the shrine wood, on the Inari hill and in the back gardens, with laundry drying on the lines.',
+      'Tree crowns all over the city rock gently in the wind.',
+    ],
+  },
+  {
     version: '0.9.6',
     date: '2026-10-30',
     title: 'A city full of people',

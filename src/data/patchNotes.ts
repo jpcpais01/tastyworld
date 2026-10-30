@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.5',
+    date: '2026-10-30',
+    title: 'Keep walking with the map open',
+    items: [
+      'Opening the pocket map no longer stops you. If you tapped somewhere to walk there, you keep walking while the map is open and can watch your arrow move along the streets.',
+      'If you arrive at a stall while the map is open, its menu opens as soon as you fold the map away.',
+    ],
+  },
+  {
     version: '0.10.4',
     date: '2026-10-30',
     title: 'The little things',

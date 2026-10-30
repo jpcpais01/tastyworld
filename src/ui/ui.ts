@@ -132,6 +132,8 @@ export class UI {
   onParty: (() => void) | null = null;
   onWave: (() => void) | null = null;
   open: string | null = null;
+  /** On a co-op trip as a guest: the leader's sky is shared, so the time of day setting waits. */
+  skyFromLeader = false;
   private closeHook: (() => void) | null = null;
   private partyEl!: HTMLElement;
   private savourEl: HTMLElement | null = null;
@@ -746,7 +748,15 @@ export class UI {
     const look = group('Look');
     row(look, G.monitor, 'Graphics', seg([['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], st.quality, (v) => { st.quality = v as typeof st.quality; }));
     row(look, G.eye, 'Miniature focus', sw(st.tilt, (v) => { st.tilt = v; }));
+    const tods: [string, string][] = [['auto', 'Cycle'], ['6.4', 'Dawn'], ['12', 'Day'], ['18.2', 'Sunset'], ['22', 'Night']];
+    row(look, G.sunset, 'Time of day', seg(tods, st.timeOfDay === null ? 'auto' : String(st.timeOfDay), (v) => {
+      st.timeOfDay = v === 'auto' ? null : Number(v);
+      dayRow.classList.toggle('off', st.timeOfDay !== null);
+    }));
+    if (this.skyFromLeader) look.lastElementChild!.querySelector('.sl')!.appendChild(h('small', 'set-note', 'Your trip leader sets the sky'));
     row(look, G.clock, 'Day length', seg([['360', '6 min'], ['720', '12 min'], ['1440', '24 min']], String(st.dayLength), (v) => { st.dayLength = Number(v); }));
+    const dayRow = look.lastElementChild as HTMLElement;
+    dayRow.classList.toggle('off', st.timeOfDay !== null);
     // sliders that show their value next to the label while dragging and apply on release
     const ranged = (icon: string, label: string, v0: number, text: (v: number) => string, put: (v: number) => void) => {
       const val = h('span', 'set-val', text(v0));

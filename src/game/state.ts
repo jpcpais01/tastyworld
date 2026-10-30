@@ -8,6 +8,8 @@ export interface Settings {
   sfxVol: number;
   tilt: boolean;
   dayLength: number;
+  /** A fixed hour of the day, or null to let the day and night cycle run. */
+  timeOfDay: number | null;
   /** View distance 0..1 (see viewMetres); null follows the graphics quality. */
   viewDist: number | null;
   /** First-person field of view, degrees. */
@@ -52,7 +54,7 @@ const KEY = 'tastyworld.save.v1';
 export function defaultState(): SaveState {
   return {
     v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [],
-    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, viewDist: null, fov: 72 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
+    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, fov: 72 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
   };
 }
 

@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.9.4',
+    version: '0.9.5',
     date: '2026-10-30',
     title: 'A pocket map of the city',
     items: [
@@ -20,6 +20,16 @@ export const PATCH_NOTES: PatchNote[] = [
       'Tap anywhere to pin a spot, or tap a stall and choose Guide me. A dotted route shows the way, a tall column of warm light marks the spot in the city, and a tag at the edge of the screen points the way when it is out of sight.',
       'The compass in the HUD always shows north, and with a pin set it points the way to the next corner and counts down the metres. The pin comes off by itself when you arrive.',
       'The world map is still there: it is the plane button on the side of the pocket map.',
+    ],
+  },
+  {
+    version: '0.9.4',
+    date: '2026-10-30',
+    title: 'Pick your hour',
+    items: [
+      'New Time of day setting: keep the full day and night cycle, or stay at dawn, midday, sunset or night for as long as you like.',
+      'Changing it plays a quick time-lapse to the new hour. Lanterns, neon, shadows and the street sounds all follow.',
+      'On a co-op trip the trip leader picks the sky for everyone.',
     ],
   },
   {

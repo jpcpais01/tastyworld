@@ -767,6 +767,7 @@ class Game {
     this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
     this.r.composite.uniforms.uTilt.value = st.tilt && !this.cam.fp ? 0.6 : 0;
     this.tod.dayLength = st.dayLength;
+    this.tod.setTarget(st.timeOfDay);
     // view distance: how far first person draws (the haze thickens to meet it) and how far out the iso view zooms
     const tier: Quality = st.quality === 'auto' ? (mobile ? 'medium' : 'high') : st.quality;
     const dist = viewMetres(st.viewDist ?? VIEW_DEFAULT[tier]);
@@ -1028,6 +1029,8 @@ class Game {
     if (this.coop && this.coop !== coop) this.coop.leave();
     this.coop = coop;
     for (const id of [...this.remotes.keys()]) this.dropRemote(id);
+    this.tod.follower = false;
+    this.ui.skyFromLeader = false;
     if (!coop) { this.ui.party('', null); return; }
     this.shareProfile();
     if (this.started) coop.setInWorld(true);
@@ -1254,7 +1257,9 @@ class Game {
       a.speed = st[5];
       a.root.visible = (st[6] === 1) === this.inside && this.started;
       if (!c.host && st[7] >= 0) {
-        // keep the sky in step with the trip leader
+        // keep the sky in step with the trip leader (their time of day setting wins)
+        this.tod.follower = true;
+        this.ui.skyFromLeader = true;
         let dh = st[7] - this.tod.hour;
         dh -= Math.round(dh / 24) * 24;
         if (Math.abs(dh) > 0.25) this.tod.hour = st[7];

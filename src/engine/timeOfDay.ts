@@ -50,11 +50,27 @@ export class TimeOfDay {
   /** Real seconds for a full day. */
   dayLength = 720;
   frozen = false;
+  /** A fixed hour picked in settings (null runs the day cycle). The clock eases there like a time-lapse. */
+  target: number | null = null;
+  /** A co-op guest shares the trip leader's sky, so it does not chase its own setting. */
+  follower = false;
   particleLight = new THREE.Color(1, 1, 1);
   night = 0;
 
   update(dt: number): void {
+    if (this.target !== null && !this.follower) {
+      let dh = this.target - this.hour;
+      dh -= Math.round(dh / 24) * 24;
+      this.hour = Math.abs(dh) < 0.01 ? this.target : (this.hour + dh * Math.min(1, dt * 2.2) + 24) % 24;
+      return;
+    }
     if (!this.frozen) this.hour = (this.hour + (dt / this.dayLength) * 24) % 24;
+  }
+
+  /** Pin the clock to an hour, or pass null to let the day run again. It always eases there (even at load,
+   * where the city is built under the default afternoon light). */
+  setTarget(h: number | null): void {
+    this.target = h;
   }
 
   label(): string {

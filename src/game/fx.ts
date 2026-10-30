@@ -55,6 +55,7 @@ export class Particles {
         uNight: r.shared.uNight,
         uLight: { value: new THREE.Color(1, 1, 1) },
         tDepth: r.particleDepth,
+        uClip: r.clip,
       },
       transparent: true,
       depthTest: false,

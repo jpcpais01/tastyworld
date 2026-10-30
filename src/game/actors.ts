@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { meshGrid, mergeMeshes, STRIDE, MeshData } from '../world/mesher';
 import { CharModel, PART, PART_COUNT, CHAR_SCALE } from '../world/characters';
 import { voxelMaterial, SharedUniforms } from '../engine/renderer';
+import { voxelDepthMaterial, SHADOW_DYNAMIC } from '../engine/shadows';
 import type { LightMap2D } from '../world/bake';
 
 export function geometryFrom(m: MeshData): THREE.BufferGeometry {
@@ -69,6 +70,7 @@ export class Actor {
   readonly root = new THREE.Group();
   readonly mesh: THREE.Mesh;
   readonly mat: THREE.ShaderMaterial;
+  private depthMat: THREE.ShaderMaterial;
   private rot: THREE.Vector3[];
   private uOffset = { value: new THREE.Vector3() };
   private uCharLight = { value: new THREE.Vector3(1, 1, 0) };
@@ -137,12 +139,17 @@ export class Actor {
     });
     this.mesh = new THREE.Mesh(geo, this.mat);
     this.mesh.frustumCulled = true;
+    // casts a real sun shadow, posed by the same skeleton uniforms
+    this.depthMat = voxelDepthMaterial({ CHARACTER: 1 }, { uTime: shared.uTime, uPivot: this.mat.uniforms.uPivot, uRot: this.mat.uniforms.uRot, uOffset: this.uOffset });
+    this.mesh.userData.shadowMat = this.depthMat;
+    this.mesh.layers.enable(SHADOW_DYNAMIC);
     this.root.add(this.mesh);
   }
 
   dispose(): void {
     this.mesh.geometry.dispose();
     this.mat.dispose();
+    this.depthMat.dispose();
   }
 
   get position(): THREE.Vector3 {

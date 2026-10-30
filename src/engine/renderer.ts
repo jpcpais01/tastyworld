@@ -3,6 +3,7 @@ import {
   VOXEL_VERT, VOXEL_FRAG, FS_VERT, DOWN_FRAG, UP_FRAG, HALF_FRAG, COMPOSITE_FRAG,
 } from './shaders';
 import { WATER_Y } from '../world/layout';
+import { SunShadows } from './shadows';
 
 export type Quality = 'low' | 'medium' | 'high';
 
@@ -30,6 +31,10 @@ export function makeSharedUniforms() {
     tOwner: { value: null as THREE.Texture | null },
     tCut: { value: null as THREE.Texture | null },
     uViewProj: { value: new THREE.Matrix4() },
+    // real-time sun shadow map (engine/shadows.ts); the renderer points these at its own
+    tShadow: { value: null as THREE.Texture | null },
+    uShadowMat: { value: new THREE.Matrix4() },
+    uShadow: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
 }
 export type SharedUniforms = ReturnType<typeof makeSharedUniforms>;
@@ -82,6 +87,7 @@ export class Renderer {
   private matUp: THREE.ShaderMaterial;
   private matHalf: THREE.ShaderMaterial;
   readonly composite: THREE.ShaderMaterial;
+  readonly shadows: SunShadows;
   private w = 1;
   private h = 1;
   /** Render target height in pixels. */
@@ -96,6 +102,10 @@ export class Renderer {
     this.gl.autoClear = false;
     this.gl.outputColorSpace = THREE.LinearSRGBColorSpace;
     this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 400);
+    this.shadows = new SunShadows(quality);
+    this.shared.tShadow = this.shadows.uniforms.tShadow;
+    this.shared.uShadowMat = this.shadows.uniforms.uShadowMat;
+    this.shared.uShadow = this.shadows.uniforms.uShadow;
 
     const tri = new THREE.BufferGeometry();
     tri.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
@@ -177,6 +187,7 @@ export class Renderer {
   setQuality(q: Quality): void {
     if (q === this.quality) return;
     this.quality = q;
+    this.shadows.setQuality(q);
     this.resize();
   }
 
@@ -208,6 +219,10 @@ export class Renderer {
     cam.updateMatrixWorld();
     this.clip.value.set(cam.near, cam.far, this.firstPerson ? 1 : 0);
     this.shared.uViewProj.value.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    // sun shadows fade in with the sun; by night the moon is too dim to need them and the baked light carries it
+    const sc = this.shared.uSunColor.value;
+    const sunLum = sc.r * 0.2126 + sc.g * 0.7152 + sc.b * 0.0722;
+    this.shadows.update(gl, this.scene, cam, this.firstPerson, this.shared.uSunDir.value, THREE.MathUtils.smoothstep(sunLum, 0.075, 0.15));
     // scene
     gl.setRenderTarget(this.rtScene);
     gl.setClearColor(0x000000, 1);

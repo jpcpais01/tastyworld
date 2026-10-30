@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.7.4',
+    date: '2026-10-30',
+    title: 'Solid ground all the way',
+    items: [
+      'No more peeking into the void. The ground now carries on past the edges of the map into the soft haze, and there is a floor under everything, so the ends of the canal and the edges of the street never show empty space, from above or at eye level.',
+    ],
+  },
+  {
     version: '0.7.3',
     date: '2026-10-30',
     title: 'A shorter list of departures',

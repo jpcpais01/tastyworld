@@ -262,3 +262,31 @@ export class Renderer {
     return this.rtScene.depthTexture as THREE.DepthTexture;
   }
 }
+
+/**
+ * Ground that carries on past the edges of the map, plus a floor under everything, both in the haze
+ * colour the map fades into. Nothing below or beyond the voxel world ever shows the empty background,
+ * whether from the iso view, through the canal's open ends or from eye level.
+ */
+export function groundApron(shared: SharedUniforms, rect: [number, number, number, number], reach = 600): THREE.Mesh {
+  const [x0, z0, x1, z1] = rect;
+  const X0 = x0 - reach, Z0 = z0 - reach, X1 = x1 + reach, Z1 = z1 + reach;
+  const quads: number[][] = [
+    [X0, Z0, X1, z0, 0], [X0, z1, X1, Z1, 0], [X0, z0, x0, z1, 0], [x1, z0, X1, z1, 0],
+    [X0, Z0, X1, Z1, -3.1],
+  ];
+  const pos: number[] = [];
+  for (const [a, b, c, d, y] of quads) pos.push(a, y, b, a, y, d, c, y, d, a, y, b, c, y, d, c, y, b);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  const m = new THREE.Mesh(g, new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: { uFogColor: shared.uFogColor },
+    vertexShader: /* glsl */ `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: /* glsl */ `precision highp float; uniform vec3 uFogColor; layout(location = 0) out vec4 outColor; void main() { outColor = vec4(uFogColor, 1.0); }`,
+    side: THREE.DoubleSide,
+  }));
+  m.frustumCulled = false;
+  m.renderOrder = 10; // after the world, so it only fills what the voxels leave empty
+  return m;
+}

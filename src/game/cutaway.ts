@@ -31,6 +31,8 @@ import { SHELL, SPILL, type Field, type GridRect, type Owned, type Owners } from
 const V = 0.25;
 const ROOM_TOP = 2.95; // just under the ground-floor ceiling slab (3.0 m)
 const HOLD = 0.45; // seconds an occluder stays lowered after it stops blocking
+const LEAD = 0.3; // seconds of walking looked ahead, so what you are about to step behind starts lowering early
+const MARGIN = 0.65; // metres either side of the player (across the screen) that must stay in view
 const OFF = 1e4;
 const BUCKET = 8; // metres per cell of the lookup grid
 const REACH = 64; // metres around the player that can hold something between it and the camera
@@ -57,7 +59,9 @@ export class Cutaway {
   private blocking: Uint8Array;
   private hits: number[] = [];
   private groups = new Set<number>();
-  private samples = Array.from({ length: 6 }, () => new THREE.Vector3());
+  private samples = Array.from({ length: 8 }, () => new THREE.Vector3());
+  private prev = new THREE.Vector3(1e9, 0, 0);
+  private vel = new THREE.Vector2();
 
   constructor(o: Owners, wr: GridRect, ir: GridRect, wf: Field, inf: Field) {
     this.occ = o.occ;
@@ -143,16 +147,28 @@ export class Cutaway {
     }
     const live = this.live;
     if (on) {
-      // sample points on the player: feet, chest, head, hair and both shoulders (across the screen)
+      // sample points on the player: feet, chest, head, hair and a margin either side (across the screen)
       const s = this.samples;
       s[0].set(p.x, p.y + 0.15, p.z);
       s[1].set(p.x, p.y + 1.0, p.z);
       s[2].set(p.x, p.y + 1.6, p.z);
       s[3].set(p.x, p.y + 1.95, p.z);
-      s[4].set(p.x - az * 0.5, p.y + 1.1, p.z + ax * 0.5);
-      s[5].set(p.x + az * 0.5, p.y + 1.1, p.z - ax * 0.5);
+      s[4].set(p.x - az * MARGIN, p.y + 1.1, p.z + ax * MARGIN);
+      s[5].set(p.x + az * MARGIN, p.y + 1.1, p.z - ax * MARGIN);
+      // where the player will be a moment from now (smoothed walking velocity, ignoring teleports)
+      const it = 1 / Math.max(dt, 1e-3);
+      let vx = (p.x - this.prev.x) * it, vz = (p.z - this.prev.z) * it;
+      const jump = Math.hypot(vx, vz) > 12;
+      if (jump) vx = vz = 0;
+      const k = jump ? 1 : 1 - Math.exp(-dt * 10);
+      this.vel.x += (vx - this.vel.x) * k;
+      this.vel.y += (vz - this.vel.y) * k;
+      const lx = p.x + this.vel.x * LEAD, lz = p.z + this.vel.y * LEAD;
+      s[6].set(lx, p.y + 0.6, lz);
+      s[7].set(lx, p.y + 1.7, lz);
       const dl = Math.hypot(fwd.x, fwd.y, fwd.z) || 1;
       for (const o of s) this.march(sc, o, -fwd.x / dl, -fwd.y / dl, -fwd.z / dl);
+      this.prev.copy(p);
       for (const i of live) {
         const o = this.occ[i], [x0, z0, x1, z1] = o.rect;
         if (i < sc.from || i >= sc.to || o.kind !== 'building' || block[i]) continue;
@@ -178,7 +194,7 @@ export class Cutaway {
       } else {
         st.hold = blocking ? HOLD : Math.max(0, st.hold - dt);
         const target = blocking || st.hold > 0 ? 1 : 0;
-        st.e = target > st.e ? Math.min(1, st.e + dt * 3.2) : Math.max(0, st.e - dt * 2.2);
+        st.e = target > st.e ? Math.min(1, st.e + dt * 3.8) : Math.max(0, st.e - dt * 2.2);
         st.c = contain ? Math.min(1, st.c + dt * 3) : Math.max(0, st.c - dt * 3);
       }
       const j = (i + 1) * 4;

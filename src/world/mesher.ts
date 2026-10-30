@@ -11,7 +11,7 @@ import { Palette } from './palette';
  *
  * Vertex layout (28 bytes):
  *   position: float32 x3 (object space)
- *   pack:  u8 x4 [face | scaleIdx << 3, ao, edgeBits | vary << 4, sky | partId]
+ *   pack:  u8 x4 [face | scaleIdx << 3 | seam << 7, ao, edgeBits | vary << 4, sky | partId]
  *   color: u8 x4 [r, g, b, emissive code]  (code 1..127 always on, 129..255 night only, 128 foliage)
  *   light: u8 x4 [lamp r, lamp g, lamp b (x2 range), sun]
  *   quad:  u8 x4 [dist to u-min edge, to u-max, to v-min, to v-max] in voxels (for the bevel highlight)
@@ -140,7 +140,7 @@ export function meshGrid(o: MeshOpts): MeshData {
   let stamp = stampBase;
   const p = [0, 0, 0];
 
-  const emit = (f: number, px: number, py: number, pz: number, w: number, h: number, col: number, edges: number, aoIdx: number[], lightVals: Float32Array | null, uni: Uint8Array | null, uniOff: number, part: number, sw: number) => {
+  const emit = (f: number, px: number, py: number, pz: number, w: number, h: number, col: number, edges: number, aoIdx: number[], lightVals: Float32Array | null, uni: Uint8Array | null, uniOff: number, part: number, sw: number, seamF = 0) => {
     const n = FACE_N[f], u = FACE_U[f], v = FACE_V[f];
     b.ensure(4);
     const base = b.nv;
@@ -163,7 +163,7 @@ export function meshGrid(o: MeshOpts): MeshData {
       if (wz < minZ) minZ = wz; if (wz > maxZ) maxZ = wz;
       const o16 = vi * STRIDE;
       const at = b.att;
-      at[o16] = f | (scaleIdx << 3);
+      at[o16] = f | (scaleIdx << 3) | (seamF << 7);
       at[o16 + 2] = edges | (vary << 4);
       at[o16 + 4] = pal.r[col]; at[o16 + 5] = pal.g[col]; at[o16 + 6] = pal.b[col]; at[o16 + 7] = em;
       if (uni) {
@@ -277,10 +277,10 @@ export function meshGrid(o: MeshOpts): MeshData {
             }
           }
           if (!uniform) {
-            emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw);
+            emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
             continue;
           }
-          keys[mi] = ((((((col * 4 + cAo[0]) * 64 + qs) * 64 + qk) * 64 + qr) * 64 + qg) * 64 + qb);
+          keys[mi] = ((((((col * 4 + cAo[0]) * 64 + qs) * 64 + qk) * 64 + qr) * 64 + qg) * 64 + qb) * 2 + (seamFace ? 1 : 0);
           edgesM[mi] = edges;
           colM[mi] = col;
           swM[mi] = sw;
@@ -317,7 +317,7 @@ export function meshGrid(o: MeshOpts): MeshData {
             if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
           }
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
-          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, -1, sw);
+          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, -1, sw, key % 2);
         }
     }
   }

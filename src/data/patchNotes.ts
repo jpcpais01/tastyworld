@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.2',
+    date: '2026-10-30',
+    title: 'Performance overlay in Settings',
+    items: [
+      'The performance overlay now has its own switch in Settings, under Look. It works on any device, including touch screens, and stays on until you switch it off. F3 still toggles it on a keyboard.',
+    ],
+  },
+  {
     version: '0.10.1',
     date: '2026-10-30',
     title: 'Smoother streets',

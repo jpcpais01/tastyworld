@@ -773,6 +773,7 @@ export class UI {
     ranged(G.map, 'View distance', st.viewDist ?? VIEW_DEFAULT[tier], (v) => `${viewMetres(v)} m`, (v) => { st.viewDist = v; });
     const fovOf = (v: number) => Math.round(50 + v * 50);
     ranged(G.eye, 'First-person FOV', (st.fov - 50) / 50, (v) => `${fovOf(v)}°`, (v) => { st.fov = fovOf(v); });
+    row(look, G.clock, 'Performance overlay', sw(st.perf, (v) => { st.perf = v; }));
     const sound = group('Sound');
     const vol = (get: () => number, put: (v: number) => void) => slider(get(), (v, done) => {
       put(v);

@@ -14,6 +14,8 @@ export interface Settings {
   viewDist: number | null;
   /** First-person field of view, degrees. */
   fov: number;
+  /** Performance overlay (frame rate, timings, draw calls). */
+  perf: boolean;
 }
 
 /** View distance setting (0..1) to metres. */
@@ -54,7 +56,7 @@ const KEY = 'tastyworld.save.v1';
 export function defaultState(): SaveState {
   return {
     v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [],
-    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, fov: 72 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
+    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, fov: 72, perf: false }, profile: { name: '', color: 0xe9573f }, playTime: 0,
   };
 }
 

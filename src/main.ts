@@ -1118,7 +1118,21 @@ class Game {
 
   private openCityMap(): void {
     if (!this.started) return;
-    this.ui.overlay(this.cityMap.open(this.s, this.ui.icons), () => this.cityMap.closed());
+    // a walk the player set off on (a tap or Guide me) carries on under the map; panels normally cancel it
+    const path = this.path, pending = this.pending;
+    this.ui.overlay(this.cityMap.open(this.s, this.ui.icons), () => {
+      this.cityMap.closed();
+      // reached a stall while reading the map: talk to it now
+      setTimeout(() => {
+        if (this.path.length || !this.pending || this.ui.busy) return;
+        const it = this.pending;
+        this.pending = null;
+        this.near = it;
+        it.act();
+      }, 0);
+    });
+    this.path = path;
+    this.pending = pending;
   }
 
   /** Pin a spot (or clear it with null): the beacon, the compass and the route all follow it. */
@@ -1500,11 +1514,14 @@ class Game {
   private movePlayer(dt: number): void {
     const pl = this.player, p = pl.position;
     let dx = 0, dz = 0, speed = 0, run = false;
-    if (!this.ui.busy && this.started) {
+    // under the pocket map only a walk already under way carries on
+    const mapOpen = this.cityMap.isOpen;
+    if ((!this.ui.busy || mapOpen) && this.started) {
       const k = this.keys;
       let f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
       let rt = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
       if (this.joy?.active) { f = -this.joy.y; rt = this.joy.x; }
+      if (mapOpen) f = rt = 0;
       if (f || rt) {
         this.path = [];
         this.pending = null;
@@ -1520,7 +1537,7 @@ class Game {
         const ddx = tx - p.x, ddz = tz - p.z, d = Math.hypot(ddx, ddz);
         if (d < 0.12) {
           this.path.shift();
-          if (!this.path.length && this.pending) {
+          if (!this.path.length && this.pending && !mapOpen) {
             const it = this.pending;
             this.pending = null;
             this.player.targetFacing = Math.atan2(it.x - p.x, it.z - p.z);

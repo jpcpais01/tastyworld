@@ -1,4 +1,4 @@
-import { Actor, Anim } from './actors';
+import { Actor, Anim, SIT_DROP } from './actors';
 import type { Nav } from './nav';
 import type { Anchors, StallAnchor } from '../world/tokyo';
 import type { RoomAnchor, RoomKind } from '../world/interiors';
@@ -17,7 +17,7 @@ import { CROWD_CHAT, CROWD_GREET, CROWD_STARTLE, CROWD_ENVY } from '../data/dial
 type V2 = [number, number];
 type Persona = 'commuter' | 'local' | 'tourist' | 'student' | 'elder';
 
-interface Seat { x: number; z: number; face: number; approach: V2; bench: number; taken: Walker | null; }
+interface Seat { x: number; z: number; y: number; face: number; approach: V2; bench: number; taken: Walker | null; }
 
 type Goal =
   | { k: 'node' }
@@ -132,8 +132,15 @@ export class Crowd {
       for (const sx of [-0.38, 0.38]) {
         const cand: V2[] = [[bx + sx, bz + 0.75 * fz], [bx + sx, bz + 0.62 * fz], [bx + Math.sign(sx) * 1.2, bz + 0.3 * fz], [bx - Math.sign(sx) * 1.2, bz + 0.3 * fz], [bx + Math.sign(sx) * 1.2, bz]];
         const ap = cand.find(([x, z]) => this.free(x, z));
-        if (ap) this.seats.push({ x: bx + sx, z: bz - 0.04 * fz, face: f, approach: ap, bench: bi, taken: null });
+        if (ap) this.seats.push({ x: bx + sx, z: bz - 0.04 * fz, y: 0.5, face: f, approach: ap, bench: bi, taken: null });
       }
+    });
+    // café terrace stools: one seat each, sat down onto from the open side
+    a.stools.forEach(([sx, sz, f], i) => {
+      const fx = Math.sin(f), fz = Math.cos(f);
+      const cand: V2[] = [[sx - fx * 0.55, sz - fz * 0.55], [sx - fz * 0.55, sz + fx * 0.55], [sx + fz * 0.55, sz - fx * 0.55]];
+      const ap = cand.find(([x, z]) => this.free(x, z));
+      if (ap) this.seats.push({ x: sx, z: sz, y: 0.5, face: f, approach: ap, bench: -1 - i, taken: null });
     });
     // customers queue beside the player's spot at each stall, never on it
     for (const s of a.stalls) {
@@ -533,7 +540,7 @@ export class Crowd {
           const e = d.s * d.s * (3 - 2 * d.s);
           p.x = s.approach[0] + (s.x - s.approach[0]) * e;
           p.z = s.approach[1] + (s.z - s.approach[1]) * e;
-          p.y = this.nav.heightAt(s.approach[0], s.approach[1]) * (1 - e) + -0.08 * e;
+          p.y = this.nav.heightAt(s.approach[0], s.approach[1]) * (1 - e) + (s.y - SIT_DROP) * e;
           a.anim = d.s > 0.35 ? (w.food > 0 ? 'sitEat' : 'sit') : 'idle';
           if (d.s >= 1) d.stage = 1;
         } else if (d.stage === 1) {
@@ -549,7 +556,7 @@ export class Crowd {
           const e = d.s * d.s * (3 - 2 * d.s);
           p.x = s.approach[0] + (s.x - s.approach[0]) * e;
           p.z = s.approach[1] + (s.z - s.approach[1]) * e;
-          p.y = this.nav.heightAt(s.approach[0], s.approach[1]) * (1 - e) + -0.08 * e;
+          p.y = this.nav.heightAt(s.approach[0], s.approach[1]) * (1 - e) + (s.y - SIT_DROP) * e;
           a.anim = d.s > 0.35 ? 'sit' : 'idle';
           if (d.s <= 0) {
             if (s.taken === w) s.taken = null;
@@ -602,7 +609,7 @@ export class Crowd {
       const e = d.s * d.s * (3 - 2 * d.s);
       p.x = s.approach[0] + (s.x - s.approach[0]) * e;
       p.z = s.approach[1] + (s.z - s.approach[1]) * e;
-      p.y = this.nav.heightAt(s.approach[0], s.approach[1]) * (1 - e) + -0.08 * e;
+      p.y = this.nav.heightAt(s.approach[0], s.approach[1]) * (1 - e) + (s.y - SIT_DROP) * e;
       a.targetFacing = s.face;
       a.speed = 0; w.v = 0;
       a.anim = d.s > 0.35 ? (w.food > 0 ? 'sitEat' : 'sit') : 'idle';

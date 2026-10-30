@@ -9,7 +9,7 @@ import { buildPerson, buildCat, randomLook, Look } from './world/characters';
 import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ } from './world/layout';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
-import { Actor, Anim, geometryFrom } from './game/actors';
+import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
@@ -483,7 +483,7 @@ class Game {
       const keeper = n.role === 'keeper';
       const info = keeper ? keeperOf(rm.kind, rm.nth, n.seed) : { name: 'Regular', look: randomLook(n.seed) };
       const act = new Actor(buildPerson(info.look), sh);
-      act.position.set(n.pos[0], n.sit ? n.pos[1] - 0.58 : this.navWorld.heightAt(n.pos[0], n.pos[2]), n.pos[2]);
+      act.position.set(n.pos[0], n.sit ? n.pos[1] - SIT_DROP : this.navWorld.heightAt(n.pos[0], n.pos[2]), n.pos[2]);
       act.facing = act.targetFacing = n.facing;
       const anim = n.sit ? 'sit' : keeper && (rm.kind === 'izakaya' || rm.kind === 'bakery') ? 'cook' : 'idle';
       act.anim = anim;

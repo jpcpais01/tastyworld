@@ -9,6 +9,7 @@ import {
   billboard, antenna, planterBox, cafeTable,
 } from './props';
 import { buildFood, FoodId } from './food';
+import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
 
 export interface PlacedProp {
   prop: Prop;
@@ -46,6 +47,11 @@ export interface Anchors {
   vending: [number, number, number][];
   blockers: [number, number, number, number][];
   koiArea: [number, number, number, number];
+  /** Walkable ground-floor rooms behind the storefronts. */
+  rooms: RoomAnchor[];
+  /** Tiny daruma dolls hidden inside the shops. */
+  darumas: [number, number, number][];
+  secret: SecretAnchor | null;
 }
 
 export interface BuildResult {
@@ -55,6 +61,8 @@ export interface BuildResult {
   lamps: Lamp[];
   anchors: Anchors;
   interior: { grid: Grid; props: PlacedProp[]; lamps: Lamp[] };
+  /** Voxel boxes of indoor air that get a soft ambient light. */
+  indoor: [number, number, number, number, number, number][];
 }
 
 type Side = 's' | 'n' | 'e' | 'w';
@@ -104,9 +112,9 @@ function worldColors(pal: Palette) {
   };
 }
 
-type WC = ReturnType<typeof worldColors>;
+export type WC = ReturnType<typeof worldColors>;
 
-class Builder {
+export class Builder {
   grid = new Grid(SX, SY, SZ);
   pal = new Palette();
   c: WC;
@@ -116,10 +124,18 @@ class Builder {
   blockers: [number, number, number, number][] = [];
   emitters: Emitter[] = [];
   r = rng(20261030);
+  ic: IC;
+  rooms: RoomAnchor[] = [];
+  roomCount: Partial<Record<RoomKind, number>> = {};
+  darumaSpots: DarumaSpot[] = [];
+  secret: SecretAnchor | null = null;
+  indoor: [number, number, number, number, number, number][] = [];
+  stallAnchors: StallAnchor[] = [];
 
   constructor() {
     this.c = worldColors(this.pal);
     this.k = { pal: this.pal, c: makePropColors(this.pal) };
+    this.ic = interiorColors(this.pal);
   }
 
   /** Place a prop by its footprint centre (metres) and base height, rotated by quarter turns. */
@@ -146,7 +162,7 @@ const WHITEWARM: [number, number, number] = [1.0, 0.86, 0.66];
 const COOL: [number, number, number] = [0.62, 0.84, 1.0];
 
 /** Facade-relative coordinate frame on a building lot. */
-class Lot {
+export class Lot {
   readonly width: number;
   readonly depth: number;
   constructor(public b: Builder, public x0: number, public z0: number, public x1: number, public z1: number, public side: Side) {
@@ -202,7 +218,8 @@ class Lot {
 
 // ---------------------------------------------------------------------------------------------
 
-type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy';
+type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba';
+const ROOM_GROUNDS: Ground[] = ['shop', 'cafe', 'izakaya', 'konbini', 'florist', 'books', 'fish', 'bakery', 'pharmacy', 'kissa', 'soba'];
 type Style = 'modern' | 'showa' | 'machiya' | 'izakaya' | 'apartment' | 'kura';
 
 interface BuildingOpts {
@@ -215,6 +232,10 @@ interface BuildingOpts {
   roof?: 'flat' | 'tiled';
   signs?: boolean;
   lanterns?: number; // lantern colour
+  restaurant?: RestaurantSpec;
+  secret?: boolean;
+  /** Facade coordinate of the door's first column, when the middle of the facade is not reachable. */
+  doorA?: number;
 }
 
 function building(lot: Lot, o: BuildingOpts): { H: number } {
@@ -340,7 +361,10 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
     for (let a = a0; a <= a1; a++) lot.set(a, y - Math.floor((len - 1) / 2) - 1, -len, ((a >> 1) & 1) ? awn[0] : awn[1]);
   };
 
-  switch (o.ground) {
+  // deep enough lots get a walkable room behind the storefront; shallow ones keep a display recess
+  if (ROOM_GROUNDS.includes(o.ground) && dep >= 14 && w >= 10) {
+    shopFloor(lot, { kind: o.ground as RoomKind, seed: o.seed, trim, awn, awning, lanterns: o.lanterns, restaurant: o.restaurant, secret: o.secret, doorA: o.doorA });
+  } else switch (o.ground === 'kissa' ? 'cafe' : o.ground === 'soba' ? 'izakaya' : o.ground) {
     case 'shop': {
       lot.box(1, 0, 0, w - 2, 10, 2, 0);
       lot.box(1, 0, 3, w - 2, 10, 3, c.shopGlow);
@@ -360,6 +384,7 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
       lot.box(1, 0, 0, w - 2, 10, 0, 0);
       lot.box(1, 0, 1, w - 2, 10, 1, (_a, y) => (y % 2 ? c.shutterA : c.shutterB));
       lot.box(1, 11, -1, w - 2, 12, 0, c.shutterA);
+      if (dep >= 14 && w >= 10) closedRoom(lot, 'storage', o.seed, trim);
       break;
     }
     case 'cafe': {
@@ -458,10 +483,11 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
     case 'plain': {
       lot.box(Math.floor(w / 2) - 1, 0, 0, Math.floor(w / 2) + 1, 8, 0, 0);
       lot.box(Math.floor(w / 2) - 1, 0, 1, Math.floor(w / 2) + 1, 8, 1, c.woodMid);
+      if (dep >= 14 && w >= 10) closedRoom(lot, 'home', o.seed, trim);
       break;
     }
-    case 'stall':
-      break; // handled by stall()
+    default:
+      break; // stalls are handled by stall()
   }
 
   // roofs
@@ -991,11 +1017,15 @@ export function buildTokyo(): BuildResult {
   const izakayaLanterns = [k.c.lanternRed, k.c.lanternRed, k.c.lanternWhite, k.c.lanternAmber];
 
   // the side of a street nearest the default camera stays low (diorama layout); the far side rises
-  const streetShop = (lot: Lot, seed: number, lanternAlt: boolean, near = false) => {
-    const ground: Ground = pick(['shop', 'shop', 'cafe', 'shutter', 'florist', 'books', 'bakery', 'pharmacy', 'fish']);
-    const style: Style = r() < 0.22 ? 'machiya' : r() < 0.12 ? 'kura' : pick(['showa', 'modern', 'showa', 'apartment']);
-    const floors = style === 'machiya' || style === 'kura' ? 2 : near ? 2 + Math.floor(r() * 2) : 2 + Math.floor(r() * 4);
-    building(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' ? pick(awnPairs) : undefined });
+  // `force` swaps in a hand-placed shop; the random picks still run so the rest of the street keeps its layout
+  type Force = { ground: Ground; style?: Style; floors?: number; restaurant?: RestaurantSpec; secret?: boolean };
+  const streetShop = (lot: Lot, seed: number, lanternAlt: boolean, near = false, force?: Force) => {
+    const ground0: Ground = pick(['shop', 'shop', 'cafe', 'shutter', 'florist', 'books', 'bakery', 'pharmacy', 'fish']);
+    const style0: Style = r() < 0.22 ? 'machiya' : r() < 0.12 ? 'kura' : pick(['showa', 'modern', 'showa', 'apartment']);
+    const floors0 = style0 === 'machiya' || style0 === 'kura' ? 2 : near ? 2 + Math.floor(r() * 2) : 2 + Math.floor(r() * 4);
+    const awning = ground0 === 'shop' || ground0 === 'cafe' ? pick(awnPairs) : undefined;
+    const ground = force?.ground ?? ground0, style = force?.style ?? style0, floors = force?.floors ?? floors0;
+    building(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' || ground === 'kissa' ? awning ?? awnPairs[seed % awnPairs.length] : undefined, restaurant: force?.restaurant, secret: force?.secret });
     if (style !== 'machiya' && style !== 'kura') {
       lot.wallProp(lantern(k, lanternAlt ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
       const [lx, lz] = lot.front(lot.width / 2, 0.5);
@@ -1013,7 +1043,9 @@ export function buildTokyo(): BuildResult {
       const lot = new Lot(b, x, 4, x + w - 1, 35, 's');
       if (i === 2) {
         stalls.push(stall(lot, { id: 'kimura', foods: ['ningyoyaki', 'dango'], awning: [c.awnRed, c.awnWhite], noren: k.c.norenRed, lantern: k.c.lanternRed, equip: 'mold' }, 3, 101, c.cream));
-      } else streetShop(lot, 1000 + i, i % 2 === 1);
+      } else if (i === 4) streetShop(lot, 1000 + i, false, false, { ground: 'konbini', style: 'modern', floors: 3 });
+      else if (i === 6) streetShop(lot, 1000 + i, false, false, { ground: 'soba', style: 'machiya', floors: 2, restaurant: { id: 'kikyo', foods: ['zarusoba', 'tempura'] } });
+      else streetShop(lot, 1000 + i, i % 2 === 1);
       x += w;
       i++;
     }
@@ -1030,10 +1062,12 @@ export function buildTokyo(): BuildResult {
         let w = 16 + Math.floor(r() * 4) * 3;
         if (x + w - 1 > sx1) w = sx1 - x + 1;
         if (w < 10) { g.box(x, G, 64, sx1, G + 16, 91, c.concreteWall); break; }
-        const lot = new Lot(b, x, 64, x + w - 1, 91, 'n');
+        // the western block's back half belongs to the buildings behind (fillBlock), so those lots are shallower
+        const lot = new Lot(b, x, 64, x + w - 1, sx0 === 42 ? 81 : 91, 'n');
         if (sx0 === 174 && j === 1) {
           stalls.push(stall(lot, { id: 'sakuraya', foods: ['taiyaki', 'dorayaki'], awning: [c.awnBlue, c.awnWhite], noren: k.c.navy, lantern: k.c.lanternWhite, equip: 'mold' }, 2, 202, c.mint));
-        } else streetShop(lot, 2000 + i, i % 2 === 0, true);
+        } else if (sx0 === 174 && j === 2) streetShop(lot, 2000 + i, i % 2 === 0, true, { ground: 'books', style: 'showa', secret: true });
+        else streetShop(lot, 2000 + i, i % 2 === 0, true);
         x += w;
         i++;
         j++;
@@ -1046,7 +1080,7 @@ export function buildTokyo(): BuildResult {
   g.box(280, G, 0, 287, G + 24, 35, c.concreteWall);
 
   // --- west edges around the plaza
-  building(new Lot(b, 22, 4, 41, 31, 'w'), { floors: 2, style: 'machiya', ground: 'shop', seed: 61, awning: [c.awnNavy, c.awnNavy] });
+  building(new Lot(b, 22, 4, 41, 31, 'w'), { floors: 2, style: 'machiya', ground: 'shop', seed: 61, awning: [c.awnNavy, c.awnNavy], doorA: 17 });
   building(new Lot(b, 28, 67, 41, 91, 'w'), { floors: 2, style: 'machiya', ground: 'cafe', seed: 62 });
 
   // --- block interiors (seen from above)
@@ -1153,10 +1187,15 @@ export function buildTokyo(): BuildResult {
         let w = 16 + Math.floor(r() * 3) * 4;
         if (x + w - 1 > sx1 || sx1 - (x + w - 1) < 10) w = sx1 - x + 1;
         const lot = new Lot(b, x, z0, x + w - 1, 151, 's');
-        const ground: Ground = pick(['cafe', 'cafe', 'shop', 'izakaya', 'plain', 'florist', 'bakery', 'books']);
-        const style: Style = ground === 'izakaya' ? 'izakaya' : r() < 0.3 ? 'machiya' : r() < 0.12 ? 'kura' : pick(['showa', 'modern', 'apartment']);
-        const floors = style === 'machiya' || style === 'kura' ? 2 : 2 + Math.floor(r() * 3);
-        building(lot, { floors, style, ground, seed: 5000 + i, awning: ground === 'shop' || ground === 'cafe' ? pick(awnPairs) : undefined, lanterns: pick(izakayaLanterns) });
+        const ground0: Ground = pick(['cafe', 'cafe', 'shop', 'izakaya', 'plain', 'florist', 'bakery', 'books']);
+        const style0: Style = ground0 === 'izakaya' ? 'izakaya' : r() < 0.3 ? 'machiya' : r() < 0.12 ? 'kura' : pick(['showa', 'modern', 'apartment']);
+        const floors0 = style0 === 'machiya' || style0 === 'kura' ? 2 : 2 + Math.floor(r() * 3);
+        const awning = ground0 === 'shop' || ground0 === 'cafe' ? pick(awnPairs) : undefined;
+        const lanterns = pick(izakayaLanterns);
+        // the old kissaten by the canal
+        const kissa = i === 2;
+        const ground: Ground = kissa ? 'kissa' : ground0, style: Style = kissa ? 'showa' : style0, floors = kissa ? 3 : floors0;
+        building(lot, { floors, style, ground, seed: 5000 + i, awning: kissa ? [c.awnRed, c.awnWhite] : awning, lanterns, restaurant: kissa ? { id: 'komorebi', foods: ['purin', 'napolitan'] } : undefined });
         x += w;
         i++;
       }
@@ -1181,15 +1220,23 @@ export function buildTokyo(): BuildResult {
       b.block(lx * V, 168.6 * V - 0.25, lx * V + 0.5, 168.6 * V + 0.25);
     }
     for (const bx of [80, 196, 240]) { b.place(bench(k), bx * V, 0, 167.2 * V, 0); b.block(bx * V - 0.9, 167.2 * V - 0.35, bx * V + 0.9, 167.2 * V + 0.35); }
-    for (const [vx, vc] of [[29.6, k.c.vmRed], [30.7, k.c.vmBlue], [60.5, k.c.vmWhite]] as [number, number][]) {
+    const clearOf = (x: number, half: number) => {
+      for (const rm of b.rooms) if (Math.abs(rm.door[1] - 38.4) < 2.4 && Math.abs(rm.door[0] - x) < 1.0 + half) return false;
+      return true;
+    };
+    for (const [vx0, vc] of [[29.6, k.c.vmRed], [30.7, k.c.vmBlue], [60.5, k.c.vmWhite]] as [number, number][]) {
+      let vx = vx0;
+      while (!clearOf(vx, 0.5)) vx += 1.1;
       b.place(vendingMachine(k, vc, Math.round(vx * 10)), vx, 0, 38.4, 0);
       vending.push([vx, 0, 39.2]);
       b.lamp(vx, 1.2, 38.9, COOL, 3.2, 0.9);
       b.block(vx - 0.5, 38.0, vx + 0.5, 38.8);
     }
-    b.place(bicycle(k, k.c.bikeRed), 50.6, 0, 38.3, 0);
-    b.place(bicycle(k, k.c.bikeSilver), 51.9, 0, 38.3, 0);
-    b.block(49.9, 38.0, 52.6, 38.6);
+    let bk = 51.25;
+    while (!clearOf(bk, 1.3)) bk += 1.1;
+    b.place(bicycle(k, k.c.bikeRed), bk - 0.65, 0, 38.3, 0);
+    b.place(bicycle(k, k.c.bikeSilver), bk + 0.65, 0, 38.3, 0);
+    b.block(bk - 1.35, 38.0, bk + 1.35, 38.6);
     for (let x = 6; x < 70; x += 2.6) {
       if ((x > 13.5 && x < 18.3) || (x > 52.5 && x < 57.3)) continue;
       const red = Math.round(x) % 2 === 1;
@@ -1314,13 +1361,24 @@ export function buildTokyo(): BuildResult {
   // --- Street furniture: the small clutter that makes a Tokyo street feel lived in
   {
     const solid = (x: number, z: number, hx: number, hz: number) => b.block(x - hx, z - hz, x + hx, z + hz);
+    // slide parked things along the kerb so they never sit in front of a shop door
+    const dodge = (x: number, z: number, half = 0.8) => {
+      for (let i = 0; i < 8; i++) {
+        const d = b.rooms.find((rm) => Math.abs(rm.door[0] - x) < 1.0 + half && Math.abs(rm.door[1] - z) < 2.4);
+        if (!d) return x;
+        x = d.door[0] + (x >= d.door[0] ? 1.05 + half : -1.05 - half);
+      }
+      return x;
+    };
     // parked delivery scooters and bicycles along the north facades of Kaminari Lane
-    for (const [x, col] of [[19.6, k.c.cubRed], [46.8, k.c.vmBlue], [61.4, k.c.cubRed]] as [number, number][]) {
+    for (const [x0, col] of [[19.6, k.c.cubRed], [46.8, k.c.vmBlue], [61.4, k.c.cubRed]] as [number, number][]) {
+      const x = dodge(x0, 9.42);
       b.place(scooter(k, col), x, 0, 9.42, 0);
       solid(x, 9.42, 0.8, 0.22);
     }
-    for (const x of [38.7, 39.5, 40.3]) b.place(bicycle(k, [k.c.bikeSilver, k.c.bikeMint, k.c.bikeRed][Math.round(x * 10) % 3]), x, 0, 9.35, 0);
-    solid(39.5, 9.35, 1.2, 0.2);
+    const bx = dodge(39.5, 9.35, 1.2);
+    for (const x of [bx - 0.8, bx, bx + 0.8]) b.place(bicycle(k, [k.c.bikeSilver, k.c.bikeMint, k.c.bikeRed][Math.round(x * 10) % 3]), x, 0, 9.35, 0);
+    solid(bx, 9.35, 1.2, 0.2);
     // post box and recycling corner by the konbini
     b.place(postBox(k), 68.9, 0, 9.5, 0);
     solid(68.9, 9.5, 0.4, 0.4);
@@ -1333,7 +1391,8 @@ export function buildTokyo(): BuildResult {
     // jizō statues keeping watch beside the hokora
     for (const x of [1.95, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); }
     // café terrace tables on the promenade
-    for (const [x, col] of [[9.6, k.c.fabricRed], [11.4, k.c.fabricWhite], [43.6, k.c.fabricGreen], [45.4, k.c.fabricWhite], [65.2, k.c.fabricOrange]] as [number, number][]) {
+    for (const [x0, col] of [[9.6, k.c.fabricRed], [11.4, k.c.fabricWhite], [43.6, k.c.fabricGreen], [45.4, k.c.fabricWhite], [65.2, k.c.fabricOrange]] as [number, number][]) {
+      const x = dodge(x0, 38.65, 0.6);
       b.place(cafeTable(k, col), x, 0, 38.65, 0);
       solid(x, 38.65, 0.3, 0.3);
       b.place(stool(k, k.c.woodLight), x + 0.55, 0, 38.65);
@@ -1371,6 +1430,28 @@ export function buildTokyo(): BuildResult {
     b.place(lantern(k, k.c.lanternWhite, 5, 7, 998), lx - 0.55, 1.95, lz - 1.4, 0, 'door-open');
   }
 
+  // --- Daruma dolls: one in the bookshop's secret room, the rest spread over different kinds of shop
+  const darumas: [number, number, number][] = [];
+  {
+    const spots = b.darumaSpots;
+    const chosen: DarumaSpot[] = spots.filter((s) => s.secret).slice(0, 1);
+    const far = (p: [number, number, number]) => chosen.every((q) => Math.hypot(q.pos[0] - p[0], q.pos[2] - p[2]) > 6);
+    const order: RoomKind[] = ['izakaya', 'konbini', 'bakery', 'florist', 'fish', 'cafe', 'pharmacy', 'shop', 'books', 'soba', 'kissa'];
+    for (const kd of order) {
+      if (chosen.length >= 8) break;
+      // prefer the second shop of a kind, so the first one the player walks into is not the only place to look
+      const of = spots.filter((s) => s.kind === kd && !s.secret);
+      const s = [...of.slice(1), ...of.slice(0, 1)].find((q) => far(q.pos));
+      if (s) chosen.push(s);
+    }
+    for (let i = 0; chosen.length < 8 && i < spots.length; i++) if (!chosen.includes(spots[i]) && far(spots[i].pos)) chosen.push(spots[i]);
+    chosen.forEach((s, i) => {
+      b.place(daruma(b.ic), s.pos[0], s.pos[1], s.pos[2], i % 4);
+      darumas.push([s.pos[0], s.pos[1], s.pos[2]]);
+    });
+  }
+  stalls.push(...b.stallAnchors);
+
   const anchors: Anchors = {
     spawn: [11.2, 0, 12.5],
     stalls,
@@ -1404,10 +1485,13 @@ export function buildTokyo(): BuildResult {
     vending,
     blockers: b.blockers,
     koiArea: [1, 43.4, 71, 49.6],
+    rooms: b.rooms,
+    darumas,
+    secret: b.secret,
   };
 
   const interior = buildInterior(b, anchors);
-  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior };
+  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor };
 }
 
 

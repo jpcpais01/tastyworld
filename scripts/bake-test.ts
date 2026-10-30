@@ -20,3 +20,31 @@ console.log('door stand', navH(a.hiddenDoor.stand[0], a.hiddenDoor.stand[1]));
 const inav = w.interiorNav;
 const inH = (x: number, z: number) => inav.height[Math.floor((z - inav.oz) / 0.25) * inav.sx + Math.floor((x - inav.ox) / 0.25)];
 console.log('interior spawn', inH(a.interiorSpawn[0], a.interiorSpawn[2]), 'counter stand', inH(a.counterStand[0], a.counterStand[1]), 'chef', inH(a.chef[0], a.chef[2]));
+
+// ---- ground-floor rooms: every door, stand and secret must be reachable from the spawn
+import { Nav } from '../src/game/nav';
+const nav = new Nav(w.nav);
+const reach = (x: number, z: number, tol = 0.6) => {
+  const p = nav.findPath(a.spawn[0], a.spawn[2], x, z);
+  if (!p || !p.length) return false;
+  const [ex, ez] = p[p.length - 1];
+  return Math.hypot(ex - x, ez - z) < tol;
+};
+let bad = 0;
+console.log('rooms', a.rooms.length, a.rooms.map((r) => r.id).join(' '));
+for (const r of a.rooms) {
+  const issues: string[] = [];
+  if (!reach(r.door[0], r.door[1])) issues.push('door');
+  for (const s of r.spots) if (!reach(s.stand[0], s.stand[1])) issues.push(`${s.kind}@${s.stand.map((v) => v.toFixed(1))}`);
+  if (issues.length) { bad++; console.log('ROOM', r.id, 'rect', r.rect.map((v) => v.toFixed(1)).join(','), 'unreachable:', issues.join(' ')); }
+}
+for (const s of a.stalls) if (!reach(s.stand[0], s.stand[1])) { bad++; console.log('STALL unreachable', s.id); }
+a.darumas.forEach((d, i) => { const ok = reach(d[0], d[2], 1.2); if (!ok) bad++; console.log('daruma', i, d.map((v) => v.toFixed(1)).join(','), ok ? 'ok' : 'TOO FAR'); });
+if (a.secret) {
+  console.log('secret shelf stand reachable', reach(a.secret.shelfStand[0], a.secret.shelfStand[1]));
+  nav.setBlocked('shelf', a.secret.gate, true);
+  console.log('secret note reachable while closed (should be false)', reach(a.secret.noteStand[0], a.secret.noteStand[1]));
+  nav.setBlocked('shelf', a.secret.gate, false);
+  console.log('secret note reachable when open', reach(a.secret.noteStand[0], a.secret.noteStand[1]));
+}
+console.log('rooms with problems', bad);

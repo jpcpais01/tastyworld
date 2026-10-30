@@ -81,6 +81,21 @@ export class LightField {
     }
   }
 
+  /**
+   * Rooms under a roof get a soft indoor ambient (ceiling lights, light through the shop windows) so
+   * they read in daylight too; at night their lamps take over.
+   */
+  indoor(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, v: number): void {
+    const g = this.grid;
+    const val = Math.round(v * 255);
+    for (let y = Math.max(0, y0); y <= Math.min(g.sy - 1, y1); y++)
+      for (let z = Math.max(0, z0); z <= Math.min(g.sz - 1, z1); z++)
+        for (let x = Math.max(0, x0); x <= Math.min(g.sx - 1, x1); x++) {
+          const i = y * g.sxz + z * g.sx + x;
+          if (g.data[i] === 0 && this.sky[i] < val) this.sky[i] = val;
+        }
+  }
+
   addLamp(l: Lamp): void {
     this.lamps.push(l);
     const B = LightField.B;

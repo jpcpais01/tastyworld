@@ -597,6 +597,13 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
   if (roof === 'tiled') tiledRoof(lot, H, 2, 2);
   else flatRoof(lot, H, r, o.signs !== false && o.floors >= 3);
 
+  // a darker plinth course where the walls meet the pavement (stone under timber), front and both sides
+  const plinth = wood ? c.stone : o.style === 'kura' ? c.kuraBase : c.concreteDark;
+  const base = (aa: number, yy: number, dd: number) => (lot.get(aa, yy, dd) === wall ? plinth : lot.get(aa, yy, dd));
+  lot.box(0, 0, 0, w - 1, 0, 0, base);
+  lot.box(0, 0, 1, 0, 0, dep - 1, base);
+  lot.box(w - 1, 0, 1, w - 1, 0, dep - 1, base);
+
   // vertical sign
   if (o.signs !== false && o.floors >= 2 && r() < 0.75) {
     const bg = pick([k.c.signRed, k.c.signBlue, k.c.signYellow, k.c.signCream, k.c.signBlack, k.c.signGreen]);

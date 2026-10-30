@@ -207,6 +207,12 @@ class Game {
     this.heightWorld = heightTex(w.height, w.nav.sx, w.nav.sz);
     this.heightInside = heightTex(w.interiorHeight, w.interiorNav.sx, w.interiorNav.sz);
     this.setHeightField(false);
+    const shore = new THREE.DataTexture(w.shore, w.nav.sx, w.nav.sz, THREE.RedFormat, THREE.UnsignedByteType);
+    shore.magFilter = shore.minFilter = THREE.LinearFilter;
+    shore.generateMipmaps = false;
+    shore.needsUpdate = true;
+    this.r.composite.uniforms.tShore.value = shore;
+    this.r.composite.uniforms.uShoreRect.value.set(w.nav.ox, w.nav.oz, 1 / (w.nav.sx * 0.25), 1 / (w.nav.sz * 0.25));
     this.navWorld = new Nav(w.nav);
     this.navInside = new Nav(w.interiorNav);
     this.nav = this.navWorld;
@@ -916,10 +922,10 @@ class Game {
     const p = this.player.position;
     const sh = this.r.shared;
     this.cutOn += ((this.started ? 1 : 0) - this.cutOn) * Math.min(1, dt * 3);
-    const R = THREE.MathUtils.clamp(this.cam.zoom * 0.48, 6, 13) * (this.inside ? 0.75 : 1);
+    const R = THREE.MathUtils.clamp(this.cam.zoom * 0.27, 3.6, 7) * (this.inside ? 0.8 : 1);
     sh.uCutOn.value = this.cutOn;
     sh.uCutRadius.value = R;
-    sh.uCutH.value = p.y + 1.15;
+    sh.uCutH.value = p.y + 1.1; // between voxel layers so the section cap never z-fights a floor
     sh.uCutPos.value.set(p.x, p.y, p.z);
     sh.uCamFwd.value.copy(this.cam.fwd);
     if (this.inside) return;
@@ -927,21 +933,21 @@ class Game {
     const ax = fx / fl, az = fz / fl;
     for (const c of this.chunks) {
       const b = c.box;
-      let aMin = Infinity, aMax = -Infinity, lMin = Infinity, lMax = -Infinity;
+      let aMin = Infinity, lMin = Infinity, lMax = -Infinity;
       for (let i = 0; i < 4; i++) {
         const dx = (i & 1 ? b.max.x : b.min.x) - p.x, dz = (i & 2 ? b.max.z : b.min.z) - p.z;
         const al = dx * ax + dz * az, la = dx * az - dz * ax;
-        aMin = Math.min(aMin, al); aMax = Math.max(aMax, al); lMin = Math.min(lMin, la); lMax = Math.max(lMax, la);
+        aMin = Math.min(aMin, al); lMin = Math.min(lMin, la); lMax = Math.max(lMax, la);
       }
       const lat = lMin > 0 ? lMin : lMax < 0 ? -lMax : 0;
-      const cut = this.cutOn > 0.01 && lat < R + 0.5 && aMin < 1.5 && aMax > -(R + 24);
+      const cut = this.cutOn > 0.01 && lat < R + 0.5 && aMin < 0.5;
       if (cut !== c.cut) { c.cut = cut; c.mesh.material = cut ? this.matCut : this.matWorld; }
     }
   }
 
   private updateCamera(dt: number): void {
     if (this.started) this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
-    this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight));
+    this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
   }
 
   private frame(now: number): void {

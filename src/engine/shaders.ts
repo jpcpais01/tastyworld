@@ -121,7 +121,7 @@ uniform float uFlash;
 #ifdef CUTAWAY
 uniform vec3 uCutPos;      // player feet
 uniform vec3 uCamFwd;
-uniform float uCutRadius;  // radius of the sliced area around the player (m)
+uniform float uCutRadius;  // screen-space radius of the see-through window around the player (m)
 uniform float uCutH;       // world height of the slicing plane
 uniform float uCutOn;      // 0..1 fade
 uniform sampler2D tHeight; // per-column top of the solid run that starts at street level (0.25 m units)
@@ -146,29 +146,31 @@ in float vAO;
 in float vSky;
 layout(location = 0) out vec4 outColor;
 
-float bayer4(vec2 p) {
-  ivec2 q = ivec2(mod(p, 4.0));
-  int i = q.x + q.y * 4;
-  int m[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);
-  return (float(m[i]) + 0.5) / 16.0;
-}
-
 void main() {
 #ifdef CUTAWAY
-  // Slice everything between the camera and the player's surroundings down to a plane just above
-  // the street. Where the view ray enters solid building mass at that plane, draw a section cap;
-  // where it does not, discard so the street behind shows through.
+  // Cut a window through whatever stands between the camera and the player. A fragment is removed when
+  // it lies on the camera side of the player (measured on the ground, so facades behind the player
+  // are never touched) and inside a screen-space circle around the player (so buildings off to the
+  // side or far away stay intact). Removed mass is sliced down to a plane just above the floor; where
+  // the view ray enters a solid wall at that plane, a section cap is drawn so rooms read as a dollhouse.
   bool capped = false;
   vec3 capP = vec3(0.0);
   if (uCutOn > 0.001 && vWorld.y > uCutH) {
-    vec3 P = vWorld + uCamFwd * ((vWorld.y - uCutH) / max(0.05, -uCamFwd.y));
-    // radius is measured where the ray meets the plane (what the fragment hides); front/back is measured
-    // at the fragment itself, so facades behind the player are never touched
-    vec2 rel = P.xz - uCutPos.xz;
-    float along = dot(vWorld.xz - uCutPos.xz, normalize(uCamFwd.xz));
-    float k = uCutOn * (1.0 - smoothstep(uCutRadius * 0.82, uCutRadius, length(rel))) * (1.0 - smoothstep(0.15, 0.75, along));
-    if (k > bayer4(gl_FragCoord.xy)) {
-      if (solidTop(P.xz) > uCutH + 0.04) { capped = true; capP = P; }
+    vec3 chest = uCutPos + vec3(0.0, 0.9, 0.0);
+    vec3 d = vWorld - chest;
+    float lateral = length(d - uCamFwd * dot(d, uCamFwd));
+    vec2 fwdH = normalize(uCamFwd.xz);
+    float along = dot(vWorld.xz - uCutPos.xz, fwdH);
+    float edge = uCutRadius * 0.09 + 0.2;
+    float k = uCutOn * (1.0 - smoothstep(uCutRadius - edge, uCutRadius, lateral)) * (1.0 - smoothstep(-0.2, 0.25, along));
+    // dissolve threshold anchored to the voxel, not the screen, so the soft edge doesn't crawl as the view moves
+    ivec3 cc = ivec3(floor(vCell / vScale + 0.001)) + 4096;
+    uint ch = uint(cc.x) * 73856093u ^ uint(cc.y) * 19349663u ^ uint(cc.z) * 83492791u;
+    ch = (ch ^ (ch >> 13u)) * 1274126177u;
+    if (k > (float((ch >> 8u) & 1023u) + 0.5) / 1024.0) {
+      vec3 P = vWorld + uCamFwd * ((vWorld.y - uCutH) / max(0.05, -uCamFwd.y));
+      // only cap mass in front of the player: a ray that lands behind them belongs to the facade there
+      if (dot(P.xz - uCutPos.xz, fwdH) < 0.35 && solidTop(P.xz) > uCutH + 0.04) { capped = true; capP = P; }
       else discard;
     }
   }
@@ -240,7 +242,8 @@ void main() {
     vec2 gq = abs(fract(capP.xz * 4.0) - 0.5);
     float grid = step(0.44, max(gq.x, gq.y));
     vec3 lightC = uSkyColor * 0.55 + uSunColor * 0.22 + uLamp * vec3(0.25, 0.16, 0.08);
-    vec3 base = srgb2lin(vec3(0.3, 0.26, 0.28)) * (1.0 + grid * 0.35 + (rnd - 0.5) * 0.06);
+    // colour depends on the cap point only: several fragments along one ray write the same cap, so they must agree
+    vec3 base = srgb2lin(vec3(0.3, 0.26, 0.28)) * (1.0 + grid * 0.35 + (fract(sin(dot(floor(capP.xz * 4.0), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.06);
     col = base * (0.35 + lightC);
     col = mix(col, srgb2lin(vec3(0.98, 0.86, 0.68)) * (0.45 + lightC * 0.6), min(1.0, e) * 0.9);
   }
@@ -368,6 +371,8 @@ uniform float uSaturation;
 uniform float uVignette;
 uniform float uFade;
 uniform vec4 uWaterBounds;
+uniform sampler2D tShore;   // signed distance to the water's edge (see computeShore)
+uniform vec4 uShoreRect;    // origin x, z and 1 / extent x, z (metres)
 in vec2 vUv;
 layout(location = 0) out vec4 outColor;
 
@@ -396,6 +401,18 @@ vec3 waterNormal(vec2 p, float t) {
   float n0 = vnoise(q), nx = vnoise(q + vec2(e, 0.0)), nz = vnoise(q + vec2(0.0, e));
   g += vec2(nx - n0, nz - n0) / e * 0.012;
   return normalize(vec3(-g.x, 1.0, -g.y));
+}
+
+// signed distance to the shoreline in metres, positive over open water
+float shoreDist(vec2 xz) {
+  vec2 uv = (xz - uShoreRect.xy) * uShoreRect.zw;
+  return (texture(tShore, uv).r * 255.0 - 128.0) * 0.015625;
+}
+
+const vec2 FLOW = vec2(0.3, 0.0); // the canal drifts gently east, m/s
+
+float lace(vec2 p) {
+  return vnoise(p * 3.1) * 0.55 + vnoise(p * 7.7 + 3.1) * 0.3 + vnoise(p * 16.3 - 1.7) * 0.15;
 }
 
 float caustic(vec2 p, float t) {
@@ -434,13 +451,26 @@ void main() {
     vec3 near = worldAt(uv, 0.0);
     float tPlane = (uWaterY - near.y) / rd.y;
     vec3 sp = near + rd * tPlane;
-    vec3 nrm = waterNormal(sp.xz, uTime);
+    // shoreline field: distance and its gradient (points away from the bank, into open water)
+    float sd = shoreDist(sp.xz);
+    vec2 sg = vec2(shoreDist(sp.xz + vec2(0.12, 0.0)) - sd, shoreDist(sp.xz + vec2(0.0, 0.12)) - sd) / 0.12;
+    sg /= max(length(sg), 1e-3);
+    float dEdge = max(sd, 0.0);
+    // waves drift downstream; the banks see slack water and small waves lapping in toward the stone
+    vec3 nrm = waterNormal(sp.xz - FLOW * uTime, uTime);
+    float flowLine = vnoise(vec2((sp.x - FLOW.x * uTime * 1.3) * 0.9, sp.z * 5.5));
+    nrm.z += (flowLine - 0.5) * 0.06;
+    float lapA = exp(-dEdge * 2.2) * 0.09;
+    nrm.xz += sg * cos(dEdge * 13.0 + uTime * 2.4) * lapA;
+    nrm = normalize(nrm);
     // refraction
     vec2 ruv = uv + nrm.xz * 0.035 * clamp(uWaterY - wpos.y, 0.0, 1.0) * vec2(1.0, uRes.x / uRes.y) * 0.6;
     float rdepth = texture(tDepth, ruv).r;
     vec3 rpos = worldAt(ruv, rdepth);
     if (rpos.y > uWaterY || rdepth >= 0.99999) { ruv = uv; rpos = wpos; }
     vec3 floorCol = texture(tScene, ruv).rgb;
+    // soften the blocky bed: deeper floor reads through a slightly blurred, wobbling lens
+    floorCol = mix(floorCol, texture(tHalf, ruv).rgb, clamp((uWaterY - rpos.y) * 0.45, 0.0, 0.7));
     float pathLen = max(0.0, length(rpos - sp));
     float vDepth = max(0.0, uWaterY - rpos.y);
     // caustics on the floor
@@ -452,7 +482,7 @@ void main() {
     vec3 trans = exp(-absorb * pathLen);
     vec3 scatterLight = uWaterScatter * (0.35 + 0.65 * clamp(length(uSunColor), 0.0, 1.5));
     vec3 under = floorCol * trans + scatterLight * (1.0 - exp(-pathLen * 0.85));
-    under = mix(under, uWaterDeep, 1.0 - exp(-pathLen * 0.35));
+    under = mix(under, uWaterDeep, 1.0 - exp(-pathLen * 0.45));
     // volumetric light shafts: march through the water column
     if (uShafts > 0.0) {
       float shaft = 0.0;
@@ -499,11 +529,41 @@ void main() {
     vec3 hv = normalize(uSunDir - rd);
     float spec = pow(max(dot(nrm, hv), 0.0), 220.0) * 3.0 + pow(max(dot(nrm, hv), 0.0), 30.0) * 0.12;
     water += uSunColor * spec;
-    // shoreline foam
-    float foamN = vnoise(sp.xz * 4.0 + vec2(uTime * 0.25, uTime * 0.18)) * 0.6 + vnoise(sp.xz * 9.0 - uTime * 0.3) * 0.4;
-    float foam = smoothstep(0.28, 0.0, vDepth + (foamN - 0.5) * 0.25) * smoothstep(0.35, 0.65, foamN + 0.25);
-    water = mix(water, vec3(0.92, 0.95, 0.97) * (0.35 + 0.65 * clamp(length(uSunColor) + 0.3, 0.0, 1.2)), foam * 0.75);
+    // shoreline foam: a crisp contact line at the stone, broken lace that rolls in with the lapping
+    // waves, and thin streaks carried downstream mid-channel. The lace is advected with a two-phase
+    // flow map so it drifts without smearing.
+    float slow = smoothstep(0.0, 1.6, dEdge);
+    vec2 fl = FLOW * (0.25 + 0.75 * slow) + sg.yx * vec2(-1.0, 1.0) * 0.02;
+    float ph0 = fract(uTime * 0.16), ph1 = fract(uTime * 0.16 + 0.5);
+    float w0 = 1.0 - abs(1.0 - 2.0 * ph0);
+    float L = mix(lace(sp.xz - fl * ph1 * 6.0 + 7.3), lace(sp.xz - fl * ph0 * 6.0), w0);
+    float band = exp(-dEdge / 0.42);
+    float roll = 0.5 + 0.5 * sin(dEdge * 10.0 + uTime * 2.4 + L * 4.0);
+    float contact = smoothstep(0.1, 0.0, dEdge + (L - 0.5) * 0.12) * (0.75 + 0.25 * roll);
+    float lacy = smoothstep(0.6, 0.74, L * 0.7 + roll * 0.32 * band + band * 0.28) * band;
+    float streak = smoothstep(0.8, 0.88, vnoise(vec2((sp.x - FLOW.x * uTime) * 0.6, sp.z * 7.0)) * 0.8 + L * 0.25) * slow * 0.35;
+    float foam = clamp(max(contact, lacy) + streak, 0.0, 1.0);
+    vec3 lightF = uSunColor * (0.35 + 0.65 * max(uSunDir.y, 0.0)) + uSkyHorizon * 0.6 + uSkyTop * 0.25;
+    vec3 foamCol = vec3(0.93, 0.96, 0.98) * clamp(lightF, 0.08, 1.6);
+    water = mix(water, foamCol, foam * 0.82);
+    // cherry petals floating downstream
+    vec2 pp = (sp.xz - FLOW * uTime * (0.4 + 0.6 * slow)) * 2.3;
+    vec2 cell = floor(pp);
+    float hp = hash12(cell);
+    if (hp > 0.9) {
+      vec2 f = fract(pp) - 0.5 - (vec2(hash12(cell + 7.1), hash12(cell + 3.3)) - 0.5) * 0.5;
+      float a = hp * 40.0 + uTime * 0.4;
+      f = mat2(cos(a), -sin(a), sin(a), cos(a)) * f;
+      float pet = smoothstep(0.075, 0.05, length(f * vec2(1.0, 1.9)));
+      water = mix(water, srgb2lin(vec3(0.96, 0.74, 0.82)) * clamp(lightF, 0.08, 1.4), pet * smoothstep(0.05, 0.3, dEdge) * 0.9);
+    }
     col = water;
+  } else if (wpos.y < uWaterY + 0.4 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w) {
+    // wet stone just above the waterline, with a waterline that rises and falls with the lapping
+    float sdw = shoreDist(wpos.xz);
+    float top = uWaterY + 0.09 + 0.045 * sin(wpos.x * 2.3 + wpos.z * 1.7 + uTime * 1.2) + 0.05 * vnoise(wpos.xz * 5.0 + uTime * 0.2);
+    float wet = smoothstep(top + 0.035, top - 0.035, wpos.y) * smoothstep(-0.35, -0.04, sdw);
+    col *= mix(1.0, 0.58, wet);
   }
 
   // tilt-shift miniature blur

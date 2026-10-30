@@ -78,6 +78,8 @@ export class Renderer {
   readonly composite: THREE.ShaderMaterial;
   private w = 1;
   private h = 1;
+  /** Render target height in pixels. */
+  get pixelHeight(): number { return this.h; }
   private frameTimes: number[] = [];
   private lastAdapt = 0;
   autoQuality = true;
@@ -111,6 +113,7 @@ export class Renderer {
       uGradeShadow: { value: new THREE.Color(1, 1, 1) }, uGradeHigh: { value: new THREE.Color(1, 1, 1) },
       uSaturation: { value: 1.08 }, uVignette: { value: 0.55 }, uFade: { value: 1 },
       uWaterBounds: { value: new THREE.Vector4(-5, 42.9, 80, 50.1) },
+      tShore: { value: null }, uShoreRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     });
     this.resize();
   }

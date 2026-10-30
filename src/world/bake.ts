@@ -36,6 +36,8 @@ export interface BakedWorld {
   /** Per-column height (voxels above street level) of the solid run that starts at the street, for section caps. */
   height: Uint8Array;
   interiorHeight: Uint8Array;
+  /** Signed distance to the water's edge per column: 128 + 16 x voxels (positive over open water). */
+  shore: Uint8Array;
   anchors: Anchors;
   stats: { faces: number; lamps: number; ms: number };
 }
@@ -85,6 +87,42 @@ function meshWorld(grid: Grid, pal: Palette, field: LightField, props: PlacedPro
 }
 
 const BLOCKED = 255;
+
+/**
+ * Signed Euclidean distance from every column to the shoreline, where "water" means the column's top
+ * solid sits below the water plane. Used by the water shader for foam, flow speed and wet stone.
+ */
+function computeShore(grid: Grid): Uint8Array {
+  const { sx, sz } = grid;
+  const waterTop = G - 3; // columns whose solid top is at or below this layer are open water
+  const isWater = new Uint8Array(sx * sz);
+  for (let z = 0; z < sz; z++)
+    for (let x = 0; x < sx; x++) {
+      let y = G + 30;
+      while (y > 0 && grid.get(x, y, z) === 0) y--;
+      isWater[z * sx + x] = y < waterTop ? 1 : 0;
+    }
+  // brute-force local search is plenty for a 2 m band
+  const R = 8;
+  const out = new Uint8Array(sx * sz);
+  for (let z = 0; z < sz; z++)
+    for (let x = 0; x < sx; x++) {
+      const w = isWater[z * sx + x];
+      let best = R * R + 1;
+      for (let dz = -R; dz <= R; dz++) {
+        const zz = z + dz;
+        if (zz < 0 || zz >= sz) continue;
+        for (let dx = -R; dx <= R; dx++) {
+          const xx = x + dx;
+          if (xx < 0 || xx >= sx) continue;
+          if (isWater[zz * sx + xx] !== w) { const d = dx * dx + dz * dz; if (d < best) best = d; }
+        }
+      }
+      const d = Math.sqrt(best) - 0.5;
+      out[z * sx + x] = Math.max(0, Math.min(255, Math.round(128 + (w ? d : -d) * 16)));
+    }
+  return out;
+}
 
 function computeHeight(grid: Grid): Uint8Array {
   const out = new Uint8Array(grid.sx * grid.sz);
@@ -154,7 +192,7 @@ export function bakeWorld(progress?: (stage: string, f: number) => void, part = 
     return {
       chunks, tagged, nav: null as unknown as NavData, lightmap: null as unknown as LightMap2D, interiorChunks: [],
       interiorNav: null as unknown as NavData, interiorLightmap: null as unknown as LightMap2D,
-      height: null as unknown as Uint8Array, interiorHeight: null as unknown as Uint8Array, anchors: res.anchors,
+      height: null as unknown as Uint8Array, interiorHeight: null as unknown as Uint8Array, shore: null as unknown as Uint8Array, anchors: res.anchors,
       stats: { faces: 0, lamps: 0, ms: performance.now() - t0 },
     };
   }
@@ -180,7 +218,7 @@ export function bakeWorld(progress?: (stage: string, f: number) => void, part = 
   return {
     chunks, tagged, nav, lightmap,
     interiorChunks: im.chunks, interiorNav, interiorLightmap,
-    height: computeHeight(res.grid), interiorHeight: computeHeight(res.interior.grid),
+    height: computeHeight(res.grid), interiorHeight: computeHeight(res.interior.grid), shore: computeShore(res.grid),
     anchors: res.anchors,
     stats: { faces, lamps: field.lampCount, ms: performance.now() - t0 },
   };

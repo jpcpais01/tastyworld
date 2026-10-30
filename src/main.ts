@@ -1,7 +1,7 @@
 import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
-import { Renderer, voxelMaterial, Quality } from './engine/renderer';
+import { Renderer, voxelMaterial, Quality, groundApron } from './engine/renderer';
 import { TimeOfDay } from './engine/timeOfDay';
 import type { BakedWorld, LightMap2D } from './world/bake';
 import type { MeshData } from './world/mesher';
@@ -244,6 +244,7 @@ class Game {
       this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false, occ: [] });
     }
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
+    this.worldGroup.add(groundApron(sh, [0, 0, 72, 56]));
     const tagGroups: Record<string, THREE.Group> = { 'door-closed': this.doorClosed, 'door-open': this.doorOpen, 'shelf-closed': this.shelfClosed, 'shelf-open': this.shelfOpen };
     for (const t of w.tagged) {
       const m = this.mesh(t.mesh, this.matWorld, tagGroups[t.tag] ?? this.worldGroup);

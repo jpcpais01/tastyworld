@@ -15,7 +15,7 @@ export type WorkerOut =
   | { type: 'ready'; init: PartInit }
   | { type: 'mesh'; id: number; ix: number; iz: number; lod: boolean; mesh: MeshData | null };
 
-const meshBuffers = (m: MeshData, out: Transferable[]) => out.push(m.positions.buffer, m.attrs.buffer, m.indices.buffer);
+const meshBuffers = (m: MeshData, out: Transferable[]) => out.push(m.positions.buffer, m.attrs.buffer, m.indices.buffer, m.sway.buffer);
 
 let part: WorldPart | null = null;
 
@@ -31,7 +31,7 @@ self.onmessage = (e: MessageEvent<WorkerIn>) => {
         self.postMessage({ type: 'progress', stage, f } satisfies WorkerOut);
       }
     });
-    const tr: Transferable[] = [init.height.buffer, init.nav.buffer, init.shore.buffer, init.lightmap.buffer];
+    const tr: Transferable[] = [init.height.buffer, init.nav.buffer, init.shore.buffer, init.lightmap.buffer, init.sway.buffer];
     init.tagged.forEach((t) => meshBuffers(t.mesh, tr));
     if (init.interior) {
       init.interior.chunks.forEach((m) => meshBuffers(m, tr));

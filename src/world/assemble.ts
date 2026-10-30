@@ -1,5 +1,6 @@
 import type { BakedWorld, PartInit } from './bake';
 import { CHUNK, SX, SZ, WX0, WZ0 } from './layout';
+import { stackSway } from './sway';
 
 /** Stitch the strips of all parts into one world description. */
 export function assemble(inits: PartInit[]): BakedWorld {
@@ -26,6 +27,7 @@ export function assemble(inits: PartInit[]): BakedWorld {
     interiorChunks: int.chunks, interiorNav: int.nav, interiorLightmap: int.lightmap,
     height, interiorHeight: int.height, shore,
     anchors: a0.anchors,
+    sway: stackSway(inits),
     stats: { lamps: a0.stats.lamps, ms, bytes },
   };
 }

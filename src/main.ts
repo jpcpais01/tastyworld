@@ -63,6 +63,7 @@ const SEND_EVERY = 0.1; // seconds between co-op movement samples
 const PLAYER_SPEED = 3.2;
 const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
 const FP_FOG = 0.036; // first-person haze density, hides the draw distance
+const BODY_R = 0.32; // how wide a person is to the sway shader (a cat is 0.1)
 const VIEW_KEY = 'tastyworld.view';
 const VENDOR_CALLS = ['Irasshaimase!', 'Fresh and hot!', 'Oishii yo!', 'Come, come!', 'Hai, dōzo!', 'Just made!'];
 
@@ -111,6 +112,8 @@ class Game {
   private partOf: (iz: number) => number = () => 0;
   private streamer!: Streamer;
   private matWorld!: THREE.ShaderMaterial;
+  /** Scratch list of people near the player, nearest first, for the sway shader. */
+  private nudgers: [number, Actor][] = [];
   private matCut!: THREE.ShaderMaterial;
   private heightWorld!: THREE.DataTexture;
   private heightInside!: THREE.DataTexture;
@@ -263,8 +266,13 @@ class Game {
 
   private buildScene(): void {
     const w = this.w, a = w.anchors, sh = this.r.shared;
-    this.matWorld = voxelMaterial(sh);
-    this.matCut = voxelMaterial(sh, { CUTAWAY: 1 });
+    const sw = new THREE.DataTexture(w.sway.data, w.sway.width, w.sway.height, THREE.RGBAFormat, THREE.FloatType);
+    sw.magFilter = sw.minFilter = THREE.NearestFilter;
+    sw.generateMipmaps = false;
+    sw.needsUpdate = true;
+    sh.tSway.value = sw;
+    this.matWorld = voxelMaterial(sh, { SWAY: 1 });
+    this.matCut = voxelMaterial(sh, { CUTAWAY: 1, SWAY: 1 });
     // double-sided so a neighbour's unmeshed party wall shows its far side instead of a hole
     this.matCut.side = THREE.DoubleSide;
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
@@ -1462,15 +1470,28 @@ class Game {
       if (!rm.actor.root.visible) continue;
       all.push(rm.actor);
     }
+    const near = this.nudgers;
+    near.length = 0;
     for (const a of all) {
       a.update(dt);
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
-      if (dx * dx + dz * dz < 900) {
+      const d2 = dx * dx + dz * dz;
+      if (d2 < 900) {
         a.light(this.lm);
         this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);
+        if (d2 < 225) near.push([d2, a]);
       }
     }
     this.blobs.end();
+    // you and the nearest few people and cats push plants, noren and low lanterns aside as you pass
+    near.sort((p, q) => p[0] - q[0]);
+    const nudge = this.r.shared.uNudge.value;
+    nudge[0].set(pl.x, pl.y, pl.z, BODY_R);
+    for (let i = 1; i < nudge.length; i++) {
+      const a = near[i - 1]?.[1];
+      if (a) nudge[i].set(a.position.x, a.position.y, a.position.z, a.isCat ? 0.1 : BODY_R);
+      else nudge[i].w = 0;
+    }
   }
 
   private updateNear(): void {
@@ -1549,6 +1570,10 @@ class Game {
     this.syncCoop(dt);
     if (this.covered) return;
     sh.uTime.value += dt;
+    // the breeze slowly veers and freshens; gusts and each prop's own swing happen in the shader
+    const t = sh.uTime.value;
+    const wa = 0.7 + 0.6 * Math.sin(t * 0.011) + 0.2 * Math.sin(t * 0.037);
+    sh.uWind.value.set(Math.cos(wa), Math.sin(wa), 0.55 + 0.25 * Math.sin(t * 0.045 + 1) + 0.12 * Math.sin(t * 0.13), 0);
     this.tod.update(dt);
     this.tod.apply(this.r);
     if (this.inside) { sh.uLamp.value = Math.max(sh.uLamp.value, 0.95); sh.uSunColor.value.multiplyScalar(0.35); }

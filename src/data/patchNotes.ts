@@ -8,6 +8,21 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.0',
+    date: '2026-10-30',
+    title: 'A cozier HUD',
+    items: [
+      'A brand new HUD made of small pieces of warm, smoky glass that sit in the world instead of covering it.',
+      'Where you are and the time now share one slim pill, with a little sun, sunset or moon.',
+      'Missions are down to a single chip with a progress ring. When a reward is ready it glows red: tap it to claim.',
+      'Your yen, passport, map and settings live together in one bar.',
+      'The controls list shows for a few seconds when you arrive, then tucks behind a small keyboard button. Hover it to see them again.',
+      'Stall and shop curtains are real noren now: fabric panels hanging from a wooden rod, one character per panel, swaying gently.',
+      'Menus got a makeover: a dark stall-front header over warm paper, with softer cards and no more glaring white.',
+      'Dialogue and notifications use the same warm glass as the HUD.',
+    ],
+  },
+  {
     version: '0.7.6',
     date: '2026-10-30',
     title: 'Take a seat',

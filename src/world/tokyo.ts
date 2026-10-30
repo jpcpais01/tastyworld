@@ -5,6 +5,8 @@ import { G, SX, SY, SZ, V, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
 import {
   Prop, rotateProp, makePropColors, PropKit, lantern, giantLantern, verticalSign, boardSign, noren, vendingMachine,
   acUnit, crateStack, stool, plantPot, stoneLantern, incenseBurner, streetLamp, bench, bicycle, nobori, manekiNeko, wire,
+  postBox, trafficMirror, bollard, scooter, aFrame, binCorner, flowerStand, bookCart, fishDisplay, breadShelf, jizo, meters,
+  billboard, antenna, planterBox, cafeTable,
 } from './props';
 import { buildFood, FoodId } from './food';
 
@@ -95,6 +97,10 @@ function worldColors(pal: Palette) {
     laundryA: a(0xf2efe6, 0.03), laundryB: a(0x8cb6e0, 0.04), laundryC: a(0xf09a9a, 0.04), laundryD: a(0xf5d76a, 0.04),
     tatami: a(0xc8c084, 0.06), tatamiEdge: a(0x3a5a3a, 0.04), plaster: a(0xe9e0cc, 0.04), shoji: a(0xf8f2e2, 0.02, { emit: 0.25 }),
     counterTop: a(0xe6cc9c, 0.03),
+    tactile: a(0xe2b93a, 0.04), tactileDot: a(0xc99f28, 0.04), manholeBlue: a(0x3a5f8a, 0.05), manholeRed: a(0xa8443a, 0.05),
+    leaf: a(0x4f8a3a, 0.14), leafDark: a(0x35662c, 0.14), pipe: a(0x9a9c98, 0.04), ivy: a(0x3f6e34, 0.16),
+    namako: a(0x5d636b, 0.04), plasterWhite: a(0xf1ede4, 0.03), kuraBase: a(0x3a3638, 0.04), steelStair: a(0x6d7378, 0.04),
+    awnYellow: a(0xe9b83a, 0.03), awnBrown: a(0x7a4a2e, 0.03), awnPink: a(0xe58aa6, 0.03),
   };
 }
 
@@ -196,8 +202,8 @@ class Lot {
 
 // ---------------------------------------------------------------------------------------------
 
-type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain';
-type Style = 'modern' | 'showa' | 'machiya' | 'izakaya';
+type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy';
+type Style = 'modern' | 'showa' | 'machiya' | 'izakaya' | 'apartment' | 'kura';
 
 interface BuildingOpts {
   floors: number;
@@ -218,10 +224,31 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
   const w = lot.width, dep = lot.depth;
   const GH = 14, FH = 12;
   const H = GH + (o.floors - 1) * FH;
-  const wall = o.wall ?? (o.style === 'machiya' || o.style === 'izakaya' ? pick([c.woodDark, c.cedar, c.woodMid]) : pick([c.cream, c.beige, c.mint, c.sky, c.blush, c.tileWhite, c.concreteWall, c.sand2, c.terracotta, c.mustard, c.olive]));
-  const trim = o.style === 'machiya' || o.style === 'izakaya' ? c.woodDark : pick([c.trim, c.trimDark, c.tileBrown]);
+  const wood = o.style === 'machiya' || o.style === 'izakaya';
+  const wall = o.wall ?? (wood ? pick([c.woodDark, c.cedar, c.woodMid]) : o.style === 'kura' ? c.plasterWhite : o.style === 'apartment' ? pick([c.tileWhite, c.tileBrown, c.beige, c.concreteWall, c.sky]) : pick([c.cream, c.beige, c.mint, c.sky, c.blush, c.tileWhite, c.concreteWall, c.sand2, c.terracotta, c.mustard, c.olive]));
+  const trim = wood ? c.woodDark : o.style === 'kura' ? c.kuraBase : pick([c.trim, c.trimDark, c.tileBrown]);
 
   lot.box(0, 0, 0, w - 1, H - 1, dep - 1, wall);
+  if (o.style === 'kura') {
+    // namako-kabe: diagonal grid of tiles and raised plaster along the base, black skirt above
+    lot.box(0, 0, 0, w - 1, 5, dep - 1, (a, y, d) => ((a + y + d) % 4 === 0 || (a - y - d + 400) % 4 === 0 ? c.plasterWhite : c.namako));
+    lot.box(0, 6, 0, w - 1, 6, dep - 1, c.kuraBase);
+  }
+  // rear windows so backs read as lived-in from every camera angle
+  for (let f = 1; f < o.floors; f++) {
+    const base = GH + (f - 1) * FH;
+    for (let a = 2; a + 2 < w; a += 6) {
+      if (r() < 0.25) continue;
+      lot.box(a, base + 3, dep - 1, a + 2, base + 7, dep - 1, r() < 0.45 ? c.glassLit : c.glassDark);
+      if (r() < 0.3) lot.box(a, base + 2, dep, a + 2, base + 2, dep, c.trim);
+    }
+  }
+  // drainpipe and gas/electric meters on the facade edge
+  if (!wood && o.style !== 'kura') {
+    const pa = r() < 0.5 ? 0 : w - 1;
+    lot.box(pa, 0, -1, pa, H, -1, c.pipe);
+    if (o.ground !== 'stall') lot.wallProp(meters(k), pa === 0 ? 1.4 : w - 1.4, 1.1, 0);
+  }
   // tile pattern for tiled facades
   if (wall === c.tileWhite || wall === c.tileBrown) {
     lot.box(0, GH, 0, w - 1, H - 1, 0, (a, y) => ((a + y * 3) % 7 === 0 ? c.concreteWall : wall));
@@ -237,12 +264,22 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
   // upper floors
   for (let f = 1; f < o.floors; f++) {
     const base = GH + (f - 1) * FH;
-    const ww = o.style === 'modern' ? 5 : o.style === 'machiya' ? 6 : 3;
-    const gap = o.style === 'modern' ? 2 : 3;
+    if (o.style === 'kura') {
+      // small barred windows with heavy plaster shutters
+      for (let a = 3; a + 3 < w; a += 7) {
+        lot.box(a, base + 4, 0, a + 2, base + 7, 0, (aa) => ((aa - a) % 2 ? c.kuraBase : 0));
+        lot.box(a, base + 4, 1, a + 2, base + 7, 1, r() < 0.4 ? c.glassLit : c.kuraBase);
+        lot.box(a - 2, base + 4, -1, a - 1, base + 7, -1, c.plasterWhite);
+        lot.box(a - 1, base + 8, -1, a + 3, base + 8, -1, c.kuraBase);
+      }
+      continue;
+    }
+    const ww = o.style === 'modern' ? 5 : o.style === 'machiya' ? 6 : o.style === 'apartment' ? 6 : 3;
+    const gap = o.style === 'modern' || o.style === 'apartment' ? 2 : 3;
     const n = Math.max(1, Math.floor((w - 2 + gap) / (ww + gap)));
     const used = n * ww + (n - 1) * gap;
     const start = Math.floor((w - used) / 2);
-    const balcony = o.style !== 'machiya' && r() < 0.35;
+    const balcony = o.style === 'apartment' || (o.style !== 'machiya' && r() < 0.35);
     for (let i = 0; i < n; i++) {
       const a0 = start + i * (ww + gap), a1 = a0 + ww - 1;
       const lit = r() < 0.55;
@@ -251,8 +288,14 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
         lot.box(a0, base + 3, 0, a1, base + 7, 0, (a) => (a % 2 === 0 ? c.woodDark : 0));
         lot.box(a0, base + 3, 1, a1, base + 7, 1, lit ? c.glassLit : c.plaster);
       } else {
-        lot.box(a0, base + 3, 0, a1, base + 8, 0, 0);
-        lot.box(a0, base + 3, 1, a1, base + 8, 1, lit ? c.glassLit : (r() < 0.5 ? c.glass : c.glassDark));
+        const tall = o.style === 'apartment' ? 1 : 3; // apartments get full-height sliding doors
+        lot.box(a0, base + tall, 0, a1, base + 8, 0, 0);
+        lot.box(a0, base + tall, 1, a1, base + 8, 1, lit ? c.glassLit : (r() < 0.5 ? c.glass : c.glassDark));
+        if (!balcony && o.style !== 'apartment' && r() < 0.22) {
+          // flower box under the window
+          lot.box(a0, base + 2, -1, a1, base + 2, -1, c.woodMid);
+          for (let a = a0; a <= a1; a++) lot.set(a, base + 3, -1, hash3(a, base, o.seed) < 0.35 ? c.petalDeep : c.leaf);
+        }
         if (ww >= 5) lot.box(Math.floor((a0 + a1) / 2), base + 3, 1, Math.floor((a0 + a1) / 2), base + 8, 1, c.trim);
         if (!balcony) lot.box(a0, base + 2, -1, a1, base + 2, -1, c.trim);
         if (o.style === 'showa' && !balcony) {
@@ -278,11 +321,17 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
       } else if (r() < 0.5) {
         lot.wallProp(plantPot(k, 'flowers', o.seed + f), 3, (base + 1) * V, 0.15);
       }
+      if (o.style === 'apartment') {
+        // partitions between flats and an outdoor AC unit on the balcony
+        for (let a = 7; a < w - 3; a += 8) lot.box(a, base + 1, -1, a, base + 5, -2, c.concrete);
+        if (r() < 0.6) lot.wallProp(acUnit(k), w - 4, (base + 1) * V, 0.05);
+      }
     }
   }
 
   // ground floor
-  const awn = o.awning ?? pick<[number, number]>([[c.awnRed, c.awnWhite], [c.awnGreen, c.awnWhite], [c.awnBlue, c.awnWhite], [c.awnOrange, c.awnWhite], [c.awnNavy, c.awnNavy]]);
+  const awn = o.awning ?? (o.ground === 'florist' ? [c.awnGreen, c.awnGreen] as [number, number] : o.ground === 'fish' ? [c.awnBlue, c.awnWhite] as [number, number] : o.ground === 'bakery' ? [c.awnBrown, c.awnYellow] as [number, number] :
+    pick<[number, number]>([[c.awnRed, c.awnWhite], [c.awnGreen, c.awnWhite], [c.awnBlue, c.awnWhite], [c.awnOrange, c.awnWhite], [c.awnNavy, c.awnNavy], [c.awnYellow, c.awnWhite], [c.awnPink, c.awnWhite], [c.awnBrown, c.awnBrown]]));
   const awning = (a0: number, a1: number, y: number, len = 4) => {
     for (let dd = 1; dd <= len; dd++) {
       const yy = y - Math.floor((dd - 1) / 2);
@@ -320,6 +369,11 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
       awning(0, w - 1, 12, 3);
       lot.wallProp(plantPot(k, 'shrub', o.seed), 2, 0, 0.2);
       lot.wallProp(plantPot(k, 'bamboo', o.seed + 1), w - 3, 0, 0.2);
+      if (r() < 0.6) {
+        lot.wallProp(aFrame(k, o.seed + 2), w / 2 - 2, 0, 0.12);
+        const [ax, az] = lot.front(w / 2 - 2, 0.3);
+        b.block(ax - 0.3, az - 0.3, ax + 0.3, az + 0.3);
+      }
       const [lx, lz] = lot.front(w / 2, 0.8);
       b.lamp(lx, 2, lz, WARM, 5, 0.8);
       break;
@@ -354,6 +408,53 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
       b.lamp(lx, 2.4, lz, COOL, 7.5, 1.0);
       break;
     }
+    case 'florist':
+    case 'books':
+    case 'fish':
+    case 'bakery': {
+      lot.box(1, 0, 0, w - 2, 10, 2, 0);
+      lot.box(1, 0, 3, w - 2, 10, 3, o.ground === 'fish' ? c.tileWhite : c.shopGlow);
+      lot.box(1, 11, 0, w - 2, 11, 0, trim);
+      const kind = o.ground;
+      if (kind === 'florist') {
+        lot.box(1, 0, 2, w - 2, 7, 2, (a, y) => ((a * 3 + y * 5) % 4 === 0 ? (hash3(a, y, o.seed) < 0.5 ? c.petalDeep : c.mustard) : (a + y) % 3 ? c.leaf : 0));
+        awning(0, w - 1, 12, 4);
+        lot.wallProp(flowerStand(k, o.seed), w / 2, 0, -0.62);
+        lot.wallProp(plantPot(k, 'shrub', o.seed + 3), 1.6, 0, 0.12);
+      } else if (kind === 'books') {
+        lot.box(1, 0, 2, w - 2, 9, 2, (a, y) => (y % 3 === 0 ? c.woodMid : [c.lacquerDark, c.awnNavy, c.hinoki, c.awnGreen, c.trim][(a * 7 + y) % 5]));
+        lot.wallProp(bookCart(k, o.seed), w / 2 - 2, 0, -0.6);
+        lot.wallProp(bookCart(k, o.seed + 9), w / 2 + 2.2, 0, -0.6);
+        awning(0, w - 1, 12, 3);
+      } else if (kind === 'fish') {
+        lot.wallProp(fishDisplay(k, o.seed), w / 2 - 2, 0, -0.62);
+        lot.wallProp(fishDisplay(k, o.seed + 5), w / 2 + 2.2, 0, -0.62);
+        lot.box(1, 8, 2, w - 2, 9, 2, (a) => (a % 3 ? c.awnBlue : c.trim));
+        awning(0, w - 1, 12, 4);
+      } else {
+        lot.wallProp(breadShelf(k, o.seed), w / 2, 0, -0.72);
+        lot.wallProp(aFrame(k, o.seed), w - 2.5, 0, 0.12);
+        const [ax, az] = lot.front(w - 2.5, 0.3);
+        b.block(ax - 0.3, az - 0.3, ax + 0.3, az + 0.3);
+        awning(0, w - 1, 12, 3);
+      }
+      const [lx, lz] = lot.front(w / 2, 0.8);
+      b.lamp(lx, 2.2, lz, kind === 'fish' ? COOL : WARM, 4.5, 0.7);
+      break;
+    }
+    case 'pharmacy': {
+      lot.box(1, 0, 0, w - 2, 10, 0, 0);
+      lot.box(1, 0, 1, w - 2, 10, 1, (a) => ((a - 1) % 5 === 0 ? c.trim : c.konbiniGlass));
+      lot.box(0, 11, -1, w - 1, 13, -1, c.trim);
+      // green cross sign
+      const ca = 3;
+      lot.box(ca - 1, 12, -2, ca + 1, 12, -2, k.c.greenCross);
+      lot.box(ca, 11, -2, ca, 13, -2, k.c.greenCross);
+      lot.box(ca + 3, 12, -2, w - 3, 12, -2, (a) => (a % 2 ? k.c.signGreen : c.signLit));
+      const [lx, lz] = lot.front(w / 2, 1.0);
+      b.lamp(lx, 2.4, lz, [0.75, 1.0, 0.85], 5.5, 0.8);
+      break;
+    }
     case 'plain': {
       lot.box(Math.floor(w / 2) - 1, 0, 0, Math.floor(w / 2) + 1, 8, 0, 0);
       lot.box(Math.floor(w / 2) - 1, 0, 1, Math.floor(w / 2) + 1, 8, 1, c.woodMid);
@@ -364,9 +465,9 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
   }
 
   // roofs
-  const roof = o.roof ?? (o.style === 'machiya' ? 'tiled' : 'flat');
+  const roof = o.roof ?? (o.style === 'machiya' || o.style === 'kura' ? 'tiled' : 'flat');
   if (roof === 'tiled') tiledRoof(lot, H, 2, 2);
-  else flatRoof(lot, H, r);
+  else flatRoof(lot, H, r, o.signs !== false && o.floors >= 3);
 
   // vertical sign
   if (o.signs !== false && o.floors >= 2 && r() < 0.75) {
@@ -386,7 +487,7 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
   return { H };
 }
 
-function flatRoof(lot: Lot, H: number, r: () => number) {
+function flatRoof(lot: Lot, H: number, r: () => number, billboardOk = false) {
   const b = lot.b, c = b.c, k = b.k;
   const w = lot.width, dep = lot.depth;
   lot.box(0, H, 0, w - 1, H, dep - 1, (a, _y, d) => (a === 0 || d === 0 || a === w - 1 || d === dep - 1 ? c.parapet : 0));
@@ -404,6 +505,28 @@ function flatRoof(lot: Lot, H: number, r: () => number) {
   for (let i = 0; i < nAC; i++) {
     const [x, z] = lot.m(2 + r() * (w - 5), 2 + r() * (dep - 5));
     b.place(acUnit(k), x, H * V, z, Math.floor(r() * 4));
+  }
+  // antennas, planters, laundry, the odd billboard facing the street
+  if (r() < 0.4) {
+    const [x, z] = lot.m(2 + r() * (w - 4), 2 + r() * (dep - 4));
+    b.place(antenna(k), x, H * V, z, Math.floor(r() * 2));
+  }
+  if (r() < 0.35 && dep > 8) {
+    for (let i = 0; i < 2; i++) {
+      const [x, z] = lot.m(3 + i * 4 + r(), dep - 3);
+      b.place(planterBox(k, Math.floor(r() * 1e6)), x, H * V, z, lot.turns);
+    }
+  }
+  if (r() < 0.3 && w > 10) {
+    const d = 3 + Math.floor(r() * (dep - 6));
+    lot.box(2, H, d, 2, H + 6, d, c.pole); lot.box(w - 3, H, d, w - 3, H + 6, d, c.pole);
+    lot.box(2, H + 6, d, w - 3, H + 6, d, c.pole);
+    const cols = [c.laundryA, c.laundryB, c.laundryC, c.laundryD];
+    for (let a = 3; a < w - 3; a += 2) if (r() < 0.7) lot.box(a, H + 3, d, a, H + 5, d, cols[Math.floor(r() * 4)]);
+  }
+  if (billboardOk && w >= 14 && r() < 0.4) {
+    const bg = [k.c.signRed, k.c.signBlue, k.c.signYellow, k.c.signBlack][Math.floor(r() * 4)];
+    lot.wallProp(billboard(k, bg, bg === k.c.signYellow ? k.c.signBlack : k.c.white, Math.floor(r() * 1e6)), w / 2, H * V, -0.7);
   }
   if (r() < 0.3 && w > 8) {
     // stair hut
@@ -575,6 +698,13 @@ function surface(b: Builder, x: number, z: number): number {
   // street 1: running-bond pavers
   if (z >= 36 && z < 64 && x >= 24) {
     if (z === 36 || z === 63) return c.curb;
+    // gutters with drain grates along both edges
+    if (z === 37 || z === 62) return x % 10 < 2 ? c.grate : c.concreteDark;
+    // decorated manhole covers
+    for (const mx of [88, 196, 252]) {
+      const dx = x - mx, dz = z - 49;
+      if (dx * dx + dz * dz <= 6) return dx * dx + dz * dz >= 5 ? c.manhole : (x + z) % 3 === 0 ? c.manholeRed : c.manholeBlue;
+    }
     const row = Math.floor((z - 37) / 3);
     const off = row % 2 ? 3 : 0;
     if ((z - 37) % 3 === 2 || (x + off) % 6 === 5) return c.grout;
@@ -601,6 +731,8 @@ function surface(b: Builder, x: number, z: number): number {
   // canal promenade
   if (z >= 152 && z < 172) {
     if (z >= 169) return c.curb;
+    // tactile guide strip for the visually impaired, as on every Japanese pavement
+    if (z === 159 || z === 160) return (x + z) % 2 === 0 ? c.tactileDot : c.tactile;
     // tree pits
     for (const tx of TREE_X) if (Math.abs(x - tx) <= 3 && z >= 162 && z <= 168) return hash3(x, z, 1) < 0.35 ? c.petal : c.soil;
     if ((x % 8 === 7) || (z - 152) % 4 === 3) return c.graniteDark;
@@ -822,11 +954,13 @@ export function buildTokyo(): BuildResult {
   const awnPairs: [number, number][] = [[c.awnRed, c.awnWhite], [c.awnGreen, c.awnWhite], [c.awnBlue, c.awnWhite], [c.awnOrange, c.awnWhite]];
   const izakayaLanterns = [k.c.lanternRed, k.c.lanternRed, k.c.lanternWhite, k.c.lanternAmber];
 
-  const streetShop = (lot: Lot, seed: number, lanternAlt: boolean) => {
-    const ground: Ground = pick(['shop', 'shop', 'shop', 'cafe', 'shutter']);
-    const style: Style = r() < 0.3 ? 'machiya' : pick(['showa', 'modern', 'showa']);
-    building(lot, { floors: style === 'machiya' ? 2 : 2 + Math.floor(r() * 3), style, ground, seed, awning: pick(awnPairs) });
-    if (style !== 'machiya') {
+  // the side of a street nearest the default camera stays low (diorama layout); the far side rises
+  const streetShop = (lot: Lot, seed: number, lanternAlt: boolean, near = false) => {
+    const ground: Ground = pick(['shop', 'shop', 'cafe', 'shutter', 'florist', 'books', 'bakery', 'pharmacy', 'fish']);
+    const style: Style = r() < 0.22 ? 'machiya' : r() < 0.12 ? 'kura' : pick(['showa', 'modern', 'showa', 'apartment']);
+    const floors = style === 'machiya' || style === 'kura' ? 2 : near ? 2 + Math.floor(r() * 2) : 2 + Math.floor(r() * 4);
+    building(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' ? pick(awnPairs) : undefined });
+    if (style !== 'machiya' && style !== 'kura') {
       lot.wallProp(lantern(k, lanternAlt ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
       const [lx, lz] = lot.front(lot.width / 2, 0.5);
       b.lamp(lx, 3.4, lz, lanternAlt ? RED : WHITEWARM, 3.5, 0.8);
@@ -863,7 +997,7 @@ export function buildTokyo(): BuildResult {
         const lot = new Lot(b, x, 64, x + w - 1, 91, 'n');
         if (sx0 === 174 && j === 1) {
           stalls.push(stall(lot, { id: 'sakuraya', foods: ['taiyaki', 'dorayaki'], awning: [c.awnBlue, c.awnWhite], noren: k.c.navy, lantern: k.c.lanternWhite, equip: 'mold' }, 2, 202, c.mint));
-        } else streetShop(lot, 2000 + i, i % 2 === 0);
+        } else streetShop(lot, 2000 + i, i % 2 === 0, true);
         x += w;
         i++;
         j++;
@@ -983,9 +1117,10 @@ export function buildTokyo(): BuildResult {
         let w = 16 + Math.floor(r() * 3) * 4;
         if (x + w - 1 > sx1 || sx1 - (x + w - 1) < 10) w = sx1 - x + 1;
         const lot = new Lot(b, x, z0, x + w - 1, 151, 's');
-        const ground: Ground = pick(['cafe', 'cafe', 'shop', 'izakaya', 'plain']);
-        const style: Style = ground === 'izakaya' ? 'izakaya' : r() < 0.35 ? 'machiya' : pick(['showa', 'modern']);
-        building(lot, { floors: 2 + Math.floor(r() * 2), style, ground, seed: 5000 + i, awning: pick(awnPairs), lanterns: pick(izakayaLanterns) });
+        const ground: Ground = pick(['cafe', 'cafe', 'shop', 'izakaya', 'plain', 'florist', 'bakery', 'books']);
+        const style: Style = ground === 'izakaya' ? 'izakaya' : r() < 0.3 ? 'machiya' : r() < 0.12 ? 'kura' : pick(['showa', 'modern', 'apartment']);
+        const floors = style === 'machiya' || style === 'kura' ? 2 : 2 + Math.floor(r() * 3);
+        building(lot, { floors, style, ground, seed: 5000 + i, awning: ground === 'shop' || ground === 'cafe' ? pick(awnPairs) : undefined, lanterns: pick(izakayaLanterns) });
         x += w;
         i++;
       }
@@ -1134,6 +1269,39 @@ export function buildTokyo(): BuildResult {
       b.place(lantern(k, j % 2 ? k.c.lanternRed : k.c.lanternWhite, 4, 5, x * 10 + j), x * V, 3.55 - Math.sin(((j + 0.5) / 4) * Math.PI) * 0.22, z);
     }
     b.lamp(x * V, 3.6, 12.5, WARM, 4, 0.5);
+  }
+
+  // --- Street furniture: the small clutter that makes a Tokyo street feel lived in
+  {
+    const solid = (x: number, z: number, hx: number, hz: number) => b.block(x - hx, z - hz, x + hx, z + hz);
+    // parked delivery scooters and bicycles along the north facades of Kaminari Lane
+    for (const [x, col] of [[19.6, k.c.cubRed], [46.8, k.c.vmBlue], [61.4, k.c.cubRed]] as [number, number][]) {
+      b.place(scooter(k, col), x, 0, 9.42, 0);
+      solid(x, 9.42, 0.8, 0.22);
+    }
+    for (const x of [38.7, 39.5, 40.3]) b.place(bicycle(k, [k.c.bikeSilver, k.c.bikeMint, k.c.bikeRed][Math.round(x * 10) % 3]), x, 0, 9.35, 0);
+    solid(39.5, 9.35, 1.2, 0.2);
+    // post box and recycling corner by the konbini
+    b.place(postBox(k), 68.9, 0, 9.5, 0);
+    solid(68.9, 9.5, 0.4, 0.4);
+    b.place(binCorner(k), 69.45, 0, 15.2, 3);
+    solid(69.45, 15.2, 0.3, 0.5);
+    // convex mirror and bollards at the mouth of Lantern Alley
+    b.place(trafficMirror(k), 34.2, 0, 16.3, 0);
+    solid(34.2, 16.3, 0.12, 0.12);
+    for (const x of [34.9, 36.6]) { b.place(bollard(k), x, 0, 16.15, 0); solid(x, 16.15, 0.12, 0.12); }
+    // jizō statues keeping watch beside the hokora
+    for (const x of [1.95, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); }
+    // café terrace tables on the promenade
+    for (const [x, col] of [[9.6, k.c.fabricRed], [11.4, k.c.fabricWhite], [43.6, k.c.fabricGreen], [45.4, k.c.fabricWhite], [65.2, k.c.fabricOrange]] as [number, number][]) {
+      b.place(cafeTable(k, col), x, 0, 38.65, 0);
+      solid(x, 38.65, 0.3, 0.3);
+      b.place(stool(k, k.c.woodLight), x + 0.55, 0, 38.65);
+    }
+    // a scooter and planters on the far bank lane
+    b.place(scooter(k, k.c.cubCream), 22.5, 0, 54.4, 2);
+    solid(22.5, 54.4, 0.8, 0.22);
+    for (const x of [40, 48.5, 57]) { b.place(plantPot(k, 'shrub', Math.round(x)), x, 0, 54.6); solid(x, 54.6, 0.3, 0.3); }
   }
 
   // --- Lucky cats (hidden clue statues)

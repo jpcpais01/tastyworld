@@ -23,7 +23,12 @@ export function makeSharedUniforms() {
     uBounds: { value: new THREE.Vector4(0, 0, 72, 56) },
     uCutPos: { value: new THREE.Vector3() },
     uCamFwd: { value: new THREE.Vector3(0, -1, 0) },
-    uCutRadius: { value: 3.2 },
+    uCutRadius: { value: 9 },
+    uCutH: { value: 1.15 },
+    uCutOn: { value: 0 },
+    tHeight: { value: null as THREE.Texture | null },
+    uHeightRect: { value: new THREE.Vector4(0, 0, 1, 1) },
+    uViewProj: { value: new THREE.Matrix4() },
   };
 }
 export type SharedUniforms = ReturnType<typeof makeSharedUniforms>;
@@ -184,6 +189,7 @@ export class Renderer {
     const gl = this.gl;
     const cam = this.camera;
     cam.updateMatrixWorld();
+    this.shared.uViewProj.value.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     // scene
     gl.setRenderTarget(this.rtScene);
     gl.setClearColor(0x000000, 1);

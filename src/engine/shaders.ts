@@ -119,9 +119,19 @@ uniform vec3 uCharLamp;
 uniform float uFlash;
 #endif
 #ifdef CUTAWAY
-uniform vec3 uCutPos;
+uniform vec3 uCutPos;      // player feet
 uniform vec3 uCamFwd;
-uniform float uCutRadius;
+uniform float uCutRadius;  // radius of the sliced area around the player (m)
+uniform float uCutH;       // world height of the slicing plane
+uniform float uCutOn;      // 0..1 fade
+uniform sampler2D tHeight; // per-column top of the solid run that starts at street level (0.25 m units)
+uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres)
+uniform mat4 uViewProj;
+float solidTop(vec2 xz) {
+  vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return -100.0;
+  return texture(tHeight, uv).r * 255.0 * 0.25;
+}
 #endif
 flat in vec3 vNormal;
 flat in vec4 vEdge;
@@ -145,12 +155,23 @@ float bayer4(vec2 p) {
 
 void main() {
 #ifdef CUTAWAY
-  vec3 rel = vWorld - uCutPos;
-  float along = dot(rel, uCamFwd);
-  vec3 lat = rel - uCamFwd * along;
-  float r = length(lat);
-  float cut = (1.0 - smoothstep(uCutRadius * 0.55, uCutRadius, r)) * smoothstep(-0.4, -1.6, along) * smoothstep(0.35, 0.9, vWorld.y - uCutPos.y);
-  if (cut > bayer4(gl_FragCoord.xy)) discard;
+  // Slice everything between the camera and the player's surroundings down to a plane just above
+  // the street. Where the view ray enters solid building mass at that plane, draw a section cap;
+  // where it does not, discard so the street behind shows through.
+  bool capped = false;
+  vec3 capP = vec3(0.0);
+  if (uCutOn > 0.001 && vWorld.y > uCutH) {
+    vec3 P = vWorld + uCamFwd * ((vWorld.y - uCutH) / max(0.05, -uCamFwd.y));
+    // radius is measured where the ray meets the plane (what the fragment hides); front/back is measured
+    // at the fragment itself, so facades behind the player are never touched
+    vec2 rel = P.xz - uCutPos.xz;
+    float along = dot(vWorld.xz - uCutPos.xz, normalize(uCamFwd.xz));
+    float k = uCutOn * (1.0 - smoothstep(uCutRadius * 0.82, uCutRadius, length(rel))) * (1.0 - smoothstep(0.15, 0.75, along));
+    if (k > bayer4(gl_FragCoord.xy)) {
+      if (solidTop(P.xz) > uCutH + 0.04) { capped = true; capP = P; }
+      else discard;
+    }
+  }
 #endif
   vec3 n = vNormal;
   // per-voxel colour jitter
@@ -208,6 +229,28 @@ void main() {
   vec2 outside = max(uBounds.xy - vWorld.xz, vWorld.xz - uBounds.zw);
   float fo = smoothstep(0.0, 9.0, max(outside.x, outside.y));
   col = mix(col, uFogColor, fo);
+#ifdef CUTAWAY
+  if (capped) {
+    // section cap: dark poché with faint voxel grid and a warm outline along the walls
+    float e = 0.0, o = 0.07, th = uCutH + 0.04;
+    e += step(solidTop(capP.xz + vec2(o, 0.0)), th);
+    e += step(solidTop(capP.xz - vec2(o, 0.0)), th);
+    e += step(solidTop(capP.xz + vec2(0.0, o)), th);
+    e += step(solidTop(capP.xz - vec2(0.0, o)), th);
+    vec2 gq = abs(fract(capP.xz * 4.0) - 0.5);
+    float grid = step(0.44, max(gq.x, gq.y));
+    vec3 lightC = uSkyColor * 0.55 + uSunColor * 0.22 + uLamp * vec3(0.25, 0.16, 0.08);
+    vec3 base = srgb2lin(vec3(0.3, 0.26, 0.28)) * (1.0 + grid * 0.35 + (rnd - 0.5) * 0.06);
+    col = base * (0.35 + lightC);
+    col = mix(col, srgb2lin(vec3(0.98, 0.86, 0.68)) * (0.45 + lightC * 0.6), min(1.0, e) * 0.9);
+  }
+  if (capped) {
+    vec4 cp = uViewProj * vec4(capP, 1.0);
+    gl_FragDepth = cp.z / cp.w * 0.5 + 0.5;
+  } else {
+    gl_FragDepth = gl_FragCoord.z;
+  }
+#endif
 #ifdef ICON
   col *= 1.15;
   col = clamp((col * (2.51 * col + 0.03)) / (col * (2.43 * col + 0.59) + 0.14), 0.0, 1.0);

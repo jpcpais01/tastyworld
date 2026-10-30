@@ -1,7 +1,8 @@
 import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
-import { Renderer, voxelMaterial, Quality, groundApron, distantSkyline } from './engine/renderer';
+import { Renderer, voxelMaterial, Quality } from './engine/renderer';
+import { farCity } from './engine/farcity';
 import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
 import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
@@ -289,9 +290,9 @@ class Game {
     // double-sided so a neighbour's unmeshed party wall shows its far side instead of a hole
     this.matCut.side = THREE.DoubleSide;
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
-    this.worldGroup.add(groundApron(sh, [WX0, WZ0, WX1, WZ1]));
     // the rest of Tokyo beyond the map, with gaps where the canal and the two avenues carry on
-    this.worldGroup.add(distantSkyline(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]]));
+    const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]]);
+    this.worldGroup.add(far.ground, far.city);
     sh.uBounds.value.set(WX0, WZ0, WX1, WZ1);
     this.cam.bounds = [WX0 + 2, WZ0 + 2, WX1 - 2, WZ1 - 2];
     this.r.composite.uniforms.uWaterBounds.value.set(WX0 - 5, WZ0 - 5, WX1 + 5, WZ1 + 5);
@@ -315,6 +316,7 @@ class Game {
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
     this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile);
     this.streamer.dist = this.viewDist;
+    this.streamer.fadeMaterial = () => voxelMaterial(sh, { SWAY: 1, LODFADE: 1 }, { uFade: { value: new THREE.Vector2() } });
     this.streamer.onMesh = (c, m) => {
       const [x0, z0, x1, z1] = this.streamer.rect(c);
       c.occ = this.cutaway.touching(x0, z0, x1, z1);
@@ -324,7 +326,11 @@ class Game {
     this.setHeightField(false);
     // compile the cutaway shader up front (the Kakurega uses it too) so the first building to lower doesn't hitch
     this.insideGroup.visible = true;
+    // and the level-of-detail dissolve, so the first swap doesn't either
+    const fadeProbe = new THREE.Mesh(new THREE.BufferGeometry(), this.streamer.fadeMaterial());
+    this.insideGroup.add(fadeProbe);
     this.r.gl.compile(this.r.scene, this.r.camera);
+    fadeProbe.removeFromParent();
     this.insideGroup.visible = false;
     const shore = new THREE.DataTexture(w.shore, w.nav.sx, w.nav.sz, THREE.RedFormat, THREE.UnsignedByteType);
     shore.magFilter = shore.minFilter = THREE.LinearFilter;
@@ -1694,6 +1700,7 @@ class Game {
       for (let i = 0; i < c.occ.length && !cut; i++) cut = act[c.occ[i]];
       if (cut !== c.cut) {
         c.cut = cut;
+        this.streamer.endFade(c);
         const mat = cut ? this.matCut : this.matWorld;
         for (const m of c.lv) if (m) m.material = mat;
       }

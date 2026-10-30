@@ -223,6 +223,10 @@ uniform vec3 uCharLight; // sun, sky, highlight
 uniform vec3 uCharLamp;
 uniform float uFlash;
 #endif
+#ifdef LODFADE
+uniform vec2 uFade; // share of pixels the new level draws (0..1); y = 1 draws the rest (the level going away)
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+#endif
 #ifdef CUTAWAY
 uniform vec3 uCamFwd;
 uniform float uCutOn;      // 0 or 1: off in first person and on the title screen
@@ -311,6 +315,12 @@ float sunShadow(vec3 n, out float w) {
 #endif
 
 void main() {
+#ifdef LODFADE
+  // level-of-detail swap: old and new meshes split the pixels by a 4x4 ordered dither, so it dissolves instead of popping
+  ivec2 bq = ivec2(gl_FragCoord.xy) & 3;
+  bool keep = (BAYER[bq.y * 4 + bq.x] + 0.5) / 16.0 < uFade.x;
+  if (keep == (uFade.y > 0.5)) discard;
+#endif
 #ifdef CUTAWAY
   // Whole-object cutaway: anything owned by a lowered occluder is removed above that occluder's cut
   // height. Where the view ray meets solid wall of the same occluder at that height, a section cap is

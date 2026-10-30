@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.2',
+    date: '2026-10-30',
+    title: 'Solid all round',
+    items: [
+      'Fixed being able to see through the sides of everyone\'s body: torsos, hips, shoulders and necks are solid from every angle now, for you, the locals and your co-op friends.',
+      'Bent elbows and knees no longer open a hole on the outside of the joint. Swing an arm, sit down or break into a run and the limb stays in one piece.',
+    ],
+  },
+  {
     version: '0.8.1',
     date: '2026-10-30',
     title: 'A quieter, cozier street',

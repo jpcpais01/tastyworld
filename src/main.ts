@@ -3,10 +3,13 @@ import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
 import { Renderer, voxelMaterial, Quality, groundApron } from './engine/renderer';
 import { TimeOfDay } from './engine/timeOfDay';
-import type { BakedWorld, LightMap2D } from './world/bake';
+import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
+import { assemble } from './world/assemble';
+import type { WorkerIn, WorkerOut } from './world/worker';
+import { Streamer, StreamView } from './engine/streamer';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, randomLook, Look } from './world/characters';
-import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ } from './world/layout';
+import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
 import { Actor, Anim, geometryFrom } from './game/actors';
@@ -102,6 +105,9 @@ class Game {
   private insideGroup = new THREE.Group();
   private chunks: { mesh: THREE.Mesh; box: THREE.Box3; cut: boolean; occ: number[] }[] = [];
   private cutaway!: Cutaway;
+  private workers: Worker[] = [];
+  private partOf: (iz: number) => number = () => 0;
+  private streamer!: Streamer;
   private matWorld!: THREE.ShaderMaterial;
   private matCut!: THREE.ShaderMaterial;
   private heightWorld!: THREE.DataTexture;
@@ -191,38 +197,53 @@ class Game {
 
   // ------------------------------------------------------------------ loading
   async load(): Promise<void> {
-    const parts = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1));
+    // each worker builds the whole city but keeps only its strip of chunk rows; fewer on phones to save memory
+    const cores = navigator.hardwareConcurrency || 2;
+    const parts = Math.max(1, Math.min(this.r.isMobile ? 2 : 4, cores - 1));
     const progress = new Array(parts).fill(0);
     let stage = 'Packing your bags…';
-    const results = await Promise.all(Array.from({ length: parts }, (_, part) => new Promise<BakedWorld>((resolve, reject) => {
-      const worker = new Worker(new URL('./world/worker.ts', import.meta.url), { type: 'module' });
-      worker.onmessage = (e: MessageEvent<{ type: string; stage?: string; f?: number; world?: BakedWorld }>) => {
+    this.workers = Array.from({ length: parts }, () => new Worker(new URL('./world/worker.ts', import.meta.url), { type: 'module' }));
+    const inits = await Promise.all(this.workers.map((worker, part) => new Promise<PartInit>((resolve, reject) => {
+      const on = (e: MessageEvent<WorkerOut>) => {
         if (e.data.type === 'progress') {
-          progress[part] = e.data.f ?? 0;
-          if (part === 0 && e.data.stage) stage = e.data.stage + '…';
-          this.ui.loading(progress.reduce((a, b) => a + b, 0) / parts * 0.9, stage);
-        } else if (e.data.type === 'done') {
-          resolve(e.data.world!);
-          worker.terminate();
+          progress[part] = e.data.f;
+          if (part === 0) stage = e.data.stage + '…';
+          this.ui.loading(progress.reduce((a, b) => a + b, 0) / parts * 0.8, stage);
+        } else if (e.data.type === 'ready') {
+          worker.removeEventListener('message', on);
+          resolve(e.data.init);
         }
       };
+      worker.addEventListener('message', on);
       worker.onerror = (err) => reject(err);
-      worker.postMessage({ part, parts });
+      worker.postMessage({ type: 'init', part, parts } satisfies WorkerIn);
     })));
-    const w = results[0];
-    for (let i = 1; i < results.length; i++) w.chunks.push(...results[i].chunks);
-    this.w = w;
-    this.ui.loading(0.93, 'Hanging the lanterns…');
+    this.w = assemble(inits);
+    const rowsOf = inits.map((p) => p.rows);
+    this.partOf = (iz: number) => Math.max(0, rowsOf.findIndex(([r0, r1]) => iz >= r0 && iz < r1));
+    this.ui.loading(0.82, 'Hanging the lanterns…');
     await sleep(16);
     this.buildScene();
+    // stream in what the title screen shows before lifting the curtain
+    this.ui.loading(0.86, 'Raising the rooftops…');
+    this.titleView();
+    this.updateCamera(0.016);
+    const done = this.streamer.ready();
+    const tick = setInterval(() => this.streamer.update(0.05, this.streamView()), 50);
+    await done;
+    clearInterval(tick);
     this.ui.loading(0.97, 'Plating the dishes…');
     await sleep(16);
     this.ui.icons = renderDishIcons(this.r.gl, DISHES.map((d) => d.id));
     this.ui.loading(1, 'Itadakimasu!');
     // warm up shaders with one frame
     this.tod.apply(this.r);
-    this.updateCamera(0.016);
     this.r.render();
+  }
+
+  /** What the chunk streamer should keep loaded for the current camera. */
+  private streamView(): StreamView {
+    return { cam: this.r.view, fp: this.cam.fp, focus: this.started ? this.player.position : this.cam.target };
   }
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
@@ -239,12 +260,11 @@ class Game {
     this.matCut = voxelMaterial(sh, { CUTAWAY: 1 });
     // double-sided so a neighbour's unmeshed party wall shows its far side instead of a hole
     this.matCut.side = THREE.DoubleSide;
-    for (const md of w.chunks) {
-      const m = this.mesh(md, this.matWorld, this.worldGroup);
-      this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false, occ: [] });
-    }
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
-    this.worldGroup.add(groundApron(sh, [0, 0, 72, 56]));
+    this.worldGroup.add(groundApron(sh, [WX0, WZ0, WX1, WZ1]));
+    sh.uBounds.value.set(WX0, WZ0, WX1, WZ1);
+    this.cam.bounds = [WX0 + 2, WZ0 + 2, WX1 - 2, WZ1 - 2];
+    this.r.composite.uniforms.uWaterBounds.value.set(WX0 - 5, WZ0 - 5, WX1 + 5, WZ1 + 5);
     const tagGroups: Record<string, THREE.Group> = { 'door-closed': this.doorClosed, 'door-open': this.doorOpen, 'shelf-closed': this.shelfClosed, 'shelf-open': this.shelfOpen };
     for (const t of w.tagged) {
       const m = this.mesh(t.mesh, this.matWorld, tagGroups[t.tag] ?? this.worldGroup);
@@ -268,12 +288,13 @@ class Game {
       { rect: [iox, ioz, iox + ISX * V, ioz + 3 * V], top: 4.5, low: 0.95, kind: 'landmark' },
     ], w.nav, w.interiorNav);
     sh.tCut.value = this.cutaway.cut;
-    for (const c of this.chunks) {
-      for (let i = 0; i < this.cutaway.occ.length; i++) {
-        const [x0, z0, x1, z1] = this.cutaway.bounds(i);
-        if (x0 < c.box.max.x && x1 > c.box.min.x && z0 < c.box.max.z && z1 > c.box.min.z) c.occ.push(i);
-      }
-    }
+    for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
+    this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile);
+    this.streamer.onMesh = (c, m) => {
+      const [x0, z0, x1, z1] = this.streamer.rect(c);
+      c.occ = this.cutaway.touching(x0, z0, x1, z1);
+      m.material = c.cut ? this.matCut : this.matWorld;
+    };
     this.setHeightField(false);
     // compile the cutaway shader up front (the Kakurega uses it too) so the first building to lower doesn't hitch
     this.insideGroup.visible = true;
@@ -654,11 +675,16 @@ class Game {
   }
 
   // ------------------------------------------------------------------ start
-  title(): void {
+  /** The slow orbit over the old town behind the title screen. */
+  private titleView(): void {
     this.cam.target.set(34, 0, 30);
     this.cam.zoom = 30;
     this.cam.setOrbit(0.05);
     this.cam.snap();
+  }
+
+  title(): void {
+    this.titleView();
     this.ui.loaded();
     this.travel.title();
     this.bindInput();
@@ -899,9 +925,9 @@ class Game {
       const hd = a.hiddenDoor;
       this.player.position.set(hd.stand[0] - 0.6, 0, hd.stand[1]);
       this.player.facing = this.player.targetFacing = -Math.PI / 2;
-      this.cam.bounds = [2, 3, 70, 54];
+      this.cam.bounds = [WX0 + 2, WZ0 + 2, WX1 - 2, WZ1 - 2];
       this.cam.zoom = this.r.isMobile ? 15 : 17;
-      this.r.shared.uBounds.value.set(0, 0, 72, 56);
+      this.r.shared.uBounds.value.set(WX0, WZ0, WX1, WZ1);
     }
     this.player.position.y = this.nav.heightAt(this.player.position.x, this.player.position.z);
     this.cam.target.copy(this.player.position);
@@ -1450,6 +1476,16 @@ class Game {
       for (let i = 0; i < c.occ.length && !cut; i++) cut = act[c.occ[i]];
       if (cut !== c.cut) { c.cut = cut; c.mesh.material = cut ? this.matCut : this.matWorld; }
     }
+    for (const c of this.streamer.resident) {
+      let cut = false;
+      for (let i = 0; i < c.occ.length && !cut; i++) cut = act[c.occ[i]];
+      if (cut !== c.cut) {
+        c.cut = cut;
+        const mat = cut ? this.matCut : this.matWorld;
+        if (c.full) c.full.material = mat;
+        if (c.lod) c.lod.material = mat;
+      }
+    }
   }
 
   private updateCamera(dt: number): void {
@@ -1481,6 +1517,7 @@ class Game {
     this.updateNPCs(dt);
     this.updateNear();
     this.updateCamera(dt);
+    this.streamer.update(dt, this.streamView(), !this.inside);
     this.updateCutaway(dt);
     const fp = this.cam.fp;
     this.player.root.visible = !fp;
@@ -1534,6 +1571,8 @@ async function boot() {
   try {
     await game.load();
     game.title();
+    // ?debug exposes the game for automated screenshots and console poking
+    if (new URLSearchParams(location.search).has('debug')) (window as unknown as { game: Game }).game = game;
   } catch (e) {
     console.error(e);
     game.ui.loadError('Something went wrong while building Tokyo.');

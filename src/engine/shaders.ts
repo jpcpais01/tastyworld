@@ -144,7 +144,7 @@ uniform vec3 uCamFwd;
 uniform float uCutOn;      // 0 or 1: off in first person and on the title screen
 uniform sampler2D tHeight; // per-column top of the solid run that starts at street level (0.25 m units)
 uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres), shared by tHeight and tOwner
-uniform sampler2D tOwner;  // per column: R = occluder id, G = 1 on the building's shell (see game/cutaway.ts)
+uniform sampler2D tOwner;  // per column: occluder id (R low byte, G high bits << 1) and a shell flag in G's low bit (see game/cutaway.ts)
 uniform sampler2D tCut;    // per id: shell height near side, shell height far side, inside height, far-side start
 uniform mat4 uViewProj;
 float solidTop(vec2 xz) {
@@ -157,11 +157,14 @@ float cutAt(vec2 xz, vec2 fwdH, out float id) {
   vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
   id = 0.0;
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return 1e4;
-  vec2 o = texelFetch(tOwner, ivec2(uv * vec2(textureSize(tOwner, 0))), 0).rg;
-  id = floor(o.r * 255.0 + 0.5);
+  vec2 o = floor(texelFetch(tOwner, ivec2(uv * vec2(textureSize(tOwner, 0))), 0).rg * 255.0 + 0.5);
+  // R = low byte of the id, G = high bits of the id << 1 | shell flag
+  float hi = floor(o.g * 0.5);
+  id = o.r + hi * 256.0;
   if (id < 0.5) return 1e4;
-  vec4 c = texelFetch(tCut, ivec2(int(id), 0), 0);
-  if (o.g < 0.5) return c.z;
+  int ii = int(id);
+  vec4 c = texelFetch(tCut, ivec2(ii % 64, ii / 64), 0);
+  if (o.g - hi * 2.0 < 0.5) return c.z;
   return dot(xz, fwdH) > c.w ? c.y : c.x;
 }
 #endif

@@ -1,15 +1,24 @@
 import { bakeWorld } from '../src/world/bake';
 const t = performance.now();
 const w = bakeWorld((s, f) => process.stdout.write(`${s} ${(f * 100) | 0}%  ${((performance.now() - t) | 0)}ms\n`));
-let verts = 0;
-for (const c of w.chunks) verts += c.vertexCount;
-console.log('chunks', w.chunks.length, 'verts', verts, 'faces', w.stats.faces, 'lamps', w.stats.lamps, 'ms', w.stats.ms | 0);
+console.log('baked', 'lamps', w.stats.lamps, 'ms', w.stats.ms | 0, 'world MB', (w.stats.bytes / 1e6).toFixed(1), 'heap MB', (process.memoryUsage().heapUsed / 1e6).toFixed(0), 'rss MB', (process.memoryUsage().rss / 1e6).toFixed(0));
+{
+  // mesh every chunk once, full and half resolution, to measure the streamed totals
+  const { CHUNKS_X, CHUNKS_Z } = await import('../src/world/layout');
+  let verts = 0, lodVerts = 0, n = 0, maxV = 0;
+  const tm = performance.now();
+  for (let iz = 0; iz < CHUNKS_Z; iz++) for (let ix = 0; ix < CHUNKS_X; ix++) {
+    const m = w.part.mesh(ix, iz, false); if (m) { verts += m.vertexCount; n++; maxV = Math.max(maxV, m.vertexCount); }
+    if (process.argv.includes('--lod')) { const l = w.part.mesh(ix, iz, true); if (l) lodVerts += l.vertexCount; }
+  }
+  console.log('chunks', n, 'verts', verts, 'max chunk verts', maxV, 'lod verts', lodVerts, 'mesh ms', (performance.now() - tm) | 0);
+}
 console.log('tagged', w.tagged.map((t) => t.tag + ':' + t.mesh.vertexCount));
 console.log('interior chunks', w.interiorChunks.length);
 let walk = 0; for (const h of w.nav.height) if (h !== 255) walk++;
 console.log('walkable cells', walk, '/', w.nav.height.length);
 const a = w.anchors;
-const navH = (x: number, z: number) => w.nav.height[Math.floor(z / 0.25) * w.nav.sx + Math.floor(x / 0.25)];
+const navH = (x: number, z: number) => w.nav.height[Math.floor((z - w.nav.oz) / 0.25) * w.nav.sx + Math.floor((x - w.nav.ox) / 0.25)];
 console.log('spawn', navH(a.spawn[0], a.spawn[2]));
 for (const s of a.stalls) console.log('stall', s.id, s.stand.map(v=>v.toFixed(1)), navH(s.stand[0], s.stand[1]));
 for (const n of a.graph.nodes) if (navH(n[0], n[1]) === 255) console.log('BLOCKED node', n);

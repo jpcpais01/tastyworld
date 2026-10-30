@@ -1,7 +1,10 @@
-import { Grid, rng, hash3 } from './grid';
+import { SparseGrid, rng, hash3 } from './grid';
 import { Palette } from './palette';
 import type { Lamp } from './lighting';
-import { G, SX, SY, SZ, V, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
+import { G, SX, SY, SZ, V, VX0, VZ0, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
+
+/** Extent of the original district (voxels from the origin), which the city grows around. */
+const OSX = 288;
 import {
   Prop, rotateProp, makePropColors, PropKit, lantern, giantLantern, verticalSign, boardSign, noren, vendingMachine,
   acUnit, crateStack, stool, plantPot, stoneLantern, incenseBurner, streetLamp, bench, bicycle, nobori, manekiNeko, wire,
@@ -71,12 +74,12 @@ export interface Anchors {
 }
 
 export interface BuildResult {
-  grid: Grid;
+  grid: SparseGrid;
   pal: Palette;
   props: PlacedProp[];
   lamps: Lamp[];
   anchors: Anchors;
-  interior: { grid: Grid; props: PlacedProp[]; lamps: Lamp[] };
+  interior: { grid: SparseGrid; props: PlacedProp[]; lamps: Lamp[] };
   /** Voxel boxes of indoor air that get a soft ambient light. */
   indoor: [number, number, number, number, number, number][];
 }
@@ -130,8 +133,11 @@ function worldColors(pal: Palette) {
 
 export type WC = ReturnType<typeof worldColors>;
 
+/** Builder voxel columns a worker keeps: [x0, z0, x1, z1), exclusive end. */
+export type Window = [number, number, number, number];
+
 export class Builder {
-  grid = new Grid(SX, SY, SZ);
+  grid: SparseGrid;
   pal = new Palette();
   c: WC;
   k: PropKit;
@@ -150,7 +156,9 @@ export class Builder {
   occluders: Occluder[] = [];
   benches: [number, number, number][] = [];
 
-  constructor() {
+  constructor(win?: Window) {
+    const w = win ?? [VX0, VZ0, VX0 + SX, VZ0 + SZ];
+    this.grid = new SparseGrid(VX0, VZ0, SX, SY, SZ, w[0], w[1], w[2], w[3]);
     this.c = worldColors(this.pal);
     this.k = { pal: this.pal, c: makePropColors(this.pal) };
     this.ic = interiorColors(this.pal);
@@ -221,6 +229,8 @@ export class Lot {
     return this.b.grid.get(x, G + y, z);
   }
   box(a0: number, y0: number, d0: number, a1: number, y1: number, d1: number, c: number | ((a: number, y: number, d: number) => number)) {
+    const [xa, za] = this.xz(a0, d0), [xb, zb] = this.xz(a1, d1);
+    if (!this.b.grid.touches(xa, za, xb, zb)) return;
     for (let a = Math.min(a0, a1); a <= Math.max(a0, a1); a++)
       for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
         for (let d = Math.min(d0, d1); d <= Math.max(d0, d1); d++) this.set(a, y, d, typeof c === 'function' ? c(a, y, d) : c);
@@ -715,14 +725,15 @@ function equipment(k: PropKit, kind: StallSpec['equip']): Prop {
 function terrain(b: Builder) {
   const g = b.grid, c = b.c;
   // bedrock + earth
-  g.box(0, 0, 0, SX - 1, G - 2, SZ - 1, c.earth);
-  // surface layer
-  for (let z = 0; z < SZ; z++)
-    for (let x = 0; x < SX; x++) g.set(x, G - 1, z, surface(b, x, z));
-  // canal
-  g.box(0, 4, 172, SX - 1, G - 1, 199, 0);
+  const XE = VX0 + SX - 1, ZE = VZ0 + SZ - 1;
+  g.box(VX0, 0, VZ0, XE, G - 2, ZE, c.earth);
+  // surface layer: the original district keeps its hand-laid paving, the rest of the city is painted by city.ts
+  for (let z = 0; z < 224; z++)
+    for (let x = 0; x < OSX; x++) if (g.inside(x, G - 1, z)) g.set(x, G - 1, z, surface(b, x, z));
+  // canal, running the full width of the city
+  g.box(VX0, 4, 172, XE, G - 1, 199, 0);
   for (let z = 172; z <= 199; z++)
-    for (let x = 0; x < SX; x++) {
+    for (let x = VX0; x <= XE; x++) {
       const h = hash3(x, 3, z);
       g.set(x, 3, z, h < 0.5 ? c.pebble : h < 0.8 ? c.sand : c.canalStoneDark);
       if (h > 0.985) g.set(x, 4, z, c.canalStoneDark);
@@ -730,7 +741,7 @@ function terrain(b: Builder) {
     }
   // canal walls
   for (const zw of [171, 200])
-    for (let x = 0; x < SX; x++)
+    for (let x = VX0; x <= XE; x++)
       for (let y = 4; y < G; y++) {
         const course = Math.floor((y - 4) / 2);
         const off = course % 2 ? 3 : 0;
@@ -750,7 +761,7 @@ function terrain(b: Builder) {
   const boulder = (cx: number, cz: number, rad: number, top: number, seed: number) => {
     for (let z = Math.floor(cz - rad); z <= cz + rad; z++)
       for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
-        if (x < 0 || x >= SX || z < 172 || z > 199) continue;
+        if (x < VX0 || x > XE || z < 172 || z > 199) continue;
         const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz) / rad;
         if (d > 1) continue;
         const h = Math.round(top - d * d * 2.5 + (hash3(x, seed, z) - 0.5));
@@ -758,7 +769,7 @@ function terrain(b: Builder) {
       }
   };
   const rr = rng(4242);
-  for (let x = 2; x < SX - 2; x += 3 + Math.floor(rr() * 6)) {
+  for (let x = VX0 + 2; x < XE - 2; x += 3 + Math.floor(rr() * 6)) {
     if (free(x, bridgesX)) boulder(x + rr() * 2, 172.4 + rr() * 1.2, 1.2 + rr() * 1.3, 8 + Math.floor(rr() * 3), x);
     if (free(x, bridgesX) && free(x, boatsX)) boulder(x + rr() * 2, 198.6 - rr() * 1.2, 1.2 + rr() * 1.5, 8 + Math.floor(rr() * 3), x + 999);
   }
@@ -1034,8 +1045,8 @@ function gate(b: Builder) {
 
 // ---------------------------------------------------------------------------------------------
 
-export function buildTokyo(): BuildResult {
-  const b = new Builder();
+export function buildTokyo(win?: Window): BuildResult {
+  const b = new Builder(win);
   const g = b.grid, c = b.c, k = b.k;
   const r = b.r;
   const pick = <T,>(arr: T[]) => arr[Math.floor(r() * arr.length)];
@@ -1082,7 +1093,7 @@ export function buildTokyo(): BuildResult {
       x += w;
       i++;
     }
-    g.box(40, G, 0, SX - 1, G + 10, 3, c.concreteWall);
+    g.box(40, G, 0, OSX - 1, G + 10, 3, c.concreteWall);
   }
 
   // --- Kaminari Lane, south side (facades face -z at z=64)
@@ -1242,10 +1253,10 @@ export function buildTokyo(): BuildResult {
       sakuraTree(b, tx, 165, 700 + tx);
       b.block(tx * V - 0.1, 165 * V - 0.1, tx * V + 0.65, 165 * V + 0.65);
     }
-    for (let x = 4; x < SX - 4; x += 4) {
+    for (let x = 4; x < OSX - 4; x += 4) {
       if ((x >= 54 && x <= 73) || (x >= 210 && x <= 229) || (x >= 122 && x <= 137)) continue;
       g.box(x, G, 170, x, G + 2, 170, c.stone);
-      if (x + 4 < SX - 4 && !(x + 4 >= 54 && x + 4 <= 73) && !(x + 4 >= 210 && x + 4 <= 229) && !(x + 4 >= 122 && x + 4 <= 137)) g.box(x, G + 2, 170, x + 3, G + 2, 170, c.stone);
+      if (x + 4 < OSX - 4 && !(x + 4 >= 54 && x + 4 <= 73) && !(x + 4 >= 210 && x + 4 <= 229) && !(x + 4 >= 122 && x + 4 <= 137)) g.box(x, G + 2, 170, x + 3, G + 2, 170, c.stone);
     }
     for (const lx of [8, 32, 68, 104, 140, 168, 200, 236, 260]) {
       b.place(streetLamp(k), lx * V + 0.3, 0, 168.6 * V, 0);
@@ -1332,8 +1343,8 @@ export function buildTokyo(): BuildResult {
       b.block(tx * V - 0.1, 213 * V - 0.1, tx * V + 0.65, 213 * V + 0.65);
     }
     let x = 0;
-    while (x < SX) {
-      const w = Math.min(SX - x, 20 + Math.floor(r() * 3) * 4);
+    while (x < OSX) {
+      const w = Math.min(OSX - x, 20 + Math.floor(r() * 3) * 4);
       const lot = new Lot(b, x, 216, x + w - 1, 223, 'n');
       lot.box(0, 0, 0, w - 1, 9, lot.depth - 1, pick([c.plaster, c.woodDark, c.cedar]));
       lot.box(2, 1, 0, w - 3, 7, 0, (a) => (a % 2 ? c.woodDark : c.shoji));
@@ -1534,7 +1545,7 @@ export function buildTokyo(): BuildResult {
 // Kakurega: the hidden sushi counter, a dollhouse diorama with the two camera-facing walls removed.
 
 function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
-  const g = new Grid(ISX, ISY, ISZ);
+  const g = new SparseGrid(0, 0, ISX, ISY, ISZ);
   const c = b.c, k = b.k;
   const props: PlacedProp[] = [];
   const lamps: Lamp[] = [];

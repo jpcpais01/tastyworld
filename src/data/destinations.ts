@@ -49,11 +49,6 @@ export const DESTINATIONS: Destination[] = [
     menu: [['🥧', 'Pastel de nata'], ['🥪', 'Bifana'], ['🐟', 'Sardinhas']],
   },
   {
-    id: 'marrakech', city: 'Marrakech', country: 'Morocco', local: 'مراكش', code: 'RAK', flag: '🇲🇦', lat: 31.63, lon: -7.99, open: false,
-    blurb: 'Jemaa el-Fnaa at dusk: smoke, storytellers and a hundred food stalls.',
-    menu: [['🫓', 'Msemen'], ['🍲', 'Harira'], ['🫖', 'Mint tea']],
-  },
-  {
     id: 'mexico', city: 'Mexico City', country: 'Mexico', local: 'CDMX', code: 'MEX', flag: '🇲🇽', lat: 19.43, lon: -99.13, open: false,
     blurb: 'Taquerías on every corner and elote carts ringing their bells.',
     menu: [['🌮', 'Tacos al pastor'], ['🌽', 'Elote'], ['🫔', 'Tamales']],

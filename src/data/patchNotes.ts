@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.7.3',
+    date: '2026-10-30',
+    title: 'A shorter list of departures',
+    items: [
+      'Marrakech is no longer on the world map. The coming-soon destinations are now Seoul, Bangkok, Istanbul, Naples, Lisbon and Mexico City.',
+    ],
+  },
+  {
     version: '0.7.2',
     date: '2026-10-30',
     title: 'A cleaner see-through view',

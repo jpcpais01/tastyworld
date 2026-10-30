@@ -2,8 +2,10 @@ import type { Quality } from '../engine/renderer';
 
 export interface Settings {
   quality: Quality | 'auto';
-  music: boolean;
-  sfx: boolean;
+  /** Volumes 0..1. */
+  musicVol: number;
+  ambVol: number;
+  sfxVol: number;
   tilt: boolean;
   dayLength: number;
 }
@@ -37,7 +39,7 @@ const KEY = 'tastyworld.save.v1';
 export function defaultState(): SaveState {
   return {
     v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [],
-    settings: { quality: 'auto', music: true, sfx: true, tilt: true, dayLength: 720 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
+    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
   };
 }
 
@@ -47,7 +49,12 @@ export function loadState(): SaveState {
     if (!raw) return defaultState();
     const s = JSON.parse(raw) as Partial<SaveState>;
     const d = defaultState();
-    return { ...d, ...s, settings: { ...d.settings, ...(s.settings ?? {}) }, flags: { ...d.flags, ...(s.flags ?? {}) }, profile: { ...d.profile, ...(s.profile ?? {}) } } as SaveState;
+    // older saves had on/off switches for music and effects
+    const old = (s.settings ?? {}) as Partial<Settings> & { music?: boolean; sfx?: boolean };
+    if (old.music === false && old.musicVol === undefined) old.musicVol = 0;
+    if (old.sfx === false && old.sfxVol === undefined) { old.sfxVol = 0; old.ambVol = 0; }
+    delete old.music; delete old.sfx;
+    return { ...d, ...s, settings: { ...d.settings, ...old }, flags: { ...d.flags, ...(s.flags ?? {}) }, profile: { ...d.profile, ...(s.profile ?? {}) } } as SaveState;
   } catch {
     return defaultState();
   }

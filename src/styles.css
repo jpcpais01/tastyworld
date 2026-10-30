@@ -501,6 +501,13 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .set-row .sl .g { width: 20px; height: 20px; color: var(--ink-3); }
 .set-row .seg button { padding: 7px 11px; font-size: 12.5px; }
 @media (max-width: 420px) { .set-row { flex-wrap: wrap; } .set-row .seg { width: 100%; } .set-row .seg button { flex: 1; justify-content: center; } }
+/* volume slider */
+.vol { -webkit-appearance: none; appearance: none; width: min(190px, 46vw); height: 28px; background: none; margin: 0; cursor: pointer; --p: 50%; }
+.vol::-webkit-slider-runnable-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--matcha) var(--p), var(--cream-3) var(--p)); box-shadow: inset 0 1px 2px rgba(60, 34, 16, 0.15); }
+.vol::-moz-range-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--matcha) var(--p), var(--cream-3) var(--p)); box-shadow: inset 0 1px 2px rgba(60, 34, 16, 0.15); }
+.vol::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -7px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 3px rgba(60, 34, 16, 0.3); }
+.vol::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 3px rgba(60, 34, 16, 0.3); }
+.vol:focus-visible { outline: 2px solid var(--tomato); outline-offset: 4px; border-radius: 99px; }
 .set-foot { text-align: center; font-size: 12px; font-weight: 700; color: var(--ink-3); margin: 18px 0 0; }
 
 /* patch notes */

@@ -1,7 +1,4 @@
-/**
- * Where the street sounds come from, keyed by position (metres) so new districts can add their own.
- * Shop radios come from the walkable rooms instead (see STATIONS in game/audio.ts).
- */
+/** Where the (quiet) street sounds come from, keyed by position (metres) so new districts can add their own. */
 
 export type Floor = 'stone' | 'wood' | 'tile' | 'gravel' | 'grass';
 
@@ -11,12 +8,5 @@ export const FLOORS: { rect: [number, number, number, number]; floor: Floor }[] 
   { rect: [0, 49.8, 72, 56], floor: 'grass' }, // cherry bank
 ];
 
-/**
- * Point sources. temple: the big bell rung at dusk, dawn and now and then. crossing: a level crossing with
- * trains rolling through (the nearest one is heard). water: lapping water within r metres (ponds; the canal is
- * handled by the game).
- */
-export const SOUND_SPOTS: { kind: 'temple' | 'crossing' | 'water'; pos: [number, number]; r?: number }[] = [
-  { kind: 'temple', pos: [3.5, 9] },
-  { kind: 'crossing', pos: [130, -10] },
-];
+/** Point sources. water: gently lapping water within r metres (ponds; the canal is handled by the game). */
+export const SOUND_SPOTS: { kind: 'water'; pos: [number, number]; r?: number }[] = [];

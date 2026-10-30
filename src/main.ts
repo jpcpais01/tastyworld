@@ -905,7 +905,7 @@ class Game {
     const R = THREE.MathUtils.clamp(this.cam.zoom * 0.27, 3.6, 7) * (this.inside ? 0.8 : 1);
     sh.uCutOn.value = this.cutOn;
     sh.uCutRadius.value = R;
-    sh.uCutH.value = p.y + 1.0;
+    sh.uCutH.value = p.y + 1.1; // between voxel layers so the section cap never z-fights a floor
     sh.uCutPos.value.set(p.x, p.y, p.z);
     sh.uCamFwd.value.copy(this.cam.fwd);
     if (this.inside) return;
@@ -927,7 +927,7 @@ class Game {
 
   private updateCamera(dt: number): void {
     if (this.started) this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
-    this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight));
+    this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
   }
 
   private frame(now: number): void {

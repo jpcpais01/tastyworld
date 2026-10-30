@@ -16,7 +16,8 @@ export const PATCH_NOTES: PatchNote[] = [
       'The water has softer, more natural edges. Waves lap against the banks, foam gathers in lacy bands along the stones, and the walls look wet just above the waterline.',
       'The canal banks are wilder, with tumbled boulders along the walls, reed beds and lily pads on the far side.',
       'The see-through view is smarter. Only what is actually between the camera and you gets cut away, so buildings beside you and farther off stay whole.',
-      'The cut now sits lower, just above the floor, and has cleaner edges.',
+      'The cut now sits lower, just above the floor. Its edge melts away voxel by voxel instead of in a noisy dotted fringe.',
+      'Less flicker: the camera now moves in whole pixels, so thin details like poles, signs and neon stop shimmering while you walk, and the cut-away edges no longer flicker.',
     ],
   },
   {

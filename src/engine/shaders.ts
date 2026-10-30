@@ -146,13 +146,6 @@ in float vAO;
 in float vSky;
 layout(location = 0) out vec4 outColor;
 
-float bayer4(vec2 p) {
-  ivec2 q = ivec2(mod(p, 4.0));
-  int i = q.x + q.y * 4;
-  int m[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);
-  return (float(m[i]) + 0.5) / 16.0;
-}
-
 void main() {
 #ifdef CUTAWAY
   // Cut a window through whatever stands between the camera and the player. A fragment is removed when
@@ -170,7 +163,11 @@ void main() {
     float along = dot(vWorld.xz - uCutPos.xz, fwdH);
     float edge = uCutRadius * 0.09 + 0.2;
     float k = uCutOn * (1.0 - smoothstep(uCutRadius - edge, uCutRadius, lateral)) * (1.0 - smoothstep(-0.2, 0.25, along));
-    if (k > bayer4(gl_FragCoord.xy)) {
+    // dissolve threshold anchored to the voxel, not the screen, so the soft edge doesn't crawl as the view moves
+    ivec3 cc = ivec3(floor(vCell / vScale + 0.001)) + 4096;
+    uint ch = uint(cc.x) * 73856093u ^ uint(cc.y) * 19349663u ^ uint(cc.z) * 83492791u;
+    ch = (ch ^ (ch >> 13u)) * 1274126177u;
+    if (k > (float((ch >> 8u) & 1023u) + 0.5) / 1024.0) {
       vec3 P = vWorld + uCamFwd * ((vWorld.y - uCutH) / max(0.05, -uCamFwd.y));
       // only cap mass in front of the player: a ray that lands behind them belongs to the facade there
       if (dot(P.xz - uCutPos.xz, fwdH) < 0.35 && solidTop(P.xz) > uCutH + 0.04) { capped = true; capP = P; }
@@ -245,7 +242,8 @@ void main() {
     vec2 gq = abs(fract(capP.xz * 4.0) - 0.5);
     float grid = step(0.44, max(gq.x, gq.y));
     vec3 lightC = uSkyColor * 0.55 + uSunColor * 0.22 + uLamp * vec3(0.25, 0.16, 0.08);
-    vec3 base = srgb2lin(vec3(0.3, 0.26, 0.28)) * (1.0 + grid * 0.35 + (rnd - 0.5) * 0.06);
+    // colour depends on the cap point only: several fragments along one ray write the same cap, so they must agree
+    vec3 base = srgb2lin(vec3(0.3, 0.26, 0.28)) * (1.0 + grid * 0.35 + (fract(sin(dot(floor(capP.xz * 4.0), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.06);
     col = base * (0.35 + lightC);
     col = mix(col, srgb2lin(vec3(0.98, 0.86, 0.68)) * (0.45 + lightC * 0.6), min(1.0, e) * 0.9);
   }

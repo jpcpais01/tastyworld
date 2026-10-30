@@ -78,6 +78,8 @@ export class Renderer {
   readonly composite: THREE.ShaderMaterial;
   private w = 1;
   private h = 1;
+  /** Render target height in pixels. */
+  get pixelHeight(): number { return this.h; }
   private frameTimes: number[] = [];
   private lastAdapt = 0;
   autoQuality = true;

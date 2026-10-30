@@ -41,7 +41,8 @@ export class IsoCamera {
     this.orbit = speed;
   }
 
-  update(dt: number, aspect: number): void {
+  /** pxH: height of the render target in pixels, used to snap the view to whole pixels (kills crawling edges). */
+  update(dt: number, aspect: number, pxH = 0): void {
     if (this.orbit) this.yaw += this.orbit * dt;
     const k = 1 - Math.exp(-dt * 6);
     const t = this.target.clone();
@@ -63,6 +64,13 @@ export class IsoCamera {
       focus.x += (Math.random() - 0.5) * this.shake;
       focus.z += (Math.random() - 0.5) * this.shake;
       this.shake = Math.max(0, this.shake - dt * 0.5);
+    } else if (pxH > 0) {
+      // move the view in whole render pixels so static voxels never shimmer while the camera glides
+      const texel = h / pxH;
+      const rx = new THREE.Vector3(0, 1, 0).cross(dir).normalize();
+      const uy = dir.clone().cross(rx);
+      const r = focus.dot(rx), u = focus.dot(uy);
+      focus.addScaledVector(rx, Math.round(r / texel) * texel - r).addScaledVector(uy, Math.round(u / texel) * texel - u);
     }
     c.position.copy(focus).addScaledVector(dir, 120);
     c.lookAt(focus);

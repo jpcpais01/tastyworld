@@ -99,7 +99,15 @@ void main() {
   vLight = aLight;
   vQuad = aQuad;
   vAO = aPack.y / 255.0;
-  gl_Position = projectionMatrix * viewMatrix * wp;
+  vec4 vp = viewMatrix * wp;
+  // Props (fine voxels) often sit flush on the coarse world, e.g. a sign over window trim, so their faces can be
+  // coplanar with world faces and z-fight. Nudge fine voxels a hair towards the camera, along the view ray so the
+  // image does not move: relative to distance in perspective, a fixed few millimetres in the ortho view.
+  if (sIdx > 0.5) {
+    if (projectionMatrix[2][3] < -0.5) vp.xyz *= 0.9992;
+    else vp.z += 0.005;
+  }
+  gl_Position = projectionMatrix * vp;
 }
 `;
 
@@ -349,7 +357,7 @@ void main() {
  * Water is not geometry. Every pixel whose scene surface lies below the water plane is shaded as water:
  * the view ray is intersected with the plane, the optical path through the water gives Beer-Lambert
  * absorption and in-scattering, the floor gets animated caustics, a few ray-marched samples produce
- * light shafts, and the surface gets refraction, screen-space reflections, fresnel, foam and sun glints.
+ * light shafts, and the surface gets refraction, screen-space reflections, fresnel and sun glints.
  */
 export const COMPOSITE_FRAG = /* glsl */ `
 precision highp float;
@@ -424,10 +432,6 @@ float shoreDist(vec2 xz) {
 }
 
 const vec2 FLOW = vec2(0.3, 0.0); // the canal drifts gently east, m/s
-
-float lace(vec2 p) {
-  return vnoise(p * 3.1) * 0.55 + vnoise(p * 7.7 + 3.1) * 0.3 + vnoise(p * 16.3 - 1.7) * 0.15;
-}
 
 float caustic(vec2 p, float t) {
   vec2 q = p * 1.35;
@@ -552,23 +556,8 @@ void main() {
     vec3 hv = normalize(uSunDir - rd);
     float spec = pow(max(dot(nrm, hv), 0.0), 220.0) * 3.0 + pow(max(dot(nrm, hv), 0.0), 30.0) * 0.12;
     water += uSunColor * spec;
-    // shoreline foam: a crisp contact line at the stone, broken lace that rolls in with the lapping
-    // waves, and thin streaks carried downstream mid-channel. The lace is advected with a two-phase
-    // flow map so it drifts without smearing.
     float slow = smoothstep(0.0, 1.6, dEdge);
-    vec2 fl = FLOW * (0.25 + 0.75 * slow) + sg.yx * vec2(-1.0, 1.0) * 0.02;
-    float ph0 = fract(uTime * 0.16), ph1 = fract(uTime * 0.16 + 0.5);
-    float w0 = 1.0 - abs(1.0 - 2.0 * ph0);
-    float L = mix(lace(sp.xz - fl * ph1 * 6.0 + 7.3), lace(sp.xz - fl * ph0 * 6.0), w0);
-    float band = exp(-dEdge / 0.42);
-    float roll = 0.5 + 0.5 * sin(dEdge * 10.0 + uTime * 2.4 + L * 4.0);
-    float contact = smoothstep(0.1, 0.0, dEdge + (L - 0.5) * 0.12) * (0.75 + 0.25 * roll);
-    float lacy = smoothstep(0.6, 0.74, L * 0.7 + roll * 0.32 * band + band * 0.28) * band;
-    float streak = smoothstep(0.8, 0.88, vnoise(vec2((sp.x - FLOW.x * uTime) * 0.6, sp.z * 7.0)) * 0.8 + L * 0.25) * slow * 0.35;
-    float foam = clamp(max(contact, lacy) + streak, 0.0, 1.0);
     vec3 lightF = uSunColor * (0.35 + 0.65 * max(uSunDir.y, 0.0)) + uSkyHorizon * 0.6 + uSkyTop * 0.25;
-    vec3 foamCol = vec3(0.93, 0.96, 0.98) * clamp(lightF, 0.08, 1.6);
-    water = mix(water, foamCol, foam * 0.82);
     // cherry petals floating downstream
     vec2 pp = (sp.xz - FLOW * uTime * (0.4 + 0.6 * slow)) * 2.3;
     vec2 cell = floor(pp);

@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.10.2',
+    version: '0.10.3',
     date: '2026-10-30',
     title: 'The little things',
     items: [
@@ -18,6 +18,14 @@ export const PATCH_NOTES: PatchNote[] = [
       'House fronts gained vending machines, grey utility cabinets and the odd bit of road works with cones, and every building now sits on a darker stone or concrete plinth.',
       'Posters and sale stickers in the shop windows, paper notices on closed shutters and bills pasted on bare side walls.',
       'Inside the shops: a clock on the wall, a calendar, a framed print, and the paper menu strips that line every izakaya and soba shop.',
+    ],
+  },
+  {
+    version: '0.10.2',
+    date: '2026-10-30',
+    title: 'Performance overlay in Settings',
+    items: [
+      'The performance overlay now has its own switch in Settings, under Look. It works on any device, including touch screens, and stays on until you switch it off. F3 still toggles it on a keyboard.',
     ],
   },
   {

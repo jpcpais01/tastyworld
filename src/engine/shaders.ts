@@ -106,9 +106,18 @@ in vec4 aLight;
 in vec4 aQuad;
 uniform float uTime;
 #ifdef CHARACTER
+#ifdef POSE_TEXTURE
+#include <batching_pars_vertex>
+// one body per batch instance: its texels hold 12 part rotations, 12 pivots, root offset + flash, light, lamp
+// (layout in game/charbatch.ts)
+uniform highp sampler2D tPose;
+flat out vec4 vCharLight; // sun, sky, highlight, flash
+flat out vec3 vCharLamp;
+#else
 uniform vec3 uPivot[12];
 uniform vec3 uRot[12]; // pitch, yaw, roll
 uniform vec3 uOffset;
+#endif
 // skeleton: torso <- head, arms <- forearms; hips <- thighs <- shins (see PART in characters.ts)
 const int PARENT[12] = int[12](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3);
 #endif
@@ -165,16 +174,29 @@ void main() {
   vCell = position - n * (0.5 * vScale);
   vec3 p = position;
 #ifdef CHARACTER
+#ifdef POSE_TEXTURE
+  int body = int(getIndirectIndex(gl_DrawID)) * 32, pw = textureSize(tPose, 0).x;
+#define POSE(k) texelFetch(tPose, ivec2((body + (k)) % pw, (body + (k)) / pw), 0)
+  vec4 off = POSE(24);
+  vCharLight = vec4(POSE(25).xyz, off.w);
+  vCharLamp = POSE(26).xyz;
+#define ROT(k) POSE(k).xyz
+#define PIV(k) POSE(12 + (k)).xyz
+#else
+  vec4 off = vec4(uOffset, 0.0);
+#define ROT(k) uRot[k]
+#define PIV(k) uPivot[k]
+#endif
   int j = int(aPack.w + 0.5);
   for (int k = 0; k < 3; k++) {
     if (j < 0) break;
-    vec3 a = uRot[j];
+    vec3 a = ROT(j), pv = PIV(j);
     mat3 R = rotY(a.y) * rotX(a.x) * rotZ(a.z);
-    p = R * (p - uPivot[j]) + uPivot[j];
+    p = R * (p - pv) + pv;
     n = R * n;
     j = PARENT[j];
   }
-  p += uOffset;
+  p += off.xyz;
   vSky = 1.0;
 #else
   vSky = aPack.w / 255.0;
@@ -186,6 +208,10 @@ void main() {
 #ifdef USE_INSTANCING
   vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
   vNormal = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * n);
+#elif defined(USE_BATCHING)
+  mat4 bm = getBatchingMatrix(getIndirectIndex(gl_DrawID));
+  vec4 wp = modelMatrix * bm * vec4(p, 1.0);
+  vNormal = normalize(mat3(modelMatrix) * mat3(bm) * n);
 #else
   vec4 wp = modelMatrix * vec4(p, 1.0);
   vNormal = normalize(mat3(modelMatrix) * n);
@@ -230,9 +256,17 @@ uniform mat4 uShadowMat;
 uniform vec4 uShadow; // strength (0 = baked only), normal offset (m), one texel in uv, taps
 #endif
 #ifdef CHARACTER
+#ifdef POSE_TEXTURE
+flat in vec4 vCharLight;
+flat in vec3 vCharLamp;
+#define uCharLight vCharLight.xyz
+#define uCharLamp vCharLamp
+#define uFlash vCharLight.w
+#else
 uniform vec3 uCharLight; // sun, sky, highlight
 uniform vec3 uCharLamp;
 uniform float uFlash;
+#endif
 #endif
 #ifdef LODFADE
 uniform vec2 uFade; // share of pixels the new level draws (0..1); y = 1 draws the rest (the level going away)

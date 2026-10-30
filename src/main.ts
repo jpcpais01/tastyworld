@@ -20,6 +20,7 @@ import { Nav } from './game/nav';
 import { PathService } from './game/paths';
 import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
+import { CharacterBatch } from './game/charbatch';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
 import { Cutaway } from './game/cutaway';
@@ -130,6 +131,8 @@ class Game {
   /** Scratch list of people near the player, nearest first, for the sway shader. */
   private nudgers: [number, Actor][] = [];
   private drawn: Actor[] = [];
+  /** Every character's body, drawn in one call. */
+  private chars: CharacterBatch;
   private perf!: Perf;
   private matCut!: THREE.ShaderMaterial;
   private heightWorld!: THREE.DataTexture;
@@ -189,6 +192,8 @@ class Game {
       this.save();
     });
     this.cam = new IsoCamera(this.r.camera, this.r.persp);
+    this.chars = new CharacterBatch(this.r.shared);
+    this.r.scene.add(this.chars.mesh);
     this.r.scene.add(this.worldGroup, this.insideGroup);
     this.insideGroup.visible = false;
     const hooks: GameHooks = {
@@ -271,6 +276,7 @@ class Game {
     this.ui.loading(1, 'Itadakimasu!');
     // warm up shaders with one frame
     this.tod.apply(this.r);
+    this.chars.sync();
     this.r.render();
   }
 
@@ -388,7 +394,7 @@ class Game {
     for (const sa of a.stalls) {
       const st = STALL[sa.id];
       if (!st) continue;
-      const act = new Actor(buildPerson(st.vendorLook), sh);
+      const act = new Actor(buildPerson(st.vendorLook), this.chars);
       act.position.set(sa.vendor[0], this.navWorld.heightAt(sa.vendor[0], sa.vendor[1]), sa.vendor[1]);
       act.facing = act.targetFacing = sa.vendor[2];
       act.anim = 'cook';
@@ -435,7 +441,7 @@ class Game {
     }
     // chef inside the hidden restaurant
     const kak = STALL.kakurega;
-    this.chef = new Actor(buildPerson(kak.vendorLook), sh);
+    this.chef = new Actor(buildPerson(kak.vendorLook), this.chars);
     this.chef.position.set(a.chef[0], 0, a.chef[2]);
     this.chef.facing = this.chef.targetFacing = 0;
     this.chef.anim = 'cook';
@@ -455,7 +461,7 @@ class Game {
     for (const id of a.idlers) {
       const info = IDLERS[id.id];
       if (!info) continue;
-      const act = new Actor(buildPerson(info.look), sh);
+      const act = new Actor(buildPerson(info.look), this.chars);
       act.position.set(id.pos[0], this.navWorld.heightAt(id.pos[0], id.pos[2]), id.pos[2]);
       const face = Math.random() * Math.PI * 2;
       act.facing = act.targetFacing = face;
@@ -486,10 +492,10 @@ class Game {
       },
       quiet: () => !this.started || this.ui.busy,
     }, {
-      person: (look) => lazy(new Actor(buildPerson(look), sh, false, true)),
-      dog: (seed) => { const d = lazy(new Actor(buildDog(seed), sh, true, true)); d.dog = true; return d; },
-      vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), sh, true, true)),
-      boat: (seed) => lazy(new Actor(swanBoatModel(seed), sh, true, true)),
+      person: (look) => lazy(new Actor(buildPerson(look), this.chars, false, true)),
+      dog: (seed) => { const d = lazy(new Actor(buildDog(seed), this.chars, true, true)); d.dog = true; return d; },
+      vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), this.chars, true, true)),
+      boat: (seed) => lazy(new Actor(swanBoatModel(seed), this.chars, true, true)),
     });
     this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
@@ -501,7 +507,7 @@ class Game {
 
     // cats
     a.cats.forEach((c, i) => {
-      const act = new Actor(buildCat(77 + i * 13), sh, true);
+      const act = new Actor(buildCat(77 + i * 13), this.chars, true);
       act.position.set(c[0], this.navWorld.heightAt(c[0], c[2]), c[2]);
       act.anim = 'sit';
       act.facing = act.targetFacing = i * 2.1;
@@ -558,14 +564,13 @@ class Game {
   }
 
   private buildRoom(rm: RoomAnchor): void {
-    const sh = this.r.shared;
     const place = PLACES[rm.kind];
     const [name, jp] = roomName(rm.kind, rm.nth);
     const buy = rm.spots.find((sp) => sp.kind === 'buy');
     rm.npcs.forEach((n, i) => {
       const keeper = n.role === 'keeper';
       const info = keeper ? keeperOf(rm.kind, rm.nth, n.seed) : { name: 'Regular', look: randomLook(n.seed) };
-      const act = new Actor(buildPerson(info.look), sh);
+      const act = new Actor(buildPerson(info.look), this.chars, false, true); // built when first near
       act.position.set(n.pos[0], n.sit ? n.pos[1] - SIT_DROP : this.navWorld.heightAt(n.pos[0], n.pos[2]), n.pos[2]);
       act.facing = act.targetFacing = n.facing;
       const anim = n.sit ? 'sit' : keeper && (rm.kind === 'izakaya' || rm.kind === 'bakery') ? 'cook' : 'idle';
@@ -706,7 +711,7 @@ class Game {
   rebuildPlayer(): void {
     const old = this.player;
     this.lookColor = this.s.profile.color;
-    this.player = new Actor(buildPerson(playerLook(this.s.wear, this.s.profile.color)), this.r.shared);
+    this.player = new Actor(buildPerson(playerLook(this.s.wear, this.s.profile.color)), this.chars);
     if (old) {
       this.player.position.copy(old.position);
       this.player.facing = this.player.targetFacing = old.facing;
@@ -1255,7 +1260,7 @@ class Game {
       if (!rm) {
         const wear: Record<string, boolean> = {};
         for (const w of p.wear) wear[w] = true;
-        const actor = new Actor(buildPerson(playerLook(wear, p.color)), this.r.shared);
+        const actor = new Actor(buildPerson(playerLook(wear, p.color)), this.chars);
         actor.position.set(st[0], st[1], st[2]);
         actor.facing = actor.targetFacing = st[3];
         actor.flash = 1;
@@ -1829,7 +1834,7 @@ class Game {
     this.audio.tick(this.tod.night);
     // the pocket map covers the screen, so the world can rest under it
     this.perf.beginRender();
-    if (!this.cityMap.isOpen) this.r.render();
+    if (!this.cityMap.isOpen) { this.chars.sync(); this.r.render(); }
     if (this.perf.on) this.perf.endRender({ chunks: this.streamer.resident.size, people: this.drawn.length, scale: this.r.renderScale, quality: this.r.quality });
     this.r.adapt(raw, now);
   }

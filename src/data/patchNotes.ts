@@ -8,13 +8,53 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.10.3',
+    version: '0.10.7',
     date: '2026-10-30',
     title: 'A lighter crowd',
     items: [
       'Everyone in the city (people, cats, dogs, bikes and swan boats) is now drawn together in a single pass instead of one at a time. Busy streets and the big crowds at the station and the park cost far less to draw, which helps most on slower computers and phones.',
       'Character bodies are built from bigger, cleaner blocks: they look exactly the same with about a quarter of the geometry.',
       'Shopkeepers and regulars inside the shops are now only built when you first come near, so the city loads lighter.',
+    ],
+  },
+  {
+    version: '0.10.6',
+    date: '2026-10-30',
+    title: 'Steady cutaway',
+    items: [
+      'Fixed lowered buildings shaking and flickering slightly. Once a building has gone down to let you see yourself, it now stays perfectly still until you step out from behind it.',
+    ],
+  },
+  {
+    version: '0.10.5',
+    date: '2026-10-30',
+    title: 'Keep walking with the map open',
+    items: [
+      'Opening the pocket map no longer stops you. If you tapped somewhere to walk there, you keep walking while the map is open and can watch your arrow move along the streets.',
+      'If you arrive at a stall while the map is open, its menu opens as soon as you fold the map away.',
+    ],
+  },
+  {
+    version: '0.10.4',
+    date: '2026-10-30',
+    title: 'The little things',
+    items: [
+      'The roads look like real Tokyo roads now: manhole covers (painted ones on the shopping streets), drains along the gutters, stop lines, arrows and crossing diamonds on the avenues, patches of newer asphalt, and 止まれ painted where the lanes meet the bigger streets.',
+      'Traffic signals with walk lights stand at the avenue crossings, and convex mirrors watch the blind corners of the lanes.',
+      'Cables are strung between the houses across the lanes, the way they are all over the city.',
+      'House fronts gained vending machines, grey utility cabinets and the odd bit of road works with cones, and every building now sits on a darker stone or concrete plinth.',
+      'Posters and sale stickers in the shop windows, paper notices on closed shutters and bills pasted on bare side walls.',
+      'Inside the shops: a clock on the wall, a calendar, a framed print, and the paper menu strips that line every izakaya and soba shop.',
+    ],
+  },
+  {
+    version: '0.10.3',
+    date: '2026-10-30',
+    title: 'Better fitting clothes',
+    items: [
+      'Skirts no longer stick out from the hips like a wide box. They now sit on the legs, swing with each step and end at the knee with a small flare.',
+      'Yukata robes and shop aprons move with the legs too, so they no longer look stiff when people walk or sit down.',
+      'Some people now wear shorts.',
     ],
   },
   {

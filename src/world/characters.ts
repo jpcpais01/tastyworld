@@ -36,6 +36,8 @@ export interface Look {
   accent: number;
   bottom: number;
   skirt?: boolean;
+  /** Knee-length shorts (ignored with a skirt). */
+  shorts?: boolean;
   shoes: number;
   hat?: 'cap' | 'headband' | 'chef' | 'straw' | 'bucket' | 'beanie' | 'none';
   hatColor?: number;
@@ -59,7 +61,7 @@ export function randomLook(seed: number): Look {
   const hats: Look['hat'][] = ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'];
   return {
     skin: pick(SKINS), hair: pick(HAIRS), hairStyle: pick(hairStyles), top: pick(TOPS), topStyle,
-    accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.3, shoes: pick(SHOES),
+    accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.25, shoes: pick(SHOES), shorts: r() < 0.12,
     hat: pick(hats), hatColor: pick(TOPS), backpack: r() < 0.15 ? pick(TOPS) : undefined, glasses: r() < 0.15,
   };
 }
@@ -81,14 +83,16 @@ export function buildPerson(look: Look): CharModel {
   const skin = C(look.skin, 0.02), hair = C(look.hair, 0.06), top = C(look.top), accent = C(look.accent), bottom = C(look.bottom), shoes = C(look.shoes, 0.03);
   const dark = C(0x1d1a1c, 0.01), white = C(0xf8f6f0, 0.01), blush = C(0xf09a90, 0.02), mouth = C(0xb0584a, 0.02);
 
-  // legs
-  if (look.skirt && look.topStyle !== 'yukata') {
-    box(2, 2, 2, 4, 3, 5, skin, PART.legL); box(5, 2, 2, 7, 3, 5, skin, PART.legR);
-    box(2, 4, 2, 4, 7, 5, bottom, PART.legL); box(5, 4, 2, 7, 7, 5, bottom, PART.legR);
-    box(1, 5, 1, 8, 8, 6, bottom, PART.body);
-  } else {
-    box(2, 2, 2, 4, 7, 5, bottom, PART.legL); box(5, 2, 2, 7, 7, 5, bottom, PART.legR);
-  }
+  // legs: everything below the waist hangs off the thighs and shins, so it moves with them instead of
+  // sticking out of the hips as a stiff box
+  const leg = (y0: number, y1: number, c: number) => { box(2, y0, 2, 4, y1, 5, c, PART.legL); box(5, y0, 2, 7, y1, 5, c, PART.legR); };
+  if (look.topStyle === 'yukata') leg(2, 7, top); // the robe falls to the ankles
+  else if (look.skirt) {
+    // a knee-length skirt, flaring a single voxel at the hem
+    leg(2, 3, skin); leg(4, 7, bottom);
+    box(1, 4, 2, 1, 4, 5, bottom, PART.legL); box(8, 4, 2, 8, 4, 5, bottom, PART.legR);
+  } else if (look.shorts) { leg(2, 4, skin); leg(5, 7, bottom); }
+  else leg(2, 7, bottom);
   box(2, 0, 2, 4, 1, 6, shoes, PART.legL); box(5, 0, 2, 7, 1, 6, shoes, PART.legR);
 
   // torso
@@ -123,13 +127,14 @@ export function buildPerson(look: Look): CharModel {
       break;
     }
     case 'apron':
-      box(2, 4, 5, 7, 12, 6, accent, PART.body);
+      // bib on the chest, the skirt of the apron in front of each thigh so it swings with the stride
+      box(2, 8, 5, 7, 12, 6, accent, PART.body);
       box(3, 13, 5, 6, 13, 5, accent, PART.body);
+      box(2, 4, 6, 4, 7, 6, accent, PART.legL); box(5, 4, 6, 7, 7, 6, accent, PART.legR);
       break;
     case 'yukata': {
       const obi = accent;
-      box(2, 2, 2, 7, 14, 5, top, PART.body);
-      box(1, 2, 2, 8, 4, 6, top, PART.body);
+      box(2, 8, 2, 7, 14, 5, top, PART.body);
       box(2, 9, 2, 7, 10, 6, obi, PART.body);
       box(4, 11, 5, 5, 14, 5, C(0xf2efe7), PART.body);
       box(0, 10, 3, 1, 14, 4, top, PART.armL); box(8, 10, 3, 9, 14, 4, top, PART.armR);
@@ -225,6 +230,8 @@ export function buildPerson(look: Look): CharModel {
       const i = y * W * D + z * W + x;
       const c = grid.get(x, y, z);
       if (!c || parts[i] !== from) continue;
+      // a cap row must stay hidden inside the limb above at rest
+      if (rows > 1 && (parts[i + W * D] !== from || !grid.get(x, y + 1, z))) continue;
       for (let k = 0; k < rows; k++) { caps.grid.set(x, y + k, z, c); caps.parts[i + k * W * D] = to; }
     }
   };

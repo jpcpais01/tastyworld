@@ -21,15 +21,14 @@ export function makeSharedUniforms() {
     uEmitDay: { value: 0.5 },
     uCloud: { value: 0.25 },
     uBounds: { value: new THREE.Vector4(0, 0, 72, 56) },
-    uCutPos: { value: new THREE.Vector3() },
     uCamFwd: { value: new THREE.Vector3(0, -1, 0) },
-    uCutRadius: { value: 9 },
-    uCutH: { value: 1.15 },
     uCutOn: { value: 0 },
     /** First-person distance fog: camera position and density (0 = off). */
     uFog: { value: new THREE.Vector4(0, 0, 0, 0) },
     tHeight: { value: null as THREE.Texture | null },
     uHeightRect: { value: new THREE.Vector4(0, 0, 1, 1) },
+    tOwner: { value: null as THREE.Texture | null },
+    tCut: { value: null as THREE.Texture | null },
     uViewProj: { value: new THREE.Matrix4() },
   };
 }

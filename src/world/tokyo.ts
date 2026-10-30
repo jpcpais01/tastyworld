@@ -31,6 +31,19 @@ export interface Emitter {
   rate: number;
 }
 
+/**
+ * Something tall that may stand between the camera and the player. The cutaway lowers it as a whole
+ * (see game/cutaway.ts): rect in metres, top of everything it owns, and the height it is cut down to.
+ */
+export interface Occluder {
+  rect: [number, number, number, number];
+  top: number;
+  low: number;
+  kind: 'building' | 'landmark' | 'tree';
+  /** Occluders sharing a group always lower together. */
+  group?: number;
+}
+
 export interface Anchors {
   spawn: [number, number, number];
   stalls: StallAnchor[];
@@ -52,6 +65,7 @@ export interface Anchors {
   /** Tiny daruma dolls hidden inside the shops. */
   darumas: [number, number, number][];
   secret: SecretAnchor | null;
+  occluders: Occluder[];
 }
 
 export interface BuildResult {
@@ -131,6 +145,7 @@ export class Builder {
   secret: SecretAnchor | null = null;
   indoor: [number, number, number, number, number, number][] = [];
   stallAnchors: StallAnchor[] = [];
+  occluders: Occluder[] = [];
 
   constructor() {
     this.c = worldColors(this.pal);
@@ -153,6 +168,11 @@ export class Builder {
 
   block(x0: number, z0: number, x1: number, z1: number) {
     this.blockers.push([Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1)]);
+  }
+
+  /** Register a cutaway occluder from an inclusive voxel rect. */
+  occlude(x0: number, z0: number, x1: number, z1: number, top: number, low: number, kind: Occluder['kind'], group?: number): void {
+    this.occluders.push({ rect: [Math.min(x0, x1) * V, Math.min(z0, z1) * V, (Math.max(x0, x1) + 1) * V, (Math.max(z0, z1) + 1) * V], top, low, kind, group });
   }
 }
 
@@ -250,6 +270,7 @@ function building(lot: Lot, o: BuildingOpts): { H: number } {
   const trim = wood ? c.woodDark : o.style === 'kura' ? c.kuraBase : pick([c.trim, c.trimDark, c.tileBrown]);
 
   lot.box(0, 0, 0, w - 1, H - 1, dep - 1, wall);
+  b.occlude(lot.x0, lot.z0, lot.x1, lot.z1, H * V + 3, 0.95, 'building');
   if (o.style === 'kura') {
     // namako-kabe: diagonal grid of tiles and raised plaster along the base, black skirt above
     lot.box(0, 0, 0, w - 1, 5, dep - 1, (a, y, d) => ((a + y + d) % 4 === 0 || (a - y - d + 400) % 4 === 0 ? c.plasterWhite : c.namako));
@@ -842,6 +863,9 @@ function sakuraTree(b: Builder, x: number, z: number, seed: number, yBase = G) {
     tips.push([bx, by, bz]);
   }
   tips.push([tx, yBase + h + 1, tz]);
+  let bx0 = tx, bz0 = tz, bx1 = tx, bz1 = tz;
+  for (const [cx, , cz] of tips) { bx0 = Math.min(bx0, cx - 8); bz0 = Math.min(bz0, cz - 8); bx1 = Math.max(bx1, cx + 8); bz1 = Math.max(bz1, cz + 8); }
+  b.occlude(Math.floor(bx0), Math.floor(bz0), Math.ceil(bx1), Math.ceil(bz1), (yBase - G + h + 7) * V, (yBase - G) * V + 1.3, 'tree');
   const cols = [c.sakura, c.sakuraB, c.sakuraC, c.sakuraD];
   for (const [cx, cy, cz] of tips) {
     const rx = 5 + r() * 3, ry = 3.5 + r() * 2, rz = 5 + r() * 3;
@@ -937,6 +961,7 @@ function temple(b: Builder) {
   g.box(0, G + 19, 82, 12, G + 19, 82, c.roofGreenB);
   g.box(0, G + 30, 40, 1, G + 31, 59, c.gold);
   b.lamp(8 * V, 2.5, 50 * V, WARM, 5, 0.7);
+  b.occlude(0, 17, 12, 82, 8.2, 1.95, 'landmark');
 }
 
 function pagoda(b: Builder) {
@@ -969,6 +994,7 @@ function pagoda(b: Builder) {
   for (let i = 4; i < 36; i += 4) sp.box(0, i, 0, 4, i, 4, k.c.gold);
   sp.box(1, 40, 1, 3, 43, 3, k.c.gold);
   b.place(sp, (cx + 0.5) * V, (y - G) * V, (cz + 0.5) * V);
+  b.occlude(cx - 9, cz - 9, cx + 9, cz + 9, (y - G) * V + 6.5, 1.7, 'landmark');
 }
 
 function gate(b: Builder) {
@@ -997,6 +1023,10 @@ function gate(b: Builder) {
   b.place(giantLantern(k), 34.5 * V, 0.3, 49.5 * V);
   b.block(34.5 * V - 1.4, 49.5 * V - 1.4, 34.5 * V + 1.4, 49.5 * V + 1.4);
   b.lamp(34.5 * V, 2.4, 49.5 * V, RED, 7.5, 1.4);
+  // the side chambers go down to waist height; the middle stops under the lintel so the giant lantern stays
+  b.occlude(23, 28, 45, 41, 7.8, 0.95, 'landmark', 1);
+  b.occlude(23, 42, 45, 57, 7.8, 3.9, 'landmark', 1);
+  b.occlude(23, 58, 45, 71, 7.8, 0.95, 'landmark', 1);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1488,6 +1518,7 @@ export function buildTokyo(): BuildResult {
     rooms: b.rooms,
     darumas,
     secret: b.secret,
+    occluders: b.occluders,
   };
 
   const interior = buildInterior(b, anchors);

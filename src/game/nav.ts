@@ -228,7 +228,7 @@ export class Nav {
     const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
     let found = false;
     let iter = 0;
-    while (hs > 0 && iter++ < 60000) {
+    while (hs > 0 && iter++ < 400000) { // (the city is 216 x 168 m: room for routes across it)
       const cur = pop();
       if (cur === goal) { found = true; break; }
       if (this.state[cur] === 2) continue;

@@ -8,6 +8,21 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.2',
+    date: '2026-10-30',
+    title: 'A much bigger Tokyo',
+    items: [
+      'Tokyo is now three times as wide and three times as deep. The old streets are still at the heart of it, and the city carries on in every direction.',
+      'To the north: Hikari-dori, a wide avenue with a scramble crossing, the station square with its big keyaki tree, a koban and a clock, and the station itself with ticket gates and departure boards. Behind it the railway viaduct runs along Gado-shita, with little bars, yakitori counters and bike parks tucked into the arches under the tracks.',
+      'To the east: Neon-dori, where tall towers glow with friendly neon after dark, blade signs, light bands, screens and crowns of colour. Golden Lane is a narrow alley of tiny bars just off it.',
+      'To the south: Hikari Ginza, a covered shopping arcade under a glass roof with lanterns and paper blossom, and Midori Park with a pond, swan boats, a red bridge to a little island shrine, and benches under the trees.',
+      'To the west: a shrine with its torii and stone lanterns, and up on the hill, an Inari path lined with red torii climbing to a fox shrine at the top. Quiet residential lanes, a sento bathhouse with its brick chimney, gardens and cats fill the streets in between.',
+      'The canal now runs right across the city, with a promenade, cherry trees, benches and two new bridges.',
+      'Lots of new shops, cafés, izakaya, bakeries, bookshops and florists to walk into, and the locals now wander the whole city.',
+      'The world streams in around you as you walk, so the bigger city still runs smoothly.',
+    ],
+  },
+  {
     version: '0.9.1',
     date: '2026-10-30',
     title: 'A breeze through the streets',

@@ -632,7 +632,8 @@ void main() {
       // background haze gradient
       col = mix(uSkyHorizon, uSkyTop, smoothstep(-0.2, 1.2, uv.y));
     }
-  } else if (wpos.y < uWaterY - 0.004 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w) {
+  } else if (wpos.y < uWaterY - 0.004 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w
+      && shoreDist(near.xz + rd.xz * ((uWaterY - near.y) / rd.y)) > -1.5) { // (only real water: not the floor under a chunk still streaming in)
     float tPlane = (uWaterY - near.y) / rd.y;
     vec3 sp = near + rd * tPlane;
     // shoreline field: distance and its gradient (points away from the bank, into open water)

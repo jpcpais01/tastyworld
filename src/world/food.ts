@@ -25,12 +25,17 @@ export function foodColors(pal: Palette) {
     shrimp: a(0xf28a5a, 0.05), shrimpStripe: a(0xfbe2d2, 0.03), tamago: a(0xf6cf4a, 0.05), tamagoDark: a(0xd9a62a, 0.06),
     ikura: a(0xff6a2a, 0.1, 0.15), geta: a(0xc99a62, 0.05), getaDark: a(0x8a6038, 0.05), wasabi: a(0x8cbf4a, 0.06), ginger: a(0xf4b6b0, 0.05),
     paper: a(0xf6efe0, 0.03), paperRed: a(0xc8372d, 0.04), shiso: a(0x3f8a3a, 0.08),
+    custard: a(0xf6d878, 0.04), caramel: a(0x8a4a1a, 0.06), cream: a(0xfbf6ec, 0.02), cherry: a(0xd8202a, 0.04), glass: a(0xdcecf2, 0.02),
+    pasta: a(0xe8823a, 0.08), pastaHi: a(0xf2a050, 0.06), pepper: a(0x4a9a3a, 0.08), sausage: a(0xc0504a, 0.06), onion: a(0xf3ecd8, 0.04), parmesan: a(0xf8f0d0, 0.04),
+    zaru: a(0xc9a46a, 0.05), zaruDark: a(0x9a7a48, 0.05), sobaN: a(0x9c8a72, 0.07), sobaHi: a(0xb4a28a, 0.06), tsuyu: a(0x3a2010, 0.04), choko: a(0x2b3a62, 0.03), negi: a(0x9ccf6a, 0.08),
+    tempura: a(0xf0c878, 0.12), tempuraHi: a(0xf8dc9a, 0.1), tail: a(0xe8603a, 0.05), shiso2: a(0x2f7a32, 0.08), daikon: a(0xf4f1e8, 0.04),
   };
 }
 
 export type FoodId =
   | 'takoyaki' | 'monjayaki' | 'ningyoyaki' | 'dango' | 'taiyaki' | 'dorayaki'
-  | 'yakitori' | 'karaage' | 'ramen' | 'gyoza' | 'nigiri' | 'tamagoyaki';
+  | 'yakitori' | 'karaage' | 'ramen' | 'gyoza' | 'nigiri' | 'tamagoyaki'
+  | 'purin' | 'napolitan' | 'zarusoba' | 'tempura';
 
 type FC = ReturnType<typeof foodColors>;
 
@@ -49,6 +54,10 @@ export function buildFood(id: FoodId, pal: Palette): Prop {
     case 'gyoza': return gyoza(c);
     case 'nigiri': return nigiri(c);
     case 'tamagoyaki': return tamagoyaki(c);
+    case 'purin': return purin(c);
+    case 'napolitan': return napolitan(c);
+    case 'zarusoba': return zarusoba(c);
+    case 'tempura': return tempura(c);
   }
 }
 
@@ -266,5 +275,84 @@ function tamagoyaki(c: FC): Prop {
   }
   p.box(17, 1, 6, 20, 2, 9, c.plate);
   p.box(18, 3, 7, 19, 3, 8, c.ginger);
+  return p;
+}
+
+function purin(c: FC): Prop {
+  const p = new Prop(20, 16, 20, S);
+  // footed glass dish
+  p.cylY(10, 10, 3, 0, 0, c.glass);
+  p.cylY(10, 10, 1.4, 1, 2, c.glass);
+  p.cylY(10, 10, 9, 3, 3, c.glass);
+  // the custard, a flat-topped cone with caramel running down
+  for (let y = 4; y <= 11; y++) p.cylY(10, 10, 6.4 - (y - 4) * 0.35, y, y, (x, yy, z) => (yy >= 10 || (yy >= 8 && (x + z) % 3 === 0) ? c.caramel : c.custard));
+  // whipped cream rosette and a cherry
+  p.ellipsoid(10, 12.5, 10, 2.2, 1.4, 2.2, c.cream);
+  p.ellipsoid(10, 14, 10, 1.2, 1.2, 1.2, c.cherry);
+  p.set(10, 15, 11, c.shiso);
+  p.ellipsoid(4.5, 4.5, 6, 1.6, 1, 1.6, c.cream);
+  return p;
+}
+
+function napolitan(c: FC): Prop {
+  const p = new Prop(24, 9, 24, S);
+  p.cylY(12, 12, 11.5, 0, 0, c.plate);
+  p.cylY(12, 12, 10.5, 1, 1, c.plate);
+  const r = rng(21);
+  // a heap of ketchup-glazed spaghetti
+  for (let y = 2; y <= 6; y++) p.cylY(12, 12, 8.2 - (y - 2) * 1.5, y, y, () => (r() < 0.3 ? c.pastaHi : c.pasta));
+  for (let k = 0; k < 26; k++) {
+    const a = r() * Math.PI * 2, d = r() * 7;
+    const x = Math.round(12 + Math.cos(a) * d), z = Math.round(12 + Math.sin(a) * d);
+    let y = 7; while (y > 2 && !p.get(x, y - 1, z)) y--;
+    p.set(x, y, z, k % 3 === 0 ? c.pepper : k % 3 === 1 ? c.sausage : c.onion);
+  }
+  for (let k = 0; k < 10; k++) p.set(9 + Math.floor(r() * 6), 7, 9 + Math.floor(r() * 6), c.parmesan);
+  // fork
+  p.box(19, 1, 6, 19, 1, 15, c.steelLight); p.box(18, 1, 15, 20, 1, 17, c.steelLight);
+  return p;
+}
+
+function zarusoba(c: FC): Prop {
+  const p = new Prop(28, 9, 20, S);
+  // square bamboo zaru on a lacquer tray
+  p.box(0, 0, 0, 27, 0, 19, c.bowl);
+  p.box(1, 1, 1, 19, 2, 18, (x, y, z) => (y === 2 && x > 1 && x < 19 && z > 1 && z < 18 ? ((x + z) % 2 ? c.zaru : c.zaruDark) : c.zaruDark));
+  const r = rng(23);
+  for (let y = 3; y <= 6; y++)
+    for (let z = 4; z <= 15; z++)
+      for (let x = 4; x <= 16; x++) {
+        const d = Math.hypot((x - 10) / 6.5, (z - 9.5) / 6, (y - 3) / 4);
+        if (d < 1 && r() < 0.8) p.set(x, y, z, (x + y * 2) % 4 === 0 ? c.sobaHi : c.sobaN);
+      }
+  for (let k = 0; k < 14; k++) p.set(7 + Math.floor(r() * 7), 7, 7 + Math.floor(r() * 6), c.nori);
+  // dipping cup with tsuyu, a little dish of negi and wasabi
+  for (let y = 1; y <= 5; y++) p.cylY(23.5, 6, 3, y, y, c.choko);
+  p.cylY(23.5, 6, 2.2, 5, 5, c.tsuyu);
+  p.box(21, 1, 12, 26, 1, 17, c.plate);
+  p.box(22, 2, 13, 23, 2, 15, c.negi); p.box(25, 2, 14, 25, 3, 15, c.wasabi);
+  return p;
+}
+
+function tempura(c: FC): Prop {
+  const p = new Prop(26, 10, 20, S);
+  p.box(0, 0, 0, 25, 0, 19, c.getaDark);
+  p.box(1, 1, 1, 24, 1, 18, c.paper);
+  const r = rng(27);
+  // two prawns with crisp batter, curled tails up
+  for (const z0 of [5, 10]) {
+    for (let x = 3; x <= 17; x++) {
+      const rr = 2.2 - Math.abs(x - 10) * 0.06;
+      p.ellipsoid(x, 3.4, z0 + 1.5, 0.9, rr, rr, () => (r() < 0.35 ? c.tempuraHi : c.tempura));
+    }
+    p.box(18, 3, z0 + 1, 19, 5, z0 + 2, c.tail); p.set(20, 6, z0 + 1, c.tail);
+  }
+  // shiso leaf and a sweet potato slice
+  p.box(4, 2, 15, 10, 2, 17, c.shiso2);
+  p.box(5, 3, 15, 9, 4, 16, c.tempura);
+  // tentsuyu with grated daikon
+  for (let y = 1; y <= 3; y++) p.cylY(21.5, 15, 2.6, y, y, c.choko);
+  p.cylY(21.5, 15, 1.8, 3, 3, c.tsuyu);
+  p.ellipsoid(21.5, 4, 15, 1.2, 0.8, 1.2, c.daikon);
   return p;
 }

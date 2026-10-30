@@ -186,6 +186,7 @@ export function bakeWorld(progress?: (stage: string, f: number) => void, part = 
   progress?.('Lighting the streets', 0.18);
   const field = new LightField(res.grid, SUN_STEP);
   for (const l of res.lamps) field.addLamp(l);
+  for (const bx of res.indoor) field.indoor(bx[0], bx[1], bx[2], bx[3], bx[4], bx[5], 0.62);
   progress?.('Placing lanterns', 0.32);
   const { chunks, tagged } = meshWorld(res.grid, res.pal, field, res.props, 0, 0, (f) => progress?.('Carving voxels', 0.32 + f * 0.55), part, parts);
   if (part !== 0) {

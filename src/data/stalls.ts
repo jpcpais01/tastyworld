@@ -31,6 +31,8 @@ export interface StallInfo {
   dishes: FoodId[];
   recipe: Recipe;
   hidden?: boolean;
+  /** Sit-down restaurant inside a building rather than a street stall. */
+  restaurant?: boolean;
 }
 
 const I = (name: string, icon: string): Ingredient => ({ name, icon });
@@ -118,6 +120,36 @@ export const STALLS: StallInfo[] = [
         { kind: 'mix', title: 'Beat eggs with dashi', hint: 'Gentle circles, do not whip in air.', rounds: 5 },
         { kind: 'heat', title: 'Cook the thin layers', hint: 'Roll each layer just before it sets.', rounds: 3, speed: 1.4, label: 'Just set' },
         { kind: 'chop', title: 'Slice the block', hint: 'Even slices, the master is watching.', rounds: 4, speed: 1.2 },
+      ],
+    },
+  },
+  {
+    id: 'komorebi', name: 'Kissa Komorebi', jp: '喫茶 木漏れ日', street: 'Sakura Canal', vendor: 'Master Kuroda', restaurant: true,
+    vendorLook: { skin: 0xeec39f, hair: 0xb9b6b0, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'vest', accent: 0x3a2418, bottom: 0x2f2f35, shoes: 0x2a2a2e, glasses: true },
+    greeting: ['Welcome. Sit anywhere you like. The siphon coffee takes a moment, the purin takes all morning.', 'Same recipe since 1971. The jukebox only plays Shōwa songs, I am afraid.'],
+    dishes: ['purin', 'napolitan'],
+    recipe: {
+      dish: 'purin',
+      steps: [
+        { kind: 'heat', title: 'Make the caramel', hint: 'Stop when the sugar turns deep amber, not black.', rounds: 1, speed: 1.2, label: 'Amber' },
+        { kind: 'pick', title: 'Mix the custard', hint: 'Pick what goes into a kissaten purin.', items: [I('Eggs', '🥚'), I('Milk', '🥛'), I('Sugar', '🧂'), I('Vanilla', '🌼')], decoys: [I('Soy sauce', '🥢'), I('Miso', '🟤'), I('Ketchup', '🍅')] },
+        { kind: 'mix', title: 'Stir gently', hint: 'Slow circles. Bubbles make holes in the custard.', rounds: 4 },
+        { kind: 'heat', title: 'Steam until set', hint: 'Firm in the middle, glossy on top. Twice.', rounds: 2, speed: 1.0, label: 'Set' },
+      ],
+    },
+  },
+  {
+    id: 'kikyo', name: 'Soba-dokoro Kikyō', jp: 'そば処 桔梗', street: 'Kaminari Lane', vendor: 'Fujita-san', restaurant: true,
+    vendorLook: { skin: 0xe0ac86, hair: 0x2a1d17, hairStyle: 'short', top: 0x2c3d73, topStyle: 'happi', accent: 0xf2efe7, bottom: 0x2f2f35, shoes: 0x2a2a2e, hat: 'headband', hatColor: 0xf2efe7 },
+    greeting: ['Irasshai! The noodles are cut by hand every morning in the front window.', 'Cold soba on a hot day, hot soba on a cold day. Either way, slurp!'],
+    dishes: ['zarusoba', 'tempura'],
+    recipe: {
+      dish: 'zarusoba',
+      steps: [
+        { kind: 'pick', title: 'Measure the flour', hint: 'Classic ni-hachi soba: eight parts buckwheat, two parts wheat.', items: [I('Buckwheat flour', '🌾'), I('Wheat flour', '🍞'), I('Cold water', '💧')], decoys: [I('Rice flour', '🍚'), I('Milk', '🥛'), I('Sugar', '🧂')] },
+        { kind: 'mix', title: 'Knead the dough', hint: 'Work it in circles until it is smooth as a pebble.', rounds: 6 },
+        { kind: 'chop', title: 'Cut the noodles', hint: 'Thin, even strands. Tap as the knife crosses each line.', rounds: 5, speed: 1.3 },
+        { kind: 'heat', title: 'Boil and rinse', hint: 'Just a minute! Lift them while they still have bite.', rounds: 1, speed: 1.7, label: 'Bite' },
       ],
     },
   },

@@ -138,6 +138,47 @@ export const DISHES: Dish[] = [
     tip: 'Eat it last, like dessert, to finish the meal on a soft and sweet note.',
     flavor: { sweet: 3, savory: 2, umami: 3, crunch: 0 },
   },
+  {
+    id: 'purin', name: 'Kissaten Purin', jp: 'プリン', romaji: 'purin', stall: 'komorebi', price: 550, dessert: true,
+    tagline: 'A firm, eggy custard pudding under a cap of bitter caramel.',
+    origin: 'Meiji-era Japan, via European custard',
+    history: 'Custard pudding arrived with Western cooks in the late 1800s and was renamed purin. Old-style kissaten, the coffee houses of the Shōwa era, made it their signature: steamed firm, turned out onto a footed glass dish and crowned with cream and a cherry.',
+    ingredients: ['Eggs', 'Milk', 'Sugar', 'Caramel sauce', 'Whipped cream and a cherry'],
+    culture: 'The firm "katame" style is a point of pride for retro kissaten, a quiet protest against the wobbly, creamy puddings sold at every convenience store.',
+    tip: 'Take a spoonful from the top so you get custard and caramel together.',
+    flavor: { sweet: 5, savory: 0, umami: 1, crunch: 0 },
+  },
+  {
+    id: 'napolitan', name: 'Spaghetti Napolitan', jp: 'ナポリタン', romaji: 'naporitan', stall: 'komorebi', price: 950, dessert: false,
+    tagline: 'Ketchup-glazed spaghetti with sausage, onion and green pepper.',
+    origin: 'Yokohama, late 1940s',
+    history: 'The chef of the Hotel New Grand in Yokohama is credited with creating it after the war, cooking spaghetti with tomato, ham and vegetables. Kissaten swapped the tomatoes for ketchup, and a nation of salarymen fell in love.',
+    ingredients: ['Thick spaghetti, boiled soft', 'Tomato ketchup', 'Wiener sausage', 'Onion and green pepper', 'Parmesan and Tabasco'],
+    culture: 'It is yōshoku, Western food reinvented by Japan. Nobody in Naples has heard of it, and nobody in a Tokyo kissaten cares.',
+    tip: 'Shake on plenty of powdered parmesan. That is how the regulars do it.',
+    flavor: { sweet: 3, savory: 4, umami: 3, crunch: 0 },
+  },
+  {
+    id: 'zarusoba', name: 'Zaru Soba', jp: 'ざるそば', romaji: 'zaru soba', stall: 'kikyo', price: 850, dessert: false,
+    tagline: 'Cold buckwheat noodles on a bamboo tray, dipped in tsuyu.',
+    origin: 'Edo (old Tokyo), 1700s',
+    history: 'Edo had thousands of soba shops by the late 1700s. Buckwheat grew where rice would not, and its noodles were said to cure kakke, the beriberi that plagued rice-eating city folk. Serving them cold on a bamboo zaru let the clean, nutty taste of the buckwheat shine.',
+    ingredients: ['Buckwheat flour (often 80% with 20% wheat)', 'Tsuyu: dashi, soy sauce and mirin', 'Nori strips', 'Green onion and wasabi'],
+    culture: 'Tokyo soba masters roll and cut the dough by hand, often in a window facing the street. On New Year\'s Eve everyone eats toshikoshi soba so the year\'s troubles are cut off like the noodles.',
+    tip: 'Dip only the bottom third of the noodles. At the end, ask for sobayu, the cooking water, to pour into the leftover tsuyu and drink.',
+    flavor: { sweet: 1, savory: 3, umami: 4, crunch: 1 },
+  },
+  {
+    id: 'tempura', name: 'Ebi Tempura', jp: '海老天ぷら', romaji: 'ebi tempura', stall: 'kikyo', price: 1100, dessert: false,
+    tagline: 'Prawns in a lacy, shattering batter, fried in sesame oil.',
+    origin: 'Edo (old Tokyo), from 1500s Portuguese frying',
+    history: 'Portuguese traders brought batter-frying to Nagasaki, but it was Edo\'s street stalls that turned it into tempura: fish from the bay, skewered and fried to order. Frying indoors was banned in wooden Edo for fear of fire, so tempura started as street food.',
+    ingredients: ['Kuruma prawns', 'Ice-cold batter of flour and egg, barely mixed', 'Sesame and vegetable oil', 'Tentsuyu dipping sauce with grated daikon'],
+    culture: 'The batter is mixed with chopsticks and left lumpy on purpose. Cold batter hitting hot oil is what makes the crust so light.',
+    tip: 'Stir the grated daikon into the tentsuyu, then dip quickly so the crust stays crisp.',
+    flavor: { sweet: 1, savory: 4, umami: 3, crunch: 5 },
+  },
 ];
+
 
 export const DISH = Object.fromEntries(DISHES.map((d) => [d.id, d])) as Record<FoodId, Dish>;

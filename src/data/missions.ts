@@ -1,5 +1,6 @@
 import type { SaveState } from '../game/state';
-import { DISH } from './dishes';
+import { DISH, DISHES } from './dishes';
+import { CAPSULES } from './places';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -24,7 +25,13 @@ export const MISSIONS: Mission[] = [
   { id: 'cats', name: 'Lucky Cats', desc: 'Find the three maneki-neko hidden around the district.', progress: (s) => [s.manekis.length, 3], reward: { item: 'secret' } },
   { id: 'secret', name: 'The Secret Counter', desc: 'Dine at the hidden restaurant.', progress: (s) => [s.tasted['nigiri'] || s.tasted['tamagoyaki'] ? 1 : 0, 1], reward: { yen: 1500, item: 'chefhat' } },
   { id: 'stars', name: 'Three Stars', desc: 'Earn three stars on any cooking challenge.', progress: (s) => [Math.max(0, ...Object.values(s.cooked)) >= 3 ? 1 : 0, 1], reward: { yen: 700 } },
-  { id: 'master', name: 'Master of Tokyo', desc: 'Collect all 12 food passport stamps.', progress: (s) => [tasted(s).length, 12], reward: { yen: 3000, title: 'Tokyo Gourmet', item: 'gold' } },
+  { id: 'browse', name: 'Window Shopper', desc: 'Step inside ten different shops, cafés and bars.', progress: (s) => [Math.min(10, s.rooms.length), 10], reward: { yen: 800 } },
+  { id: 'tables', name: 'Table for One', desc: 'Sit down to eat at Kissa Komorebi and Soba-dokoro Kikyō.', progress: (s) => [['komorebi', 'kikyo'].filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st)).length, 2], reward: { yen: 1000, item: 'noren' } },
+  { id: 'gacha', name: 'Capsule Collector', desc: 'Collect six different gachapon capsule charms.', progress: (s) => [Math.min(6, s.capsules.length), 6], reward: { yen: 1200 } },
+  { id: 'gacha-all', name: 'Gachapon Master', desc: `Complete the set of ${CAPSULES.length} capsule charms, golden shrimp included.`, progress: (s) => [s.capsules.length, CAPSULES.length], reward: { yen: 2500, title: 'Capsule Royalty' } },
+  { id: 'shelf', name: 'Between the Pages', desc: 'An old bookshop on Kaminari Lane is hiding a room.', progress: (s) => [s.flags.shelfOpen ? 1 : 0, 1], reward: { yen: 1000 } },
+  { id: 'daruma', name: 'Daruma Hunt', desc: 'Find the eight tiny daruma hidden inside the shops.', progress: (s) => [s.darumas.length, 8], reward: { yen: 2000, item: 'daruma' } },
+  { id: 'master', name: 'Master of Tokyo', desc: `Collect all ${DISHES.length} food passport stamps.`, progress: (s) => [tasted(s).length, DISHES.length], reward: { yen: 3000, title: 'Tokyo Gourmet', item: 'gold' } },
 ];
 
 export const ITEMS: Record<string, { name: string; icon: string; desc: string }> = {
@@ -33,5 +40,7 @@ export const ITEMS: Record<string, { name: string; icon: string; desc: string }>
   charm: { name: 'Lantern charm', icon: '🏮', desc: 'A tiny red lantern for your backpack. It glows at night.' },
   secret: { name: 'A whisper', icon: '🐾', desc: 'The lucky cats all point down a nameless passage off Lantern Alley...' },
   chefhat: { name: 'Itamae\'s blessing', icon: '🔪', desc: 'Chef Sato let you help behind the counter. A rare honour.' },
+  daruma: { name: 'Lucky daruma', icon: '🔴', desc: 'All eight found. Paint in the second eye, and your wish comes true.' },
+  noren: { name: 'Regular\'s noren', icon: '🎏', desc: 'The masters at Komorebi and Kikyō now greet you by name.' },
   gold: { name: 'Gold stamp', icon: '🥇', desc: 'Your Japan passport is complete. Seoul is calling.' },
 };

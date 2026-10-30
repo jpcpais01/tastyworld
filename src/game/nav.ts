@@ -24,40 +24,63 @@ export class Nav {
     this.sx = d.sx;
     this.sz = d.sz;
     const n = d.sx * d.sz;
-    // clearance: a cell is comfortably walkable if its 8 neighbours are walkable at a similar height
     this.clear = new Uint8Array(n);
-    for (let z = 0; z < d.sz; z++)
-      for (let x = 0; x < d.sx; x++) {
-        const h = d.height[z * d.sx + x];
-        if (h === BLOCKED) continue;
-        let ok = 1;
-        for (let dz = -1; dz <= 1 && ok; dz++)
-          for (let dx = -1; dx <= 1 && ok; dx++) {
-            const nx = x + dx, nz = z + dz;
-            if (nx < 0 || nz < 0 || nx >= d.sx || nz >= d.sz) { ok = 0; break; }
-            const nh = d.height[nz * d.sx + nx];
-            if (nh === BLOCKED || Math.abs(nh - h) > MAX_STEP) ok = 0;
-          }
-        this.clear[z * d.sx + x] = ok;
-      }
-    // passable: walkable and not pinched between blockers on opposite sides (gaps of 2+ cells, ~50 cm)
     this.pass = new Uint8Array(n);
-    const open = (x: number, z: number, h: number) => {
-      if (x < 0 || z < 0 || x >= d.sx || z >= d.sz) return false;
-      const nh = d.height[z * d.sx + x];
-      return nh !== BLOCKED && Math.abs(nh - h) <= MAX_STEP;
-    };
-    for (let z = 0; z < d.sz; z++)
-      for (let x = 0; x < d.sx; x++) {
-        const h = d.height[z * d.sx + x];
-        if (h === BLOCKED) continue;
-        this.pass[z * d.sx + x] = (open(x - 1, z, h) || open(x + 1, z, h)) && (open(x, z - 1, h) || open(x, z + 1, h)) ? 1 : 0;
-      }
+    this.flags(0, 0, d.sx - 1, d.sz - 1);
     this.g = new Float32Array(n);
     this.came = new Int32Array(n);
     this.state = new Uint8Array(n);
     this.heap = new Int32Array(n);
     this.hf = new Float32Array(n);
+  }
+
+  /** Recompute the clearance and passability flags of a cell range (inclusive). */
+  private flags(x0: number, z0: number, x1: number, z1: number): void {
+    const d = this.d;
+    x0 = Math.max(0, x0); z0 = Math.max(0, z0); x1 = Math.min(d.sx - 1, x1); z1 = Math.min(d.sz - 1, z1);
+    const open = (x: number, z: number, h: number) => {
+      if (x < 0 || z < 0 || x >= d.sx || z >= d.sz) return false;
+      const nh = d.height[z * d.sx + x];
+      return nh !== BLOCKED && Math.abs(nh - h) <= MAX_STEP;
+    };
+    for (let z = z0; z <= z1; z++)
+      for (let x = x0; x <= x1; x++) {
+        const i = z * d.sx + x;
+        const h = d.height[i];
+        this.clear[i] = 0;
+        this.pass[i] = 0;
+        if (h === BLOCKED) continue;
+        // clearance: a cell is comfortably walkable if its 8 neighbours are walkable at a similar height
+        let ok = 1;
+        for (let dz = -1; dz <= 1 && ok; dz++)
+          for (let dx = -1; dx <= 1 && ok; dx++) if ((dx || dz) && !open(x + dx, z + dz, h)) ok = 0;
+        this.clear[i] = ok;
+        // passable: walkable and not pinched between blockers on opposite sides (gaps of 2+ cells, ~50 cm)
+        this.pass[i] = (open(x - 1, z, h) || open(x + 1, z, h)) && (open(x, z - 1, h) || open(x, z + 1, h)) ? 1 : 0;
+      }
+  }
+
+  private saved = new Map<string, Uint8Array>();
+
+  /** Block (or restore) a rectangle in metres at runtime, e.g. a doorway behind a sliding bookshelf. */
+  setBlocked(key: string, rect: [number, number, number, number], blocked: boolean): void {
+    const d = this.d;
+    const x0 = Math.floor((rect[0] - d.ox) / V), z0 = Math.floor((rect[1] - d.oz) / V);
+    const x1 = Math.floor((rect[2] - d.ox) / V), z1 = Math.floor((rect[3] - d.oz) / V);
+    let saved = this.saved.get(key);
+    if (blocked) {
+      if (saved) return;
+      saved = new Uint8Array((x1 - x0 + 1) * (z1 - z0 + 1));
+      let k = 0;
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++, k++) { saved[k] = d.height[z * d.sx + x]; d.height[z * d.sx + x] = BLOCKED; }
+      this.saved.set(key, saved);
+    } else {
+      if (!saved) return;
+      let k = 0;
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++, k++) d.height[z * d.sx + x] = saved[k];
+      this.saved.delete(key);
+    }
+    this.flags(x0 - 1, z0 - 1, x1 + 1, z1 + 1);
   }
 
   cell(x: number, z: number): number {

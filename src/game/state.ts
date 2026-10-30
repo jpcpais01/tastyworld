@@ -18,7 +18,13 @@ export interface SaveState {
   claimed: string[];
   items: string[];
   wear: Record<string, boolean>;
-  flags: { ateAtNight?: boolean; introSeen?: boolean; lastPatch?: string; metFumiko?: boolean };
+  flags: { ateAtNight?: boolean; introSeen?: boolean; lastPatch?: string; metFumiko?: boolean; shelfOpen?: boolean };
+  /** Indices of the hidden daruma found. */
+  darumas: number[];
+  /** Gachapon capsule ids collected. */
+  capsules: string[];
+  /** Ids of the shops and restaurants the player has stepped into. */
+  rooms: string[];
   settings: Settings;
   title?: string;
   playTime: number;
@@ -28,7 +34,7 @@ const KEY = 'tastyworld.save.v1';
 
 export function defaultState(): SaveState {
   return {
-    v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {},
+    v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [],
     settings: { quality: 'auto', music: true, sfx: true, tilt: true, dayLength: 720 }, playTime: 0,
   };
 }

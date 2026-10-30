@@ -19,6 +19,8 @@ import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
+import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable } from './data/places';
+import type { RoomAnchor } from './world/interiors';
 import { UI, GameHooks } from './ui/ui';
 import { renderDishIcons } from './ui/icons';
 
@@ -87,6 +89,11 @@ class Game {
   private heightInside!: THREE.DataTexture;
   private cutOn = 0;
   private doorClosed = new THREE.Group();
+  private shelfClosed = new THREE.Group();
+  private shelfOpen = new THREE.Group();
+  /** Keepers and regulars inside the shops; only simulated when the player is close. */
+  private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number }[] = [];
+  private roomHere: RoomAnchor | null = null;
   private doorOpen = new THREE.Group();
 
   player!: Actor;
@@ -200,8 +207,12 @@ class Game {
       const m = this.mesh(md, this.matWorld, this.worldGroup);
       this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false });
     }
-    this.worldGroup.add(this.doorClosed, this.doorOpen);
-    for (const t of w.tagged) this.mesh(t.mesh, this.matWorld, t.tag === 'door-closed' ? this.doorClosed : this.doorOpen);
+    this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
+    const tagGroups: Record<string, THREE.Group> = { 'door-closed': this.doorClosed, 'door-open': this.doorOpen, 'shelf-closed': this.shelfClosed, 'shelf-open': this.shelfOpen };
+    for (const t of w.tagged) {
+      const m = this.mesh(t.mesh, this.matWorld, tagGroups[t.tag] ?? this.worldGroup);
+      this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false });
+    }
     for (const md of w.interiorChunks) this.mesh(md, this.matCut, this.insideGroup);
     const heightTex = (data: Uint8Array, sx: number, sz: number) => {
       const t = new THREE.DataTexture(data, sx, sz, THREE.RedFormat, THREE.UnsignedByteType);
@@ -227,8 +238,9 @@ class Game {
 
     this.blobs = new Blobs(this.r.scene, 64);
     this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
-    this.particles = new Particles(this.r, a.emitters, a.manekis);
+    this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas]);
     for (const i of this.s.manekis) this.particles.hideSparkle(i);
+    for (const i of this.s.darumas) this.particles.hideSparkle(a.manekis.length + i);
 
     // player
     this.rebuildPlayer();
@@ -250,6 +262,39 @@ class Game {
         key: `stall-${st.id}`, x: sa.stand[0], z: sa.stand[1], stand: sa.stand, pick: [sa.label[0], 1.4, sa.label[2]], r: 1.5, inside: false,
         prompt: () => ['🍢', st.name, `Talk to ${st.vendor}`],
         act: () => this.openStall(st, act, [sa.vendor[0], sa.vendor[1]]),
+      });
+    }
+    // shops, cafés and bars behind the storefronts
+    for (const rm of a.rooms) this.buildRoom(rm);
+    // tiny daruma hidden in the back rooms
+    a.darumas.forEach((d, i) => {
+      this.interactables.push({
+        key: `daruma-${i}`, x: d[0], z: d[2], stand: [d[0], d[2]], pick: [d[0], d[1] + 0.3, d[2]], r: 1.4, inside: false,
+        prompt: () => this.s.darumas.includes(i) ? ['🔴', 'Daruma', 'One eye painted, one to go'] : ['✨', 'Something small and red', 'Take a closer look'],
+        act: () => this.findDaruma(i),
+      });
+    });
+    // the bookshop's secret reading room
+    const sec = a.secret;
+    if (sec) {
+      this.setShelf(!!this.s.flags.shelfOpen);
+      this.interactables.push({
+        key: 'shelf', x: sec.shelf[0], z: sec.shelf[2], stand: sec.shelfStand, pick: sec.shelf, r: 1.5, inside: false,
+        prompt: () => this.s.flags.shelfOpen ? ['📚', 'Reading room', 'The shelf stands open'] : ['📕', 'A red book sticks out', 'Pull it'],
+        act: () => this.pullBook(),
+      });
+      this.interactables.push({
+        key: 'note', x: sec.note[0], z: sec.note[2], stand: sec.noteStand, pick: sec.note, r: 1.5, inside: false,
+        prompt: () => this.s.flags.shelfOpen ? ['📜', 'An old recipe card', 'Read it'] : null,
+        act: () => {
+          if (!this.s.flags.shelfOpen) return;
+          this.audio.play('pop');
+          this.ui.dialogue('A recipe card, 1952', [
+            '"Tamagoyaki for the night counter. Four eggs, dashi, a spoon of sugar, a pinch of salt. Roll it while it is still shy of set."',
+            '"Young Sato asks for this every week. One day he will have a counter of his own, with no sign on the door."',
+            'Someone has written underneath in newer ink: "He did. Follow the lucky cats."',
+          ]);
+        },
       });
     }
     // chef inside the hidden restaurant
@@ -356,6 +401,142 @@ class Game {
 
     // notifications already earned before this session should not re-toast
     for (const m of MISSIONS) { const [x, y] = m.progress(this.s); if (x >= y) this.notified.add(m.id); }
+  }
+
+  private buildRoom(rm: RoomAnchor): void {
+    const sh = this.r.shared;
+    const place = PLACES[rm.kind];
+    const [name, jp] = roomName(rm.kind, rm.nth);
+    const buy = rm.spots.find((sp) => sp.kind === 'buy');
+    rm.npcs.forEach((n, i) => {
+      const keeper = n.role === 'keeper';
+      const info = keeper ? keeperOf(rm.kind, rm.nth, n.seed) : { name: 'Regular', look: randomLook(n.seed) };
+      const act = new Actor(buildPerson(info.look), sh);
+      act.position.set(n.pos[0], n.sit ? n.pos[1] - 0.58 : this.navWorld.heightAt(n.pos[0], n.pos[2]), n.pos[2]);
+      act.facing = act.targetFacing = n.facing;
+      const anim = n.sit ? 'sit' : keeper && (rm.kind === 'izakaya' || rm.kind === 'bakery') ? 'cook' : 'idle';
+      act.anim = anim;
+      act.root.visible = false;
+      this.worldGroup.add(act.root);
+      const entry = { actor: act, room: rm, keeper, facing: n.facing, sit: n.sit, anim: anim as 'idle' | 'cook' | 'sit', talk: 0, seed: n.seed };
+      this.roomActors.push(entry);
+      if (keeper && buy) {
+        // the keeper serves from the counter: one stop to chat and buy
+        this.interactables.push({
+          key: `room-${rm.id}`, x: buy.pos[0], z: buy.pos[2], stand: buy.stand, pick: [n.pos[0], 1.6, n.pos[2]], r: 1.7, inside: false,
+          prompt: () => [place.buy[0]?.icon ?? '💬', name, `Talk to ${info.name}`],
+          act: () => {
+            this.faceEachOther(act, n.sit);
+            act.anim = 'bow';
+            setTimeout(() => { act.anim = anim; }, 1200);
+            this.audio.play('pop');
+            const line = place.lines[entry.talk++ % place.lines.length];
+            this.ui.shop(name, jp, `${place.label} · ${info.name}`, info.name, line, place.buy, (it) => this.buyThing(it));
+          },
+        });
+      } else {
+        const stand: [number, number] = [n.pos[0], n.pos[2]];
+        this.interactables.push({
+          key: `npc-${rm.id}-${i}`, x: n.pos[0], z: n.pos[2], stand, pick: [n.pos[0], 1.25, n.pos[2]], r: 1.5, inside: false,
+          prompt: () => ['💬', keeper ? info.name : 'A regular', keeper ? name : 'Chat'],
+          act: () => {
+            this.faceEachOther(act, n.sit);
+            this.audio.play('pop');
+            const lines = keeper && place.lines.length ? place.lines : GUEST_LINES;
+            const line = lines[(entry.seed + entry.talk++) % lines.length];
+            if (!n.sit) act.anim = 'wave';
+            this.ui.dialogue(keeper ? info.name : 'A regular', [line], () => { act.anim = anim; act.targetFacing = n.facing; act.headYawTarget = 0; });
+          },
+        });
+      }
+    });
+    for (const sp of rm.spots) {
+      if (sp.kind !== 'gacha') continue;
+      this.interactables.push({
+        key: `gacha-${rm.id}`, x: sp.pos[0], z: sp.pos[2], stand: sp.stand, pick: [sp.pos[0], 1.0, sp.pos[2]], r: 1.4, inside: false,
+        prompt: () => ['🎰', 'Gachapon', `Turn the handle · ¥${GACHA_PRICE}`],
+        act: () => this.gacha(sp.pos),
+      });
+    }
+  }
+
+  private faceEachOther(act: Actor, sitting: boolean): void {
+    const p = this.player.position, q = act.position;
+    this.player.targetFacing = Math.atan2(q.x - p.x, q.z - p.z);
+    const want = Math.atan2(p.x - q.x, p.z - q.z);
+    if (sitting) act.headYawTarget = THREE.MathUtils.clamp(Math.atan2(Math.sin(want - act.facing), Math.cos(want - act.facing)), -1, 1);
+    else act.targetFacing = want;
+  }
+
+  private buyThing(it: Buyable): boolean {
+    if (this.s.yen < it.price) return false;
+    this.s.yen -= it.price;
+    this.audio.play('coin');
+    this.ui.toast(it.icon, it.name, it.text);
+    if (it.snack) { this.eatT = 3.2; this.player.anim = 'eat'; }
+    this.afterChange();
+    return true;
+  }
+
+  private gacha(pos: V3): void {
+    if (this.s.yen < GACHA_PRICE) { this.audio.play('fail'); this.ui.toast('👛', 'Not enough yen', `A capsule costs ¥${GACHA_PRICE}.`); return; }
+    this.s.yen -= GACHA_PRICE;
+    // the golden shrimp is rare; everything else is equally likely
+    const roll = Math.random();
+    const pool = CAPSULES.filter((c) => !c.rare);
+    const cap = roll < 0.05 ? CAPSULES.find((c) => c.rare)! : pool[Math.floor(Math.random() * pool.length)];
+    const isNew = !this.s.capsules.includes(cap.id);
+    if (isNew) this.s.capsules.push(cap.id);
+    this.audio.play(isNew ? 'chime' : 'coin');
+    this.ui.bubble('gacha', 'Gacha-gacha… pon!', [pos[0], 1.6, pos[2]], 1.6);
+    setTimeout(() => {
+      this.ui.toast(cap.icon, isNew ? `New capsule: ${cap.name}` : `Another ${cap.name}`, isNew ? `${this.s.capsules.length} of ${CAPSULES.length} charms collected.${cap.rare ? ' The rare one!' : ''}` : 'A duplicate. Try again?', isNew);
+      if (isNew) this.player.flash = 1;
+    }, 650);
+    this.afterChange();
+  }
+
+  private findDaruma(i: number): void {
+    const d = this.w.anchors.darumas[i];
+    if (this.s.darumas.includes(i)) {
+      this.audio.play('chime');
+      this.ui.bubble(`daruma-${i}`, 'Fall down seven times, stand up eight.', [d[0], d[1] + 0.8, d[2]]);
+      return;
+    }
+    this.s.darumas.push(i);
+    this.particles.hideSparkle(this.w.anchors.manekis.length + i);
+    this.audio.play('chime');
+    this.player.flash = 1;
+    const n = this.s.darumas.length;
+    if (n < 8) this.ui.toast('🔴', `Daruma ${n} / 8`, n === 1 ? 'A tiny daruma doll with one eye painted in. Someone has hidden these around the shops.' : 'Another one, tucked away where only the curious look.', true);
+    else { this.ui.toast('🎉', 'All eight daruma found!', 'Claim your reward in the Food Passport.', true); this.cam.shake = 0.12; }
+    this.afterChange();
+  }
+
+  private setShelf(open: boolean): void {
+    const sec = this.w.anchors.secret;
+    if (!sec) return;
+    this.shelfClosed.visible = !open;
+    this.shelfOpen.visible = open;
+    this.navWorld.setBlocked('shelf', sec.gate, !open);
+  }
+
+  private pullBook(): void {
+    if (this.s.flags.shelfOpen) { this.audio.play('click'); return; }
+    this.s.flags.shelfOpen = true;
+    this.audio.play('door');
+    this.cam.shake = 0.12;
+    this.setShelf(true);
+    this.ui.toast('📚', 'A hidden room!', 'The bookshelf swings aside. Behind it: a tiny reading room nobody has dusted in years.', true);
+    this.afterChange();
+  }
+
+  private roomAt(x: number, z: number): RoomAnchor | null {
+    for (const rm of this.w.anchors.rooms) {
+      const [x0, z0, x1, z1] = rm.rect;
+      if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return rm;
+    }
+    return null;
   }
 
   private plateHtml(st: StallInfo): string {
@@ -987,6 +1168,17 @@ class Game {
       }
     }
     const all: Actor[] = this.inside ? [this.chef] : [...this.vendors.map((v) => v.actor), ...this.idlers.map((e) => e.actor), ...this.walkers.map((w) => w.actor), ...this.cats.map((c) => c.actor)];
+    // shop keepers and regulars: only the ones near the player are shown and animated
+    for (const e of this.roomActors) {
+      const q = e.actor.position;
+      const d = Math.hypot(pp.x - q.x, pp.z - q.z);
+      const on = !this.inside && d < 24;
+      e.actor.root.visible = on;
+      if (!on) continue;
+      all.push(e.actor);
+      if (e.keeper && !e.sit && d < 3.5 && !this.ui.busy) e.actor.headYawTarget = THREE.MathUtils.clamp(Math.atan2(Math.sin(Math.atan2(pp.x - q.x, pp.z - q.z) - e.actor.facing), Math.cos(Math.atan2(pp.x - q.x, pp.z - q.z) - e.actor.facing)), -0.8, 0.8);
+      else if (!this.ui.busy) e.actor.headYawTarget = 0;
+    }
     this.blobs.begin();
     const pl = this.player.position;
     if (!this.cam.fp) this.blobs.add(pl.x, pl.y + 0.02, pl.z, 0.62, 0.5);
@@ -1094,7 +1286,13 @@ class Game {
     this.hudT -= dt;
     if (this.hudT <= 0) {
       this.hudT = 0.25;
-      const z = this.inside ? { name: 'Kakurega · Hidden Counter', jp: '隠れ家' } : zoneAt(pl.x, pl.z) ?? { name: 'Tokyo', jp: '東京' };
+      const rm = this.inside ? null : this.roomAt(pl.x, pl.z);
+      if (rm !== this.roomHere) {
+        this.roomHere = rm;
+        if (rm && this.started && !this.s.rooms.includes(rm.id)) { this.s.rooms.push(rm.id); this.afterChange(); }
+      }
+      const rn = rm ? roomName(rm.kind, rm.nth) : null;
+      const z = this.inside ? { name: 'Kakurega · Hidden Counter', jp: '隠れ家' } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: 'Tokyo', jp: '東京' };
       this.ui.location(z.name, z.jp, this.tod.label());
       let sizzle = 0;
       if (!this.inside) for (const e of this.w.anchors.emitters) {

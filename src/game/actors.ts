@@ -158,6 +158,14 @@ export class Actor {
         r[PART.head].x = 0.5;
         bob = -0.02;
         break;
+      case 'sit':
+        // seated on a stool or cushion: thighs forward, hands resting on the table
+        r[PART.legL].x = -1.45; r[PART.legR].x = -1.45;
+        r[PART.armL].x = -0.55 + Math.sin(t * 1.3) * 0.03;
+        r[PART.armR].x = -0.6 + Math.max(0, Math.sin(t * 0.9)) * 0.25;
+        r[PART.head].x = 0.05 + Math.sin(t * 0.6) * 0.05;
+        bob = Math.sin(t * 2.0) * 0.004;
+        break;
       default: {
         // idle: breathing and the occasional glance
         bob = Math.sin(t * 2.0) * 0.006;

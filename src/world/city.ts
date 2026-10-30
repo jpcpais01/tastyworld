@@ -8,6 +8,7 @@ import { hash3, rng } from './grid';
 import { G, V, VX0, VZ0, SX, SZ, HILL } from './layout';
 import { SWAY } from './sway';
 import { dress, noteFront, noteGarden, noteTree } from './dressing';
+import { wrapLot } from './facades';
 import { Builder, Lot, building, tiledRoof, sakuraTree, bridge, boat, surface, RED, WARM, WHITEWARM, COOL, Ground, Style, Side, BuildingOpts } from './tokyo';
 import {
   glyph, lantern, streetLamp, bench, vendingMachine, bicycle, stoneLantern, plantPot, postBox, boardSign, noren, nobori,
@@ -345,22 +346,6 @@ function house(lot: Lot, seed: number, mix: Mix, r: () => number) {
     lot.wallProp(lantern(k, r() < 0.5 ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
     const [lx, lz] = lot.front(lot.width / 2, 0.5);
     b.lamp(lx, 3.4, lz, WARM, 3.5, 0.7);
-  }
-  sideWindows(lot, H, seed);
-}
-
-/** Windows on the side walls, which in the open city are often seen from a street or a gap. */
-function sideWindows(lot: Lot, H: number, seed: number) {
-  const b = lot.b, c = b.c;
-  const dep = lot.depth, w = lot.width;
-  // paint the lot's own outer wall, and only where nothing stands against it
-  for (const [a, out] of [[0, -1], [w - 1, w]]) {
-    for (let y = 18; y + 6 < H; y += 12)
-      for (let d = 3; d + 3 < dep; d += 7) {
-        const h = hash3(d + out, y, seed);
-        if (h < 0.45) continue;
-        lot.box(a, y, d, a, y + 4, d + 2, (aa, yy, dd) => { const v = lot.get(aa, yy, dd); return v && !lot.get(out, yy, dd) ? (h > 0.8 ? c.glassLit : c.glassDark) : v; });
-      }
   }
 }
 
@@ -1149,8 +1134,12 @@ function canal(b: Builder) {
     while (x <= a1) {
       const w = Math.min(a1 - x + 1, 20 + Math.floor(r() * 3) * 4);
       const lot = new Lot(b, x, 216, x + w - 1, 223, 'n');
-      lot.box(0, 0, 0, w - 1, 9, lot.depth - 1, [c.plaster, c.woodDark, c.cedar][Math.floor(r() * 3)]);
+      const wall = [c.plaster, c.woodDark, c.cedar][Math.floor(r() * 3)];
+      lot.box(0, 0, 0, w - 1, 9, lot.depth - 1, wall);
       lot.box(2, 1, 0, w - 3, 7, 0, (a) => (a % 2 ? c.woodDark : c.shoji));
+      lot.box(0, 0, 0, w - 1, 0, lot.depth - 1, (a, _y, d) => (lot.get(a, 0, d) === wall ? c.stone : lot.get(a, 0, d)));
+      lot.box(0, 8, -1, w - 1, 8, -1, c.woodDark);
+      wrapLot(lot, { h: 10, gh: 10, fh: 12, wall, trim: c.woodDark, look: wall === c.plaster ? 'plain' : 'wood', seed: x * 7 + 5, pipe: wall === c.plaster });
       tiledRoof(lot, 10, 2, 2);
       noteFront(lot, 'plain', 'machiya', 'canal', 10, x * 7 + 3, [], true);
       x += w;

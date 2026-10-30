@@ -14,6 +14,7 @@ import {
 import { buildFood, FoodId } from './food';
 import { buildCity } from './city';
 import { SwayBody, SWAY, swayKey } from './sway';
+import { wrapLot, dressBlock } from './facades';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
 
 export interface PlacedProp {
@@ -357,15 +358,12 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
     lot.box(0, 0, 0, w - 1, 5, dep - 1, (a, y, d) => ((a + y + d) % 4 === 0 || (a - y - d + 400) % 4 === 0 ? c.plasterWhite : c.namako));
     lot.box(0, 6, 0, w - 1, 6, dep - 1, c.kuraBase);
   }
-  // rear windows so backs read as lived-in from every camera angle
-  for (let f = 1; f < o.floors; f++) {
-    const base = GH + (f - 1) * FH;
+  // the backs are finished by wrapLot below; keep these draws so the rest of each building stays as it was
+  for (let f = 1; f < o.floors; f++)
     for (let a = 2; a + 2 < w; a += 6) {
       if (r() < 0.25) continue;
-      lot.box(a, base + 3, dep - 1, a + 2, base + 7, dep - 1, r() < 0.45 ? c.glassLit : c.glassDark);
-      if (r() < 0.3) lot.box(a, base + 2, dep, a + 2, base + 2, dep, c.trim);
+      r(); r();
     }
-  }
   // drainpipe and gas/electric meters on the facade edge
   if (!wood && o.style !== 'kura') {
     const pa = r() < 0.5 ? 0 : w - 1;
@@ -583,8 +581,32 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
       break;
     }
     case 'plain': {
-      lot.box(Math.floor(w / 2) - 1, 0, 0, Math.floor(w / 2) + 1, 8, 0, 0);
-      lot.box(Math.floor(w / 2) - 1, 0, 1, Math.floor(w / 2) + 1, 8, 1, c.woodMid);
+      // a proper house front: a framed door under a little hood, a nameplate and post box, windows either side
+      const m = Math.floor(w / 2);
+      const kura = o.style === 'kura', glassy = o.style === 'modern' || o.style === 'apartment';
+      const frame = wood ? c.woodDark : kura ? c.kuraBase : trim;
+      lot.box(m - 1, 0, 0, m + 1, 8, 0, 0);
+      lot.box(m - 1, 0, 1, m + 1, 8, 1, (a, y) => wood ? (y === 8 || (a - m) % 2 === 0 ? c.woodDark : c.shoji)
+        : kura ? (a === m && y % 3 === 1 ? c.steelDark : c.woodDark)
+        : glassy ? (y === 8 || a === m + 1 ? c.steel : c.glassLit)
+        : y === 8 || y === 4 ? c.steel : c.shoji);
+      lot.box(m - 2, 0, 0, m - 2, 9, 0, frame);
+      lot.box(m + 2, 0, 0, m + 2, 9, 0, frame);
+      lot.box(m - 2, 9, 0, m + 2, 9, 0, frame);
+      lot.box(m - 2, 10, -1, m + 2, 10, -2, wood || kura ? c.roofTile : c.concrete);
+      lot.set(m - 3, 6, 0, c.woodMid);
+      lot.box(m - 3, 4, 0, m - 3, 5, 0, wood ? c.woodMid : c.steelDark);
+      lot.set(m + 3, 8, 0, c.signLit);
+      if (w >= 12) for (const a0 of [2, w - 5]) {
+        if (a0 + 2 >= m - 3 && a0 <= m + 3) continue;
+        const lit = hash3(a0, 7, o.seed) < 0.5;
+        lot.box(a0, 3, 0, a0 + 2, 7, 0, 0);
+        lot.box(a0, 3, 1, a0 + 2, 7, 1, (a, y) => wood ? (a % 2 ? c.woodDark : c.shoji)
+          : kura ? (a % 2 ? c.kuraBase : c.glassDark)
+          : a % 2 === 0 && !glassy ? c.trimDark : lit ? c.glassLit : y === 7 ? c.glassDark : c.glass);
+        lot.box(a0, 2, 0, a0 + 2, 2, 0, frame);
+        lot.box(a0, 8, 0, a0 + 2, 8, 0, frame);
+      }
       if (dep >= 14 && w >= 10) closedRoom(lot, 'home', o.seed, trim);
       break;
     }
@@ -603,6 +625,9 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
   lot.box(0, 0, 0, w - 1, 0, 0, base);
   lot.box(0, 0, 1, 0, 0, dep - 1, base);
   lot.box(w - 1, 0, 1, w - 1, 0, dep - 1, base);
+
+  // the same finish round the sides and back as on the front
+  wrapLot(lot, { h: H, gh: GH, fh: FH, wall, trim, look: wood ? 'wood' : o.style === 'kura' ? 'kura' : 'plain', seed: o.seed * 5 + 3, pipe: !wood && o.style !== 'kura' });
 
   // vertical sign
   if (o.signs !== false && o.floors >= 2 && r() < 0.75) {
@@ -1165,7 +1190,7 @@ export function buildTokyo(win?: Window): BuildResult {
     while (x < 280) {
       let w = 16 + Math.floor(r() * 4) * 3;
       if (x + w > 280) w = 280 - x;
-      if (w < 10) { g.box(x, G, 4, 279, G + 16, 35, c.concreteWall); break; }
+      if (w < 10) { g.box(x, G, 4, 279, G + 16, 35, c.concreteWall); dressBlock(b, x, 4, 279, 35, 17, c.concreteWall, 71); break; }
       const lot = new Lot(b, x, 4, x + w - 1, 35, 's');
       if (i === 2) {
         stalls.push(stall(lot, { id: 'kimura', foods: ['ningyoyaki', 'dango'], awning: [c.awnRed, c.awnWhite], noren: k.c.norenRed, lantern: k.c.lanternRed, equip: 'mold' }, 3, 101, c.cream));
@@ -1176,6 +1201,7 @@ export function buildTokyo(win?: Window): BuildResult {
       i++;
     }
     g.box(40, G, 0, OSX - 1, G + 10, 3, c.concreteWall);
+    dressBlock(b, 40, 0, OSX - 1, 3, 11, c.concreteWall, 72, 'wall');
   }
 
   // --- Kaminari Lane, south side (facades face -z at z=64)
@@ -1187,7 +1213,7 @@ export function buildTokyo(win?: Window): BuildResult {
       while (x <= sx1) {
         let w = 16 + Math.floor(r() * 4) * 3;
         if (x + w - 1 > sx1) w = sx1 - x + 1;
-        if (w < 10) { g.box(x, G, 64, sx1, G + 16, 91, c.concreteWall); break; }
+        if (w < 10) { g.box(x, G, 64, sx1, G + 16, 91, c.concreteWall); dressBlock(b, x, 64, sx1, 91, 17, c.concreteWall, 73); break; }
         // the western block's back half belongs to the buildings behind (fillBlock), so those lots are shallower
         const lot = new Lot(b, x, 64, x + w - 1, sx0 === 42 ? 81 : 91, 'n');
         if (sx0 === 174 && j === 1) {
@@ -1214,7 +1240,9 @@ export function buildTokyo(win?: Window): BuildResult {
         const h = 8 + Math.floor(rr() * 4) * 6;
         const xe = Math.min(x1, x + 13), ze = Math.min(z1, z + 13);
         const lot = new Lot(b, x, z, xe, ze, 's');
-        lot.box(0, 0, 0, lot.width - 1, h - 1, lot.depth - 1, pick([c.concreteWall, c.beige, c.sand2, c.slate, c.cream]));
+        const wall = pick([c.concreteWall, c.beige, c.sand2, c.slate, c.cream]);
+        lot.box(0, 0, 0, lot.width - 1, h - 1, lot.depth - 1, wall);
+        dressBlock(b, x, z, xe, ze, h, wall, seed * 97 + x * 3 + z);
         if (rr() < 0.4) tiledRoof(lot, h, 0, 2);
         else flatRoof(lot, h, rr);
         b.occlude(x, z, xe, ze, h * V + 2, 0.95, 'landmark');
@@ -1225,6 +1253,7 @@ export function buildTokyo(win?: Window): BuildResult {
   fillBlock(174, 92, 279, 117, 32);
   fillBlock(182, 118, 279, 127, 33);
   g.box(0, G, 82, 23, G + 10, 91, c.concreteWall); // stops short of the café's potted bamboo
+  dressBlock(b, 0, 82, 23, 91, 11, c.concreteWall, 74, 'wall');
 
   // --- Lantern Alley (x 136..149): west side faces +x at x=135, east side faces -x at x=150
   {

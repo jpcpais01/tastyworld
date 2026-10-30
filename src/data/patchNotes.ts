@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.9',
+    date: '2026-10-30',
+    title: 'Every wall finished',
+    items: [
+      'The sides and backs of buildings are now as finished as their fronts: windows with sills and lintels, floor bands running all the way round, AC units, drainpipes, meters, back doors under little rain hoods and the odd rain stain.',
+      'Plain houses got proper fronts: a framed door under a small tiled or concrete hood, a nameplate and post box, a porch light, and windows either side with lattice or grilles to match the house.',
+      'The blocks in the middle of the old district and the boundary walls are no longer bare: they have windows, bands, pipes and weathering like everything around them.',
+      'The little houses on the far canal bank have stone plinths, eaves and finished sides.',
+    ],
+  },
+  {
     version: '0.10.8',
     date: '2026-10-30',
     title: 'Steadier frames while exploring',

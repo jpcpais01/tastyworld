@@ -14,7 +14,7 @@ import { Crowd } from './game/crowd';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
 import { Cutaway } from './game/cutaway';
-import { Audio } from './game/audio';
+import { Audio, Talker } from './game/audio';
 import { loadState, saveState, resetState, SaveState } from './game/state';
 import { DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
@@ -387,6 +387,10 @@ class Game {
       });
     }
 
+    // footsteps follow the walk cycle; the player's own are always heard, even in first person
+    Actor.onStep = (act, run) => { if (act === this.player || act.root.visible) this.audio.step(act.position.x, act.position.z, run, act === this.player); };
+    this.audio.setRooms(a.rooms.map((rm) => ({ rect: rm.rect, kind: rm.kind })));
+
     // pedestrians going about their day, a few of them in pairs
     this.crowd = new Crowd(this.navWorld, a, {
       bubble: (key, text, pos, secs) => this.ui.bubble(key, text, pos, secs),
@@ -595,6 +599,27 @@ class Game {
     this.setShelf(true);
     this.ui.toast('📚', 'A hidden room!', 'The bookshelf swings aside. Behind it: a tiny reading room nobody has dusted in years.', true);
     this.afterChange();
+  }
+
+  /** Tell the audio where we are, who's chatting nearby (walkers, vendors calling out, regulars in shops) and how busy it is. */
+  private audioScene(): void {
+    const pl = this.player.position;
+    const talkers: Talker[] = [];
+    let crowd = 0;
+    if (!this.inside) {
+      for (const a of this.crowd.visible()) {
+        const d = Math.hypot(a.position.x - pl.x, a.position.z - pl.z);
+        if (d < 22) crowd++;
+        if (d < 15 && a.anim === 'talk') talkers.push({ x: a.position.x, z: a.position.z, key: a });
+      }
+      for (const v of this.vendors) if (v.waveT > 0) talkers.push({ x: v.actor.position.x, z: v.actor.position.z, key: v.actor });
+      for (const e of this.roomActors) {
+        if (e.keeper || !e.actor.root.visible) continue;
+        const q = e.actor.position;
+        if (Math.hypot(q.x - pl.x, q.z - pl.z) < 12) talkers.push({ x: q.x, z: q.z, key: e.actor, busy: 0.3 });
+      }
+    }
+    this.audio.scene(pl.x, pl.z, this.cam.right.x, this.cam.right.z, talkers, crowd);
   }
 
   private roomAt(x: number, z: number): RoomAnchor | null {
@@ -1487,6 +1512,7 @@ class Game {
       }
       const water = this.inside ? 0 : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
       this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
+      this.audioScene();
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }
     this.audio.tick(this.tod.night);

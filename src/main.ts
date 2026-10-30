@@ -43,7 +43,8 @@ interface Interactable {
 interface Walker { actor: Actor; from: number; to: number; prev: number; path: [number, number][]; speed: number; wait: number; }
 interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; }
 
-const PLAYER_SPEED = 3.3;
+const PLAYER_SPEED = 3.2;
+const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
 const VENDOR_CALLS = ['Irasshaimase!', 'Fresh and hot!', 'Oishii yo!', 'Come, come!', 'Hai, dōzo!', 'Just made!'];
 
 function playerLook(wear: Record<string, boolean>): Look {
@@ -89,6 +90,9 @@ class Game {
   player!: Actor;
   private path: [number, number][] = [];
   private pending: Interactable | null = null;
+  private pathRun = false;
+  private lastTap = { t: 0, x: 0, y: 0 };
+  private slideSide = 1;
   private eatT = 0;
   private walkers: Walker[] = [];
   private pathCache = new Map<string, [number, number][]>();
@@ -103,7 +107,7 @@ class Game {
   private near: Interactable | null = null;
   private notified = new Set<string>();
   private keys = new Set<string>();
-  private joy: { id: number; sx: number; sy: number; x: number; y: number; active: boolean; t: number } | null = null;
+  private joy: { id: number; sx: number; sy: number; x: number; y: number; active: boolean; run: boolean; t: number } | null = null;
   private pinch: { d: number; a: number; twist: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
   private last = performance.now();
@@ -629,7 +633,7 @@ class Game {
         this.pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), a: Math.atan2(p2.y - p1.y, p2.x - p1.x), twist: 0 };
         this.joy = null;
       } else if (this.pointers.size === 1) {
-        this.joy = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: 0, y: 0, active: false, t: performance.now() };
+        this.joy = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: 0, y: 0, active: false, run: false, t: performance.now() };
       }
     });
     canvas.addEventListener('pointermove', (e) => {
@@ -661,6 +665,7 @@ class Game {
         if (j.active) {
           const len = Math.hypot(dx, dy), k = Math.min(1, len / 70) / Math.max(1e-3, len);
           j.x = dx * k; j.y = dy * k;
+          j.run = len > 105; // drag well past the stick's reach to break into a run
         }
       }
     });
@@ -689,6 +694,10 @@ class Game {
       if (d < bd) { bd = d; best = it; }
     }
     this.ui.tapRing(x, y);
+    // a quick second tap near the first one runs there instead of walking
+    const now = performance.now(), lt = this.lastTap;
+    this.pathRun = now - lt.t < 380 && Math.hypot(x - lt.x, y - lt.y) < 48;
+    this.lastTap = { t: this.pathRun ? 0 : now, x, y };
     const p = this.player.position;
     if (best) {
       if (Math.hypot(best.x - p.x, best.z - p.z) < best.r) { this.near = best; this.interact(); return; }
@@ -714,7 +723,7 @@ class Game {
   // ------------------------------------------------------------------ simulation
   private movePlayer(dt: number): void {
     const pl = this.player, p = pl.position;
-    let dx = 0, dz = 0, speed = 0;
+    let dx = 0, dz = 0, speed = 0, run = false;
     if (!this.ui.busy && this.started) {
       const k = this.keys;
       let f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
@@ -727,7 +736,8 @@ class Game {
         dx = ax.fwd.x * f + ax.right.x * rt;
         dz = ax.fwd.y * f + ax.right.y * rt;
         const len = Math.hypot(dx, dz);
-        speed = PLAYER_SPEED * Math.min(1, Math.hypot(f, rt));
+        run = this.joy?.active ? this.joy.run : k.has('ShiftLeft') || k.has('ShiftRight');
+        speed = (run ? RUN_SPEED : PLAYER_SPEED) * Math.min(1, Math.hypot(f, rt));
         dx /= len; dz /= len;
       } else if (this.path.length) {
         const [tx, tz] = this.path[0];
@@ -743,25 +753,35 @@ class Game {
           }
         } else {
           dx = ddx / d; dz = ddz / d;
-          speed = PLAYER_SPEED * (this.path.length === 1 ? Math.min(1, 0.35 + d) : 1);
+          run = this.pathRun || this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
+          speed = (run ? RUN_SPEED : PLAYER_SPEED) * (this.path.length === 1 ? Math.min(1, 0.35 + d) : 1);
         }
       }
     }
     if (speed > 0) {
       const hv = this.nav.standHeightVox(p.x, p.z);
       const from = hv === 255 ? 12 : hv;
-      const nx = p.x + dx * speed * dt, nz = p.z + dz * speed * dt;
-      const follow = this.path.length > 0;
-      if (follow || this.nav.canStand(nx, nz, from)) { p.x = nx; p.z = nz; }
-      else if (this.nav.canStand(nx, p.z, from)) p.x = nx;
-      else if (this.nav.canStand(p.x, nz, from)) p.z = nz;
-      else speed = 0;
-      if (speed > 0) pl.targetFacing = Math.atan2(dx, dz);
+      const step = speed * dt;
+      if (this.path.length > 0) {
+        p.x += dx * step; p.z += dz * step;
+        pl.targetFacing = Math.atan2(dx, dz);
+      } else {
+        // free movement slides along walls and nudges round corners, chairs and tree trunks
+        const m = this.nav.slide(p.x, p.z, dx, dz, step, from, this.slideSide);
+        if (m) {
+          const mx = m.x - p.x, mz = m.z - p.z;
+          p.x = m.x; p.z = m.z;
+          this.slideSide = m.side;
+          speed *= Math.hypot(mx, mz) / step;
+          pl.targetFacing = Math.atan2(mx, mz);
+        } else speed = 0;
+      }
     }
+    if (!this.path.length) this.pathRun = false;
     p.y += (this.nav.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 14);
     pl.speed = speed / 1.4;
     if (this.eatT > 0) { this.eatT -= dt; if (speed > 0) this.eatT = 0; }
-    pl.anim = speed > 0 ? (speed > 2.5 ? 'run' : 'walk') : this.eatT > 0 ? 'eat' : 'idle';
+    pl.anim = speed > 0 ? (run && speed > PLAYER_SPEED ? 'run' : 'walk') : this.eatT > 0 ? 'eat' : 'idle';
     pl.update(dt);
     pl.light(this.lm);
   }
@@ -968,7 +988,7 @@ class Game {
         sizzle = Math.max(sizzle, 1 - d / 7);
       }
       const water = this.inside ? 0 : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
-      this.audio.ambience(Math.max(0, sizzle), water, this.tod.night);
+      this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }
     this.audio.tick(this.tod.night);

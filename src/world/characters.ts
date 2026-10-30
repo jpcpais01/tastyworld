@@ -20,6 +20,11 @@ export interface CharModel {
   scale: number;
   origin: [number, number, number];
   pivots: [number, number, number][];
+  /**
+   * Joint caps: extra voxels owned by the lower limb that sit hidden inside the upper one at rest and
+   * swing out to fill the wedge that opens on the outside of a bent knee or elbow.
+   */
+  caps?: { grid: Grid; parts: Uint8Array };
 }
 
 export interface Look {
@@ -212,6 +217,20 @@ export function buildPerson(look: Look): CharModel {
     else if (pt === PART.armR && y <= 11) parts[i] = PART.foreR;
   }
 
+  // the lower limb carries a copy of the row above its joint, as deep as half the limb (2 rows at the
+  // knee, 1 at the elbow), so the outside of a bend stays closed at any angle
+  const caps = { grid: new Grid(W, H, D), parts: new Uint8Array(W * H * D) };
+  const cap = (y: number, from: number, to: number, rows: number) => {
+    for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+      const i = y * W * D + z * W + x;
+      const c = grid.get(x, y, z);
+      if (!c || parts[i] !== from) continue;
+      for (let k = 0; k < rows; k++) { caps.grid.set(x, y + k, z, c); caps.parts[i + k * W * D] = to; }
+    }
+  };
+  cap(4, PART.legL, PART.shinL, 2); cap(4, PART.legR, PART.shinR, 2);
+  cap(12, PART.armL, PART.foreL, 1); cap(12, PART.armR, PART.foreR, 1);
+
   const s = CHAR_SCALE;
   const ox = -W / 2 * s, oz = -4 * s;
   const pivots: [number, number, number][] = [
@@ -228,7 +247,7 @@ export function buildPerson(look: Look): CharModel {
     [ox + 1 * s, 12 * s, oz + 4 * s], // left elbow
     [ox + 9 * s, 12 * s, oz + 4 * s],
   ];
-  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots };
+  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots, caps };
 }
 
 export function buildCat(seed: number): CharModel {

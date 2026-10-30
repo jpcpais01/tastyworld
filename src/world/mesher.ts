@@ -110,9 +110,13 @@ export function meshGrid(o: MeshOpts): MeshData {
   const gb = o.groundBelow ?? -1;
   const gsx = grid.sx, gsy = grid.sy, gsz = grid.sz;
   const pyOf = (vi: number) => Math.floor(vi / sxz);
+  // Animated characters: each body part is its own closed solid, so faces where two parts touch are
+  // kept (they show when a limb swings away) and AO / edges only see voxels of the same part.
+  let curPart = -1;
   const solid = (x: number, y: number, z: number) => {
     if (x < 0 || y < 0 || z < 0 || x >= gsx || y >= gsy || z >= gsz) return y < gb;
-    return data[y * sxz + z * sx + x] !== 0;
+    const i = y * sxz + z * sx + x;
+    return data[i] !== 0 && (curPart < 0 || parts![i] === curPart);
   };
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
@@ -199,7 +203,8 @@ export function meshGrid(o: MeshOpts): MeshData {
           vi += sU;
           const col = data[vi];
           if (col === 0) continue;
-          if (nIn ? data[vi + dn * sN] !== 0 : outsideSolid || (na !== 1 && pyOf(vi) < gb)) continue;
+          if (nIn ? data[vi + dn * sN] !== 0 && (!parts || parts[vi + dn * sN] === parts[vi]) : outsideSolid || (na !== 1 && pyOf(vi) < gb)) continue;
+          curPart = parts ? parts[vi] : -1;
           const mi = iv * U + iu;
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
           const x = p[0], y = p[1], z = p[2];

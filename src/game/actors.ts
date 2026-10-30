@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { meshGrid, STRIDE, MeshData } from '../world/mesher';
+import { meshGrid, mergeMeshes, STRIDE, MeshData } from '../world/mesher';
 import { CharModel, PART, PART_COUNT, CHAR_SCALE } from '../world/characters';
 import { voxelMaterial, SharedUniforms } from '../engine/renderer';
 import type { LightMap2D } from '../world/bake';
@@ -113,10 +113,20 @@ export class Actor {
 
   constructor(model: CharModel, shared: SharedUniforms, isCat = false) {
     this.isCat = isCat;
-    const md = meshGrid({ grid: model.grid, pal: model.pal, scale: model.scale, origin: model.origin, parts: model.parts, greedy: false });
+    const piv = Array.from({ length: NP }, (_, i) => new THREE.Vector3(...(model.pivots[i] ?? [0, 0, 0])));
+    const opts = { pal: model.pal, scale: model.scale, origin: model.origin, greedy: false };
+    let md = meshGrid({ ...opts, grid: model.grid, parts: model.parts });
+    if (model.caps) {
+      // shrink the joint caps a hair towards their hinge so they never z-fight the limb they hide in
+      const cm = meshGrid({ ...opts, grid: model.caps.grid, parts: model.caps.parts });
+      for (let v = 0; v < cm.vertexCount; v++) {
+        const c = piv[cm.attrs[v * STRIDE + 3]];
+        for (let k = 0; k < 3; k++) cm.positions[v * 3 + k] = c.getComponent(k) + (cm.positions[v * 3 + k] - c.getComponent(k)) * 0.96;
+      }
+      md = mergeMeshes([md, cm]) ?? md;
+    }
     const geo = geometryFrom(md);
     this.rot = Array.from({ length: NP }, () => new THREE.Vector3());
-    const piv = Array.from({ length: NP }, (_, i) => new THREE.Vector3(...(model.pivots[i] ?? [0, 0, 0])));
     this.mat = voxelMaterial(shared, { CHARACTER: 1 }, {
       uPivot: { value: piv },
       uRot: { value: this.rot },

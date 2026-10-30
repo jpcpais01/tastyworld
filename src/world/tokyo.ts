@@ -155,6 +155,12 @@ export class Builder {
   stallAnchors: StallAnchor[] = [];
   occluders: Occluder[] = [];
   benches: [number, number, number][] = [];
+  /** True when there is open air at a point (metres). */
+  clear(x: number, y: number, z: number): boolean {
+    return this.grid.get(Math.floor(x / V), Math.floor(y / V) + G, Math.floor(z / V)) === 0;
+  }
+  /** Footprints of props standing on the ground, so later ones can keep clear of them. */
+  standing: [number, number, number, number][] = [];
 
   constructor(win?: Window) {
     const w = win ?? [VX0, VZ0, VX0 + SX, VZ0 + SZ];
@@ -169,6 +175,7 @@ export class Builder {
     const p = rotateProp(prop, turns);
     const sx = p.sx * p.scale, sz = p.sz * p.scale;
     this.props.push({ prop: p, origin: [cx - sx / 2, y, cz - sz / 2], tag });
+    if (!tag && y < 0.3) this.standing.push([cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2]);
     return p;
   }
 
@@ -1070,7 +1077,8 @@ export function buildTokyo(win?: Window): BuildResult {
     const awning = ground0 === 'shop' || ground0 === 'cafe' ? pick(awnPairs) : undefined;
     const ground = force?.ground ?? ground0, style = force?.style ?? style0, floors = force?.floors ?? floors0;
     building(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' || ground === 'kissa' ? awning ?? awnPairs[seed % awnPairs.length] : undefined, restaurant: force?.restaurant, secret: force?.secret });
-    if (style !== 'machiya' && style !== 'kura') {
+    const [fx, fz] = lot.front(lot.width / 2, 0.3);
+    if (style !== 'machiya' && style !== 'kura' && b.clear(fx, 3.6, fz)) {
       lot.wallProp(lantern(k, lanternAlt ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
       const [lx, lz] = lot.front(lot.width / 2, 0.5);
       b.lamp(lx, 3.4, lz, lanternAlt ? RED : WHITEWARM, 3.5, 0.8);
@@ -1144,7 +1152,7 @@ export function buildTokyo(win?: Window): BuildResult {
   fillBlock(42, 82, 111, 91, 34);
   fillBlock(174, 92, 279, 117, 32);
   fillBlock(182, 118, 279, 127, 33);
-  g.box(0, G, 82, 27, G + 10, 91, c.concreteWall);
+  g.box(0, G, 82, 23, G + 10, 91, c.concreteWall); // stops short of the café's potted bamboo
 
   // --- Lantern Alley (x 136..149): west side faces +x at x=135, east side faces -x at x=150
   {
@@ -1200,10 +1208,6 @@ export function buildTokyo(win?: Window): BuildResult {
       b.place(boardSign(k, k.c.signRed, k.c.neonWhite, 5, Math.round(zz)), 35.75, 4.3, zz * V, 0);
       b.lamp(35.75, 4.8, zz * V, [1, 0.5, 0.4], 4, 0.6);
     }
-    b.place(crateStack(k, 91), 34.4, 0, 36.6);
-    b.block(33.9, 36.1, 34.9, 37.1);
-    b.place(crateStack(k, 92), 34.4, 0, 22.0);
-    b.block(33.9, 21.5, 34.9, 22.5);
   }
 
   // --- Nameless passage (z 118..125, x 150..181)
@@ -1258,14 +1262,16 @@ export function buildTokyo(win?: Window): BuildResult {
       g.box(x, G, 170, x, G + 2, 170, c.stone);
       if (x + 4 < OSX - 4 && !(x + 4 >= 54 && x + 4 <= 73) && !(x + 4 >= 210 && x + 4 <= 229) && !(x + 4 >= 122 && x + 4 <= 137)) g.box(x, G + 2, 170, x + 3, G + 2, 170, c.stone);
     }
-    for (const lx of [8, 32, 68, 104, 140, 168, 200, 236, 260]) {
+    for (let lx of [8, 32, 75, 104, 140, 168, 200, 236, 260]) { // (75: clear of the red bridge's ramp)
+      for (const dx of [0, -4, 4, -8, 8]) if (b.clear((lx + dx) * V + 0.3, 3.9, 168.6 * V)) { lx += dx; break; } // lamp head out of the cherry canopies
       b.place(streetLamp(k), lx * V + 0.3, 0, 168.6 * V, 0);
       b.lamp(lx * V + 0.8, 3.4, 168.6 * V, WHITEWARM, 7, 1.0);
       b.block(lx * V, 168.6 * V - 0.25, lx * V + 0.5, 168.6 * V + 0.25);
     }
-    for (const bx of [80, 196, 240]) { b.place(bench(k), bx * V, 0, 167.2 * V, 0); b.benches.push([bx * V, 167.2 * V, 0]); b.block(bx * V - 0.9, 167.2 * V - 0.35, bx * V + 0.9, 167.2 * V + 0.35); }
+    for (const bx of [80, 196, 243]) { b.place(bench(k), bx * V, 0, 167.2 * V, 0); b.benches.push([bx * V, 167.2 * V, 0]); b.block(bx * V - 0.9, 167.2 * V - 0.35, bx * V + 0.9, 167.2 * V + 0.35); }
     const clearOf = (x: number, half: number) => {
       for (const rm of b.rooms) if (Math.abs(rm.door[1] - 38.4) < 2.4 && Math.abs(rm.door[0] - x) < 1.0 + half) return false;
+      for (const [ax, az, bx, bz] of b.standing) if (ax < x + half && bx > x - half && az < 38.8 && bz > 38.0) return false; // planters by the doors
       return true;
     };
     for (const [vx0, vc] of [[29.6, k.c.vmRed], [30.7, k.c.vmBlue], [60.5, k.c.vmWhite]] as [number, number][]) {
@@ -1284,6 +1290,7 @@ export function buildTokyo(win?: Window): BuildResult {
     for (let x = 6; x < 70; x += 2.6) {
       if ((x > 13.5 && x < 18.3) || (x > 52.5 && x < 57.3)) continue;
       const red = Math.round(x) % 2 === 1;
+      if (!b.clear(x, 2.8, 42.55)) continue; // lost in a cherry canopy
       b.place(lantern(k, red ? k.c.lanternRed : k.c.lanternWhite, 4, 5, Math.round(x * 10)), x, 2.55, 42.55);
       b.lamp(x, 2.7, 42.55, red ? RED : WHITEWARM, 3.2, 0.55);
     }
@@ -1318,7 +1325,7 @@ export function buildTokyo(win?: Window): BuildResult {
     b.place(buildFood('takoyaki', b.pal), cx - 0.9, 1.25, front - 0.35, 0);
     b.place(buildFood('monjayaki', b.pal), cx + 0.9, 1.25, front - 0.35, 0);
     for (const sx of [-1.6, 0, 1.6]) b.place(stool(k, k.c.lacquer), cx + sx, 0, front + 0.45);
-    b.place(boardSign(k, k.c.signRed, k.c.white, 4, 83), cx, 3.05, front + 0.2, 0);
+    b.place(boardSign(k, k.c.signRed, k.c.white, 4, 83), cx, 3.05, front + 0.42, 0); // hangs off the eave, clear of the roof
     b.place(nobori(k, k.c.norenWhite, k.c.norenRed, 84), (x0 - 1.4) * V, 0, (z0 + 6) * V, 0);
     b.block(x0 * V, z0 * V, (x0 + 20) * V, front);
   }
@@ -1365,7 +1372,7 @@ export function buildTokyo(win?: Window): BuildResult {
     b.block(3.9, 11.4, 6.1, 13.6);
     b.emitters.push({ kind: 'incense', pos: [5.0, 2.6, 12.5], rate: 1 });
     b.lamp(5.0, 1.4, 12.5, [1, 0.5, 0.2], 3, 0.8);
-    for (const [x, z] of [[3.6, 7.0], [6.2, 7.0], [3.6, 18.2], [6.2, 18.2]] as [number, number][]) {
+    for (const [x, z] of [[3.6, 7.0], [3.6, 18.2], [6.2, 18.2]] as [number, number][]) { // (one at the north corner: the corner shop takes the other spot)
       b.place(stoneLantern(k), x, 0, z);
       b.lamp(x, 1.5, z, WARM, 3.2, 0.7);
       b.block(x - 0.5, z - 0.5, x + 0.5, z + 0.5);
@@ -1406,21 +1413,32 @@ export function buildTokyo(win?: Window): BuildResult {
   {
     const solid = (x: number, z: number, hx: number, hz: number) => b.block(x - hx, z - hz, x + hx, z + hz);
     // slide parked things along the kerb so they never sit in front of a shop door
-    const dodge = (x: number, z: number, half = 0.8) => {
-      for (let i = 0; i < 8; i++) {
-        const d = b.rooms.find((rm) => Math.abs(rm.door[0] - x) < 1.0 + half && Math.abs(rm.door[1] - z) < 2.4);
-        if (!d) return x;
-        x = d.door[0] + (x >= d.door[0] ? 1.05 + half : -1.05 - half);
+    // ...or on top of something already standing there (A-frame menus, planters, other parked bikes)
+    const clearGround = (x0: number, z0: number, x1: number, z1: number) => {
+      for (let vz = Math.floor(z0 / V); vz <= Math.floor(z1 / V); vz++)
+        for (let vx = Math.floor(x0 / V); vx <= Math.floor(x1 / V); vx++)
+          for (let y = G + 1; y < G + 5; y++) if (g.get(vx, y, vz)) return false; // (G may be kerb or paving)
+      return true;
+    };
+    const dodge = (x0: number, z: number, half = 0.8) => {
+      const hit = ([ax, az, bx, bz]: [number, number, number, number], x: number) => ax < x + half + 0.05 && bx > x - half - 0.05 && az < z + 0.3 && bz > z - 0.3;
+      const door = (x: number) => b.rooms.some((rm) => Math.abs(rm.door[0] - x) < 0.8 + half && Math.abs(rm.door[1] - z) < 2.4);
+      const free = (x: number) => !door(x) && !b.blockers.some((o) => hit(o, x)) && !b.standing.some((o) => hit(o, x)) && clearGround(x - half, z - 0.15, x + half, z + 0.15);
+      // nearest free spot, searching outwards along the kerb; if there is none nearby, it isn't parked there at all
+      for (let k = 0; k < 40; k++) {
+        const x = x0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.25;
+        if (free(x)) return x;
       }
-      return x;
+      return null;
     };
     // parked delivery scooters and bicycles along the north facades of Kaminari Lane
     for (const [x0, col] of [[19.6, k.c.cubRed], [46.8, k.c.vmBlue], [61.4, k.c.cubRed]] as [number, number][]) {
       const x = dodge(x0, 9.42);
+      if (x === null) continue;
       b.place(scooter(k, col), x, 0, 9.42, 0);
       solid(x, 9.42, 0.8, 0.22);
     }
-    const bx = dodge(39.5, 9.35, 1.2);
+    const bx = dodge(39.5, 9.35, 1.2) ?? 39.5;
     for (const x of [bx - 0.8, bx, bx + 0.8]) b.place(bicycle(k, [k.c.bikeSilver, k.c.bikeMint, k.c.bikeRed][Math.round(x * 10) % 3]), x, 0, 9.35, 0);
     solid(bx, 9.35, 1.2, 0.2);
     // post box and recycling corner by the konbini
@@ -1433,24 +1451,26 @@ export function buildTokyo(win?: Window): BuildResult {
     solid(34.2, 16.3, 0.12, 0.12);
     for (const x of [34.9, 36.6]) { b.place(bollard(k), x, 0, 16.15, 0); solid(x, 16.15, 0.12, 0.12); }
     // jizō statues keeping watch beside the hokora
-    for (const x of [1.95, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); }
+    for (const x of [2.45, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); } // on the gravel, off the temple's stone base
     // café terrace tables on the promenade
     for (const [x0, col] of [[9.6, k.c.fabricRed], [11.4, k.c.fabricWhite], [43.6, k.c.fabricGreen], [45.4, k.c.fabricWhite], [65.2, k.c.fabricOrange]] as [number, number][]) {
       const x = dodge(x0, 38.65, 0.6);
+      if (x === null) continue;
       b.place(cafeTable(k, col), x, 0, 38.65, 0);
       solid(x, 38.65, 0.3, 0.3);
-      b.place(stool(k, k.c.woodLight), x + 0.55, 0, 38.65);
+      b.place(stool(k, k.c.woodLight), x + 0.62, 0, 38.65);
     }
     // a scooter and planters on the far bank lane
-    b.place(scooter(k, k.c.cubCream), 22.5, 0, 54.4, 2);
-    solid(22.5, 54.4, 0.8, 0.22);
-    for (const x of [40, 48.5, 57]) { b.place(plantPot(k, 'shrub', Math.round(x)), x, 0, 54.6); solid(x, 54.6, 0.3, 0.3); }
+    // (in front of the far bank's row houses, whose fronts are at z = 54)
+    b.place(scooter(k, k.c.cubCream), 24.3, 0, 53.7, 2); // beside the cherry tree, not on its trunk
+    solid(24.3, 53.7, 0.8, 0.22);
+    for (const x of [40, 48.5, 57]) { b.place(plantPot(k, 'shrub', Math.round(x)), x, 0, 53.5); solid(x, 53.5, 0.3, 0.3); }
   }
 
   // --- Lucky cats (hidden clue statues)
   const manekis: [number, number, number][] = [
     [3.15, 0, 6.3], // in front of the little hokora shrine
-    [34.3, 0, 37.55], // tucked behind the crates at the south end of the alley
+    [34.3, 0, 36.6], // tucked beside the crates at the south end of the alley
     [64.15, 0, 52.6], // by the stone lantern under the cherry trees on the far bank
   ];
   for (const m of manekis) b.place(manekiNeko(k), m[0], m[1], m[2], 1);

@@ -427,9 +427,9 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       // magazine rack under the right window
       if (A1 - rightA0 > 2) lot.box(rightA0, 0, D0, A1, 2, D0, (a, y) => (y === 2 ? goods[a % goods.length] : c.trim));
       // gachapon machines by the door
-      put(gachaMachine(ic, ic.capsuleA), A0 + 0.5 + 0.2, D0 + 0.5, 0, IN, 0.22);
-      put(gachaMachine(ic, ic.capsuleB), A0 + 1.5 + 0.3, D0 + 0.5, 0, IN, 0.22);
-      spot('gacha', A0 + 1.2, D0 + 0.6, 0.9, A0 + 1.3, D0 + 2.6);
+      put(gachaMachine(ic, ic.capsuleA), A0 + 0.75, D0 + 0.5, 0, IN, 0.22);
+      put(gachaMachine(ic, ic.capsuleB), A0 + 2.35, D0 + 0.5, 0, IN, 0.22);
+      spot('gacha', A0 + 1.55, D0 + 0.6, 0.9, A0 + 1.55, D0 + 2.6);
       npc('guest', A0 + 1.5, D0 + 6, PA);
       lampAt((A0 + A1 + 1) / 2, D0 + 4, 2.7, COOL, 8, 1.0);
       lampAt((A0 + A1 + 1) / 2, D1 - 3, 2.7, COOL, 7, 0.8);
@@ -445,7 +445,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       const { ka } = backCounter(c.woodMid, c.hinoki);
       b.place(register(ic), ...withY(P(ka + 1, D1 - 2.5), 1.0), turn(OUT));
       spot('buy', ka, D1 - 2.5, 1.2, ka, D1 - 4.5);
-      if (nth === 0) { put(gachaMachine(ic, ic.capsuleC), A1 - 0.6, D0 + 0.5, 0, IN, 0.22); spot('gacha', A1 - 0.6, D0 + 0.6, 0.9, A1 - 1.5, D0 + 2.2); }
+      if (nth === 0) { put(gachaMachine(ic, ic.capsuleC), A1 - 0.6, D0 + 0.5, 0, IN, 0.22); spot('gacha', A1 - 0.6, D0 + 0.6, 0.9, A1 - 0.8, D0 + 2.6); }
       lampAt((A0 + A1 + 1) / 2, D0 + 5, 2.6, WARM, 7, 1.0);
       break;
     }
@@ -465,6 +465,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
         for (const side of [0, 1]) {
           const ta = side === 0 ? A0 + 1 : A1 - 1;
           if (side === 1 && back && d + 2 >= D1 - 3) continue;
+          if (d > D1 - 9) continue; // too shallow: the far stool would sit among the counter stools
           if (kissa) {
             // booth: two bench seats facing each other across a table along the wall
             const a0 = side === 0 ? A0 : A1 - 2, a1b = a0 + 2;
@@ -477,9 +478,9 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
             put(pendant(k, k.c.lanternAmber), (a0 + a1b + 1) / 2, d + 1.5, 2.15, OUT);
           } else {
             put(cafeTable(k, [k.c.fabricWhite, k.c.fabricRed, k.c.fabricGreen][(i + side) % 3]), ta + 0.5, d + 1.5, 0, OUT, 0.32);
-            put(stool(k, k.c.woodLight), ta + 0.5, d + 0.2, 0, OUT);
-            put(stool(k, k.c.woodLight), ta + 0.5, d + 2.8, 0, OUT);
-            if ((i + side) % 2 === 0) npc('guest', ta + 0.5, d + 0.25, IN, true);
+            put(stool(k, k.c.woodLight), ta + 0.5, d - 0.15, 0, OUT);
+            put(stool(k, k.c.woodLight), ta + 0.5, d + 3.15, 0, OUT);
+            if ((i + side) % 2 === 0) npc('guest', ta + 0.5, d - 0.1, IN, true);
           }
         }
       }
@@ -489,7 +490,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       } else {
         lot.box(A1, 0, D0, A1, 4, D0 + 1, (_a, y) => (y === 4 ? c.leaf : ic.wain));
       }
-      put(plantPot(k, 'bamboo', o.seed + 9), A0 + 0.5, D0 + 0.5, 0, OUT, 0.2);
+      if (D0 + 3 > D1 - 9) put(plantPot(k, 'bamboo', o.seed + 9), A0 + 1.5, D0 + 1.5, 0, OUT, 0.2); // (where no table takes the corner)
       spot('buy', ka, D1 - 2.5, 1.2, ka, D1 - 4.8);
       lampAt((A0 + A1 + 1) / 2, D0 + 4, 2.4, WARM, 7, 1.1);
       lampAt(ka, D1 - 2, 2.4, WARM, 5, 0.9);
@@ -515,8 +516,8 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       for (let d = cd0; d <= cd1; d += 2) lot.box(A1, 7, d, A1, 10, d, (_a, y) => (y % 2 ? ic.paper : ic.ink));
       let n = 0;
       for (let d = cd0 + 1; d <= cd1; d += 3) {
-        put(stool(k, k.c.lacquer), A0 + 4.5, d + 0.5, 0, NA);
-        if (n++ % 2 === 0 && n < 5) npc('guest', A0 + 4.4, d + 0.5, NA, true);
+        put(stool(k, k.c.lacquer), A0 + 4.9, d + 0.5, 0, NA); // just clear of the counter front
+        if (n++ % 2 === 0 && n < 5) npc('guest', A0 + 4.8, d + 0.5, NA, true);
       }
       put(lantern(k, o.lanterns ?? k.c.lanternRed, 4, 5, o.seed + 2), A0 + 3, (cd0 + cd1) / 2, 2.3, OUT);
       lot.set(A0, 6, cd0 + 1, 0); lot.set(A0, 7, cd0 + 1, 0);
@@ -570,14 +571,14 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
         b.place(shelf, ox, 0, oz, turn(OUT), 'shelf-open');
         const [gx0, gz0] = P(ga0 + 0.05, D1 + 0.05), [gx1, gz1] = P(ga1 + 0.95, pb + 0.95);
         // reading room furniture
-        lot.box(A0, 0, BD1, A0 + 3, 1, BD1, ic.velvet); lot.box(A0, 2, BD1, A0 + 3, 4, BD1, ic.velvetDark); // settee
+        lot.box(A0, 0, BD1 - 1, A0 + 3, 1, BD1, ic.velvet); lot.box(A0, 2, BD1, A0 + 3, 4, BD1, ic.velvetDark); // settee
         lot.box(A1 - 3, 0, BD0 + 2, A1 - 1, 2, BD0 + 4, ic.wainDark); // desk
         lot.box(A1 - 3, 3, BD0 + 2, A1 - 1, 3, BD0 + 4, (a, _y, d) => ((a + d) % 2 ? ic.paper : ic.wainDark));
         shelfRun(A0, BD0, A0, BD1 - 2, 9, [ic.bookA, ic.bookC, ic.bookF, ic.paper], ic.wainDark);
         lot.box(midA - 2, 6, dep - 2, midA + 2, 10, dep - 2, (a, y) => (a === midA - 2 || a === midA + 2 ? ic.wainDark : y === 8 && a === midA ? ic.ink : ic.paper)); // hanging scroll
         const [nx, nz] = P(A1 - 2, BD0 + 3.5);
         b.secret = { shelf: [sx, 1.4, sz], shelfStand: P((ga0 + ga1 + 1) / 2, D1 - 2.2), gate: [Math.min(gx0, gx1), Math.min(gz0, gz1), Math.max(gx0, gx1), Math.max(gz0, gz1)], note: [nx, 0.85, nz], noteStand: P(A1 - 2, BD0 + 6.5) };
-        b.darumaSpots.unshift({ kind, pos: withY(P(A0 + 2, BD1 + 0.5), 0.5), secret: true });
+        b.darumaSpots.unshift({ kind, pos: withY(P(A0 + 2, BD1 - 0.5), 0.5), secret: true }); // on the settee's seat
         lampAt((A0 + A1 + 1) / 2, (BD0 + BD1 + 1) / 2, 2.2, [1.0, 0.62, 0.32], 5, 1.2);
       } else {
         shelfRun(A0 + 2, D1, back ? bda - 2 : A1 - 2, D1, 10, books, ic.wainDark);
@@ -602,8 +603,8 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       break;
     }
     case 'bakery': {
-      put(breadShelf(k, o.seed), A0 + 0.45, D0 + 4, 0, PA, 0);
-      put(breadShelf(k, o.seed + 1), A0 + 0.45, D0 + 8, 0, PA, 0);
+      put(breadShelf(k, o.seed), A0 + 0.65, D0 + 4, 0, PA, 0);
+      put(breadShelf(k, o.seed + 1), A0 + 0.65, D0 + 8, 0, PA, 0);
       blockCells(A0, D0 + 2, A0 + 1, D0 + 9);
       // glass case counter with breads, oven glowing behind
       const { ka, a1 } = backCounter(ic.wain, ic.case);
@@ -676,8 +677,8 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
   // back room: storage, with a spot for something small to hide
   if (back && !o.secret) {
     const s1 = BD1;
-    put(crateStack(k, o.seed + 11), A0 + 1, s1, 0, OUT, 0.5);
-    lot.box(A0 + 2, 0, s1, Math.min(bda - 2, A0 + 6), 6, s1, (a, y) => (y % 3 === 0 ? c.woodMid : goods[(a + y) % goods.length]));
+    put(crateStack(k, o.seed + 11), A0 + 2, s1 - 1, 0, OUT, 0.5); // in the corner, clear of both walls
+    lot.box(A0 + 4, 0, s1, Math.min(bda - 2, A0 + 6), 6, s1, (a, y) => (y % 3 === 0 ? c.woodMid : goods[(a + y) % goods.length]));
     if (BD1 - BD0 >= 6) lot.box(A1, 0, BD0 + 2, A1, 4, BD0 + 4, (_a, y) => (y % 2 ? c.goodsF : c.woodMid));
     darumaAt(A1 - 0.5, BD1 - 0.5, 0);
     lampAt(bda + 1.5, (BD0 + BD1 + 1) / 2, 2.2, WHITE, 4.5, 0.7);

@@ -616,7 +616,7 @@ export function bollard(k: PropKit): Prop {
 export function scooter(k: PropKit, body: number): Prop {
   const { c } = k;
   const p = new Prop(24, 18, 5, 0.0625);
-  const wheel = (cx: number) => { for (let a = 0; a < 28; a++) { const t = (a / 28) * Math.PI * 2; p.box(Math.round(cx + Math.cos(t) * 3), Math.round(3.5 + Math.sin(t) * 3), 1, Math.round(cx + Math.cos(t) * 3), Math.round(3.5 + Math.sin(t) * 3), 3, c.tireBlack); } };
+  const wheel = (cx: number) => { for (let a = 0; a < 28; a++) { const t = (a / 28) * Math.PI * 2; p.box(Math.round(cx + Math.cos(t) * 3), Math.round(3 + Math.sin(t) * 3), 1, Math.round(cx + Math.cos(t) * 3), Math.round(3 + Math.sin(t) * 3), 3, c.tireBlack); } };
   wheel(4); wheel(19);
   p.box(7, 4, 1, 16, 6, 3, body);
   p.box(15, 6, 1, 18, 10, 3, body);

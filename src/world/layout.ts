@@ -7,8 +7,8 @@ export const G = 12; // voxel layer of street level (world y = 0 at the top of l
  * the original district keeps 0..72 x 0..56 m and the city grows around it, so the world's first voxel
  * column is at (VX0, VZ0) = (-72 m, -56 m).
  */
-export const VX0 = -288, VZ0 = -224;
-export const SX = 864, SY = 160, SZ = 672;
+export const VX0 = 0, VZ0 = 0;
+export const SX = 288, SY = 160, SZ = 224;
 export const WX0 = VX0 * V, WZ0 = VZ0 * V;
 export const WX1 = (VX0 + SX) * V, WZ1 = (VZ0 + SZ) * V;
 export const WORLD_W = SX * V, WORLD_D = SZ * V;

@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.7.1',
+    date: '2026-10-30',
+    title: 'A cleaner see-through view',
+    items: [
+      'The see-through circle is gone. Now, when a building, a tree or the big gate stands between the camera and you, the whole thing lowers smoothly to a clean cut just above the floor, so you always see yourself and the room or street you are in.',
+      'Only what actually blocks your view is lowered. Buildings beside you or farther away stay whole, and they rise back gently once you have walked past. No more flickering or half-cut blobs while you walk or turn the camera.',
+      'Inside a shop it works like a dollhouse: the walls nearest the camera drop to waist height, the ceiling and the floors above lift away, and the back wall, the shelves and the furniture stay where they are.',
+      'The hidden restaurant works the same way, from every camera angle.',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-10-30',
     title: 'Travel together',

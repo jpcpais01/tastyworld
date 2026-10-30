@@ -1,7 +1,6 @@
 import type * as THREE from 'three';
 
 const HISTORY = 240; // frames kept for the percentiles and the graph
-const KEY = 'tastyworld.perf';
 
 /** Extra numbers the game reports each frame (shown as they are). */
 export interface PerfCounters {
@@ -12,7 +11,7 @@ export interface PerfCounters {
 }
 
 /**
- * The in-game performance overlay (F3, or ?perf in the address). Frame pacing with percentiles and a
+ * The in-game performance overlay (Settings, F3, or ?perf in the address). Frame pacing with percentiles and a
  * frame-time graph, CPU time split into simulation and render submission, GPU time from timer queries
  * where the browser offers them, and what was drawn: draw calls, triangles, shadow cache redraws.
  * Costs nothing while hidden: no queries, no counters, no DOM writes.
@@ -41,11 +40,10 @@ export class Perf {
   private redraws0 = 0;
   counters: PerfCounters = { chunks: 0, people: 0, scale: 1, quality: '' };
 
-  constructor(private renderer: THREE.WebGLRenderer, private redraws: () => number) {
-    let on = new URLSearchParams(location.search).has('perf');
-    try { on ||= localStorage.getItem(KEY) === '1'; } catch { /* storage blocked */ }
-    if (on) this.toggle(true);
-    window.addEventListener('keydown', (e) => { if (e.code === 'F3') { e.preventDefault(); this.toggle(); } });
+  /** `onKey` hears F3, so the game can flip its setting (which then calls toggle). */
+  constructor(private renderer: THREE.WebGLRenderer, private redraws: () => number, onKey: () => void) {
+    if (new URLSearchParams(location.search).has('perf')) this.toggle(true);
+    window.addEventListener('keydown', (e) => { if (e.code === 'F3') { e.preventDefault(); onKey(); } });
   }
 
   get on(): boolean {
@@ -53,7 +51,6 @@ export class Perf {
   }
 
   toggle(on = !this.el): void {
-    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch { /* storage blocked */ }
     const info = this.renderer.info;
     if (!on) {
       this.el?.remove();

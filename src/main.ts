@@ -183,7 +183,11 @@ class Game {
     const mobile = matchMedia('(pointer: coarse)').matches;
     const q: Quality = this.s.settings.quality === 'auto' ? (mobile ? 'medium' : 'high') : this.s.settings.quality;
     this.r = new Renderer(canvas, q);
-    this.perf = new Perf(this.r.gl, () => this.r.shadows.redraws);
+    this.perf = new Perf(this.r.gl, () => this.r.shadows.redraws, () => {
+      this.s.settings.perf = !this.s.settings.perf;
+      this.applySettings();
+      this.save();
+    });
     this.cam = new IsoCamera(this.r.camera, this.r.persp);
     this.r.scene.add(this.worldGroup, this.insideGroup);
     this.insideGroup.visible = false;
@@ -777,6 +781,7 @@ class Game {
     if (st.quality === 'auto') { this.r.autoQuality = true; this.r.setQuality(mobile ? 'medium' : 'high'); }
     else { this.r.autoQuality = false; this.r.renderScale = 1; this.r.setQuality(st.quality); this.r.resize(); }
     this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
+    if (st.perf || !new URLSearchParams(location.search).has('perf')) this.perf.toggle(st.perf);
     this.r.composite.uniforms.uTilt.value = st.tilt && !this.cam.fp ? 0.6 : 0;
     this.tod.dayLength = st.dayLength;
     this.tod.setTarget(st.timeOfDay);

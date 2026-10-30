@@ -216,29 +216,35 @@ function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, 
  * Half-resolution copy of a chunk for distant views: 50 cm voxels, each the most common colour of its
  * 2x2x2 block when at least three of the eight are solid (thin rails and wires drop out, walls stay).
  */
-function meshLod(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number): MeshData | null {
-  const fine = grid.extract(x0 - 1, x1 + 1, z0 - 1, z1 + 1, G); // two-voxel border = one coarse cell
-  const cw = (x1 - x0) / 2 + 2, cd = (z1 - z0) / 2 + 2, ch = Math.ceil(grid.sy / 2);
+/** Coarse mesh of a chunk: cells of f x f x f voxels (f = 2 or 4) take the most common colour when mostly solid. */
+function meshLod(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number, f: number): MeshData | null {
+  const fine = grid.extract(x0 - f + 1, x1 + f - 1, z0 - f + 1, z1 + f - 1, G); // f-voxel border = one coarse cell
+  const cw = (x1 - x0) / f + 2, cd = (z1 - z0) / f + 2, ch = Math.ceil(grid.sy / f);
   const coarse = new Grid(cw, ch, cd);
-  const cols = new Uint16Array(8);
+  const n3 = f * f * f, need = (n3 * 3) >> 3;
+  const cols = new Uint16Array(n3);
+  const fy = fine.sy;
   for (let y = 0; y < ch; y++)
     for (let z = 0; z < cd; z++)
       for (let x = 0; x < cw; x++) {
         let n = 0;
-        for (let k = 0; k < 8; k++) {
-          const v = fine.get(x * 2 + (k & 1), y * 2 + ((k >> 1) & 1), z * 2 + (k >> 2));
+        for (let k = 0; k < n3; k++) {
+          const yy = y * f + Math.floor(k / f) % f;
+          if (yy >= fy) continue;
+          const v = fine.get(x * f + (k % f), yy, z * f + Math.floor(k / (f * f)));
           if (v) cols[n++] = v;
         }
-        if (n < 3) continue;
+        if (n < need) continue;
         let best = cols[0], bc = 0;
         for (let i = 0; i < n; i++) {
+          if (i && cols[i] === cols[i - 1]) continue;
           let c = 0;
           for (let j = 0; j < n; j++) if (cols[j] === cols[i]) c++;
           if (c > bc) { bc = c; best = cols[i]; }
         }
         coarse.set(x, y, z, best);
       }
-  return meshGrid({ grid: coarse, pal, scale: 0.5, origin: [(x0 - 2) * V, -G * V, (z0 - 2) * V], region: [1, cw - 1, 1, cd - 1], light, groundBelow: G / 2 });
+  return meshGrid({ grid: coarse, pal, scale: f * V, origin: [(x0 - f) * V, -G * V, (z0 - f) * V], region: [1, cw - 1, 1, cd - 1], light, groundBelow: G / f });
 }
 
 /**
@@ -344,10 +350,10 @@ export class WorldPart {
     return iz >= this.rows[0] && iz < this.rows[1];
   }
 
-  /** Mesh of chunk (ix, iz): full detail with props, or the coarse half-resolution version. */
-  mesh(ix: number, iz: number, lod: boolean): MeshData | null {
+  /** Mesh of chunk (ix, iz): full detail with props (lod 0), or coarse at half (1) or quarter (2) resolution. */
+  mesh(ix: number, iz: number, lod: number): MeshData | null {
     const x0 = VX0 + ix * CHUNK, z0 = VZ0 + iz * CHUNK;
-    if (lod) return meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK);
+    if (lod) return meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, lod === 1 ? 2 : 4);
     return meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase);
   }
 }

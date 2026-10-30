@@ -1,4 +1,4 @@
-import type { SaveState } from '../game/state';
+import { SaveState, viewMetres, VIEW_DEFAULT } from '../game/state';
 import type { Audio } from '../game/audio';
 import type { FoodId } from '../world/food';
 import type { StallInfo } from '../data/stalls';
@@ -724,6 +724,23 @@ export class UI {
     row(look, G.monitor, 'Graphics', seg([['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], st.quality, (v) => { st.quality = v as typeof st.quality; }));
     row(look, G.eye, 'Miniature focus', sw(st.tilt, (v) => { st.tilt = v; }));
     row(look, G.clock, 'Day length', seg([['360', '6 min'], ['720', '12 min'], ['1440', '24 min']], String(st.dayLength), (v) => { st.dayLength = Number(v); }));
+    // sliders that show their value next to the label while dragging and apply on release
+    const ranged = (icon: string, label: string, v0: number, text: (v: number) => string, put: (v: number) => void) => {
+      const val = h('span', 'set-val', text(v0));
+      const ctl = slider(v0, (v, done) => {
+        val.textContent = text(v);
+        if (!done) return;
+        put(v);
+        this.hooks.settingsChanged();
+        this.audio.play('click');
+      });
+      row(look, icon, label, ctl);
+      look.lastElementChild!.querySelector('.sl')!.appendChild(val);
+    };
+    const tier = st.quality === 'auto' ? (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high') : st.quality;
+    ranged(G.map, 'View distance', st.viewDist ?? VIEW_DEFAULT[tier], (v) => `${viewMetres(v)} m`, (v) => { st.viewDist = v; });
+    const fovOf = (v: number) => Math.round(50 + v * 50);
+    ranged(G.eye, 'First-person FOV', (st.fov - 50) / 50, (v) => `${fovOf(v)}°`, (v) => { st.fov = fovOf(v); });
     const sound = group('Sound');
     const vol = (get: () => number, put: (v: number) => void) => slider(get(), (v, done) => {
       put(v);

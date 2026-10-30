@@ -1,7 +1,7 @@
 import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
-import { Renderer, voxelMaterial, Quality, groundApron } from './engine/renderer';
+import { Renderer, voxelMaterial, Quality, groundApron, distantSkyline } from './engine/renderer';
 import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
 import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
@@ -20,7 +20,7 @@ import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
 import { Cutaway } from './game/cutaway';
 import { Audio } from './game/audio';
-import { loadState, saveState, resetState, SaveState } from './game/state';
+import { loadState, saveState, resetState, SaveState, viewMetres, VIEW_DEFAULT } from './game/state';
 import { DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
@@ -62,7 +62,6 @@ const SEND_EVERY = 0.1; // seconds between co-op movement samples
 
 const PLAYER_SPEED = 3.2;
 const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
-const FP_FOG = 0.036; // first-person haze density, hides the draw distance
 const BODY_R = 0.32; // how wide a person is to the sway shader (a cat is 0.1)
 const VIEW_KEY = 'tastyworld.view';
 const VENDOR_CALLS = ['Irasshaimase!', 'Fresh and hot!', 'Oishii yo!', 'Come, come!', 'Hai, dōzo!', 'Just made!'];
@@ -111,6 +110,8 @@ class Game {
   private workers: Worker[] = [];
   private partOf: (iz: number) => number = () => 0;
   private streamer!: Streamer;
+  /** View distance in metres (settings). */
+  private viewDist = 120;
   private matWorld!: THREE.ShaderMaterial;
   /** Scratch list of people near the player, nearest first, for the sway shader. */
   private nudgers: [number, Actor][] = [];
@@ -277,6 +278,8 @@ class Game {
     this.matCut.side = THREE.DoubleSide;
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
     this.worldGroup.add(groundApron(sh, [WX0, WZ0, WX1, WZ1]));
+    // the rest of Tokyo beyond the map, with gaps where the canal and the two avenues carry on
+    this.worldGroup.add(distantSkyline(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]]));
     sh.uBounds.value.set(WX0, WZ0, WX1, WZ1);
     this.cam.bounds = [WX0 + 2, WZ0 + 2, WX1 - 2, WZ1 - 2];
     this.r.composite.uniforms.uWaterBounds.value.set(WX0 - 5, WZ0 - 5, WX1 + 5, WZ1 + 5);
@@ -305,6 +308,7 @@ class Game {
     sh.tCut.value = this.cutaway.cut;
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
     this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile);
+    this.streamer.dist = this.viewDist;
     this.streamer.onMesh = (c, m) => {
       const [x0, z0, x1, z1] = this.streamer.rect(c);
       c.occ = this.cutaway.touching(x0, z0, x1, z1);
@@ -735,6 +739,16 @@ class Game {
     this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
     this.r.composite.uniforms.uTilt.value = st.tilt && !this.cam.fp ? 0.6 : 0;
     this.tod.dayLength = st.dayLength;
+    // view distance: how far first person draws (the haze thickens to meet it) and how far out the iso view zooms
+    const tier: Quality = st.quality === 'auto' ? (mobile ? 'medium' : 'high') : st.quality;
+    const dist = viewMetres(st.viewDist ?? VIEW_DEFAULT[tier]);
+    this.viewDist = dist;
+    if (this.streamer) this.streamer.dist = dist;
+    this.r.persp.far = dist + 10;
+    this.r.persp.fov = st.fov;
+    this.r.persp.updateProjectionMatrix();
+    this.cam.maxZoom = 34 + THREE.MathUtils.clamp((dist - 80) / 220, 0, 1) * 46;
+    this.cam.zoom = Math.min(this.cam.zoom, this.cam.maxZoom);
   }
 
   private buy(d: FoodId, _st: StallInfo): boolean {
@@ -1535,8 +1549,7 @@ class Game {
       if (cut !== c.cut) {
         c.cut = cut;
         const mat = cut ? this.matCut : this.matWorld;
-        if (c.full) c.full.material = mat;
-        if (c.lod) c.lod.material = mat;
+        for (const m of c.lv) if (m) m.material = mat;
       }
     }
   }
@@ -1595,7 +1608,8 @@ class Game {
     // in first person the body shows while eating, so the food is seen in your own hands (the camera sits inside the head)
     this.player.root.visible = !fp || !!this.meal;
     const eye = this.r.persp.position;
-    sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? FP_FOG : 0);
+    // first-person haze, thick enough to hide the far edge of the view distance
+    sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi.update(sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);

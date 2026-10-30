@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.3',
+    date: '2026-10-30',
+    title: 'Better fitting clothes',
+    items: [
+      'Skirts no longer stick out from the hips like a wide box. They now sit on the legs, swing with each step and end at the knee with a small flare.',
+      'Yukata robes and shop aprons move with the legs too, so they no longer look stiff when people walk or sit down.',
+      'Some people now wear shorts.',
+    ],
+  },
+  {
     version: '0.10.2',
     date: '2026-10-30',
     title: 'Performance overlay in Settings',

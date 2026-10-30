@@ -23,6 +23,9 @@ import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable
 import type { RoomAnchor } from './world/interiors';
 import { UI, GameHooks } from './ui/ui';
 import { renderDishIcons } from './ui/icons';
+import { Travel } from './ui/travel';
+import type { Destination } from './data/destinations';
+import type { Coop, Peer } from './net/coop';
 
 registerSW({ immediate: true });
 
@@ -44,6 +47,11 @@ interface Interactable {
 
 interface Walker { actor: Actor; from: number; to: number; prev: number; path: [number, number][]; speed: number; wait: number; }
 interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; }
+/** A friend on a co-op trip, drawn from the samples they send. */
+interface Remote { actor: Actor; look: string; tag: HTMLElement; name: string; tx: number; ty: number; tz: number; }
+
+const ANIMS = ['idle', 'walk', 'run', 'cook', 'eat', 'wave', 'sit', 'bow'] as const;
+const SEND_EVERY = 0.1; // seconds between co-op movement samples
 
 const PLAYER_SPEED = 3.2;
 const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
@@ -51,10 +59,10 @@ const FP_FOG = 0.036; // first-person haze density, hides the draw distance
 const VIEW_KEY = 'tastyworld.view';
 const VENDOR_CALLS = ['Irasshaimase!', 'Fresh and hot!', 'Oishii yo!', 'Come, come!', 'Hai, dōzo!', 'Just made!'];
 
-function playerLook(wear: Record<string, boolean>): Look {
+function playerLook(wear: Record<string, boolean>, color = 0xd8452f): Look {
   const l: Look = {
-    skin: 0xf0c8a8, hair: 0x3b2a20, hairStyle: 'short', top: 0xf2efe7, topStyle: 'tee', accent: 0xd8452f,
-    bottom: 0x3f6e9a, shoes: 0xf2efe7, hat: 'cap', hatColor: 0xd8452f, backpack: 0xe3a937,
+    skin: 0xf0c8a8, hair: 0x3b2a20, hairStyle: 'short', top: 0xf2efe7, topStyle: 'tee', accent: color,
+    bottom: 0x3f6e9a, shoes: 0xf2efe7, hat: 'cap', hatColor: color, backpack: color === 0xf4b63f ? 0xd8452f : 0xe3a937,
   };
   if (wear.happi) { l.topStyle = 'happi'; l.top = 0x2c3d73; l.accent = 0xf2efe7; }
   if (wear.headband) { l.hat = 'headband'; l.hatColor = 0xd8372b; }
@@ -79,6 +87,14 @@ class Game {
   lm!: LightMap2D;
   inside = false;
   started = false;
+  travel: Travel;
+  coop: Coop | null = null;
+  /** The travel map covers the screen, so the 3D world can rest. */
+  private covered = false;
+  private remotes = new Map<string, Remote>();
+  private sendT = 0;
+  private waveT = 0;
+  private lookColor = 0;
 
   private worldGroup = new THREE.Group();
   private insideGroup = new THREE.Group();
@@ -141,16 +157,33 @@ class Game {
       buy: (d, st) => this.buy(d, st),
       cooked: (d, st, stars) => this.cooked(d, st, stars),
       claim: (m) => this.claim(m),
-      wearChanged: () => { this.rebuildPlayer(); this.save(); },
+      wearChanged: () => { this.rebuildPlayer(); this.save(); this.shareProfile(); },
       settingsChanged: () => { this.applySettings(); this.save(); },
       reset: () => { resetState(); location.reload(); },
       panel: (open) => { if (open) { this.path = []; this.joy = null; } },
-      travel: () => {},
     };
     this.ui = new UI(this.s, this.audio, hooks);
     this.ui.onPrompt = () => this.interact();
     this.ui.onRotate = (d) => this.cam.rotate(d);
     this.ui.onView = () => this.setFirstPerson(!this.cam.fp);
+    this.travel = new Travel(this.s, this.audio, {
+      save: () => {
+        this.save();
+        if (this.started && this.lookColor !== this.s.profile.color) this.rebuildPlayer();
+      },
+      board: (d, coop) => this.start(d, coop),
+      cover: (on) => { this.covered = on; },
+      notes: () => this.ui.notes(),
+      coop: () => this.coop,
+      attach: (coop) => this.setCoop(coop),
+      leave: () => this.setCoop(null),
+      overlay: (el, onClose) => this.ui.overlay(el, onClose),
+      close: () => this.ui.close(),
+      toast: (i, t, x) => this.ui.toast(i, t, x),
+    });
+    this.ui.onMap = () => this.travel.openMap('view');
+    this.ui.onParty = () => this.travel.ticket();
+    this.ui.onWave = () => this.wave();
     this.applySettings();
     window.addEventListener('resize', () => this.r.resize());
   }
@@ -554,7 +587,8 @@ class Game {
 
   rebuildPlayer(): void {
     const old = this.player;
-    this.player = new Actor(buildPerson(playerLook(this.s.wear)), this.r.shared);
+    this.lookColor = this.s.profile.color;
+    this.player = new Actor(buildPerson(playerLook(this.s.wear, this.s.profile.color)), this.r.shared);
     if (old) {
       this.player.position.copy(old.position);
       this.player.facing = this.player.targetFacing = old.facing;
@@ -572,13 +606,23 @@ class Game {
     this.cam.setOrbit(0.05);
     this.cam.snap();
     this.ui.loaded();
-    this.ui.title(() => this.start());
+    this.travel.title();
     this.bindInput();
     requestAnimationFrame((t) => this.frame(t));
   }
 
-  private start(): void {
+  private start(_dest: Destination, coop: Coop | null): void {
     this.started = true;
+    this.rebuildPlayer(); // the colour may have changed at the gate
+    if (coop) {
+      // friends land a step apart instead of on top of each other
+      if (!coop.host) {
+        const p = this.player.position, h = this.navWorld.standHeightVox(p.x, p.z);
+        const off = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1]].find(([dx, dz]) => this.navWorld.canStand(p.x + dx, p.z + dz, h));
+        if (off) p.set(p.x + off[0], p.y, p.z + off[1]);
+      }
+      this.setCoop(coop);
+    }
     this.cam.setOrbit(0);
     this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
     this.cam.zoom = this.r.isMobile ? 15 : 17;
@@ -628,6 +672,7 @@ class Game {
   }
 
   private eat(d: FoodId): void {
+    if (!this.s.tasted[d]) this.coop?.sendEvent({ k: 'stamp', dish: d });
     this.s.tasted[d] = (this.s.tasted[d] ?? 0) + 1;
     if (this.tod.isNight) this.s.flags.ateAtNight = true;
     this.eatT = 3.2;
@@ -795,6 +840,7 @@ class Game {
       this.r.shared.uBounds.value.set(iox + 0.5, ioz + 0.5, iox + 15.5, ioz + 11.5);
       if (!this.s.hiddenFound) {
         this.s.hiddenFound = true;
+        this.coop?.sendEvent({ k: 'secret' });
         this.ui.removeLabel('door');
         setTimeout(() => this.ui.toast('🚪', 'Kakurega · 隠れ家', 'You found the hidden counter. Eight seats, no sign, no menu.', true), 700);
         this.afterChange();
@@ -823,6 +869,157 @@ class Game {
     this.near.act();
   }
 
+  // ------------------------------------------------------------------ co-op
+  /** Start (or stop, with null) sharing this trip with friends. */
+  private setCoop(coop: Coop | null): void {
+    if (this.coop && this.coop !== coop) this.coop.leave();
+    this.coop = coop;
+    for (const id of [...this.remotes.keys()]) this.dropRemote(id);
+    if (!coop) { this.ui.party('', null); return; }
+    this.shareProfile();
+    if (this.started) coop.setInWorld(true);
+    coop.onPeers = () => this.partyChip();
+    coop.onJoin = (p) => {
+      if (!this.started) return;
+      this.audio.play('chime');
+      this.ui.toast('🛬', `${p.name} joined the trip!`, p.inWorld ? 'They just landed in Tokyo. Look for their name tag.' : 'They are at the gate and will land any moment.');
+    };
+    coop.onLeave = (p) => {
+      if (this.started) this.ui.toast('👋', `${p.name} left the trip`, 'Their ticket still works if they want to come back.');
+      this.dropRemote(p.id);
+    };
+    coop.onEvent = (p, e) => this.coopEvent(p, e);
+    this.partyChip();
+  }
+
+  private shareProfile(): void {
+    this.coop?.setProfile({ name: this.s.profile.name.trim() || 'Traveller', color: this.s.profile.color, wear: Object.keys(this.s.wear).filter((k) => this.s.wear[k]) });
+  }
+
+  private partyChip(): void {
+    const c = this.coop;
+    if (!c) return;
+    const code = `${c.code.slice(0, 3)}-${c.code.slice(3)}`;
+    this.ui.party(code, [{ name: this.s.profile.name.trim() || 'You', color: this.s.profile.color, here: true }, ...c.list.map((p) => ({ name: p.name, color: p.color, here: p.inWorld }))]);
+  }
+
+  private coopEvent(p: Peer, e: Parameters<NonNullable<Coop['onEvent']>>[1]): void {
+    if (!this.started) return;
+    const rm = this.remotes.get(p.id);
+    if (e.k === 'wave') {
+      if (rm) {
+        const q = rm.actor.position;
+        this.ui.bubble(`wave-${p.id}`, '👋', [q.x, q.y + 2.05, q.z], 1.6);
+      }
+      this.audio.play('pop');
+    } else if (e.k === 'stamp') {
+      const d = DISHES.find((x) => x.id === e.dish);
+      if (d) this.ui.toast(this.ui.icons[d.id] ?? '🍽️', `${p.name} tasted ${d.name}`, this.s.tasted[d.id] ? 'You have that stamp too. Compare notes!' : 'You haven\'t tried that one yet…');
+    } else if (e.k === 'secret') {
+      this.ui.toast('🏮', `${p.name} found a hidden counter!`, this.s.hiddenFound ? 'You know the one. Eight seats, no sign.' : 'Somewhere off Lantern Alley… the lucky cats know the way.');
+    }
+  }
+
+  private wave(): void {
+    if (!this.coop || !this.started) return;
+    this.waveT = 1.4;
+    this.audio.play('pop');
+    this.coop.sendEvent({ k: 'wave' });
+  }
+
+  private dropRemote(id: string): void {
+    const rm = this.remotes.get(id);
+    if (!rm) return;
+    rm.actor.root.removeFromParent();
+    rm.actor.dispose();
+    rm.tag.remove();
+    this.remotes.delete(id);
+  }
+
+  /** Send our movement to friends at a steady rate. */
+  private syncCoop(dt: number): void {
+    const c = this.coop;
+    if (!c || !this.started) return;
+    this.sendT -= dt;
+    if (this.sendT > 0) return;
+    this.sendT = SEND_EVERY;
+    const pl = this.player, p = pl.position;
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    c.sendState([r2(p.x), r2(p.y), r2(p.z), r2(pl.targetFacing), Math.max(0, ANIMS.indexOf(pl.anim)), r2(pl.speed), this.inside ? 1 : 0, c.host ? r2(this.tod.hour) : -1]);
+  }
+
+  /** Friends: glide toward their latest sample, and follow the trip leader's clock. */
+  private updateRemotes(dt: number): void {
+    const c = this.coop;
+    if (!c) return;
+    const k = 1 - Math.exp(-dt * 12);
+    for (const p of c.list) {
+      const st = p.st;
+      if (!st || !p.inWorld) { if (this.remotes.has(p.id)) this.dropRemote(p.id); continue; }
+      const lookKey = `${p.color}|${p.wear.join(',')}`;
+      let rm = this.remotes.get(p.id);
+      if (rm && rm.look !== lookKey) { this.dropRemote(p.id); rm = undefined; }
+      if (!rm) {
+        const wear: Record<string, boolean> = {};
+        for (const w of p.wear) wear[w] = true;
+        const actor = new Actor(buildPerson(playerLook(wear, p.color)), this.r.shared);
+        actor.position.set(st[0], st[1], st[2]);
+        actor.facing = actor.targetFacing = st[3];
+        actor.flash = 1;
+        this.r.scene.add(actor.root);
+        const tag = document.createElement('div');
+        tag.className = 'buddy';
+        tag.style.setProperty('--c', `#${p.color.toString(16).padStart(6, '0')}`);
+        tag.innerHTML = '<span class="bn"></span><span class="arr"></span>';
+        document.getElementById('labels')!.appendChild(tag);
+        rm = { actor, look: lookKey, tag, name: '', tx: st[0], ty: st[1], tz: st[2] };
+        this.remotes.set(p.id, rm);
+      }
+      if (rm.name !== p.name) { rm.name = p.name; (rm.tag.querySelector('.bn') as HTMLElement).textContent = p.name; }
+      const a = rm.actor, q = a.position;
+      rm.tx = st[0]; rm.ty = st[1]; rm.tz = st[2];
+      if (Math.hypot(rm.tx - q.x, rm.tz - q.z) > 4) q.set(rm.tx, rm.ty, rm.tz); // came through a door
+      else { q.x += (rm.tx - q.x) * k; q.y += (rm.ty - q.y) * k; q.z += (rm.tz - q.z) * k; }
+      a.targetFacing = st[3];
+      const anim = ANIMS[st[4]] ?? 'idle';
+      a.anim = anim;
+      a.speed = st[5];
+      a.root.visible = (st[6] === 1) === this.inside && this.started;
+      if (!c.host && st[7] >= 0) {
+        // keep the sky in step with the trip leader
+        let dh = st[7] - this.tod.hour;
+        dh -= Math.round(dh / 24) * 24;
+        if (Math.abs(dh) > 0.25) this.tod.hour = st[7];
+        else this.tod.hour = (this.tod.hour + dh * Math.min(1, dt * 2) + 24) % 24;
+      }
+    }
+    for (const id of [...this.remotes.keys()]) if (!c.peers.has(id)) this.dropRemote(id);
+  }
+
+  /** Name tags over friends; when a friend is off screen the tag waits at the edge, pointing their way. */
+  private placeTags(): void {
+    const W = window.innerWidth, H = window.innerHeight, m = 44;
+    for (const rm of this.remotes.values()) {
+      const a = rm.actor;
+      if (!a.root.visible || this.ui.open) { rm.tag.style.display = 'none'; continue; }
+      this.v3.set(a.position.x, a.position.y + 1.75, a.position.z);
+      const ok = this.cam.project(this.v3, this.v2);
+      let x = this.v2.x, y = this.v2.y;
+      if (!ok) { x = W - x; y = H; } // behind the camera in first person
+      const edge = !ok || x < m || x > W - m || y < m + 40 || y > H - m;
+      rm.tag.style.display = '';
+      rm.tag.classList.toggle('edge', edge);
+      if (edge) {
+        const cx = W / 2, cy = H / 2, dx = x - cx, dy = y - cy;
+        const s = Math.min((W / 2 - m) / Math.max(1e-3, Math.abs(dx)), (H / 2 - m - 20) / Math.max(1e-3, Math.abs(dy)));
+        x = cx + dx * s; y = cy + dy * s;
+        (rm.tag.querySelector('.arr') as HTMLElement).style.transform = `rotate(${Math.atan2(dy, dx).toFixed(3)}rad)`;
+      }
+      rm.tag.style.left = `${x.toFixed(1)}px`;
+      rm.tag.style.top = `${y.toFixed(1)}px`;
+    }
+  }
+
   // ------------------------------------------------------------------ input
   private bindInput(): void {
     const canvas = this.r.gl.domElement;
@@ -837,6 +1034,7 @@ class Game {
         case 'KeyP': this.ui.open ? this.ui.close() : this.ui.passport(); break;
         case 'KeyM': this.ui.open ? this.ui.close() : this.ui.map(); break;
         case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
+        case 'KeyG': if (!this.ui.busy) this.wave(); break;
         case 'Escape': this.ui.endDialogue(); this.ui.close(); break;
         case 'Equal': case 'NumpadAdd': this.cam.zoomBy(0.85); break;
         case 'Minus': case 'NumpadSubtract': this.cam.zoomBy(1.18); break;
@@ -1063,7 +1261,8 @@ class Game {
     p.y += (this.nav.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 14);
     pl.speed = speed / 1.4;
     if (this.eatT > 0) { this.eatT -= dt; if (speed > 0) this.eatT = 0; }
-    pl.anim = speed > 0 ? (run && speed > PLAYER_SPEED ? 'run' : 'walk') : this.eatT > 0 ? 'eat' : 'idle';
+    if (this.waveT > 0) { this.waveT -= dt; if (speed > 0) this.waveT = 0; }
+    pl.anim = speed > 0 ? (run && speed > PLAYER_SPEED ? 'run' : 'walk') : this.waveT > 0 ? 'wave' : this.eatT > 0 ? 'eat' : 'idle';
     pl.update(dt);
     pl.light(this.lm);
   }
@@ -1182,6 +1381,10 @@ class Game {
     this.blobs.begin();
     const pl = this.player.position;
     if (!this.cam.fp) this.blobs.add(pl.x, pl.y + 0.02, pl.z, 0.62, 0.5);
+    for (const rm of this.remotes.values()) {
+      if (!rm.actor.root.visible) continue;
+      all.push(rm.actor);
+    }
     for (const a of all) {
       a.update(dt);
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
@@ -1258,6 +1461,8 @@ class Game {
     this.last = now;
     const dt = Math.min(0.05, raw / 1000);
     const sh = this.r.shared;
+    this.syncCoop(dt);
+    if (this.covered) return;
     sh.uTime.value += dt;
     this.tod.update(dt);
     this.tod.apply(this.r);
@@ -1265,6 +1470,7 @@ class Game {
     if (this.started) this.s.playTime += dt;
 
     this.movePlayer(dt);
+    this.updateRemotes(dt);
     this.updateNPCs(dt);
     this.updateNear();
     this.updateCamera(dt);
@@ -1281,6 +1487,7 @@ class Game {
       const d = Math.hypot(p[0] - pl.x, p[2] - pl.z);
       return Math.max(0.0, Math.min(1, 1.6 - d / 14));
     });
+    this.placeTags();
 
     // HUD + audio at a calmer rate
     this.hudT -= dt;

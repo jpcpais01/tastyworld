@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.7.0',
+    date: '2026-10-30',
+    title: 'Travel together',
+    items: [
+      'A new home menu: choose a Solo trip or a Co-op trip.',
+      'Both open a hand-built voxel map of the world, with clouds drifting over the oceans. Pick where to fly and watch your plane take off from your home city. Tokyo is open now; Seoul, Bangkok, Istanbul, Naples, Lisbon, Marrakech and Mexico City are coming soon.',
+      'Co-op trips print you a plane ticket with a six-letter code. Send it to a friend (or share the link) and they check in under "Got a ticket?" to see where you are flying and who is on board.',
+      'Explore Tokyo together: you see each other walk, run and eat in real time, with a name tag over your friend that points the way when they wander off screen. Wave hello with the hand button or G.',
+      'Your friend\'s discoveries pop up as you play, and the sky follows the trip leader\'s clock so you share the same sunset.',
+      'Pick your name and a colour for your cap on the boarding pass. Friends can join a trip any time, even after you land, and the map button can invite a friend mid-trip.',
+    ],
+  },
+  {
     version: '0.6.2',
     date: '2026-10-30',
     title: 'Crisp signs',

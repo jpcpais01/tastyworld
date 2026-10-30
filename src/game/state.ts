@@ -27,6 +27,8 @@ export interface SaveState {
   rooms: string[];
   settings: Settings;
   title?: string;
+  /** How the traveller appears to friends on co-op trips. */
+  profile: { name: string; color: number };
   playTime: number;
 }
 
@@ -35,7 +37,7 @@ const KEY = 'tastyworld.save.v1';
 export function defaultState(): SaveState {
   return {
     v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [],
-    settings: { quality: 'auto', music: true, sfx: true, tilt: true, dayLength: 720 }, playTime: 0,
+    settings: { quality: 'auto', music: true, sfx: true, tilt: true, dayLength: 720 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
   };
 }
 
@@ -45,7 +47,7 @@ export function loadState(): SaveState {
     if (!raw) return defaultState();
     const s = JSON.parse(raw) as Partial<SaveState>;
     const d = defaultState();
-    return { ...d, ...s, settings: { ...d.settings, ...(s.settings ?? {}) }, flags: { ...d.flags, ...(s.flags ?? {}) } } as SaveState;
+    return { ...d, ...s, settings: { ...d.settings, ...(s.settings ?? {}) }, flags: { ...d.flags, ...(s.flags ?? {}) }, profile: { ...d.profile, ...(s.profile ?? {}) } } as SaveState;
   } catch {
     return defaultState();
   }

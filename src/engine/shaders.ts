@@ -255,6 +255,13 @@ uniform float uNight;
 uniform float uEmitDay;
 uniform float uTime;
 uniform float uCloud;
+uniform sampler2D tNoise; // value-noise lattice (see latticeNoise in renderer.ts)
+// value noise from one filtered fetch: smoothstep-warped coordinates make the bilinear filter do the
+// cubic blend that vnoise does with four hashes
+float vnoiseT(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  return texture(tNoise, (i + f * f * (3.0 - 2.0 * f) + 0.5) * (1.0 / 64.0)).r;
+}
 uniform vec4 uBounds; // x0, z0, x1, z1 of the playable map (fade outside)
 uniform vec4 uFog;    // first-person eye position and haze density (0 in the iso view)
 #ifndef ICON
@@ -451,7 +458,7 @@ void main() {
   float cloud = 1.0;
   if (uCloud > 0.0) {
     vec2 cp = vWorld.xz * 0.045 + vec2(uTime * 0.012, uTime * 0.006);
-    cloud = 1.0 - uCloud * smoothstep(0.45, 0.75, vnoise(cp) * 0.65 + vnoise(cp * 2.3) * 0.35);
+    cloud = 1.0 - uCloud * smoothstep(0.45, 0.75, vnoiseT(cp) * 0.65 + vnoiseT(cp * 2.3) * 0.35);
   }
   vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
   vec3 direct = uSunColor * ndl * sun * cloud * (0.6 + 0.4 * ao);

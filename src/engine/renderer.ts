@@ -7,6 +7,22 @@ import { SunShadows } from './shadows';
 
 export type Quality = 'low' | 'medium' | 'high';
 
+/**
+ * 64 x 64 random values that tile, filtered and repeating: value noise for the drifting cloud shadows at
+ * the cost of a texture fetch (the pattern repeats every 64 cells, about 1.4 km, so it never shows).
+ */
+function latticeNoise(): THREE.DataTexture {
+  const n = 64, data = new Uint8Array(n * n);
+  let seed = 7919;
+  for (let i = 0; i < data.length; i++) data[i] = ((seed = (seed * 16807) % 2147483647) / 2147483647) * 255;
+  const t = new THREE.DataTexture(data, n, n, THREE.RedFormat, THREE.UnsignedByteType);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
+}
+
 /** Uniforms shared by every voxel material (world chunks, props, characters). */
 export function makeSharedUniforms() {
   return {
@@ -21,6 +37,7 @@ export function makeSharedUniforms() {
     uNight: { value: 0 },
     uEmitDay: { value: 0.5 },
     uCloud: { value: 0.25 },
+    tNoise: { value: latticeNoise() },
     uBounds: { value: new THREE.Vector4(0, 0, 72, 56) },
     uCamFwd: { value: new THREE.Vector3(0, -1, 0) },
     uCutOn: { value: 0 },

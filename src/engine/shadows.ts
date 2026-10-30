@@ -6,6 +6,8 @@ export type ShadowQuality = 'low' | 'medium' | 'high';
 /** three.js layers: static world meshes (cached) and moving casters such as characters (every frame). */
 export const SHADOW_STATIC = 1;
 export const SHADOW_DYNAMIC = 2;
+/** Scratch layer: static casters that just appeared, drawn into the cache on their own. */
+const SHADOW_NEW = 3;
 
 const SIZE: Record<ShadowQuality, number> = { low: 1024, medium: 1536, high: 2048 };
 const TAPS: Record<ShadowQuality, number> = { low: 1, medium: 4, high: 8 };
@@ -102,7 +104,13 @@ export class SunShadows {
   private fsCam = new THREE.Camera();
   /** Cached region in light space: x0, y0, x1, y1 (m). Empty when the cache is stale. */
   private region: number[] | null = null;
-  private sig = -1;
+  /** Static casters drawn into the cache, and the frame each was last seen visible. */
+  private cached = new Map<THREE.Object3D, number>();
+  private frame = 0;
+  private added: THREE.Object3D[] = [];
+  private frustum = new THREE.Frustum();
+  private m4 = new THREE.Matrix4();
+  private box = new THREE.Box3();
   private sunDir = new THREE.Vector3();
   private R = new THREE.Vector3();
   private U = new THREE.Vector3();
@@ -112,8 +120,10 @@ export class SunShadows {
   private o = new THREE.Vector3();
   private d = new THREE.Vector3();
   private bias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
-  /** Static redraws so far (for the debug readout). */
+  /** Full static redraws so far (for the debug readout). */
   redraws = 0;
+  /** Static casters added to the cache without a redraw. */
+  patches = 0;
 
   constructor(quality: ShadowQuality) {
     const tri = new THREE.BufferGeometry();
@@ -137,6 +147,16 @@ export class SunShadows {
     this.rtMap = target(size, true);
     this.uniforms.tShadow.value = this.rtMap.depthTexture;
     this.region = null;
+  }
+
+  /** Does a caster's box reach into the cached map? */
+  private covers(ob: THREE.Object3D): boolean {
+    const g = (ob as THREE.Mesh).geometry;
+    if (!g) return true;
+    if (!g.boundingBox) g.computeBoundingBox();
+    this.m4.multiplyMatrices(this.cam.projectionMatrix, this.cam.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.m4);
+    return this.frustum.intersectsBox(this.box.copy(g.boundingBox!).applyMatrix4(ob.matrixWorld));
   }
 
   /** Force a redraw of the static cache (e.g. after swapping world meshes without changing their count). */
@@ -186,18 +206,28 @@ export class SunShadows {
       }
     }
 
-    // anything visible that casts into the cache must be part of it: redraw when that set changes
-    let sig = 0, n = 0;
+    // Every visible static caster must be in the cache. Newcomers (chunks streaming in) are simply drawn
+    // into it; only a caster leaving the area the cache covers needs a full redraw to erase its shadow.
+    const frame = ++this.frame, cached = this.cached, added = this.added;
+    added.length = 0;
     this.dyn.length = 0;
     scene.traverseVisible((ob) => {
-      if (ob.layers.isEnabled(SHADOW_STATIC)) { sig = (sig * 31 + ob.id) | 0; n++; }
+      if (ob.layers.isEnabled(SHADOW_STATIC)) {
+        if (!cached.has(ob)) added.push(ob);
+        cached.set(ob, frame);
+      }
       if (ob.layers.isEnabled(SHADOW_DYNAMIC) && (ob as THREE.Mesh).isMesh) this.dyn.push(ob as THREE.Mesh);
     });
-    sig = (sig * 31 + n) | 0;
+    let gone = false;
+    for (const [ob, seen] of cached) {
+      if (seen === frame) continue;
+      cached.delete(ob);
+      gone ||= this.region !== null && this.covers(ob);
+    }
 
     const r = this.region;
     const needW = a1 - a0, needH = b1 - b0;
-    const stale = !r || sig !== this.sig || a0 < r[0] || b0 < r[1] || a1 > r[2] || b1 > r[3]
+    const stale = !r || gone || a0 < r[0] || b0 < r[1] || a1 > r[2] || b1 > r[3]
       || needW * needH < 0.3 * (r[2] - r[0]) * (r[3] - r[1]);
     if (stale) {
       // margin so walking around doesn't redraw every few steps; sizes come in ~19% steps and the origin
@@ -207,7 +237,6 @@ export class SunShadows {
       const tx = W / this.size, ty = H / this.size;
       const x0 = Math.floor(((a0 + a1) / 2 - W / 2) / tx) * tx, y0 = Math.floor(((b0 + b1) / 2 - H / 2) / ty) * ty;
       this.region = [x0, y0, x0 + W, y0 + H];
-      this.sig = sig;
       const c = this.cam;
       const center = this.v.copy(this.R).multiplyScalar(x0 + W / 2).addScaledVector(this.U, y0 + H / 2).addScaledVector(this.L, cs / 8);
       c.position.copy(center).addScaledVector(this.L, L_DIST);
@@ -226,6 +255,19 @@ export class SunShadows {
       gl.render(scene, c);
       scene.overrideMaterial = null;
       this.redraws++;
+    } else if (added.length) {
+      // patch the newcomers in over what is cached (the depth test keeps the nearest caster)
+      let any = false;
+      for (const ob of added) if (this.covers(ob)) { ob.layers.enable(SHADOW_NEW); any = true; }
+      if (any) {
+        gl.setRenderTarget(this.rtStatic);
+        this.cam.layers.set(SHADOW_NEW);
+        scene.overrideMaterial = this.depthMat;
+        gl.render(scene, this.cam);
+        scene.overrideMaterial = null;
+        for (const ob of added) ob.layers.disable(SHADOW_NEW);
+        this.patches++;
+      }
     }
 
     // per frame: copy the cached world, then draw the characters on top

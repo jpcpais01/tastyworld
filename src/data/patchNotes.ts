@@ -8,11 +8,31 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.10.8',
+    version: '0.10.10',
     date: '2026-10-30',
     title: 'No more ghost outlines',
     items: [
       'Fixed the faint dotted white lines that traced the old outline of a lowered building in the air, on Medium and High graphics.',
+    ],
+  },
+  {
+    version: '0.10.9',
+    date: '2026-10-30',
+    title: 'Every wall finished',
+    items: [
+      'The sides and backs of buildings are now as finished as their fronts: windows with sills and lintels, floor bands running all the way round, AC units, drainpipes, meters, back doors under little rain hoods and the odd rain stain.',
+      'Plain houses got proper fronts: a framed door under a small tiled or concrete hood, a nameplate and post box, a porch light, and windows either side with lattice or grilles to match the house.',
+      'The blocks in the middle of the old district and the boundary walls are no longer bare: they have windows, bands, pipes and weathering like everything around them.',
+      'The little houses on the far canal bank have stone plinths, eaves and finished sides.',
+    ],
+  },
+  {
+    version: '0.10.8',
+    date: '2026-10-30',
+    title: 'Steadier frames while exploring',
+    items: [
+      'Sun shadows no longer get redrawn from scratch every time a new piece of the city streams in. New streets are added to the shadows on their own, which removes the small hitches you could feel while walking or running into a new area.',
+      'The drifting cloud shadows are now much cheaper to draw and look the same.',
     ],
   },
   {

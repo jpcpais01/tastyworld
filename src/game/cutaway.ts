@@ -193,8 +193,8 @@ export class Cutaway {
         st.e = 0; st.c = 0; st.hold = 0;
       } else {
         st.hold = blocking ? HOLD : Math.max(0, st.hold - dt);
-        const target = blocking || st.hold > 0 ? 1 : 0;
-        st.e = target > st.e ? Math.min(1, st.e + dt * 3.8) : Math.max(0, st.e - dt * 2.2);
+        // (a fully lowered one must stay put: easing it 'towards' 1 from 1 used to nudge it up every other frame)
+        st.e = blocking || st.hold > 0 ? Math.min(1, st.e + dt * 3.8) : Math.max(0, st.e - dt * 2.2);
         st.c = contain ? Math.min(1, st.c + dt * 3) : Math.max(0, st.c - dt * 3);
       }
       const j = (i + 1) * 4;

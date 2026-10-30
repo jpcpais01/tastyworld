@@ -60,3 +60,26 @@ export const IDLERS: Record<string, Idler> = {
 };
 
 export const CAT_LINES = ['Nyaa~', 'The cat blinks at you slowly. That means trust.', 'Purrrr...', 'The cat stretches, then ignores you magnificently.'];
+
+/** Snippets overheard from passers-by. */
+export const CROWD_CHAT = [
+  'Have you tried the takoyaki by the canal?',
+  'Same time next week?',
+  'No way! Really?',
+  'My treat this time.',
+  'The queue at Hoshi was so long today.',
+  'Look, the lanterns are coming on.',
+  'I could eat another one, honestly.',
+  'Ahaha, stop it!',
+  'Is that new? It suits you.',
+  'Let\'s grab a coffee at Komorebi.',
+  'Mmm, smells like grilled tare.',
+  'My grandmother used to live on this street.',
+];
+export const CROWD_GREET: Record<'morning' | 'day' | 'evening', string[]> = {
+  morning: ['Ohayō!', 'Good morning!', 'Early start?'],
+  day: ['Konnichiwa!', 'Hello there!', 'Enjoying Tokyo?'],
+  evening: ['Konbanwa!', 'Good evening!', 'Lovely night for a stroll.'],
+};
+export const CROWD_STARTLE = ['Whoa!', 'Abunai!', 'Careful!', 'Sumimasen!', 'Eek!'];
+export const CROWD_ENVY = ['That looks delicious!', 'Ooh, where did you get that?', 'Now I\'m hungry...'];

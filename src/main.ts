@@ -14,7 +14,7 @@ import { Crowd } from './game/crowd';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
 import { Cutaway } from './game/cutaway';
-import { Audio, Talker } from './game/audio';
+import { Audio } from './game/audio';
 import { loadState, saveState, resetState, SaveState } from './game/state';
 import { DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
@@ -602,25 +602,12 @@ class Game {
     this.afterChange();
   }
 
-  /** Tell the audio where we are, who's chatting nearby (walkers, vendors calling out, regulars in shops) and how busy it is. */
+  /** Tell the audio where we are and how busy the street is. */
   private audioScene(): void {
     const pl = this.player.position;
-    const talkers: Talker[] = [];
     let crowd = 0;
-    if (!this.inside) {
-      for (const a of this.crowd.visible()) {
-        const d = Math.hypot(a.position.x - pl.x, a.position.z - pl.z);
-        if (d < 22) crowd++;
-        if (d < 15 && a.anim === 'talk') talkers.push({ x: a.position.x, z: a.position.z, key: a });
-      }
-      for (const v of this.vendors) if (v.waveT > 0) talkers.push({ x: v.actor.position.x, z: v.actor.position.z, key: v.actor });
-      for (const e of this.roomActors) {
-        if (e.keeper || !e.actor.root.visible) continue;
-        const q = e.actor.position;
-        if (Math.hypot(q.x - pl.x, q.z - pl.z) < 12) talkers.push({ x: q.x, z: q.z, key: e.actor, busy: 0.3 });
-      }
-    }
-    this.audio.scene(pl.x, pl.z, this.cam.right.x, this.cam.right.z, talkers, crowd);
+    if (!this.inside) for (const a of this.crowd.visible()) if (Math.hypot(a.position.x - pl.x, a.position.z - pl.z) < 22) crowd++;
+    this.audio.scene(pl.x, pl.z, this.cam.right.x, this.cam.right.z, crowd);
   }
 
   private roomAt(x: number, z: number): RoomAnchor | null {

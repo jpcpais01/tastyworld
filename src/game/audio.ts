@@ -1,7 +1,7 @@
 /**
  * Procedural audio, no assets. A cozy lo-fi street-food loop (koto melody, electric piano, upright bass, brushed kit)
  * over the J-pop "royal road" progression, and a living Tokyo street around the player: footsteps on stone, wood,
- * tile and gravel, murmured (made-up) conversations, shop radios playing their own songs between chatty DJs,
+ * tile and gravel, the soft murmur of the crowd, shop radios playing their own songs,
  * sparrows, a bush warbler, crows at dusk, bell crickets at night, a distant level crossing, the temple bell, the
  * ramen cart's flute, bicycle bells, furin chimes, grill crackle and canal water.
  * Everything is positioned around the listener (distance falloff and panning against the camera), and sounds in
@@ -14,8 +14,6 @@ import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh';
 
-/** Someone who may be talking: anything stable can be the key (it picks their voice). */
-export interface Talker { x: number; z: number; key: object; busy?: number }
 export interface AudioRoom { rect: [number, number, number, number]; kind: string }
 
 const SR = 32000; // render rate for bright one-shots
@@ -182,8 +180,9 @@ export class Audio {
   private streetTone!: BiquadFilterNode;
   /** Sources in another space than the listener (heard through a wall or doorway). */
   private muffled!: GainNode;
-  /** The far-off crowd. */
-  private walla!: GainNode;
+  /** The far-off crowd: a blurred loop of many voices, louder where it's busy. */
+  private crowdBed!: GainNode;
+  private crowdLoop = false;
   private bed!: GainNode;
   private sizzle!: GainNode;
   private water!: GainNode;
@@ -210,12 +209,7 @@ export class Audio {
   private lastNight = -1;
   private inside = false;
   private waterLevel = 0;
-  // people
-  private voiceOf = new WeakMap<object, number>();
-  private talkNext = new WeakMap<object, number>();
-  private speaking: number[] = [];
   private crowd = 0;
-  private wallaNext = 0;
   private stepWindow = 0;
   private stepCount = 0;
   private timers: Record<string, number> = {};
@@ -260,7 +254,7 @@ export class Audio {
     this.streetTone = this.filter('lowpass', 16000, 0.3, this.amb);
     this.street = this.gain(1, this.streetTone);
     this.muffled = this.gain(0.6, this.filter('lowpass', 900, 0.4, this.amb));
-    this.walla = this.gain(1, this.filter('lowpass', 750, 0.3, this.street));
+    this.crowdBed = this.gain(0, this.filter('highpass', 140, 0.5, this.filter('lowpass', 520, 0.4, this.street)));
     const brown = this.render(4, LSR, () => { let b = 0; return () => (b = 0.985 * b + 0.06 * noise()); }, true);
     this.bed = this.gain(0.05, this.street);
     this.loop(brown, 1, this.filter('lowpass', 650, 0.3, this.bed));
@@ -339,11 +333,8 @@ export class Audio {
     this.bed.gain.setTargetAtTime(inside ? 0.012 : 0.05 * (1 - night * 0.45), t, 1.0);
   }
 
-  /**
-   * Where the listener is (x, z and the camera's right vector on the ground), who nearby is talking and how many
-   * people are about. Call a few times a second.
-   */
-  scene(x: number, z: number, rightX: number, rightZ: number, talkers: Talker[], crowd: number): void {
+  /** Where the listener is (x, z and the camera's right vector on the ground) and how many people are about. Call a few times a second. */
+  scene(x: number, z: number, rightX: number, rightZ: number, crowd: number): void {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     this.lx = x; this.lz = z;
@@ -357,39 +348,25 @@ export class Audio {
       this.street.gain.setTargetAtTime(room >= 0 ? 0.55 : 1, t, 0.3);
     }
     this.updateRadio(t);
-    if (!this.sfxOn || !this.ready(`babble0-0`)) return;
-    this.speaking = this.speaking.filter((e) => e > t);
-    for (const p of talkers) {
-      if (this.speaking.length >= 4) break;
-      const next = this.talkNext.get(p.key) ?? 0;
-      if (t < next) continue;
-      const sp = this.spot(p.x, p.z, 14);
-      if (!sp) { this.talkNext.set(p.key, t + 1); continue; }
-      let v = this.voiceOf.get(p.key);
-      if (v === undefined) { v = Math.floor(rand(0, 3)); this.voiceOf.set(p.key, v); }
-      const b = this.buf(`babble${v}-${Math.floor(rand(0, 4))}`);
-      const rate = rand(0.94, 1.06), at = t + rand(0.02, 0.3);
-      this.fire(b, at, 0.5 * sp.g, sp.out, rate, undefined, sp.pan);
-      this.speaking.push(at + b.duration / rate);
-      this.talkNext.set(p.key, at + b.duration / rate + rand(0.3, 1.6) / clamp(p.busy ?? 1, 0.1, 1));
-    }
+    const busy = this.inside ? 0 : Math.min(1, crowd / 14);
+    this.crowdBed.gain.setTargetAtTime(0.05 * busy * (1 - 0.6 * this.night), t, 2);
   }
 
   /** A foot touching the ground (from the walk cycle). */
   step(x: number, z: number, run: boolean, mine: boolean): void {
     if (!this.ctx || !this.sfxOn) return;
     const t = this.ctx.currentTime;
-    let vol = run ? 0.3 : 0.2, out: AudioNode = this.amb, pan = 0;
+    let vol = run ? 0.085 : 0.06, out: AudioNode = this.amb, pan = 0;
     if (!mine) {
-      const sp = this.spot(x, z, 11);
+      const sp = this.spot(x, z, 8);
       if (!sp) return;
       if (t > this.stepWindow) { this.stepWindow = t + 0.25; this.stepCount = 0; }
-      if (++this.stepCount > 6) return; // a busy street needn't trigger a sound for every foot
-      vol *= 0.75 * sp.g; out = sp.out; pan = sp.pan;
+      if (++this.stepCount > 3) return; // a busy street needn't trigger a sound for every foot
+      vol *= 0.6 * sp.g; out = sp.out; pan = sp.pan;
     }
     const k = `step-${this.surfaceAt(x, z)}-${Math.floor(rand(0, 3))}`;
     if (!mine && !this.ready(k)) return;
-    this.fire(this.buf(k), t + 0.005, vol * rand(0.8, 1.1), out, rand(0.9, 1.1) * (run ? 1.08 : 1), undefined, pan);
+    this.fire(this.buf(k), t + 0.005, vol * rand(0.7, 1.05), out, rand(0.88, 1.08) * (run ? 1.05 : 1), undefined, pan);
   }
 
   /** Called every frame: runs the sequencers, ambient life and the render warm-up queue. */
@@ -398,6 +375,7 @@ export class Audio {
     if (!ctx || ctx.state !== 'running') return;
     this.night = night;
     for (let i = 0; i < 2 && this.warm.length; i++) this.buf(this.warm.shift()!);
+    if (!this.crowdLoop && this.ready('babble2-3')) { this.crowdLoop = true; this.loop(this.crowdMix(), 1, this.crowdBed); }
     const now = ctx.currentTime;
     if (this.musicOn) this.runSeq(this.bgm, now);
     if (this.sfxOn) {
@@ -594,7 +572,7 @@ export class Audio {
       const r = this.rooms[best];
       const cx = (r.rect[0] + r.rect[2]) / 2, cz = (r.rect[1] + r.rect[3]) / 2;
       const same = best === this.lroom;
-      g = (same ? 0.5 : 0.32) * (1 - bd / 14) ** 1.2;
+      g = (same ? 0.34 : 0.2) * (1 - bd / 14) ** 1.4;
       this.radioLp.frequency.setTargetAtTime(same ? 3200 : 1500, t, 0.3);
       this.radioPan?.pan.setTargetAtTime(same ? 0 : this.panTo(cx, cz), t, 0.3);
     }
@@ -610,17 +588,11 @@ export class Audio {
     const list = STATIONS[this.rooms[R.room].kind];
     if (R.seq) {
       this.runSeq(R.seq, now);
-      if (R.seq.bars >= 16) { // song's over: the DJ chats, then a jingle
+      if (R.seq.bars >= 16) { // song's over: a little pause and the station's chime before the next one
         const t = R.seq.t;
         R.seq = null;
-        R.djUntil = t + rand(4, 7);
-        let at = t + 0.4;
-        while (at < R.djUntil - 1.2) {
-          const b = this.buf(`babble${1 + (R.n % 2)}-${Math.floor(rand(0, 4))}`);
-          this.fire(b, at, 0.55, this.radioIn, 1.1);
-          at += b.duration / 1.1 + rand(0.15, 0.4);
-        }
-        [84, 88, 91, 96].forEach((m, i) => this.note('bell', m, R.djUntil - 0.9 + i * 0.1, 0.22, this.radioIn));
+        R.djUntil = t + rand(3, 5);
+        [84, 88, 91, 96].forEach((m, i) => this.note('bell', m, R.djUntil - 0.9 + i * 0.1, 0.16, this.radioIn));
       }
     } else if (now + 0.3 > R.djUntil) {
       const song = list[R.n++ % list.length];
@@ -649,15 +621,15 @@ export class Audio {
       for (let i = 0, c = 1 + Math.floor(rand(0, 3)); i < c; i++) this.fire(this.buf('chirp'), at + i * rand(0.18, 0.32), rand(0.05, 0.11), this.street, rand(0.9, 1.15), undefined, pan);
     }
     if (due('warbler', 50, 110) && out && n < 0.2) this.fire(this.buf('warbler'), at, rand(0.05, 0.09), this.street, rand(0.96, 1.04), undefined, rand(-0.9, 0.9));
-    if (due('crow', 14, 35) && out && n > 0.15 && n < 0.75) {
+    if (due('crow', 30, 70) && out && n > 0.15 && n < 0.75) {
       const pan = rand(-0.9, 0.9), rate = rand(0.9, 1.1);
-      for (let i = 0, c = 2 + Math.floor(rand(0, 2)); i < c; i++) this.fire(this.buf('crow'), at + i * rand(0.42, 0.55), 0.06, this.street, rate * rand(0.97, 1.03), undefined, pan);
+      for (let i = 0, c = 2 + Math.floor(rand(0, 2)); i < c; i++) this.fire(this.buf('crow'), at + i * rand(0.42, 0.55), 0.035, this.street, rate * rand(0.97, 1.03), undefined, pan);
     }
     if (due('cricket', 1.4, 4) && out && n > 0.5) this.fire(this.buf('cricket'), at, rand(0.025, 0.05) * n, this.street, rand(0.97, 1.03), undefined, rand(-0.9, 0.9));
     if (due('furin', 22, 50) && out) this.furin(at, this.street, 0.07, rand(-0.6, 0.6));
-    if (due('bike', 35, 80) && out && n < 0.6 && this.crowd > 2) this.fire(this.buf('bike'), at, rand(0.06, 0.1), this.street, rand(0.95, 1.05), undefined, rand(-0.7, 0.7));
+    if (due('bike', 60, 140) && out && n < 0.6 && this.crowd > 2) this.fire(this.buf('bike'), at, rand(0.035, 0.06), this.street, rand(0.95, 1.05), undefined, rand(-0.7, 0.7));
     const cross = this.nearest('crossing');
-    if (due('train', 100, 200) && out && n < 0.85 && cross) {
+    if (due('train', 160, 300) && out && n < 0.85 && cross) {
       this.fire(this.buf('train'), at, 0.3 / (1 + cross.d * 0.02), this.street, 1, undefined, this.panTo(...cross.pos));
     }
     const bell = this.nearest('temple');
@@ -666,12 +638,6 @@ export class Audio {
     }
     if (due('flute', 150, 300) && out && n > 0.6) this.fire(this.buf('charumera'), at, 0.06, this.street, 1, undefined, rand(-0.8, 0.8));
     if (this.waterLevel > 0.35 && due('drop', 0.6, 3)) this.fire(this.buf('drop'), at, rand(0.03, 0.07) * this.waterLevel, this.street, rand(0.8, 1.3), undefined, rand(-0.5, 0.5));
-    // the far-off murmur of the crowd
-    if (out && this.crowd > 0 && now > this.wallaNext && this.ready('babble0-0')) {
-      const b = this.buf(`babble${Math.floor(rand(0, 3))}-${Math.floor(rand(0, 4))}`);
-      this.fire(b, at, rand(0.06, 0.12) * Math.min(1, this.crowd / 8), this.walla, rand(0.9, 1.1), undefined, rand(-0.9, 0.9));
-      this.wallaNext = now + rand(0.4, 1.6) * 8 / (this.crowd + 4);
-    }
   }
 
   /** A furin (glass wind bell) catching the breeze. */
@@ -897,30 +863,46 @@ export class Audio {
     });
   }
 
-  /** One footfall on the given ground. */
+  /** One soft footfall (soft soles, no clack) on the given ground. */
   private renderStep(s: Floor): AudioBuffer {
-    const bp = new SVF(LSR, 0.8), bp2 = new SVF(LSR, 0.6);
-    let lp = 0, grain = 0;
+    const bp = new SVF(LSR, 0.9);
+    let lp = 0, out = 0, grain = 0;
+    const soft = (x: number) => (out += 0.3 * (x - out)); // round off the top end
+    const pad = (t: number) => Math.min(1, t / 0.008); // the sole rolls on rather than slapping down
     switch (s) {
-      case 'stone': return this.render(0.16, LSR, () => (t) => { // heel then sole on paving
-        lp += 0.15 * (noise() - lp);
-        return Math.sin(TAU * 95 * t) * Math.exp(-t * 55) * 0.5 + bp.run(noise(), 1700) * Math.exp(-t * 70) * 0.8
-          + (t > 0.035 ? lp * 2 * Math.exp(-(t - 0.035) * 45) : 0);
+      case 'stone': return this.render(0.16, LSR, () => (t) => {
+        lp += 0.12 * (noise() - lp);
+        return soft((Math.sin(TAU * 85 * t) * 0.6 + lp * 1.6 + bp.run(noise(), 1100) * 0.25) * pad(t) * Math.exp(-t * 38));
       });
-      case 'wood': return this.render(0.18, LSR, () => (t) =>
-        Math.sin(TAU * 150 * t) * Math.exp(-t * 40) * 0.8 + bp.run(noise(), 600) * Math.exp(-t * 60) * 0.7 + bp2.run(noise(), 1800) * Math.exp(-t * 150) * 0.25);
-      case 'tile': return this.render(0.12, LSR, () => (t) =>
-        bp.run(noise(), 3000) * Math.exp(-t * 130) + Math.sin(TAU * 120 * t) * Math.exp(-t * 70) * 0.4);
+      case 'wood': return this.render(0.18, LSR, () => (t) => soft((Math.sin(TAU * 120 * t) * 0.8 + bp.run(noise(), 450) * 0.5) * pad(t) * Math.exp(-t * 35)));
+      case 'tile': return this.render(0.12, LSR, () => (t) => soft((Math.sin(TAU * 110 * t) * 0.6 + bp.run(noise(), 1500) * 0.35) * pad(t) * Math.exp(-t * 50)));
       case 'gravel': return this.render(0.22, LSR, () => (t) => {
-        if (Math.random() < 0.06) grain = rand(0.5, 1);
+        if (Math.random() < 0.05) grain = rand(0.4, 1);
         grain *= 0.9;
-        return bp.run(noise() * grain, 2200) * Math.min(1, t / 0.01) * Math.exp(-t * 18);
+        return soft(bp.run(noise() * grain, 1600) * Math.min(1, t / 0.015) * Math.exp(-t * 16));
       });
       case 'grass': return this.render(0.16, LSR, () => (t) => {
-        lp += 0.12 * (noise() - lp);
-        return lp * Math.min(1, t / 0.012) * Math.exp(-t * 28) + Math.sin(TAU * 80 * t) * Math.exp(-t * 50) * 0.15;
+        lp += 0.1 * (noise() - lp);
+        return soft(lp * Math.min(1, t / 0.015) * Math.exp(-t * 26));
       });
     }
+  }
+
+  /** Many voices layered at random into a seamless loop: no one in particular, just people about. */
+  private crowdMix(): AudioBuffer {
+    const n = Math.floor(LSR * 10);
+    const y = new Float32Array(n);
+    for (let k = 0; k < 22; k++) {
+      const src = this.buf(`babble${k % 3}-${Math.floor(rand(0, 4))}`).getChannelData(0);
+      const off = Math.floor(rand(0, n)), g = rand(0.3, 1);
+      for (let i = 0; i < src.length; i++) y[(off + i) % n] += src[i] * g;
+    }
+    let peak = 1e-6;
+    for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(y[i]));
+    const b = this.ctx!.createBuffer(1, n, LSR);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = y[i] / peak;
+    return b;
   }
 
   private renderSfx(k: string): AudioBuffer {

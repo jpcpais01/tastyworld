@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.1',
+    date: '2026-10-30',
+    title: 'A quieter, cozier street',
+    items: [
+      'No more chattering voices in your ear. Busy streets now have a soft, distant murmur of people instead, which fades away when the street empties out and at night.',
+      'Footsteps are much quieter and softer, like rubber soles on stone, with gentle variation from step to step. Other people\'s steps only reach you when they pass close by.',
+      'Shop radios play a little lower, and the presenter now lets the music do the talking: just a soft chime between songs.',
+      'Crows, bicycle bells and the passing train come by less often, so the street stays calm.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-10-30',
     title: 'A cozier HUD',

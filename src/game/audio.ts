@@ -9,7 +9,8 @@
 
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
 
-export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh';
+export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh'
+  | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum';
 
 export interface AudioRoom { rect: [number, number, number, number]; kind: string }
 
@@ -190,6 +191,7 @@ export class Audio {
     // queue the tune's notes and footsteps so they're rendered a couple per frame before they're needed
     this.queueSong(BGM);
     for (const s of ['stone', 'wood', 'tile', 'gravel', 'grass']) for (let i = 0; i < 3; i++) this.warm.push(`step-${s}-${i}`);
+    for (const k of ['bite', 'chew', 'crunch', 'slurp', 'gulp', 'blow', 'rustle', 'drop']) this.warm.push(k);
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) void ctx.suspend();
@@ -291,6 +293,19 @@ export class Audio {
         break;
       case 'meow': fire('meow', t, 0.32, rand(0.92, 1.12)); break;
       case 'whoosh': fire('whoosh', t, 0.42, rand(0.95, 1.05)); break;
+      // eating
+      case 'bite': fire('bite', t, 0.5, rand(0.9, 1.12)); fire('chew', t + 0.22, 0.2, rand(0.9, 1.1)); fire('chew', t + 0.5, 0.16, rand(0.85, 1.05)); break;
+      case 'crunch': fire('crunch', t, 0.55, rand(0.92, 1.1)); fire('crunch', t + 0.26, 0.3, rand(0.8, 1.0)); fire('chew', t + 0.55, 0.15); break;
+      case 'slurp': fire('slurp', t, 0.5, rand(0.95, 1.06)); break;
+      case 'sip': fire('slurp', t, 0.22, 1.5); fire('gulp', t + 0.42, 0.45, rand(0.95, 1.05)); fire('gulp', t + 0.78, 0.35, rand(0.9, 1.0)); break;
+      case 'drip': fire('drop', t, 0.18, rand(1.3, 1.5)); break;
+      case 'blow': fire('blow', t, 0.42, rand(0.95, 1.05)); break;
+      case 'clink': note('bell', 100, t, 0.08, 0.15); fire('tok', t, 0.12, 1.7); break;
+      case 'rustle': fire('rustle', t, 0.4, rand(0.95, 1.05)); break;
+      case 'yum':
+        [76, 79, 83].forEach((m, i) => note('koto', m, t + i * 0.09, 0.42 - i * 0.06));
+        note('bell', 95, t + 0.27, 0.12);
+        break;
     }
   }
 
@@ -667,6 +682,39 @@ export class Audio {
         const trill = Math.abs(Math.sin(Math.PI * 38 * t)) ** 3;
         return Math.sin(TAU * 4300 * t) * trill * Math.min(1, t / 0.08) * Math.exp(-t * 2.2);
       });
+      case 'drop': return this.render(0.12, SR, () => { let ph = 0; return (t) => {
+        ph += TAU * (700 + 900 * (1 - Math.exp(-t * 60))) / SR;
+        return Math.sin(ph) * Math.min(1, t / 0.002) * Math.exp(-t * 45);
+      }; });
+      case 'bite': return this.render(0.16, SR, () => { const bp = new SVF(SR, 0.8); let ph = 0; return (t) => { // teeth through something soft
+        ph += TAU * (150 + 60 * Math.exp(-t * 40)) / SR;
+        return bp.run(noise(), 1300) * Math.exp(-t * 38) * 0.9 + Math.sin(ph) * Math.exp(-t * 30) * 0.5 * Math.min(1, t / 0.003);
+      }; });
+      case 'chew': return this.render(0.12, SR, () => { const bp = new SVF(SR, 1.2); return (t) => // a soft squish
+        bp.run(noise(), 520 + 300 * Math.sin(t * 40)) * Math.sin(Math.PI * Math.min(1, t / 0.12)) ** 2;
+      });
+      case 'crunch': return this.render(0.24, SR, () => { const bp = new SVF(SR, 0.5); let crack = 0; return (t) => { // crisp batter giving way
+        if (Math.random() < 0.012 * Math.exp(-t * 8)) crack = rand(0.6, 1.2);
+        crack *= 0.93;
+        return bp.run(noise(), 3600) * (0.25 * Math.exp(-t * 20) + crack) * Math.min(1, t / 0.002);
+      }; });
+      case 'slurp': return this.render(0.8, SR, () => { const bp = new SVF(SR, 3); return (t) => { // air pulled through noodles
+        const sweep = 700 + 2200 * Math.min(1, t / 0.7);
+        const env = Math.sin(Math.PI * Math.min(1, t / 0.8)) * (0.7 + 0.3 * Math.sin(t * 70));
+        return bp.run(noise(), sweep) * env;
+      }; });
+      case 'gulp': return this.render(0.18, SR, () => { let ph = 0; return (t) => { // a swallow
+        ph += TAU * (210 - 120 * Math.min(1, t / 0.12)) / SR;
+        return Math.sin(ph) * Math.sin(Math.PI * Math.min(1, t / 0.16)) ** 1.5;
+      }; });
+      case 'blow': return this.render(0.6, SR, () => { const bp = new SVF(SR, 0.7); return (t) => // "fuu": cooling a hot bite
+        bp.run(noise(), 1100) * Math.sin(Math.PI * Math.min(1, t / 0.6)) ** 0.8 * (1 - 0.3 * Math.sin(t * 20));
+      });
+      case 'rustle': return this.render(0.35, SR, () => { const bp = new SVF(SR, 0.9); let g = 0; return (t) => { // paper changing hands
+        if (Math.random() < 0.004) g = rand(0.4, 1);
+        g *= 0.995;
+        return bp.run(noise(), 4800) * (g + 0.15) * Math.sin(Math.PI * Math.min(1, t / 0.35));
+      }; });
     }
     throw new Error(`unknown sound ${k}`);
   }

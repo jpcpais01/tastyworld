@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.0',
+    date: '2026-10-30',
+    title: 'Itadakimasu!',
+    items: [
+      'Eating is now a proper little moment instead of a report. The cook leans over the counter and hands you your dish ("Hai, dōzo!"), you take it with both hands, give a small bow and say "Itadakimasu!"',
+      'You actually eat it, and every kind of food is eaten its own way: chopsticks and a big slurp for ramen, dipping cold soba into its sauce, a toothpick for hot takoyaki (blow on it first!), skewers for dango and yakitori, a spoon for purin, a fork twirl for napolitan, dipping gyoza and tempura, a little spatula for monjayaki, and plain hand bites for taiyaki and dorayaki.',
+      'Bites really come out of the food, pieces disappear off the skewer one by one, crumbs fall, steam rises from hot dishes, and the ramen bowl gets lifted for the last of the broth.',
+      'In first person you see the dish in your own hands, from the hand-off to the last bite. In the normal view the camera gently moves in on you while you eat.',
+      'New eating sounds: bites, crunches, slurps, sips and a happy "Oishii~!" at the end.',
+      'When you finish, a small card shows the dish, what it tastes like and a little story or tip about it, and stamps your passport if it is new. Tap "The story" to read more, or just walk away.',
+      'Snacks and drinks from shops and vending machines get the same treatment. Tap or press interact to speed a meal up, or walk off to stop.',
+    ],
+  },
+  {
     version: '0.8.6',
     date: '2026-10-30',
     title: 'Seats where the stools are',

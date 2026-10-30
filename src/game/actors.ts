@@ -41,6 +41,15 @@ export type Anim =
 export type Hold = 'none' | 'food' | 'phone';
 
 const tmpL = new Float32Array(5);
+// scratch for the arm solver and the hand / mouth lookups
+const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), qC = new THREE.Quaternion();
+const eA = new THREE.Euler(0, 0, 0, 'YXZ');
+const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), vD = new THREE.Vector3();
+const UP_ARM = 0.1875, FORE_ARM = 0.26; // shoulder to elbow, elbow to the middle of the fist (m)
+const GRIP_Y = 0.64, MOUTH: [number, number, number] = [0, 1.215, 0.235];
+
+/** A hand reaching for a point in the actor's own space (x left/right, y up, z forward). */
+export interface Reach { on: boolean; pos: THREE.Vector3; w: number }
 const NP = PART_COUNT;
 /** Pose layout: pitch, yaw, roll per part, then the root offset. */
 const PS = NP * 3 + 3, OFF = NP * 3;
@@ -89,6 +98,13 @@ export class Actor {
   flash = 0;
   sun = 1;
   readonly isCat: boolean;
+  /**
+   * Hands placed by two-bone IK (set every frame by game/meal.ts): [0] is the arm on the -x side, [1] the one on +x.
+   * `pose` adds a lean, a head turn and chewing on top while any hand is reaching.
+   */
+  readonly reach: [Reach, Reach] = [{ on: false, pos: new THREE.Vector3(), w: 0 }, { on: false, pos: new THREE.Vector3(), w: 0 }];
+  readonly pose = { lean: 0, pitch: 0, yaw: 0, roll: 0, chew: 0, bob: 0 };
+  private poseW = 0;
 
   private cur = new Float32Array(PS);
   private from = new Float32Array(PS);
@@ -144,6 +160,11 @@ export class Actor {
     this.mesh.userData.shadowMat = this.depthMat;
     this.mesh.layers.enable(SHADOW_DYNAMIC);
     this.root.add(this.mesh);
+  }
+
+  /** Light uniforms shared with things held in the hands, so they are lit like the body. */
+  get lighting(): { uCharLight: THREE.IUniform<THREE.Vector3>; uCharLamp: THREE.IUniform<THREE.Vector3>; uFlash: THREE.IUniform<number> } {
+    return { uCharLight: this.uCharLight, uCharLamp: this.uCharLamp, uFlash: this.uFlash };
   }
 
   dispose(): void {
@@ -211,6 +232,10 @@ export class Actor {
         mixInto(act, this.loco, this.locoW);
       }
       if (this.holdW > 0.002) this.holdPose(act, this.holdW);
+      const anyReach = this.reach[0].on || this.reach[1].on;
+      this.poseW += ((anyReach ? 1 : 0) - this.poseW) * expK(5, dt);
+      for (const r of this.reach) r.w += ((r.on ? 1 : 0) - r.w) * expK(7, dt);
+      if (this.poseW > 0.002 || this.reach[0].w > 0.002 || this.reach[1].w > 0.002) this.reachPose(act);
       // lean into turns
       const lean = THREE.MathUtils.clamp(-this.turn * this.vs * 0.03, -0.16, 0.16) * this.locoW;
       act[0 * 3 + 2] += lean;
@@ -226,7 +251,7 @@ export class Actor {
   }
 
   private tickFidget(dt: number, base: Anim): void {
-    if (base !== 'idle' || this.holdW > 0.5) { this.fidget = -1; return; }
+    if (base !== 'idle' || this.holdW > 0.5 || this.poseW > 0.05) { this.fidget = -1; return; }
     if (this.fidget >= 0) {
       this.fidgetT += dt;
       if (this.fidgetT >= this.fidgetDur) { this.fidget = -1; this.fidgetNext = 3 + Math.random() * 7; }
@@ -488,6 +513,88 @@ export class Actor {
     const hop = run * 0.035 * amp * Math.sin(2 * TAU * u0 - 3.96);
     p[OFF] = sway;
     p[OFF + 1] = (lift - L) + hop * this.bounce;
+  }
+
+  /** Lean, head and chew from `pose`, then each reaching arm solved so its fist lands on the target. */
+  private reachPose(p: Float32Array): void {
+    const w = this.poseW, q = this.pose;
+    add(p, PART.body, q.lean * w, 0, 0);
+    const chew = Math.max(0, Math.sin(this.animT * 11)) * 0.045 * q.chew;
+    add(p, PART.head, (q.pitch + chew) * w, q.yaw * w, q.roll * w);
+    p[OFF + 1] += q.bob * w;
+    for (let side = 0; side < 2; side++) {
+      const r = this.reach[side];
+      if (r.w > 0.002) this.solveArm(p, side, r.pos, r.w);
+    }
+  }
+
+  /**
+   * Two-bone IK for one arm in the body's frame: the elbow angle from the reach distance, then the shoulder turned
+   * so the fist meets the target, swivelled so the elbow hangs down and a little out.
+   */
+  private solveArm(p: Float32Array, side: number, target: THREE.Vector3, w: number): void {
+    const sx = side ? 1 : -1;
+    const arm = side ? PART.armR : PART.armL, fore = side ? PART.foreR : PART.foreL;
+    // target into the torso's frame (undo the root offset and the body's own bend at the waist)
+    const t = vA.copy(target);
+    t.x -= p[OFF]; t.y -= p[OFF + 1]; t.z -= p[OFF + 2];
+    t.y -= 8 * CHAR_SCALE;
+    eA.set(p[PART.body * 3], p[PART.body * 3 + 1], p[PART.body * 3 + 2]);
+    qA.setFromEuler(eA).invert();
+    t.applyQuaternion(qA);
+    t.y += 8 * CHAR_SCALE;
+    const sh = vB.set(sx * 0.3, 14.5 * CHAR_SCALE, 0);
+    const v = t.sub(sh);
+    const d = THREE.MathUtils.clamp(v.length(), 0.09, UP_ARM + FORE_ARM - 0.002);
+    const c = THREE.MathUtils.clamp((d * d - UP_ARM * UP_ARM - FORE_ARM * FORE_ARM) / (2 * UP_ARM * FORE_ARM), -1, 1);
+    const e = -Math.acos(c);
+    // the bent arm in its rest frame points from the shoulder to the fist along wv
+    const wv = vC.set(0, -UP_ARM - FORE_ARM * Math.cos(e), -FORE_ARM * Math.sin(e)).normalize();
+    const axis = v.normalize();
+    qB.setFromUnitVectors(wv, axis);
+    // swivel around the shoulder-fist axis towards an elbow pole: down, outwards, a little back
+    const elbow = vD.set(0, -1, 0).applyQuaternion(qB);
+    elbow.addScaledVector(axis, -elbow.dot(axis));
+    const pole = vC.set(sx * 0.7, -1, -0.35);
+    pole.addScaledVector(axis, -pole.dot(axis));
+    if (elbow.lengthSq() > 1e-6 && pole.lengthSq() > 1e-6) {
+      elbow.normalize(); pole.normalize();
+      const ang = Math.atan2(vB.crossVectors(elbow, pole).dot(axis), elbow.dot(pole));
+      qC.setFromAxisAngle(axis, ang);
+      qB.premultiply(qC);
+    }
+    eA.setFromQuaternion(qB, 'YXZ');
+    lerpPart(p, arm, eA.x, eA.y, eA.z, w);
+    lerpPart(p, fore, e, 0, 0, w);
+  }
+
+  /** Where the middle of a fist is right now, in the actor's own space (side 0 = -x arm, 1 = +x arm). */
+  grip(side: number, out: THREE.Vector3): THREE.Vector3 {
+    const sx = side ? 1 : -1;
+    const arm = side ? PART.armR : PART.armL, fore = side ? PART.foreR : PART.foreL;
+    out.set(sx * 0.3, GRIP_Y, 0);
+    this.chain(out, fore, sx * 0.3, 12 * CHAR_SCALE);
+    this.chain(out, arm, sx * 0.3, 14.5 * CHAR_SCALE);
+    this.chain(out, PART.body, 0, 8 * CHAR_SCALE);
+    return out.add(vA.set(this.cur[OFF], this.cur[OFF + 1], this.cur[OFF + 2]));
+  }
+
+  /** Just in front of the lips, following the head as it nods and chews. */
+  mouth(out: THREE.Vector3): THREE.Vector3 {
+    out.set(MOUTH[0], MOUTH[1], MOUTH[2]);
+    this.chain(out, PART.head, 0, 15 * CHAR_SCALE, this.headYaw);
+    this.chain(out, PART.body, 0, 8 * CHAR_SCALE);
+    return out.add(vA.set(this.cur[OFF], this.cur[OFF + 1], this.cur[OFF + 2]));
+  }
+
+  /** Rotate a point about one part's pivot (pivots of people all sit on the x = pivot x, z = 0 line). */
+  private chain(v: THREE.Vector3, part: number, px: number, py: number, yawAdd = 0): void {
+    const c = this.cur;
+    eA.set(c[part * 3], c[part * 3 + 1] + yawAdd, c[part * 3 + 2]);
+    qA.setFromEuler(eA);
+    v.x -= px; v.y -= py;
+    v.applyQuaternion(qA);
+    v.x += px; v.y += py;
   }
 
   private holdPose(p: Float32Array, w: number): void {

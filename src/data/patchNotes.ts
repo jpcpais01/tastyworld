@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.4',
+    date: '2026-10-30',
+    title: 'Pick your hour',
+    items: [
+      'New Time of day setting: keep the full day and night cycle, or stay at dawn, midday, sunset or night for as long as you like.',
+      'Changing it plays a quick time-lapse to the new hour. Lanterns, neon, shadows and the street sounds all follow.',
+      'On a co-op trip the trip leader picks the sky for everyone.',
+    ],
+  },
+  {
     version: '0.9.3',
     date: '2026-10-30',
     title: 'See for miles',

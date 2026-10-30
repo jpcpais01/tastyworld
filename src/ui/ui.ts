@@ -4,7 +4,7 @@ import type { FoodId } from '../world/food';
 import type { StallInfo } from '../data/stalls';
 import { DISHES, DISH } from '../data/dishes';
 import { STALL } from '../data/stalls';
-import { MISSIONS, ITEMS, Mission } from '../data/missions';
+import { MISSIONS, ITEMS, Mission, trackedMission } from '../data/missions';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
@@ -172,14 +172,17 @@ export class UI {
           <div class="yen" id="h-yenchip" title="Your yen"><span class="coin">¥</span><span id="h-yen">3,000</span></div>
           <span class="sep"></span>
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
-          <button id="h-map" title="World map (M)" aria-label="World map">${G.map}</button>
+          <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
           <button id="h-set" title="Settings" aria-label="Settings">${G.gear}</button>
         </div>
+        <button class="glass compass" id="h-compass" title="City map (M)" aria-label="Compass, opens the city map">
+          <span class="dial"><span class="rose"><b>N</b><i></i></span><span class="aim"></span></span><span class="dist"></span>
+        </button>
       </div>
       <div class="hud-bl">
         <div class="controls" id="h-keys">
           <button class="glass kb" id="h-kb" title="Controls" aria-label="Show controls">${G.keyboard}</button>
-          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>P</kbd> passport</span></div>
+          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span></div>
         </div>
       </div>
       <div class="hud-br">
@@ -196,6 +199,7 @@ export class UI {
     const tap = (id: string, fn: () => void) => $(id).addEventListener('click', (e) => { e.stopPropagation(); this.audio.play('click'); fn(); });
     tap('h-pass', () => this.passport());
     tap('h-map', () => this.map());
+    tap('h-compass', () => this.map());
     tap('h-party', () => this.onParty?.());
     tap('h-wave', () => this.onWave?.());
     tap('h-set', () => this.settings());
@@ -229,8 +233,31 @@ export class UI {
       <span class="pt"><b>${n > 1 ? `${n} travelling together` : 'Waiting for a friend'}</b><small>${G.ticket}${code}</small></span>`;
   }
 
-  /** The world map is drawn by the travel screens. */
+  /** The pocket city map (the world map is a button on it). */
   map(): void { this.onMap?.(); }
+
+  private compassKey = '';
+  private northA = 0;
+  private aimA = 0;
+  /**
+   * The HUD compass: north and the way to the pinned spot, as clockwise screen angles in radians
+   * (null hides the pointer), with the distance left to walk.
+   */
+  compass(north: number, aim: number | null, dist: string): void {
+    // unwrap the angles so the needles turn the short way round
+    const near = (a: number, prev: number) => prev + Math.atan2(Math.sin(a - prev), Math.cos(a - prev));
+    north = this.northA = near(north, this.northA);
+    if (aim !== null) aim = this.aimA = near(aim, this.aimA);
+    const key = `${north.toFixed(2)}|${aim === null ? '' : aim.toFixed(2)}|${dist}`;
+    if (key === this.compassKey) return;
+    this.compassKey = key;
+    const el = $('h-compass');
+    (el.querySelector('.rose') as HTMLElement).style.transform = `rotate(${north.toFixed(3)}rad)`;
+    el.classList.toggle('on', aim !== null);
+    el.classList.toggle('here', dist === 'here');
+    if (aim !== null) (el.querySelector('.aim') as HTMLElement).style.transform = `rotate(${aim.toFixed(3)}rad)`;
+    (el.querySelector('.dist') as HTMLElement).textContent = dist === 'here' ? 'Here!' : dist;
+  }
 
   /** A full-screen layer (the travel map, a boarding pass). onClose runs when it is closed for any reason. */
   overlay(el: HTMLElement, onClose: () => void): void {
@@ -279,13 +306,9 @@ export class UI {
       this.yenChip.classList.add('bump');
     }
     this.lastYen = this.s.yen;
-    const open = MISSIONS.filter((m) => !this.s.claimed.includes(m.id));
-    const ready = open.filter((m) => { const [a, b] = m.progress(this.s); return a >= b; });
-    this.ppDot.classList.toggle('hidden', !ready.length);
     // one mission at a time: a reward to claim first, otherwise the one closest to done
-    const live = open.filter((m) => m.id !== 'secret' || this.s.hiddenFound);
-    const frac = (m: Mission) => { const [a, b] = m.progress(this.s); return a / b; };
-    const next = ready[0] ?? [...live].sort((x, y) => frac(y) - frac(x))[0];
+    const { next, ready } = trackedMission(this.s);
+    this.ppDot.classList.toggle('hidden', !ready.length);
     this.trackerEl.classList.toggle('ready', !!ready.length);
     this.trackerEl.classList.toggle('hidden', !next);
     if (!next) return;

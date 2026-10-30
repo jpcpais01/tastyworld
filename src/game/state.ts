@@ -38,6 +38,10 @@ export interface SaveState {
   capsules: string[];
   /** Ids of the shops and restaurants the player has stepped into. */
   rooms: string[];
+  /** Ids of the stalls and restaurants the player has come across (they show on the city map). */
+  seen: string[];
+  /** The spot pinned on the city map, if any. */
+  pin?: { x: number; z: number; name: string; jp?: string; id?: string } | null;
   settings: Settings;
   title?: string;
   /** How the traveller appears to friends on co-op trips. */
@@ -49,7 +53,7 @@ const KEY = 'tastyworld.save.v1';
 
 export function defaultState(): SaveState {
   return {
-    v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [],
+    v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [],
     settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, fov: 72 }, profile: { name: '', color: 0xe9573f }, playTime: 0,
   };
 }

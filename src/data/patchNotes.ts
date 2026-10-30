@@ -8,6 +8,21 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.5',
+    date: '2026-10-30',
+    title: 'A pocket map of the city',
+    items: [
+      'You now carry a pocket map of Tokyo. Tap the map button or the new compass in the top corner, or press M, and it unfolds panel by panel like a real paper map.',
+      'It is drawn from the city itself: every rooftop, tree, bridge and street, the canal with its ripples, the park pond, the railway, the shrine, the station and the contour lines of Inari Hill. District and street names appear as you zoom in.',
+      'Drag to look around, pinch or scroll to zoom, and tap the target button to find yourself again. Your arrow shows which way you are facing and a soft glow shows where the camera is looking.',
+      'Stalls you have walked past show up as pins with their dish inside, with a green stamp once you have tasted everything there. Stalls you have not found yet are a little question mark. The hidden restaurant only appears once you have found it.',
+      'Stalls that help with the mission you are following sparkle in gold, and friends on a co-op trip show up as coloured dots with their names.',
+      'Tap anywhere to pin a spot, or tap a stall and choose Guide me. A dotted route shows the way, a tall column of warm light marks the spot in the city, and a tag at the edge of the screen points the way when it is out of sight.',
+      'The compass in the HUD always shows north, and with a pin set it points the way to the next corner and counts down the metres. The pin comes off by itself when you arrive.',
+      'The world map is still there: it is the plane button on the side of the pocket map.',
+    ],
+  },
+  {
     version: '0.9.4',
     date: '2026-10-30',
     title: 'Pick your hour',

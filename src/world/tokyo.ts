@@ -42,6 +42,8 @@ export interface Anchors {
   manekis: [number, number, number][];
   graph: { nodes: [number, number][]; edges: [number, number][] };
   idlers: { id: string; pos: [number, number, number] }[];
+  /** Street benches: centre x, z and the angle a sitter faces. */
+  benches: [number, number, number][];
   cats: [number, number, number][];
   emitters: Emitter[];
   vending: [number, number, number][];
@@ -131,6 +133,7 @@ export class Builder {
   secret: SecretAnchor | null = null;
   indoor: [number, number, number, number, number, number][] = [];
   stallAnchors: StallAnchor[] = [];
+  benches: [number, number, number][] = [];
 
   constructor() {
     this.c = worldColors(this.pal);
@@ -1219,7 +1222,7 @@ export function buildTokyo(): BuildResult {
       b.lamp(lx * V + 0.8, 3.4, 168.6 * V, WHITEWARM, 7, 1.0);
       b.block(lx * V, 168.6 * V - 0.25, lx * V + 0.5, 168.6 * V + 0.25);
     }
-    for (const bx of [80, 196, 240]) { b.place(bench(k), bx * V, 0, 167.2 * V, 0); b.block(bx * V - 0.9, 167.2 * V - 0.35, bx * V + 0.9, 167.2 * V + 0.35); }
+    for (const bx of [80, 196, 240]) { b.place(bench(k), bx * V, 0, 167.2 * V, 0); b.benches.push([bx * V, 167.2 * V, 0]); b.block(bx * V - 0.9, 167.2 * V - 0.35, bx * V + 0.9, 167.2 * V + 0.35); }
     const clearOf = (x: number, half: number) => {
       for (const rm of b.rooms) if (Math.abs(rm.door[1] - 38.4) < 2.4 && Math.abs(rm.door[0] - x) < 1.0 + half) return false;
       return true;
@@ -1312,7 +1315,7 @@ export function buildTokyo(): BuildResult {
       b.lamp(sx, 1.5, sz, WARM, 3, 0.8);
       b.block(sx - 0.5, sz - 0.5, sx + 0.5, sz + 0.5);
     }
-    for (const bx of [28, 120, 170]) { b.place(bench(k), bx * V, 0, 53.0, 2); b.block(bx * V - 0.9, 52.7, bx * V + 0.9, 53.3); }
+    for (const bx of [28, 120, 170]) { b.place(bench(k), bx * V, 0, 53.0, 2); b.benches.push([bx * V, 53.0, Math.PI]); b.block(bx * V - 0.9, 52.7, bx * V + 0.9, 53.3); }
   }
 
   // --- Plaza dressing
@@ -1480,6 +1483,7 @@ export function buildTokyo(): BuildResult {
       { id: 'tourist', pos: [20.0, 0, 15.2] },
       { id: 'florist', pos: [58.5, 0, 9.7] },
     ],
+    benches: b.benches,
     cats: [[34.4, 0, 30.4], [12.2, 0, 40.2], [49.4, 0, 52.3]],
     emitters: b.emitters,
     vending,

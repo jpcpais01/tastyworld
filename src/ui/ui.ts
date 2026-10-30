@@ -283,8 +283,8 @@ export class UI {
     if (l) { l.pos[0] = x; l.pos[1] = y; l.pos[2] = z; }
   }
 
-  /** Position labels: project returns screen pixels or null when off screen; fade by distance. */
-  updateLabels(project: (p: [number, number, number]) => [number, number] | null, near: (p: [number, number, number]) => number): void {
+  /** Position labels: project returns screen pixels or null when off screen. */
+  updateLabels(project: (p: [number, number, number]) => [number, number] | null): void {
     const now = performance.now();
     for (const [key, l] of this.labels) {
       if (l.until && now > l.until) { this.removeLabel(key); continue; }
@@ -294,7 +294,6 @@ export class UI {
       if (!sp || !show) continue;
       l.el.style.left = `${sp[0].toFixed(1)}px`;
       l.el.style.top = `${sp[1].toFixed(1)}px`;
-      if (l.el.classList.contains('plate')) l.el.style.opacity = String(near(l.pos));
     }
   }
 

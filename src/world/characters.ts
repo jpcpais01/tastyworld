@@ -6,7 +6,12 @@ import { Palette } from './palette';
 export const CHAR_SCALE = 0.075;
 export const CAT_SCALE = 0.05;
 
-export const PART = { body: 0, head: 1, armL: 2, armR: 3, legL: 4, legR: 5, tail: 6, extra: 7 };
+/**
+ * Part ids. People have a small skeleton: thighs hang from the hips, shins from the knees, forearms
+ * from the elbows, and head and arms ride on the torso (see PARENT in the voxel shader).
+ */
+export const PART = { body: 0, head: 1, armL: 2, armR: 3, legL: 4, legR: 5, tail: 6, hips: 7, shinL: 8, shinR: 9, foreL: 10, foreR: 11 };
+export const PART_COUNT = 12;
 
 export interface CharModel {
   grid: Grid;
@@ -195,17 +200,33 @@ export function buildPerson(look: Look): CharModel {
     if (look.charm) { set(6, 9, 0, C(0xd8372b), PART.body); set(6, 8, 0, C(0xd8372b), PART.body); }
   }
 
+  // split the limbs at the knees and elbows, and the clothes below the waist off the torso
+  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    const i = y * W * D + z * W + x;
+    if (!grid.get(x, y, z)) continue;
+    const pt = parts[i];
+    if (pt === PART.body && y < 8) parts[i] = PART.hips;
+    else if (pt === PART.legL && y <= 3) parts[i] = PART.shinL;
+    else if (pt === PART.legR && y <= 3) parts[i] = PART.shinR;
+    else if (pt === PART.armL && y <= 11) parts[i] = PART.foreL;
+    else if (pt === PART.armR && y <= 11) parts[i] = PART.foreR;
+  }
+
   const s = CHAR_SCALE;
   const ox = -W / 2 * s, oz = -4 * s;
   const pivots: [number, number, number][] = [
+    [0, 8 * s, oz + 4 * s], // torso bends at the waist
+    [0, 15 * s, oz + 4 * s], // head at the neck
+    [ox + 1 * s, 14.5 * s, oz + 4 * s], // left arm (x 0..1) at the shoulder
+    [ox + 9 * s, 14.5 * s, oz + 4 * s], // right arm
+    [ox + 3.5 * s, 8 * s, oz + 4 * s], // left thigh at the hip
+    [ox + 6.5 * s, 8 * s, oz + 4 * s],
     [0, 0, 0],
-    [0, 15 * s, (3.5 * s) + oz], // head at the neck
-    [ox + 1 * s, 14.5 * s, oz + 3.5 * s], // left arm (x 0..1)
-    [ox + 9 * s, 14.5 * s, oz + 3.5 * s], // right arm
-    [ox + 3.5 * s, 8 * s, oz + 3.5 * s], // left leg
-    [ox + 6.5 * s, 8 * s, oz + 3.5 * s],
-    [0, 0, 0],
-    [0, 0, 0],
+    [0, 8 * s, oz + 4 * s], // hips
+    [ox + 3.5 * s, 4 * s, oz + 4 * s], // left knee
+    [ox + 6.5 * s, 4 * s, oz + 4 * s],
+    [ox + 1 * s, 12 * s, oz + 4 * s], // left elbow
+    [ox + 9 * s, 12 * s, oz + 4 * s],
   ];
   return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots };
 }
@@ -251,7 +272,7 @@ export function buildCat(seed: number): CharModel {
     [ox + 1.5 * s, 3 * s, oz + 3.5 * s],
     [ox + 4.5 * s, 3 * s, oz + 3.5 * s],
     [0, 5.5 * s, oz + 2 * s],
-    [0, 0, 0],
+    [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0],
   ];
   return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots };
 }

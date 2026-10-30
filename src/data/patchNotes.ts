@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.7.1',
+    date: '2026-10-30',
+    title: 'A street full of life',
+    items: [
+      'Everyone walks better, you included. Feet stay planted on the ground instead of skating, knees bend as each leg swings through, the hips sway over the standing foot, the shoulders twist against the stride and the arms swing with bent elbows. Walking speeds up smoothly into a run, with a real bounce and lean, and eases back down when you stop.',
+      'Standing still is never stiff: people breathe, shift their weight from foot to foot and fidget, glancing around, stretching, scratching their heads, checking the time or shuffling their feet. Bows now bend from the waist, sitters bend their knees and waves come from the shoulder.',
+      'The people of Tokyo now have a day of their own. They queue at the stalls, get served and walk off with a snack, eat it on the canal benches, pop into bakeries, cafés, bookshops and konbini, and fill the izakaya in the evening. Commuters hurry (and sometimes run) through the morning and evening rush, and the streets thin out late at night as people head home.',
+      'Some people walk around in pairs, side by side. They sit together on the same bench, and one waits outside with a phone while the other shops. Friends who bump into each other stop for a chat, with gestures, nods and the odd laugh, and if you stand close you might overhear them.',
+      'Passers-by step around each other and around you instead of walking through or freezing in place. They glance at you as you pass, sometimes say hello if you stop next to them (or ask where you got that snack), and jump out of the way if you sprint into them.',
+      'The story characters, shopkeepers and regulars have their own habits too: a tourist taking photos, Tanaka-san glued to a phone, regulars nibbling at their food.',
+      'Removed the big floating name pills over the food stalls. Walk up to a stall and its name still shows in the prompt.',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-10-30',
     title: 'Travel together',

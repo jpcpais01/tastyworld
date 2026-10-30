@@ -5,6 +5,7 @@ import { Palette } from './palette';
 import { buildTokyo, Anchors, PlacedProp, BuildResult } from './tokyo';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
 import { assemble } from './assemble';
+import { packSway, swayKey, SWAY_PART } from './sway';
 export { assemble };
 
 // Sun travels from +x, -z towards the scene, about 42 degrees up.
@@ -41,6 +42,8 @@ export interface BakedWorld {
   /** Signed distance to the water's edge per column: 128 + 16 x voxels (positive over open water). */
   shore: Uint8Array;
   anchors: Anchors;
+  /** Sway bodies of every part, stacked for the sway texture (see world/sway.ts). */
+  sway: { data: Float32Array; width: number; height: number };
   stats: { lamps: number; ms: number; bytes: number };
 }
 
@@ -56,6 +59,8 @@ export interface PartInit {
   tagged: { tag: string; mesh: MeshData }[];
   anchors: Anchors;
   interior: { chunks: MeshData[]; nav: NavData; lightmap: LightMap2D; height: Uint8Array } | null;
+  /** This part's sway bodies, packed (ids from part * SWAY_PART + 1). */
+  sway: Float32Array;
   stats: { lamps: number; ms: number; bytes: number };
 }
 
@@ -184,13 +189,26 @@ function computeLightmap(field: LightField, nav: Uint8Array, x0: number, z0: num
   return data;
 }
 
+/** Sway body id of each voxel of a placed prop (see world/sway.ts), offset by the part's id base. */
+function propSway(p: PlacedProp, base: number): ((vi: number) => number) | undefined {
+  const idx = p.prop.swayIdx, ids = p.sway;
+  if (!idx || !ids) return undefined;
+  return (vi) => (idx[vi] ? ids[idx[vi] - 1] + base : 0);
+}
+
 /** Mesh columns [x0,x1) x [z0,z1) of a sparse grid (builder coords) plus the props given, at full detail. */
-function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number, props: PlacedProp[]): MeshData | null {
+function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number, props: PlacedProp[], cells: Map<number, number>, base: number): MeshData | null {
   const dense = grid.extract(x0, x1, z0, z1, G);
+  // dense voxel (with its one-voxel border) -> builder voxel -> sway body
+  const sway = cells.size ? (vi: number) => {
+    const y = Math.floor(vi / dense.sxz), r = vi - y * dense.sxz, z = Math.floor(r / dense.sx);
+    const id = cells.get(swayKey(grid, x0 - 1 + r - z * dense.sx, y, z0 - 1 + z));
+    return id ? id + base : 0;
+  } : undefined;
   const pieces: MeshData[] = [
-    meshGrid({ grid: dense, pal, scale: V, origin: [(x0 - 1) * V, -G * V, (z0 - 1) * V], region: [1, x1 - x0 + 1, 1, z1 - z0 + 1], light, groundBelow: G }),
+    meshGrid({ grid: dense, pal, scale: V, origin: [(x0 - 1) * V, -G * V, (z0 - 1) * V], region: [1, x1 - x0 + 1, 1, z1 - z0 + 1], light, groundBelow: G, sway }),
   ];
-  for (const p of props) pieces.push(meshGrid({ grid: p.prop.grid, pal, scale: p.prop.scale, origin: p.origin, light }));
+  for (const p of props) pieces.push(meshGrid({ grid: p.prop.grid, pal, scale: p.prop.scale, origin: p.origin, light, sway: propSway(p, base) }));
   return mergeMeshes(pieces);
 }
 
@@ -234,6 +252,9 @@ export class WorldPart {
   private buckets: PlacedProp[][] = [];
   private t0 = performance.now();
 
+  /** First sway id of this part, minus one. */
+  get swayBase(): number { return this.part * SWAY_PART; }
+
   constructor(readonly part: number, readonly parts: number) {
     const per = Math.ceil(CHUNKS_Z / parts);
     this.rows = [Math.min(CHUNKS_Z, part * per), Math.min(CHUNKS_Z, (part + 1) * per)];
@@ -248,6 +269,7 @@ export class WorldPart {
     const wz0 = Math.max(VZ0, z0 - HALO_LO), wz1 = Math.min(VZ0 + SZ, z1 + HALO_HI);
     progress?.('Building Tokyo', 0.04);
     const res = (this.res = buildTokyo([VX0, wz0, VX0 + SX, wz1]));
+    if (res.sway.length >= SWAY_PART) throw new Error(`too many sway bodies: ${res.sway.length}`);
     res.grid.compact();
     progress?.('Lighting the streets', 0.4);
     const field = new LightField(res.grid, SUN_STEP);
@@ -265,7 +287,7 @@ export class WorldPart {
       const ix = Math.min(CHUNKS_X - 1, Math.max(0, Math.floor((cx - VX0) / CHUNK)));
       const iz = Math.min(CHUNKS_Z - 1, Math.max(0, Math.floor((cz - VZ0) / CHUNK)));
       if (iz < this.rows[0] || iz >= this.rows[1]) continue;
-      if (p.tag) tagged.push({ tag: p.tag, mesh: meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: this.light }) });
+      if (p.tag) tagged.push({ tag: p.tag, mesh: meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: this.light, sway: propSway(p, this.swayBase) }) });
       else this.buckets[iz * CHUNKS_X + ix].push(p);
     }
     progress?.('Paving the streets', 0.85);
@@ -293,7 +315,7 @@ export class WorldPart {
       for (const p of res.interior.props) {
         const sc = p.prop.scale;
         p.origin = [Math.round(p.origin[0] / sc) * sc, Math.round(p.origin[1] / sc) * sc, Math.round(p.origin[2] / sc) * sc];
-        pieces.push(meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: ilight }));
+        pieces.push(meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: ilight, sway: propSway(p, this.swayBase) }));
       }
       const im = mergeMeshes(pieces);
       const blockers: [number, number, number, number][] = [
@@ -313,6 +335,7 @@ export class WorldPart {
     progress?.('Ready', 1);
     return {
       part: this.part, rows: this.rows, height, nav, shore, lightmap, tagged, anchors: res.anchors, interior,
+      sway: packSway(res.sway, this.swayBase),
       stats: { lamps: res.lamps.length, ms: performance.now() - this.t0, bytes: res.grid.bytes + field.bytes },
     };
   }
@@ -325,7 +348,7 @@ export class WorldPart {
   mesh(ix: number, iz: number, lod: boolean): MeshData | null {
     const x0 = VX0 + ix * CHUNK, z0 = VZ0 + iz * CHUNK;
     if (lod) return meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK);
-    return meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix]);
+    return meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase);
   }
 }
 

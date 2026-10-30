@@ -21,6 +21,23 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const yen = (n: number) => `¥${n.toLocaleString('en-US')}`;
 const stars = (n: number, of = 3) => G.star.repeat(n) + (of > n ? `<span class="off">${G.star.repeat(of - n)}</span>` : '');
 const touch = () => matchMedia('(pointer: coarse)').matches;
+const firstSentence = (t: string) => (t.match(/^.*?[.!?](\s|$)/)?.[0] ?? t).trim();
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+
+/** A few words on how a dish tastes, from its flavour profile. */
+function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: number }): string[] {
+  const words: Record<string, [string, string, string]> = {
+    sweet: ['Lightly sweet', 'Sweet', 'Very sweet'],
+    savory: ['A little savoury', 'Savoury', 'Deeply savoury'],
+    umami: ['Umami', 'Rich umami', 'Umami bomb'],
+    crunch: ['A bit of crunch', 'Crunchy', 'Shatteringly crisp'],
+  };
+  const out = (Object.entries(f) as [keyof typeof words, number][])
+    .filter(([, v]) => v >= 3).sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([k, v]) => words[k][Math.min(2, v - 3)]);
+  if (f.crunch <= 1 && out.length < 3) out.push(f.sweet >= 3 ? 'Soft and fluffy' : 'Silky');
+  return out;
+}
 
 const MISSION_ICONS: Record<string, string> = {
   'first-bite': '🥢', trio: '🍡', sweet: '🍯', apprentice: '👩‍🍳', alley: '🏮', night: '🌙', cats: '🐱', secret: '🚪', stars: '⭐', master: '🏆',
@@ -117,6 +134,7 @@ export class UI {
   open: string | null = null;
   private closeHook: (() => void) | null = null;
   private partyEl!: HTMLElement;
+  private savourEl: HTMLElement | null = null;
 
   constructor(private s: SaveState, private audio: Audio, private hooks: GameHooks) {
     this.buildHud();
@@ -426,7 +444,8 @@ export class UI {
           this.toast('👛', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.');
           return;
         }
-        this.taste(id, !got);
+        // the vendor plates it up and hands it over in the street (see game/meal.ts)
+        this.close();
       };
       const cookBtn = card.querySelector<HTMLButtonElement>('[data-a="cook"]');
       if (cookBtn) cookBtn.onclick = () => this.cook(st);
@@ -468,14 +487,62 @@ export class UI {
     this.cooking = new CookingGame(p, st.recipe, this.audio, this.icons[dish] ?? '', (stars) => {
       this.cooking = null;
       if (stars < 0) { this.stall(st); return; }
-      const wasNew = !this.s.tasted[dish];
-      const tip = this.hooks.cooked(dish, st, stars);
-      this.taste(dish, wasNew, stars, tip);
+      this.hooks.cooked(dish, st, stars);
+      this.close();
     });
   }
 
-  // tasting card --------------------------------------------------------------------------
-  taste(id: FoodId, isNew: boolean, cooked = 0, tip = 0): void {
+  // after eating ---------------------------------------------------------------------------
+  /**
+   * A small card that slides up once the last bite is gone: the stamp, how it tasted and one thing worth knowing.
+   * It doesn't stop play and goes away on its own.
+   */
+  savour(id: FoodId, o: { isNew: boolean; count: number; cooked?: number; tip?: number }): void {
+    const d = DISH[id];
+    if (!d) return;
+    this.savourEl?.remove();
+    const lines = [d.tip, firstSentence(d.culture), firstSentence(d.history)];
+    const line = lines[(Math.max(1, o.count) - 1) % lines.length];
+    const card = h('div', 'savour', `
+      <div class="sv-img">${this.icons[id] ? `<img src="${this.icons[id]}" alt="">` : ''}</div>
+      <div class="sv-body">
+        <div class="sv-eye">${o.isNew ? `${G.sparkle}New stamp` : o.count > 1 ? `Your ${ordinal(o.count)} ${esc(d.name.split(' ').pop()!.toLowerCase())}` : 'Stamped'}</div>
+        <h3>${esc(d.name)}<span class="jp">${d.jp}</span></h3>
+        <div class="sv-notes">${tasteNotes(d.flavor).map((n) => `<span>${esc(n)}</span>`).join('')}</div>
+        ${o.cooked ? `<div class="sv-cook"><span class="stars-sm">${stars(o.cooked)}</span>You made this one. ${esc(STALL[d.stall]?.vendor ?? 'The vendor')} tipped you ${yen(o.tip ?? 0)}.</div>` : ''}
+        <p class="sv-line">${esc(line)}</p>
+        <div class="sv-foot"><span class="jp">ごちそうさまでした</span><button class="sv-more">The story ${G.book}</button></div>
+      </div>
+      ${o.isNew ? `<div class="stamp new"><div><span>${d.jp.slice(0, 2)}</span>TOKYO<br>NEW!</div></div>` : ''}`);
+    const x = h('button', 'close', G.close);
+    x.setAttribute('aria-label', 'Close');
+    x.onclick = (e) => { e.stopPropagation(); this.audio.play('click'); dismiss(); };
+    card.appendChild(x);
+    const dismiss = () => {
+      if (!card.isConnected) return;
+      card.classList.add('out');
+      setTimeout(() => card.remove(), 380);
+      if (this.savourEl === card) this.savourEl = null;
+    };
+    card.querySelector<HTMLButtonElement>('.sv-more')!.onclick = (e) => { e.stopPropagation(); this.audio.play('click'); dismiss(); this.taste(id); };
+    card.addEventListener('pointerdown', (e) => e.stopPropagation());
+    let left = 9000;
+    let last = performance.now();
+    const tick = () => {
+      if (!card.isConnected) return;
+      const now = performance.now();
+      if (!card.matches(':hover') && !this.open) left -= now - last;
+      last = now;
+      if (left <= 0) dismiss(); else setTimeout(tick, 250);
+    };
+    setTimeout(tick, 250);
+    this.savourEl = card;
+    this.hud.parentElement!.appendChild(card);
+    if (o.isNew) setTimeout(() => this.audio.play('stamp'), 620);
+  }
+
+  // dish page (from the passport) ---------------------------------------------------------
+  taste(id: FoodId, isNew = false, cooked = 0, tip = 0): void {
     const d = DISH[id];
     const p = this.panel();
     const hero = h('div', 'taste-hero', `<div class="rays"></div>${this.icons[id] ? `<img src="${this.icons[id]}" alt="${esc(d.name)}">` : ''}
@@ -496,9 +563,9 @@ export class UI {
         <div class="sec fact wide"><h4>Local tip</h4>${esc(d.tip)}</div>
       </div>`;
     p.appendChild(body);
-    const foot = h('div', 'taste-foot', `<button class="btn btn-red btn-hero" id="tk-ok">Itadakimasu! <span class="jp">いただきます</span></button>`);
+    const foot = h('div', 'taste-foot', `<button class="btn btn-soft btn-hero" id="tk-ok">${G.passport}Back to the passport</button>`);
     p.appendChild(foot);
-    foot.querySelector<HTMLButtonElement>('#tk-ok')!.onclick = () => { this.audio.play('click'); this.close(); };
+    foot.querySelector<HTMLButtonElement>('#tk-ok')!.onclick = () => { this.audio.play('click'); this.passport(); };
     if (isNew) setTimeout(() => this.audio.play('stamp'), 520);
   }
 

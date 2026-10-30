@@ -13,6 +13,7 @@ import {
 } from './props';
 import { buildFood, FoodId } from './food';
 import { buildCity } from './city';
+import { SwayBody, SWAY, swayKey } from './sway';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
 
 export interface PlacedProp {
@@ -20,6 +21,8 @@ export interface PlacedProp {
   origin: [number, number, number]; // metres
   /** Separate meshes are kept out of the static chunk batches so the game can toggle them. */
   tag?: string;
+  /** Global sway body id for each of the prop's bodies. */
+  sway?: Uint16Array;
 }
 
 export interface StallAnchor {
@@ -85,6 +88,10 @@ export interface BuildResult {
   interior: { grid: SparseGrid; props: PlacedProp[]; lamps: Lamp[] };
   /** Voxel boxes of indoor air that get a soft ambient light. */
   indoor: [number, number, number, number, number, number][];
+  /** Every sway body in the build (street and interior); voxels and vertices refer to them by 1-based id. */
+  sway: SwayBody[];
+  /** Street grid voxels (see swayKey) that belong to a sway body, e.g. sakura canopies. */
+  swayCells: Map<number, number>;
 }
 
 export type Side = 's' | 'n' | 'e' | 'w';
@@ -176,6 +183,12 @@ export class Builder {
   /** Footprints of props standing on the ground, so later ones can keep clear of them. */
   standing: [number, number, number, number][] = [];
   stools: [number, number, number][] = [];
+  sway: SwayBody[] = [];
+  swayCells = new Map<number, number>();
+  /** When set, props placed next hang from this sway body (lanterns on a swinging wire). */
+  swayParent = 0;
+  /** Global ids of the bodies of the last placed prop. */
+  lastSway: number[] = [];
 
   constructor(win?: Window) {
     const w = win ?? [VX0, VZ0, VX0 + SX, VZ0 + SZ];
@@ -189,9 +202,33 @@ export class Builder {
   place(prop: Prop, cx: number, y: number, cz: number, turns = 0, tag?: string): Prop {
     const p = rotateProp(prop, turns);
     const sx = p.sx * p.scale, sz = p.sz * p.scale;
-    this.props.push({ prop: p, origin: [cx - sx / 2, y, cz - sz / 2], tag });
+    this.props.push(this.placed(p, [cx - sx / 2, y, cz - sz / 2], tag));
     if (!tag && y < 0.3) this.standing.push([cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2]);
     return p;
+  }
+
+  /** A prop at its (voxel-snapped) origin, with its sway bodies registered in world metres. */
+  placed(p: Prop, o: [number, number, number], tag?: string): PlacedProp {
+    const sc = p.scale;
+    const origin: [number, number, number] = [Math.round(o[0] / sc) * sc, Math.round(o[1] / sc) * sc, Math.round(o[2] / sc) * sc];
+    if (!p.bodies.length) { this.lastSway = []; return { prop: p, origin, tag }; }
+    this.lastSway = p.bodies.map((bd) => {
+      const pivot: [number, number, number] = [origin[0] + bd.pivot[0] * sc, origin[1] + bd.pivot[1] * sc, origin[2] + bd.pivot[2] * sc];
+      return this.addSway({ ...bd, pivot, parent: this.swayParent });
+    });
+    return { prop: p, origin, tag, sway: Uint16Array.from(this.lastSway) };
+  }
+
+  /** Register a sway body (pivot in metres); returns its 1-based id. */
+  addSway(bd: SwayBody): number {
+    this.sway.push({ ...bd, phase: bd.phase ?? hash3(Math.round(bd.pivot[0] * 8), Math.round(bd.pivot[1] * 8), Math.round(bd.pivot[2] * 8)) * Math.PI * 2 });
+    return this.sway.length;
+  }
+
+  /** Street-grid voxel (x, y, z) belongs to sway body `id`. */
+  swayCell(x: number, y: number, z: number, id: number): void {
+    const g = this.grid;
+    if (g.inside(x, y, z)) this.swayCells.set(swayKey(g, x, y, z), id);
   }
 
   /** Lamp at a world position in metres. */
@@ -264,6 +301,15 @@ export class Lot {
     const depthM = rp.sz * rp.scale;
     const [cx, cz] = this.m(a, -(depthM / 2 + out) / V);
     this.b.place(rp, cx, y, cz, this.turns);
+  }
+  /** Cells (a, y0..y1, d) hanging from a line at layer `top` swing on it as one piece, like a shirt on a laundry line. */
+  hang(a: number, y0: number, y1: number, d: number, top: number): void {
+    const [px, pz] = this.m(a + 0.5, d + 0.5);
+    const [ax0, az0] = this.m(0, 0), [ax1, az1] = this.m(1, 0);
+    const len = Math.hypot(ax1 - ax0, az1 - az0);
+    const id = this.b.addSway({ ...SWAY.laundry, pivot: [px, (top + 0.5) * V, pz], axis: [(ax1 - ax0) / len, 0, (az1 - az0) / len], reach: 0 });
+    const [x, z] = this.xz(a, d);
+    for (let y = y0; y <= y1; y++) this.b.swayCell(x, G + y, z, id);
   }
   /** World metres of a point in front of the facade. */
   front(a: number, outM: number): [number, number] {
@@ -394,7 +440,7 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
       if (r() < 0.7) {
         const cols = [c.laundryA, c.laundryB, c.laundryC, c.laundryD];
         lot.box(2, base + 9, -2, w - 3, base + 9, -2, c.pole);
-        for (let a = 3; a < w - 3; a += 2) if (r() < 0.6) lot.box(a, base + 6, -2, a, base + 8, -2, pick(cols));
+        for (let a = 3; a < w - 3; a += 2) if (r() < 0.6) { lot.box(a, base + 6, -2, a, base + 8, -2, pick(cols)); lot.hang(a, base + 6, base + 8, -2, base + 9); }
       } else if (r() < 0.5) {
         lot.wallProp(plantPot(k, 'flowers', o.seed + f), 3, (base + 1) * V, 0.15);
       }
@@ -604,7 +650,7 @@ export function flatRoof(lot: Lot, H: number, r: () => number, billboardOk = fal
     lot.box(2, H, d, 2, H + 6, d, c.pole); lot.box(w - 3, H, d, w - 3, H + 6, d, c.pole);
     lot.box(2, H + 6, d, w - 3, H + 6, d, c.pole);
     const cols = [c.laundryA, c.laundryB, c.laundryC, c.laundryD];
-    for (let a = 3; a < w - 3; a += 2) if (r() < 0.7) lot.box(a, H + 3, d, a, H + 5, d, cols[Math.floor(r() * 4)]);
+    for (let a = 3; a < w - 3; a += 2) if (r() < 0.7) { lot.box(a, H + 3, d, a, H + 5, d, cols[Math.floor(r() * 4)]); lot.hang(a, H + 3, H + 5, d, H + 6); }
   }
   if (billboardOk && w >= 14 && r() < 0.4) {
     const bg = [k.c.signRed, k.c.signBlue, k.c.signYellow, k.c.signBlack][Math.floor(r() * 4)];
@@ -879,12 +925,17 @@ export function sakuraTree(b: Builder, x: number, z: number, seed: number, yBase
   const g = b.grid, c = b.c;
   const r = rng(seed);
   const h = 14 + Math.floor(r() * 5);
+  // the crown (upper trunk, branches and blossom) rocks as one piece from just below the first branch
+  const crownY = h - 6;
+  let id = 0;
   // trunk with a lean
   let tx = x, tz = z;
   for (let y = 0; y < h; y++) {
     if (y > 4 && r() < 0.3) tx += r() < 0.5 ? 1 : -1;
     if (y > 4 && r() < 0.2) tz += r() < 0.5 ? 1 : -1;
     g.box(tx, yBase + y, tz, tx + 1, yBase + y, tz + 1, y < 3 ? c.trunkDark : c.trunk);
+    if (y === crownY) id = b.addSway({ ...SWAY.tree, pivot: [(tx + 1) * V, (yBase + y - G) * V, (tz + 1) * V], axis: [0, 0, 0], reach: 0 });
+    if (y >= crownY) for (let k = 0; k < 4; k++) b.swayCell(tx + (k & 1), yBase + y, tz + (k >> 1), id);
   }
   // branches
   const tips: [number, number, number][] = [];
@@ -895,6 +946,7 @@ export function sakuraTree(b: Builder, x: number, z: number, seed: number, yBase
     for (let s = 0; s < len; s++) {
       bx += Math.cos(ang) * 1.0; bz += Math.sin(ang) * 1.0; by += r() < 0.5 ? 1 : 0;
       g.set(Math.round(bx), by, Math.round(bz), c.trunk);
+      b.swayCell(Math.round(bx), by, Math.round(bz), id);
     }
     tips.push([bx, by, bz]);
   }
@@ -912,7 +964,7 @@ export function sakuraTree(b: Builder, x: number, z: number, seed: number, yBase
           const d = dx * dx + dy * dy + dz * dz;
           const n = hash3(xx, y, zz);
           if (d < 1 - n * 0.35 && n > 0.08) {
-            if (g.get(xx, y, zz) === 0) g.set(xx, y, zz, cols[(n * 97 | 0) % 4]);
+            if (g.get(xx, y, zz) === 0) { g.set(xx, y, zz, cols[(n * 97 | 0) % 4]); b.swayCell(xx, y, zz, id); }
           }
         }
   }
@@ -1212,12 +1264,16 @@ export function buildTokyo(win?: Window): BuildResult {
     for (let zz = 70; zz < 150; zz += 9) {
       b.place(wire(k, 3.5, 0.35 + r() * 0.3), 35.75, 4.2 + r() * 0.6, zz * V, 1);
       if (zz % 2 === 0) {
+        b.swayParent = b.lastSway[0];
         b.place(lantern(k, pick(izakayaLanterns), 4, 5, zz), 35.75, 3.2, zz * V + 0.12);
+        b.swayParent = 0;
         b.lamp(35.75, 3.3, zz * V, RED, 3.2, 0.7);
       }
     }
     for (const zz of [64.6, 151.4]) {
-      b.place(boardSign(k, k.c.signRed, k.c.neonWhite, 5, Math.round(zz)), 35.75, 4.3, zz * V, 0);
+      const hs = boardSign(k, k.c.signRed, k.c.neonWhite, 5, Math.round(zz));
+      hs.sway(SWAY.sign, [hs.sx / 2, hs.sy, 1], [1, 0, 0]);
+      b.place(hs, 35.75, 4.3, zz * V, 0);
       b.lamp(35.75, 4.8, zz * V, [1, 0.5, 0.4], 4, 0.6);
     }
   }
@@ -1414,10 +1470,12 @@ export function buildTokyo(win?: Window): BuildResult {
   // lantern strings across Kaminari Lane
   for (let x = 46; x < 276; x += 22) {
     b.place(wire(k, 6.25, 0.3), x * V, 4.1, 50 * V, 1);
+    b.swayParent = b.lastSway[0];
     for (let j = 0; j < 4; j++) {
       const z = 9.9 + j * 1.6;
       b.place(lantern(k, j % 2 ? k.c.lanternRed : k.c.lanternWhite, 4, 5, x * 10 + j), x * V, 3.55 - Math.sin(((j + 0.5) / 4) * Math.PI) * 0.22, z);
     }
+    b.swayParent = 0;
     b.lamp(x * V, 3.6, 12.5, WARM, 4, 0.5);
   }
 
@@ -1581,9 +1639,19 @@ export function buildTokyo(win?: Window): BuildResult {
     anchors.idlers.push(...city.idlers);
   }
 
+  // shop rooms: things indoors only stir, but still sway when someone brushes past
+  for (const bd of b.sway) {
+    const vx = bd.pivot[0] / V, vy = bd.pivot[1] / V + G - 0.5, vz = bd.pivot[2] / V;
+    if (b.indoor.some(([x0, y0, z0, x1, y1, z1]) => vx >= x0 && vx <= x1 + 1 && vy >= y0 && vy <= y1 + 1 && vz >= z0 && vz <= z1 + 1)) bd.amp *= INDOOR_SWAY;
+  }
+  const s0 = b.sway.length;
   const interior = buildInterior(b, anchors);
-  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor };
+  for (let i = s0; i < b.sway.length; i++) b.sway[i].amp *= INDOOR_SWAY;
+  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells };
 }
+
+/** Indoors there is only a draught. */
+const INDOOR_SWAY = 0.25;
 
 
 // ---------------------------------------------------------------------------------------------
@@ -1597,7 +1665,7 @@ function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
   const [ox, , oz] = INTERIOR_ORIGIN;
   const place = (p: Prop, cx: number, y: number, cz: number, turns = 0) => {
     const rp = rotateProp(p, turns);
-    props.push({ prop: rp, origin: [ox + cx - (rp.sx * rp.scale) / 2, y, oz + cz - (rp.sz * rp.scale) / 2] });
+    props.push(b.placed(rp, [ox + cx - (rp.sx * rp.scale) / 2, y, oz + cz - (rp.sz * rp.scale) / 2]));
   };
   const lamp = (x: number, y: number, z: number, col: [number, number, number], radiusM: number, intensity = 1) => {
     lamps.push({ x: x / V, y: y / V + G, z: z / V, r: col[0] * intensity, g: col[1] * intensity, b: col[2] * intensity, radius: radiusM / V });

@@ -8,6 +8,48 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.2',
+    date: '2026-10-30',
+    title: 'A much bigger Tokyo',
+    items: [
+      'Tokyo is now three times as wide and three times as deep. The old streets are still at the heart of it, and the city carries on in every direction.',
+      'To the north: Hikari-dori, a wide avenue with a scramble crossing, the station square with its big keyaki tree, a koban and a clock, and the station itself with ticket gates and departure boards. Behind it the railway viaduct runs along Gado-shita, with little bars, yakitori counters and bike parks tucked into the arches under the tracks.',
+      'To the east: Neon-dori, where tall towers glow with friendly neon after dark, blade signs, light bands, screens and crowns of colour. Golden Lane is a narrow alley of tiny bars just off it.',
+      'To the south: Hikari Ginza, a covered shopping arcade under a glass roof with lanterns and paper blossom, and Midori Park with a pond, swan boats, a red bridge to a little island shrine, and benches under the trees.',
+      'To the west: a shrine with its torii and stone lanterns, and up on the hill, an Inari path lined with red torii climbing to a fox shrine at the top. Quiet residential lanes, a sento bathhouse with its brick chimney, gardens and cats fill the streets in between.',
+      'The canal now runs right across the city, with a promenade, cherry trees, benches and two new bridges.',
+      'Lots of new shops, cafés, izakaya, bakeries, bookshops and florists to walk into, and the locals now wander the whole city.',
+      'The world streams in around you as you walk, so the bigger city still runs smoothly.',
+    ],
+  },
+  {
+    version: '0.9.1',
+    date: '2026-10-30',
+    title: 'A breeze through the streets',
+    items: [
+      'There is a gentle breeze in Tokyo now. Paper lanterns sway on their cords, noren curtains stir in shop doorways, banners turn a little on their poles and the overhead wires swing lazily between the poles.',
+      'Lanterns strung on a wire swing with the wire as well as on their own, and the signboards hanging over Lantern Alley rock on their hooks.',
+      'Laundry on balconies and rooftops flaps on its line, potted plants, bamboo and flower buckets bend in the wind, and the cherry trees rock their blossom.',
+      'Everything moves as one solid piece, like the real thing hanging from a hook or growing from a pot, and nothing is in step with its neighbour. Gusts roll down the street now and then, and the wind slowly changes direction through the day.',
+      'Walk through a noren and it swings aside for you. Brushing past a plant or a low lantern nudges it too, and the same goes for everyone else in town, cats included.',
+      'Indoors there is only a faint draught, so things in shops barely stir.',
+    ],
+  },
+  {
+    version: '0.9.0',
+    date: '2026-10-30',
+    title: 'Itadakimasu!',
+    items: [
+      'Eating is now a proper little moment instead of a report. The cook leans over the counter and hands you your dish ("Hai, dōzo!"), you take it with both hands, give a small bow and say "Itadakimasu!"',
+      'You actually eat it, and every kind of food is eaten its own way: chopsticks and a big slurp for ramen, dipping cold soba into its sauce, a toothpick for hot takoyaki (blow on it first!), skewers for dango and yakitori, a spoon for purin, a fork twirl for napolitan, dipping gyoza and tempura, a little spatula for monjayaki, and plain hand bites for taiyaki and dorayaki.',
+      'Bites really come out of the food, pieces disappear off the skewer one by one, crumbs fall, steam rises from hot dishes, and the ramen bowl gets lifted for the last of the broth.',
+      'In first person you see the dish in your own hands, from the hand-off to the last bite. In the normal view the camera gently moves in on you while you eat.',
+      'New eating sounds: bites, crunches, slurps, sips and a happy "Oishii~!" at the end.',
+      'When you finish, a small card shows the dish, what it tastes like and a little story or tip about it, and stamps your passport if it is new. Tap "The story" to read more, or just walk away.',
+      'Snacks and drinks from shops and vending machines get the same treatment. Tap or press interact to speed a meal up, or walk off to stop.',
+    ],
+  },
+  {
     version: '0.8.6',
     date: '2026-10-30',
     title: 'Seats where the stools are',

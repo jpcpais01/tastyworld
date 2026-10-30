@@ -1,11 +1,41 @@
 import { Grid, rng } from './grid';
 import { Palette } from './palette';
+import { SwayBody, SWAY } from './sway';
 
 /** A small fine-resolution voxel model placed in the world. */
 export class Prop {
   grid: Grid;
+  /** Sway bodies with pivots in voxel units (see world/sway.ts). */
+  bodies: SwayBody[] = [];
+  /** Per voxel (grid layout): 1-based index into bodies, 0 = static. */
+  swayIdx: Uint8Array | null = null;
   constructor(sx: number, sy: number, sz: number, public scale = 0.125) {
     this.grid = new Grid(sx, sy, sz);
+  }
+  /**
+   * Make the voxels picked by `sel` (all of them by default) one rigid body that swings about `pivot`
+   * (voxel units). Call it once the voxels are in place; later calls take over voxels they share.
+   */
+  sway(preset: SwayPreset, pivot: [number, number, number], axis: [number, number, number] = [0, 0, 0], sel?: (x: number, y: number, z: number) => boolean, reach?: number): void {
+    const g = this.grid;
+    const id = this.body(preset, pivot, axis, reach);
+    for (let y = 0; y < g.sy; y++)
+      for (let z = 0; z < g.sz; z++)
+        for (let x = 0; x < g.sx; x++) {
+          const i = y * g.sxz + z * g.sx + x;
+          if (g.data[i] && (!sel || sel(x, y, z))) this.swayIdx![i] = id;
+        }
+  }
+  /** Add a body without picking voxels yet; returns its 1-based id for mark(). */
+  body(preset: SwayPreset, pivot: [number, number, number], axis: [number, number, number] = [0, 0, 0], reach?: number): number {
+    this.swayIdx ??= new Uint8Array(this.grid.data.length);
+    this.bodies.push({ ...preset, pivot, axis, reach: reach ?? (preset.up > 0 ? this.grid.sy - pivot[1] : pivot[1]) * this.scale });
+    return this.bodies.length;
+  }
+  /** Put one voxel into body `id`. */
+  mark(x: number, y: number, z: number, id: number): void {
+    const g = this.grid;
+    if (g.inside(x, y, z)) this.swayIdx![y * g.sxz + z * g.sx + x] = id;
   }
   get sx() { return this.grid.sx; }
   get sy() { return this.grid.sy; }
@@ -33,6 +63,8 @@ export class Prop {
   }
 }
 
+type SwayPreset = Omit<SwayBody, 'pivot' | 'axis' | 'reach'>;
+
 /** Rotate a prop around Y by quarter turns. Turn 1 maps "facing +Z" to "facing +X". */
 export function rotateProp(p: Prop, turns: number): Prop {
   turns = ((turns % 4) + 4) % 4;
@@ -41,12 +73,18 @@ export function rotateProp(p: Prop, turns: number): Prop {
   for (let t = 0; t < turns; t++) {
     const g = cur.grid;
     const n = new Prop(g.sz, g.sy, g.sx, cur.scale);
+    const si = cur.swayIdx;
+    if (si) n.swayIdx = new Uint8Array(si.length);
     for (let y = 0; y < g.sy; y++)
       for (let z = 0; z < g.sz; z++)
         for (let x = 0; x < g.sx; x++) {
           const v = g.get(x, y, z);
-          if (v) n.set(z, y, g.sx - 1 - x, v);
+          if (!v) continue;
+          n.set(z, y, g.sx - 1 - x, v);
+          if (si) n.swayIdx![y * n.grid.sxz + (g.sx - 1 - x) * n.grid.sx + z] = si[y * g.sxz + z * g.sx + x];
         }
+    // continuous voxel coords: (x, y, z) -> (z, y, sx - x); directions (x, y, z) -> (z, y, -x)
+    n.bodies = cur.bodies.map((b) => ({ ...b, pivot: [b.pivot[2], b.pivot[1], g.sx - b.pivot[0]], axis: [b.axis[2], b.axis[1], -b.axis[0] || 0] }));
     cur = n;
   }
   return cur;
@@ -228,6 +266,7 @@ export function lantern(k: PropKit, body: number, w = 5, h = 6, seed = 1): Prop 
   }
   // cord
   p.box(Math.floor(cx), h, Math.floor(cz), Math.floor(cx), h + 2, Math.floor(cz), c.black);
+  p.sway(SWAY.lantern, [cx, h + 3, cz]);
   return p;
 }
 
@@ -267,6 +306,7 @@ export function giantLantern(k: PropKit): Prop {
           }
       }
   }
+  p.sway(SWAY.giant, [cx, h + 4, cz]);
   return p;
 }
 
@@ -339,6 +379,8 @@ export function noren(k: PropKit, width: number, cloth: number, mark: number, h 
     const mx = Math.floor((x0 + x1) / 2);
     p.box(mx - 1, h - 4, 1, mx, h - 2, 1, mark);
     if (i % 2 === 0) p.set(mx - 1, h - 5, 1, mark);
+    // each panel swings on the rod by itself
+    p.sway(SWAY.noren, [(x0 + x1 + 1) / 2, h + 1.5, 1], [1, 0, 0], (x, y) => x >= x0 && x <= x1 && y <= h);
   }
   return p;
 }
@@ -412,8 +454,10 @@ export function plantPot(k: PropKit, kind: 'shrub' | 'bamboo' | 'pine' | 'flower
     for (let i = 0; i < 4; i++) {
       const x = 1 + Math.floor(r() * 4), z = 1 + Math.floor(r() * 4);
       const h = 14 + Math.floor(r() * 7);
-      for (let y = 4; y < h; y++) p.set(x, y, z, y % 4 === 0 ? c.leafDark : c.leafLight);
-      p.ellipsoid(x + 0.5, h, z + 0.5, 2, 1.5, 2, (xx, yy, zz) => ((xx + yy + zz) % 3 ? c.leaf : c.leafLight));
+      // every cane sways on its own from the soil
+      const id = p.body({ ...SWAY.bamboo, freq: SWAY.bamboo.freq * (0.85 + i * 0.1) }, [x + 0.5, 4, z + 0.5]);
+      for (let y = 4; y < h; y++) { p.set(x, y, z, y % 4 === 0 ? c.leafDark : c.leafLight); p.mark(x, y, z, id); }
+      p.ellipsoid(x + 0.5, h, z + 0.5, 2, 1.5, 2, (xx, yy, zz) => { p.mark(xx, yy, zz, id); return (xx + yy + zz) % 3 ? c.leaf : c.leafLight; });
     }
     return p;
   }
@@ -423,6 +467,7 @@ export function plantPot(k: PropKit, kind: 'shrub' | 'bamboo' | 'pine' | 'flower
     p.box(4, 3, 4, 4, 6, 4, c.woodDark);
     p.ellipsoid(3.5, 6.5, 4.5, 3, 1.5, 2.5, c.pine);
     p.ellipsoid(6, 8, 4.5, 2.5, 1.3, 2.2, c.pine);
+    p.sway(SWAY.pine, [4.5, 3, 4.5], undefined, (_x, y) => y >= 3);
     return p;
   }
   const p = new Prop(7, 9, 7);
@@ -433,6 +478,7 @@ export function plantPot(k: PropKit, kind: 'shrub' | 'bamboo' | 'pine' | 'flower
     if (kind === 'flowers' && h === 4) return c.white;
     return h < 3 ? c.leafDark : h < 6 ? c.leaf : c.leafLight;
   });
+  p.sway(kind === 'flowers' ? SWAY.flowers : SWAY.shrub, [3.5, 4, 3.5], undefined, (x, y, z) => p.get(x, y, z) !== pot);
   return p;
 }
 
@@ -527,6 +573,8 @@ export function nobori(k: PropKit, cloth: number, fg: number, seed = 9): Prop {
   }
   p.box(1, 8, 0, 5, 8, 0, fg);
   p.box(1, 25, 0, 5, 25, 0, fg);
+  // the banner turns a little on its pole
+  p.sway(SWAY.flag, [0.5, 0, 0.5], [0, 1, 0], (x) => x >= 1, 0);
   return p;
 }
 
@@ -565,6 +613,8 @@ export function wire(k: PropKit, length: number, sag: number, col?: number): Pro
     for (let yy = lo; yy <= hi; yy++) p.set(i, yy, 0, col ?? c.black);
     prevY = y;
   }
+  // swings about the line between its two ends, which stay put
+  p.sway(SWAY.wire, [0, sagV + 1.5, 0.5], [1, 0, 0], undefined, 0);
   return p;
 }
 
@@ -672,6 +722,7 @@ export function flowerStand(k: PropKit, seed = 1): Prop {
         p.box(x, y0 + 3, z, x, h - 1, z, c.leafDark);
         p.set(x, h, z, r() < 0.8 ? col : c.leafLight);
       }
+      p.sway(SWAY.flowers, [x0 + 1.5, y0 + 3, z0 + 1.5], undefined, (x, y, z) => x >= x0 && x <= x0 + 2 && z >= z0 && z <= z0 + 2 && y >= y0 + 3);
     }
   }
   return p;
@@ -783,6 +834,7 @@ export function planterBox(k: PropKit, seed = 1): Prop {
   for (let x = 0; x < 12; x++) for (let z = 0; z < 4; z++) {
     if (r() < 0.75) { const h = 3 + Math.floor(r() * 3); p.box(x, 3, z, x, h - 1, z, r() < 0.5 ? c.leaf : c.leafDark); if (r() < 0.25) p.set(x, h, z, [c.flowerRed, c.flowerYellow, c.flowerWhite][Math.floor(r() * 3)]); }
   }
+  p.sway(SWAY.flowers, [6, 3, 2], undefined, (_x, y) => y >= 3, 0);
   return p;
 }
 

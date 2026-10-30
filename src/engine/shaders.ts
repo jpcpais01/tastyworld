@@ -1,4 +1,8 @@
 // GLSL 3.00 ES shaders (three.js ShaderMaterial with glslVersion = GLSL3).
+import { SWAY_ROW } from '../world/sway';
+
+/** People passed to the sway shader so plants and cloth lean away from them. */
+export const NUDGES = 8;
 
 export const COMMON = /* glsl */ `
 vec3 srgb2lin(vec3 c) { return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878); }
@@ -22,6 +26,79 @@ float vnoise(vec2 p) {
 
 const VOXEL_SCALES = `const float SCALES[8] = float[8](0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5);`;
 
+/**
+ * Rigid sway (see world/sway.ts). Each body rotates as a whole about its pivot: a breeze that leans it
+ * downwind and rocks it at its own rate and phase, gusts that roll across town, and a push away from anyone
+ * walking through it. Bodies can hang from a parent (a lantern on a swinging wire).
+ */
+export const SWAY_FN = /* glsl */ `
+in float aSway;
+uniform highp sampler2D tSway; // 3 texels per body, ${SWAY_ROW} bodies per row
+uniform vec4 uWind;            // direction x, z; strength; unused
+uniform vec4 uNudge[${NUDGES}];          // people nearby: feet x, y, z and body radius (0 = empty slot); they stand 5.2 radii tall; height is 5.2 radii
+// Rodrigues rotation of v about unit axis k
+vec3 swayRot(vec3 v, vec3 k, float c, float s) { return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }
+void swayBody(int id, inout vec3 p, inout vec3 n, out int parent) {
+  ivec2 at = ivec2((id % ${SWAY_ROW}) * 3, id / ${SWAY_ROW});
+  vec4 A = texelFetch(tSway, at, 0);                // pivot, parent id
+  vec4 B = texelFetch(tSway, at + ivec2(1, 0), 0);  // hinge axis (0 = free), amplitude
+  vec4 C = texelFetch(tSway, at + ivec2(2, 0), 0);  // rate, phase, reach (negative = hangs), push
+  parent = int(A.w + 0.5);
+  vec3 piv = A.xyz;
+  float up = C.z < 0.0 ? -1.0 : 1.0;
+  vec2 wd = uWind.xy, side = vec2(-wd.y, wd.x);
+  // gusts: broad bands rolling downwind, so neighbours stir together and a moment later the next street over
+  float gust = 0.5 + 0.5 * sin(dot(piv.xz, wd) * 0.23 - uTime * 0.85) * sin(dot(piv.xz, side) * 0.11 + uTime * 0.29 + 1.3);
+  float w = uWind.z * (0.45 + 0.75 * gust * gust);
+  float t = uTime * C.x + C.y;
+  float rock = sin(t) + 0.3 * sin(t * 2.31 + 1.1);
+  float roll = sin(t * 0.77 + C.y * 1.7);
+  // lean vector (xz, radians): steady lean downwind plus a lazy swing along and across it
+  vec2 T = B.w * (wd * w * (0.5 + 0.5 * rock) + side * (0.12 + w) * 0.35 * roll);
+  if (C.w > 0.0) {
+    float reach = abs(C.z);
+    float y0 = up > 0.0 ? piv.y : piv.y - reach, y1 = up > 0.0 ? piv.y + reach : piv.y;
+    for (int i = 0; i < ${NUDGES}; i++) {
+      vec4 a = uNudge[i];
+      if (a.w <= 0.0) continue;
+      vec2 d = piv.xz - a.xz;
+      float dl = length(d);
+      float near = 1.0 - smoothstep(a.w * 0.4, a.w + 0.32, dl);
+      float over = clamp((min(y1, a.y + a.w * 5.2) - max(y0, a.y)) / 0.12, 0.0, 1.0);
+      // fades out right at the pivot so walking under a curtain swings it through instead of flipping it
+      T += d / max(dl, a.w * 0.7) * C.w * near * over;
+    }
+  }
+  float ang;
+  vec3 k;
+  if (dot(B.xyz, B.xyz) > 0.5) {
+    // hinge: only the part of the lean across the axis turns it, plus a small swing of its own
+    k = B.xyz;
+    vec3 across = cross(vec3(0.0, 1.0, 0.0), k);
+    ang = -up * dot(T, across.xz) + B.w * 0.35 * (0.25 + w) * rock;
+  } else {
+    // free: tilt the body's up (or down, when hanging) towards the lean
+    ang = length(T);
+    if (ang < 1e-5) return;
+    vec2 dir = T / ang * up;
+    k = vec3(dir.y, 0.0, -dir.x);
+  }
+  float c = cos(ang), s = sin(ang);
+  p = piv + swayRot(p - piv, k, c, s);
+  n = swayRot(n, k, c, s);
+}
+vec3 swayVertex(vec3 p, inout vec3 n) {
+  int id = int(aSway + 0.5);
+  for (int i = 0; i < 2; i++) {
+    if (id <= 0) break;
+    int parent;
+    swayBody(id - 1, p, n, parent);
+    id = parent;
+  }
+  return p;
+}
+`;
+
 export const VOXEL_VERT = /* glsl */ `
 in vec4 aPack;
 in vec4 aColor;
@@ -36,7 +113,7 @@ uniform vec3 uOffset;
 const int PARENT[12] = int[12](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3);
 #endif
 #ifdef SWAY
-uniform float uSway;
+${SWAY_FN}
 #endif
 ${VOXEL_SCALES}
 flat out vec3 vNormal;
@@ -44,6 +121,9 @@ flat out vec4 vEdge;
 flat out float vScale;
 flat out float vVary;
 out vec3 vWorld;
+#ifdef SWAY
+out vec3 vRest; // world position before the sway: shadows are looked up where the cached shadow map drew it
+#endif
 out vec3 vCell;
 out vec4 vColor;
 out vec4 vLight;
@@ -89,9 +169,8 @@ void main() {
   vSky = aPack.w / 255.0;
 #endif
 #ifdef SWAY
-  // hanging things sway gently around their top
-  float h = clamp((uSway - p.y) * 0.6, 0.0, 1.0);
-  p.x += sin(uTime * 1.3 + p.z * 0.7) * 0.03 * h;
+  vRest = (modelMatrix * vec4(p, 1.0)).xyz;
+  p = swayVertex(p, n);
 #endif
 #ifdef USE_INSTANCING
   vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
@@ -178,6 +257,9 @@ flat in vec4 vEdge;
 flat in float vScale;
 flat in float vVary;
 in vec3 vWorld;
+#ifdef SWAY
+in vec3 vRest;
+#endif
 in vec3 vCell;
 in vec4 vColor;
 in vec4 vLight;
@@ -190,7 +272,13 @@ layout(location = 0) out vec4 outColor;
 // Sun visibility from the real-time shadow map (see engine/shadows.ts). w is how much the map has a say:
 // it fades out at the map's edge, where the baked sun takes over.
 float sunShadow(vec3 n, out float w) {
+#ifdef SWAY
+  // the static shadow map is cached in the rest pose, so a swaying prop reads it where it rests: its light
+  // and shade ride along with it instead of the prop shadowing itself
+  vec3 s = (uShadowMat * vec4(vRest + n * uShadow.y, 1.0)).xyz;
+#else
   vec3 s = (uShadowMat * vec4(vWorld + n * uShadow.y, 1.0)).xyz;
+#endif
   vec2 e = min(s.xy, 1.0 - s.xy);
   w = smoothstep(0.0, 0.03, min(e.x, e.y)) * step(s.z, 1.0) * uShadow.x;
   if (w <= 0.0) return 1.0;

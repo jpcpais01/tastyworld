@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  VOXEL_VERT, VOXEL_FRAG, FS_VERT, DOWN_FRAG, UP_FRAG, HALF_FRAG, COMPOSITE_FRAG,
+  VOXEL_VERT, VOXEL_FRAG, FS_VERT, DOWN_FRAG, UP_FRAG, HALF_FRAG, COMPOSITE_FRAG, NUDGES,
 } from './shaders';
 import { WATER_Y } from '../world/layout';
 import { SunShadows } from './shadows';
@@ -35,6 +35,10 @@ export function makeSharedUniforms() {
     tShadow: { value: null as THREE.Texture | null },
     uShadowMat: { value: new THREE.Matrix4() },
     uShadow: { value: new THREE.Vector4(0, 0, 0, 0) },
+    /** Sway bodies (world/sway.ts), the breeze (direction x, z, strength) and people who brush past. */
+    tSway: { value: null as THREE.Texture | null },
+    uWind: { value: new THREE.Vector4(1, 0, 0.5, 0) },
+    uNudge: { value: Array.from({ length: NUDGES }, () => new THREE.Vector4()) },
   };
 }
 export type SharedUniforms = ReturnType<typeof makeSharedUniforms>;

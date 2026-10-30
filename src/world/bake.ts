@@ -33,6 +33,9 @@ export interface BakedWorld {
   interiorChunks: MeshData[];
   interiorNav: NavData;
   interiorLightmap: LightMap2D;
+  /** Per-column height (voxels above street level) of the solid run that starts at the street, for section caps. */
+  height: Uint8Array;
+  interiorHeight: Uint8Array;
   anchors: Anchors;
   stats: { faces: number; lamps: number; ms: number };
 }
@@ -82,6 +85,17 @@ function meshWorld(grid: Grid, pal: Palette, field: LightField, props: PlacedPro
 }
 
 const BLOCKED = 255;
+
+function computeHeight(grid: Grid): Uint8Array {
+  const out = new Uint8Array(grid.sx * grid.sz);
+  for (let z = 0; z < grid.sz; z++)
+    for (let x = 0; x < grid.sx; x++) {
+      let y = G;
+      while (y < grid.sy && grid.get(x, y, z) !== 0) y++;
+      out[z * grid.sx + x] = Math.min(255, y - G);
+    }
+  return out;
+}
 
 function computeNav(grid: Grid, ox: number, oz: number, blockers: [number, number, number, number][], minH: number): NavData {
   const { sx, sz } = grid;
@@ -139,7 +153,8 @@ export function bakeWorld(progress?: (stage: string, f: number) => void, part = 
   if (part !== 0) {
     return {
       chunks, tagged, nav: null as unknown as NavData, lightmap: null as unknown as LightMap2D, interiorChunks: [],
-      interiorNav: null as unknown as NavData, interiorLightmap: null as unknown as LightMap2D, anchors: res.anchors,
+      interiorNav: null as unknown as NavData, interiorLightmap: null as unknown as LightMap2D,
+      height: null as unknown as Uint8Array, interiorHeight: null as unknown as Uint8Array, anchors: res.anchors,
       stats: { faces: 0, lamps: 0, ms: performance.now() - t0 },
     };
   }
@@ -165,6 +180,7 @@ export function bakeWorld(progress?: (stage: string, f: number) => void, part = 
   return {
     chunks, tagged, nav, lightmap,
     interiorChunks: im.chunks, interiorNav, interiorLightmap,
+    height: computeHeight(res.grid), interiorHeight: computeHeight(res.interior.grid),
     anchors: res.anchors,
     stats: { faces, lamps: field.lampCount, ms: performance.now() - t0 },
   };

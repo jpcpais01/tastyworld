@@ -177,6 +177,32 @@ export function makePropColors(pal: Palette): Record<string, number> {
     catWhite: a(0xfaf6ee, { vary: 0.02 }),
     catGold: a(0xf1c84b, { vary: 0.03 }),
     catRedBib: a(0xd6342c, { vary: 0.03 }),
+    postRed: a(0xd23a2e, { vary: 0.03 }),
+    mirrorOrange: a(0xf07a2a, { vary: 0.03 }),
+    mirror: a(0xcfe3ee, { emit: 0.2, vary: 0.02 }),
+    cubRed: a(0xc8362e, { vary: 0.03 }),
+    cubCream: a(0xefe6cf, { vary: 0.03 }),
+    binBlue: a(0x2f6fb5, { vary: 0.03 }),
+    binGreen: a(0x3c8a52, { vary: 0.03 }),
+    binYellow: a(0xe8c23a, { vary: 0.03 }),
+    netBlue: a(0x3a7fd0, { vary: 0.06 }),
+    flowerRed: a(0xe0473f, { vary: 0.08 }),
+    flowerYellow: a(0xf5cf3a, { vary: 0.08 }),
+    flowerPurple: a(0x8d5fc0, { vary: 0.08 }),
+    flowerWhite: a(0xfbf8f0, { vary: 0.04 }),
+    flowerOrange: a(0xf29a3c, { vary: 0.08 }),
+    bucket: a(0x9aa6b0, { vary: 0.04 }),
+    bookA: a(0x9a3b32, { vary: 0.06 }), bookB: a(0x2f5a88, { vary: 0.06 }), bookC: a(0xd9c49a, { vary: 0.06 }), bookD: a(0x3f6b45, { vary: 0.06 }), bookE: a(0xe8e1cf, { vary: 0.04 }),
+    ice: a(0xe4f3f8, { vary: 0.04 }),
+    fishSilver: a(0xa8b4bc, { vary: 0.08 }), fishRed: a(0xd9604a, { vary: 0.06 }), fishDark: a(0x4a5560, { vary: 0.06 }),
+    styro: a(0xf4f4ef, { vary: 0.02 }),
+    bread: a(0xd9a05a, { vary: 0.08 }), breadDark: a(0xa86a32, { vary: 0.08 }),
+    greenCross: a(0x34b25a, { emit: 0.8, vary: 0.02 }),
+    bollard: a(0xe9e4da, { vary: 0.03 }),
+    jizoStone: a(0x8e8a84, { vary: 0.1 }),
+    meter: a(0xc9ccc6, { vary: 0.03 }),
+    pipe: a(0x9a9c98, { vary: 0.04 }),
+    umbrella: a(0x3a6ab0, { vary: 0.05 }),
   };
 }
 
@@ -547,5 +573,226 @@ export function utilityTransformer(k: PropKit): Prop {
   const p = new Prop(5, 6, 4);
   p.cylY(2.5, 2, 2.2, 0, 4, c.acDark);
   p.cylY(2.5, 2, 1.2, 5, 5, c.steelDark);
+  return p;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Street furniture and shop dressing (v0.2)
+
+/** Red cylindrical Japan Post box. */
+export function postBox(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(6, 12, 6);
+  p.cylY(3, 3, 2.6, 0, 1, c.charcoal);
+  p.cylY(3, 3, 2.6, 2, 10, c.postRed);
+  p.cylY(3, 3, 2.2, 11, 11, c.postRed);
+  p.box(1, 8, 5, 4, 8, 5, c.black);
+  p.box(2, 5, 5, 3, 6, 5, c.white);
+  return p;
+}
+
+/** Orange-poled convex traffic mirror for blind corners. */
+export function trafficMirror(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(9, 30, 3, 0.0625);
+  p.box(4, 0, 1, 4, 22, 1, c.mirrorOrange);
+  p.cylY(4.5, 1.5, 4.2, 22, 22, c.mirrorOrange);
+  for (let y = 23; y <= 29; y++) {
+    const r = Math.sqrt(Math.max(0, 16 - (y - 26) ** 2));
+    for (let x = 0; x < 9; x++) if (Math.abs(x + 0.5 - 4.5) <= r) { p.set(x, y, 1, c.mirrorOrange); if (Math.abs(x + 0.5 - 4.5) <= r - 0.8 && y > 23 && y < 29) p.set(x, y, 2, c.mirror); }
+  }
+  return p;
+}
+
+export function bollard(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(3, 7, 3, 0.0625);
+  p.box(0, 0, 0, 2, 6, 2, c.bollard);
+  p.box(0, 4, 0, 2, 4, 2, c.mirrorOrange);
+  return p;
+}
+
+/** A little delivery scooter (Super Cub style) with a top box. */
+export function scooter(k: PropKit, body: number): Prop {
+  const { c } = k;
+  const p = new Prop(24, 18, 5, 0.0625);
+  const wheel = (cx: number) => { for (let a = 0; a < 28; a++) { const t = (a / 28) * Math.PI * 2; p.box(Math.round(cx + Math.cos(t) * 3), Math.round(3.5 + Math.sin(t) * 3), 1, Math.round(cx + Math.cos(t) * 3), Math.round(3.5 + Math.sin(t) * 3), 3, c.tireBlack); } };
+  wheel(4); wheel(19);
+  p.box(7, 4, 1, 16, 6, 3, body);
+  p.box(15, 6, 1, 18, 10, 3, body);
+  p.box(17, 10, 0, 19, 13, 4, c.cubCream);
+  p.box(18, 14, 0, 18, 14, 4, c.chrome);
+  p.box(8, 7, 1, 13, 8, 3, c.black);
+  p.box(2, 7, 0, 7, 12, 4, c.white);
+  p.box(3, 9, 4, 6, 10, 4, c.postRed);
+  p.box(20, 11, 2, 20, 12, 2, c.lampHead);
+  return p;
+}
+
+/** A-frame chalkboard menu stand. */
+export function aFrame(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(7, 12, 5, 0.0625);
+  for (let y = 0; y < 12; y++) {
+    const off = Math.round((11 - y) * 0.15);
+    p.box(0, y, 4 - off, 6, y, 4 - off, y === 0 || y === 11 ? c.woodDark : c.charcoal);
+    p.box(0, y, off, 6, y, off, c.woodDark);
+  }
+  for (let y = 3; y < 10; y += 2) for (let x = 1; x < 6; x++) if (r() < 0.6) p.set(x, y, 4 - Math.round((11 - y) * 0.15), r() < 0.2 ? c.flowerYellow : c.white);
+  return p;
+}
+
+/** Colour-coded rubbish and recycling bins under a blue crow net. */
+export function binCorner(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(14, 8, 5, 0.0625);
+  p.box(0, 0, 0, 3, 6, 4, c.binBlue);
+  p.box(5, 0, 0, 8, 6, 4, c.binGreen);
+  p.box(10, 0, 0, 13, 6, 4, c.binYellow);
+  for (let x = 0; x < 14; x++) if (x % 5 !== 4) p.box(x, 7, 0, x, 7, 4, (x + 0) % 2 ? c.netBlue : 0);
+  return p;
+}
+
+/** Florist display: tiered buckets of cut flowers. */
+export function flowerStand(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(16, 12, 7, 0.0625);
+  p.box(0, 0, 0, 15, 3, 2, c.woodLight);
+  p.box(0, 0, 3, 15, 1, 6, c.woodLight);
+  const fl = [c.flowerRed, c.flowerYellow, c.flowerPurple, c.flowerWhite, c.flowerOrange, c.pink];
+  for (let i = 0; i < 5; i++) {
+    for (const [z0, y0] of [[0, 4], [4, 2]] as [number, number][]) {
+      const x0 = i * 3 + 0;
+      p.box(x0, y0, z0, x0 + 2, y0 + 2, z0 + 2, c.bucket);
+      const col = fl[Math.floor(r() * fl.length)];
+      for (let x = x0; x <= x0 + 2; x++) for (let z = z0; z <= z0 + 2; z++) {
+        const h = y0 + 3 + Math.floor(r() * 3);
+        p.box(x, y0 + 3, z, x, h - 1, z, c.leafDark);
+        p.set(x, h, z, r() < 0.8 ? col : c.leafLight);
+      }
+    }
+  }
+  return p;
+}
+
+/** Second-hand book cart with spines facing out. */
+export function bookCart(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(16, 9, 6, 0.0625);
+  p.box(0, 0, 0, 15, 2, 5, c.woodDark);
+  p.box(0, 3, 0, 15, 3, 5, c.wood);
+  const bk = [c.bookA, c.bookB, c.bookC, c.bookD, c.bookE];
+  for (let x = 1; x < 15; x++) {
+    const h = 2 + Math.floor(r() * 3);
+    const col = bk[Math.floor(r() * bk.length)];
+    p.box(x, 4, 1, x, 3 + h, 4, col);
+  }
+  p.box(0, 4, 5, 15, 4, 5, c.wood);
+  return p;
+}
+
+/** Fishmonger's crushed-ice tray with whole fish. */
+export function fishDisplay(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(16, 8, 8, 0.0625);
+  p.box(0, 0, 0, 15, 4, 7, c.styro);
+  p.box(1, 5, 1, 14, 5, 6, c.ice);
+  for (let i = 0; i < 6; i++) {
+    const x0 = 1 + Math.floor(r() * 9), z = 1 + Math.floor(r() * 6), len = 4 + Math.floor(r() * 3);
+    const col = [c.fishSilver, c.fishRed, c.fishDark][Math.floor(r() * 3)];
+    p.box(x0, 6, z, Math.min(14, x0 + len - 1), 6, z, col);
+    p.set(Math.min(14, x0 + len), 6, z, c.black);
+  }
+  for (let x = 2; x < 14; x += 4) p.box(x, 6, 0, x + 1, 7, 0, c.flowerYellow);
+  return p;
+}
+
+/** Bakery shelf with buns and loaves. */
+export function breadShelf(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(14, 10, 5, 0.0625);
+  p.box(0, 0, 0, 13, 9, 0, c.woodLight);
+  for (const y of [0, 4, 8]) p.box(0, y, 0, 13, y, 4, c.woodLight);
+  for (const y of [1, 5]) for (let x = 1; x < 13; x += 3) if (r() < 0.85) p.box(x, y, 1, x + 1, y + 1, 3, r() < 0.5 ? c.bread : c.breadDark);
+  return p;
+}
+
+/** Stone jizō statue wearing a red bib and cap. */
+export function jizo(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(6, 12, 6, 0.0625);
+  p.box(0, 0, 0, 5, 1, 5, c.stoneDark);
+  p.box(1, 2, 1, 4, 7, 4, c.jizoStone);
+  p.box(1, 5, 4, 4, 7, 5, c.catRedBib);
+  p.ellipsoid(3, 9, 3, 2, 2, 2, c.jizoStone);
+  p.box(1, 10, 1, 4, 11, 4, c.catRedBib);
+  p.set(2, 9, 5, c.charcoal); p.set(3, 9, 5, c.charcoal);
+  return p;
+}
+
+/** Wall-mounted electricity meter cluster. */
+export function meters(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(6, 6, 2, 0.0625);
+  p.box(0, 0, 0, 5, 5, 0, c.meter);
+  p.box(1, 1, 1, 2, 3, 1, c.black);
+  p.box(3, 1, 1, 4, 3, 1, c.black);
+  p.box(1, 4, 1, 4, 4, 1, c.steelDark);
+  return p;
+}
+
+/** Rooftop billboard with a bold graphic; lit at night. */
+export function billboard(k: PropKit, bg: number, fg: number, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(24, 16, 3);
+  for (const x of [3, 20]) p.box(x, 0, 1, x, 7, 1, c.steelDark);
+  p.box(0, 7, 2, 23, 15, 2, bg);
+  p.box(0, 7, 1, 23, 7, 1, c.steelDark);
+  const g = glyph(r, 5), g2 = glyph(r, 5);
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) {
+    if (g[y][x]) p.set(3 + x, 13 - y, 3 >= p.sz ? 2 : 2, fg);
+    if (g2[y][x]) p.set(10 + x, 13 - y, 2, fg);
+  }
+  p.box(17, 9, 2, 21, 13, 2, fg === c.white ? c.neonYellow : c.white);
+  p.box(0, 15, 0, 23, 15, 0, c.lampNight);
+  return p;
+}
+
+/** A tall TV antenna on a mast. */
+export function antenna(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(9, 24, 3, 0.0625);
+  p.box(4, 0, 1, 4, 23, 1, c.steel);
+  for (const y of [16, 19, 22]) p.box(0, y, 1, 8, y, 1, c.steel);
+  for (let x = 0; x < 9; x += 2) p.box(x, 20, 0, x, 20, 2, c.steel);
+  return p;
+}
+
+/** Rooftop vegetable/flower planter box. */
+export function planterBox(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(12, 6, 4, 0.0625);
+  p.box(0, 0, 0, 11, 2, 3, c.woodLight);
+  for (let x = 0; x < 12; x++) for (let z = 0; z < 4; z++) {
+    if (r() < 0.75) { const h = 3 + Math.floor(r() * 3); p.box(x, 3, z, x, h - 1, z, r() < 0.5 ? c.leaf : c.leafDark); if (r() < 0.25) p.set(x, h, z, [c.flowerRed, c.flowerYellow, c.flowerWhite][Math.floor(r() * 3)]); }
+  }
+  return p;
+}
+
+/** Folded patio umbrella for café terraces. */
+export function cafeTable(k: PropKit, cloth: number): Prop {
+  const { c } = k;
+  const p = new Prop(9, 18, 9, 0.0625);
+  p.box(4, 0, 4, 4, 15, 4, c.steelDark);
+  p.box(2, 0, 2, 6, 0, 6, c.steelDark);
+  p.cylY(4.5, 4.5, 3.4, 6, 6, c.white);
+  for (let y = 14; y <= 17; y++) p.cylY(4.5, 4.5, 4.4 - (y - 14) * 1.2, y, y, cloth);
   return p;
 }

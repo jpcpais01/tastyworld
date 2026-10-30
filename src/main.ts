@@ -80,6 +80,9 @@ class Game {
   private chunks: { mesh: THREE.Mesh; box: THREE.Box3; cut: boolean }[] = [];
   private matWorld!: THREE.ShaderMaterial;
   private matCut!: THREE.ShaderMaterial;
+  private heightWorld!: THREE.DataTexture;
+  private heightInside!: THREE.DataTexture;
+  private cutOn = 0;
   private doorClosed = new THREE.Group();
   private doorOpen = new THREE.Group();
 
@@ -101,7 +104,7 @@ class Game {
   private notified = new Set<string>();
   private keys = new Set<string>();
   private joy: { id: number; sx: number; sy: number; x: number; y: number; active: boolean; t: number } | null = null;
-  private pinch: { d: number } | null = null;
+  private pinch: { d: number; a: number; twist: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
   private last = performance.now();
   private hudT = 0;
@@ -190,6 +193,16 @@ class Game {
     this.worldGroup.add(this.doorClosed, this.doorOpen);
     for (const t of w.tagged) this.mesh(t.mesh, this.matWorld, t.tag === 'door-closed' ? this.doorClosed : this.doorOpen);
     for (const md of w.interiorChunks) this.mesh(md, this.matCut, this.insideGroup);
+    const heightTex = (data: Uint8Array, sx: number, sz: number) => {
+      const t = new THREE.DataTexture(data, sx, sz, THREE.RedFormat, THREE.UnsignedByteType);
+      t.magFilter = t.minFilter = THREE.NearestFilter;
+      t.generateMipmaps = false;
+      t.needsUpdate = true;
+      return t;
+    };
+    this.heightWorld = heightTex(w.height, w.nav.sx, w.nav.sz);
+    this.heightInside = heightTex(w.interiorHeight, w.interiorNav.sx, w.interiorNav.sz);
+    this.setHeightField(false);
     this.navWorld = new Nav(w.nav);
     this.navInside = new Nav(w.interiorNav);
     this.nav = this.navWorld;
@@ -521,6 +534,13 @@ class Game {
     this.afterChange();
   }
 
+  private setHeightField(inside: boolean): void {
+    const n = inside ? this.w.interiorNav : this.w.nav;
+    const sh = this.r.shared;
+    sh.tHeight.value = inside ? this.heightInside : this.heightWorld;
+    sh.uHeightRect.value.set(n.ox, n.oz, 1 / (n.sx * 0.25), 1 / (n.sz * 0.25));
+  }
+
   private async teleport(inside: boolean): Promise<void> {
     const fade = document.getElementById('fade')!;
     this.audio.play('door');
@@ -532,6 +552,7 @@ class Game {
     this.insideGroup.visible = inside;
     this.nav = inside ? this.navInside : this.navWorld;
     this.lm = inside ? this.w.interiorLightmap : this.w.lightmap;
+    this.setHeightField(inside);
     this.path = [];
     this.pending = null;
     const [iox, , ioz] = INTERIOR_ORIGIN;
@@ -599,7 +620,7 @@ class Game {
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (this.pointers.size === 2) {
         const [p1, p2] = [...this.pointers.values()];
-        this.pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y) };
+        this.pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), a: Math.atan2(p2.y - p1.y, p2.x - p1.x), twist: 0 };
         this.joy = null;
       } else if (this.pointers.size === 1) {
         this.joy = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: 0, y: 0, active: false, t: performance.now() };
@@ -614,6 +635,17 @@ class Game {
         const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
         if (d > 0 && this.pinch.d > 0) this.cam.zoomBy(this.pinch.d / d);
         this.pinch.d = d;
+        // two-finger twist rotates the view in 90 degree steps
+        const a = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        let da = a - this.pinch.a;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        this.pinch.a = a;
+        this.pinch.twist += da;
+        if (Math.abs(this.pinch.twist) > 0.55) {
+          this.cam.rotate(this.pinch.twist > 0 ? 1 : -1);
+          this.pinch.twist = 0;
+          this.audio.play('whoosh');
+        }
         return;
       }
       const j = this.joy;
@@ -856,15 +888,33 @@ class Game {
     else this.ui.prompt('', '', '');
   }
 
-  private updateCutaway(): void {
+  /**
+   * Buildings between the camera and the player are sliced just above the street (see CUTAWAY in the
+   * voxel shader). Only chunks that can contain sliced fragments use the more expensive material.
+   */
+  private updateCutaway(dt: number): void {
     const p = this.player.position;
     const sh = this.r.shared;
+    this.cutOn += ((this.started ? 1 : 0) - this.cutOn) * Math.min(1, dt * 3);
+    const R = THREE.MathUtils.clamp(this.cam.zoom * 0.48, 6, 13) * (this.inside ? 0.75 : 1);
+    sh.uCutOn.value = this.cutOn;
+    sh.uCutRadius.value = R;
+    sh.uCutH.value = p.y + 1.15;
     sh.uCutPos.value.set(p.x, p.y, p.z);
     sh.uCamFwd.value.copy(this.cam.fwd);
     if (this.inside) return;
+    const fx = this.cam.fwd.x, fz = this.cam.fwd.z, fl = Math.hypot(fx, fz) || 1;
+    const ax = fx / fl, az = fz / fl;
     for (const c of this.chunks) {
       const b = c.box;
-      const cut = p.x > b.min.x - 5 && p.x < b.max.x + 5 && p.z > b.min.z - 5 && p.z < b.max.z + 5;
+      let aMin = Infinity, aMax = -Infinity, lMin = Infinity, lMax = -Infinity;
+      for (let i = 0; i < 4; i++) {
+        const dx = (i & 1 ? b.max.x : b.min.x) - p.x, dz = (i & 2 ? b.max.z : b.min.z) - p.z;
+        const al = dx * ax + dz * az, la = dx * az - dz * ax;
+        aMin = Math.min(aMin, al); aMax = Math.max(aMax, al); lMin = Math.min(lMin, la); lMax = Math.max(lMax, la);
+      }
+      const lat = lMin > 0 ? lMin : lMax < 0 ? -lMax : 0;
+      const cut = this.cutOn > 0.01 && lat < R + 0.5 && aMin < 1.5 && aMax > -(R + 24);
       if (cut !== c.cut) { c.cut = cut; c.mesh.material = cut ? this.matCut : this.matWorld; }
     }
   }
@@ -890,7 +940,7 @@ class Game {
     this.updateNPCs(dt);
     this.updateNear();
     this.updateCamera(dt);
-    this.updateCutaway();
+    this.updateCutaway(dt);
     this.koi.update(sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     const pl = this.player.position;

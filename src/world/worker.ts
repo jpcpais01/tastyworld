@@ -10,7 +10,7 @@ function collect(w: BakedWorld): Transferable[] {
   w.chunks.forEach(mesh);
   w.tagged.forEach((t) => mesh(t.mesh));
   w.interiorChunks.forEach(mesh);
-  if (w.nav) out.push(w.nav.height.buffer, w.lightmap.data.buffer, w.interiorNav.height.buffer, w.interiorLightmap.data.buffer, w.height.buffer, w.interiorHeight.buffer);
+  if (w.nav) out.push(w.nav.height.buffer, w.lightmap.data.buffer, w.interiorNav.height.buffer, w.interiorLightmap.data.buffer, w.height.buffer, w.interiorHeight.buffer, w.shore.buffer);
   return out;
 }
 

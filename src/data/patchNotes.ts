@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.4.0',
+    date: '2026-10-30',
+    title: 'A living canal',
+    items: [
+      'Sakura Canal flows now. The water drifts gently downstream, carrying ripples, streaks of foam and the odd fallen cherry petal.',
+      'The water has softer, more natural edges. Waves lap against the banks, foam gathers in lacy bands along the stones, and the walls look wet just above the waterline.',
+      'The canal banks are wilder, with tumbled boulders along the walls, reed beds and lily pads on the far side.',
+      'The see-through view is smarter. Only what is actually between the camera and you gets cut away, so buildings beside you and farther off stay whole.',
+      'The cut now sits lower, just above the floor, and has cleaner edges.',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-10-30',
     title: 'Clear views, busier streets',

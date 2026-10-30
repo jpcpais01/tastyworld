@@ -691,6 +691,42 @@ function terrain(b: Builder) {
       }
   // canal steps down to the water near the yatai
   for (let s = 0; s < 6; s++) g.box(124, G - 1 - s, 172 + s, 135, G - 1 - s, 172 + s, c.stoneStep);
+
+  // Break up the straight canal edges: riprap boulders at the foot of both walls, reed beds and
+  // lily pads along the quieter far bank. The water plane sits at layer ~9.8, so tops at 9+ poke out.
+  const boatsX: [number, number][] = [[18, 42], [148, 174], [234, 256]];
+  const bridgesX: [number, number][] = [[54, 73], [210, 229], [122, 137]];
+  const free = (x: number, ranges: [number, number][]) => !ranges.some(([a, b2]) => x >= a && x <= b2);
+  const boulder = (cx: number, cz: number, rad: number, top: number, seed: number) => {
+    for (let z = Math.floor(cz - rad); z <= cz + rad; z++)
+      for (let x = Math.floor(cx - rad); x <= cx + rad; x++) {
+        if (x < 0 || x >= SX || z < 172 || z > 199) continue;
+        const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz) / rad;
+        if (d > 1) continue;
+        const h = Math.round(top - d * d * 2.5 + (hash3(x, seed, z) - 0.5));
+        for (let y = 4; y <= h; y++) g.set(x, y, z, y >= 9 ? (hash3(x, y, z) < 0.3 ? c.algae : c.canalStone) : hash3(x, y, z) < 0.5 ? c.wetStone : c.canalStoneDark);
+      }
+  };
+  const rr = rng(4242);
+  for (let x = 2; x < SX - 2; x += 3 + Math.floor(rr() * 6)) {
+    if (free(x, bridgesX)) boulder(x + rr() * 2, 172.4 + rr() * 1.2, 1.2 + rr() * 1.3, 8 + Math.floor(rr() * 3), x);
+    if (free(x, bridgesX) && free(x, boatsX)) boulder(x + rr() * 2, 198.6 - rr() * 1.2, 1.2 + rr() * 1.5, 8 + Math.floor(rr() * 3), x + 999);
+  }
+  // reed beds and lily pads in a few stretches of the far bank
+  for (const [x0, x1] of [[2, 16], [76, 118], [178, 208], [258, 286]] as [number, number][]) {
+    for (let x = x0; x <= x1; x++)
+      for (let z = 193; z <= 199; z++) {
+        const hsh = hash3(x, 77, z);
+        const edge = 199 - z;
+        if (edge <= 2 && hsh < 0.45) {
+          const h = 9 + Math.floor(hash3(x, 78, z) * 4);
+          for (let y = 4; y <= h; y++) g.set(x, y, z, y === h ? (hash3(x, y, z) < 0.5 ? c.sand2 : c.weedLight) : y > 9 ? c.weedLight : c.weed);
+        } else if (edge >= 2 && edge <= 6 && hsh > 0.86 && g.get(x, 9, z) === 0) {
+          g.set(x, 9, z, hash3(x, 79, z) < 0.12 ? c.petalDeep : c.grass);
+          if (hash3(x + 1, 79, z) < 0.6 && x + 1 <= x1) g.set(x + 1, 9, z, c.grassDark);
+        }
+      }
+  }
 }
 
 function surface(b: Builder, x: number, z: number): number {
@@ -1195,6 +1231,10 @@ export function buildTokyo(): BuildResult {
     b.place(nobori(k, k.c.norenWhite, k.c.norenRed, 84), (x0 - 1.4) * V, 0, (z0 + 6) * V, 0);
     b.block(x0 * V, z0 * V, (x0 + 20) * V, front);
   }
+
+  // --- Keep walkers out of the canal (boulders, reeds and boats poke above the water), except on the
+  // bridges and the landing steps by the yatai
+  for (const [x0, x1] of [[0, 56], [72, 124], [136, 212], [228, 288]] as [number, number][]) b.block(x0 * V, 172 * V, x1 * V, 200 * V - 0.01);
 
   // --- Canal: boats
   boat(b, 150, 175, 22, 1);

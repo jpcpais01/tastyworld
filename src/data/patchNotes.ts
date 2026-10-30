@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.3',
+    date: '2026-10-30',
+    title: 'Steady cutaway',
+    items: [
+      'Fixed lowered buildings shaking and flickering slightly. Once a building has gone down to let you see yourself, it now stays perfectly still until you step out from behind it.',
+    ],
+  },
+  {
     version: '0.10.2',
     date: '2026-10-30',
     title: 'Performance overlay in Settings',

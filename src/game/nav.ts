@@ -1,0 +1,230 @@
+import type { NavData } from '../world/bake';
+import { G, V } from '../world/layout';
+
+const BLOCKED = 255;
+const MAX_STEP = 2; // voxels a character can step up or down between neighbouring cells
+
+/** Walkable heightfield queries + A* pathfinding over 25 cm cells. */
+export class Nav {
+  readonly sx: number;
+  readonly sz: number;
+  private clear: Uint8Array;
+  private g: Float32Array;
+  private came: Int32Array;
+  private state: Uint8Array;
+  private heap: Int32Array;
+  private hf: Float32Array;
+
+  constructor(readonly d: NavData) {
+    this.sx = d.sx;
+    this.sz = d.sz;
+    const n = d.sx * d.sz;
+    // clearance: a cell is comfortably walkable if its 8 neighbours are walkable at a similar height
+    this.clear = new Uint8Array(n);
+    for (let z = 0; z < d.sz; z++)
+      for (let x = 0; x < d.sx; x++) {
+        const h = d.height[z * d.sx + x];
+        if (h === BLOCKED) continue;
+        let ok = 1;
+        for (let dz = -1; dz <= 1 && ok; dz++)
+          for (let dx = -1; dx <= 1 && ok; dx++) {
+            const nx = x + dx, nz = z + dz;
+            if (nx < 0 || nz < 0 || nx >= d.sx || nz >= d.sz) { ok = 0; break; }
+            const nh = d.height[nz * d.sx + nx];
+            if (nh === BLOCKED || Math.abs(nh - h) > MAX_STEP) ok = 0;
+          }
+        this.clear[z * d.sx + x] = ok;
+      }
+    this.g = new Float32Array(n);
+    this.came = new Int32Array(n);
+    this.state = new Uint8Array(n);
+    this.heap = new Int32Array(n);
+    this.hf = new Float32Array(n);
+  }
+
+  cell(x: number, z: number): number {
+    const cx = Math.floor((x - this.d.ox) / V), cz = Math.floor((z - this.d.oz) / V);
+    if (cx < 0 || cz < 0 || cx >= this.sx || cz >= this.sz) return -1;
+    return cz * this.sx + cx;
+  }
+
+  rawHeight(i: number): number {
+    return i < 0 ? BLOCKED : this.d.height[i];
+  }
+
+  walkable(x: number, z: number): boolean {
+    const i = this.cell(x, z);
+    return i >= 0 && this.d.height[i] !== BLOCKED;
+  }
+
+  /** Floor height in metres (smoothed across steps). */
+  heightAt(x: number, z: number): number {
+    const fx = (x - this.d.ox) / V - 0.5, fz = (z - this.d.oz) / V - 0.5;
+    const x0 = Math.floor(fx), z0 = Math.floor(fz);
+    const tx = fx - x0, tz = fz - z0;
+    const centre = this.rawHeight(this.cell(x, z));
+    const ref = centre === BLOCKED ? G : centre;
+    let sum = 0, w = 0;
+    for (let k = 0; k < 4; k++) {
+      const cx = x0 + (k & 1), cz = z0 + (k >> 1);
+      if (cx < 0 || cz < 0 || cx >= this.sx || cz >= this.sz) continue;
+      let h = this.d.height[cz * this.sx + cx];
+      if (h === BLOCKED || Math.abs(h - ref) > MAX_STEP) h = ref;
+      const ww = ((k & 1) ? tx : 1 - tx) * ((k >> 1) ? tz : 1 - tz);
+      sum += h * ww;
+      w += ww;
+    }
+    return ((w > 0 ? sum / w : ref) - G) * V;
+  }
+
+  /** Can a character of the given radius stand at (x,z), coming from height hFrom (voxels)? */
+  canStand(x: number, z: number, hFrom: number, r = 0.2): boolean {
+    const pts = [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r], [r * 0.7, r * 0.7], [-r * 0.7, r * 0.7], [r * 0.7, -r * 0.7], [-r * 0.7, -r * 0.7]];
+    for (const [dx, dz] of pts) {
+      const h = this.rawHeight(this.cell(x + dx, z + dz));
+      if (h === BLOCKED || Math.abs(h - hFrom) > MAX_STEP + (dx === 0 && dz === 0 ? 0 : 1)) return false;
+    }
+    return true;
+  }
+
+  standHeightVox(x: number, z: number): number {
+    return this.rawHeight(this.cell(x, z));
+  }
+
+  private nearestClear(i: number, maxR = 24): number {
+    if (i >= 0 && this.clear[i]) return i;
+    if (i < 0) return -1;
+    const cx = i % this.sx, cz = Math.floor(i / this.sx);
+    for (let r = 1; r <= maxR; r++) {
+      let best = -1, bd = Infinity;
+      for (let dz = -r; dz <= r; dz++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+          const x = cx + dx, z = cz + dz;
+          if (x < 0 || z < 0 || x >= this.sx || z >= this.sz) continue;
+          const j = z * this.sx + x;
+          if (!this.clear[j]) continue;
+          const d = dx * dx + dz * dz;
+          if (d < bd) { bd = d; best = j; }
+        }
+      if (best >= 0) return best;
+    }
+    return -1;
+  }
+
+  /** A* path from a to b. Returns smoothed waypoints in metres (excluding the start), or null. */
+  findPath(ax: number, az: number, bx: number, bz: number): [number, number][] | null {
+    const start = this.nearestClear(this.cell(ax, az), 6);
+    const goal = this.nearestClear(this.cell(bx, bz), 24);
+    if (start < 0 || goal < 0) return null;
+    const { sx } = this;
+    const H = this.d.height;
+    this.state.fill(0);
+    const gx = goal % sx, gz = Math.floor(goal / sx);
+    const heur = (i: number) => {
+      const dx = Math.abs((i % sx) - gx), dz = Math.abs(Math.floor(i / sx) - gz);
+      return Math.max(dx, dz) + 0.414 * Math.min(dx, dz);
+    };
+    let hs = 0;
+    const heap = this.heap, f = this.hf;
+    const push = (i: number) => {
+      let k = hs++;
+      heap[k] = i;
+      while (k > 0) {
+        const p = (k - 1) >> 1;
+        if (f[heap[p]] <= f[heap[k]]) break;
+        const t = heap[p]; heap[p] = heap[k]; heap[k] = t;
+        k = p;
+      }
+    };
+    const pop = () => {
+      const top = heap[0];
+      heap[0] = heap[--hs];
+      let k = 0;
+      for (;;) {
+        const l = k * 2 + 1, r = l + 1;
+        let m = k;
+        if (l < hs && f[heap[l]] < f[heap[m]]) m = l;
+        if (r < hs && f[heap[r]] < f[heap[m]]) m = r;
+        if (m === k) break;
+        const t = heap[m]; heap[m] = heap[k]; heap[k] = t;
+        k = m;
+      }
+      return top;
+    };
+    this.g[start] = 0;
+    f[start] = heur(start);
+    this.came[start] = -1;
+    this.state[start] = 1;
+    push(start);
+    const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+    let found = false;
+    let iter = 0;
+    while (hs > 0 && iter++ < 60000) {
+      const cur = pop();
+      if (cur === goal) { found = true; break; }
+      if (this.state[cur] === 2) continue;
+      this.state[cur] = 2;
+      const cx = cur % sx, cz = Math.floor(cur / sx);
+      const ch = H[cur];
+      for (const [dx, dz, cost] of D) {
+        const nx = cx + dx, nz = cz + dz;
+        if (nx < 0 || nz < 0 || nx >= sx || nz >= this.sz) continue;
+        const ni = nz * sx + nx;
+        if (!this.clear[ni] || this.state[ni] === 2) continue;
+        if (Math.abs(H[ni] - ch) > MAX_STEP) continue;
+        if (dx && dz && (!this.clear[cz * sx + nx] || !this.clear[nz * sx + cx])) continue;
+        const ng = this.g[cur] + cost;
+        if (this.state[ni] === 1 && ng >= this.g[ni]) continue;
+        this.g[ni] = ng;
+        this.came[ni] = cur;
+        f[ni] = ng + heur(ni);
+        this.state[ni] = 1;
+        push(ni);
+      }
+    }
+    if (!found) return null;
+    const cells: number[] = [];
+    for (let c = goal; c !== -1; c = this.came[c]) cells.push(c);
+    cells.reverse();
+    // string pulling with line of sight
+    const out: [number, number][] = [];
+    let anchor = 0;
+    for (let i = 2; i < cells.length; i++) {
+      if (!this.los(cells[anchor], cells[i])) {
+        anchor = i - 1;
+        out.push(this.centre(cells[anchor]));
+      }
+    }
+    if (cells.length > 1) out.push(this.centre(cells[cells.length - 1]));
+    // finish exactly at the requested point if it is reachable
+    const last = this.cell(bx, bz);
+    if (last >= 0 && this.clear[last] && this.los(cells[cells.length - 1], last)) out.push([bx, bz]);
+    return out;
+  }
+
+  private centre(i: number): [number, number] {
+    return [this.d.ox + ((i % this.sx) + 0.5) * V, this.d.oz + (Math.floor(i / this.sx) + 0.5) * V];
+  }
+
+  private los(a: number, b: number): boolean {
+    const sx = this.sx;
+    let x0 = a % sx, z0 = Math.floor(a / sx);
+    const x1 = b % sx, z1 = Math.floor(b / sx);
+    const dx = Math.abs(x1 - x0), dz = Math.abs(z1 - z0);
+    const stx = x0 < x1 ? 1 : -1, stz = z0 < z1 ? 1 : -1;
+    let err = dx - dz;
+    let prevH = this.d.height[a];
+    for (;;) {
+      const i = z0 * sx + x0;
+      if (!this.clear[i]) return false;
+      const h = this.d.height[i];
+      if (Math.abs(h - prevH) > MAX_STEP) return false;
+      prevH = h;
+      if (x0 === x1 && z0 === z1) return true;
+      const e2 = 2 * err;
+      if (e2 > -dz) { err -= dz; x0 += stx; }
+      if (e2 < dx) { err += dx; z0 += stz; }
+    }
+  }
+}

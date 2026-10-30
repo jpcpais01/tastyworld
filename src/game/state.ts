@@ -19,7 +19,7 @@ export interface Settings {
 /** View distance setting (0..1) to metres. */
 export const viewMetres = (v: number) => Math.round(60 + v * 240);
 /** The view distance each graphics quality starts at. */
-export const VIEW_DEFAULT: Record<Quality, number> = { low: 0.2, medium: 0.35, high: 0.55 };
+export const VIEW_DEFAULT: Record<Quality, number> = { low: 0.3, medium: 0.45, high: 0.65 };
 
 export interface SaveState {
   v: 1;

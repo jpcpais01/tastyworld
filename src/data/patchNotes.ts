@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.0',
+    date: '2026-10-30',
+    title: 'A city to the horizon',
+    items: [
+      'No more streets snapping into sharper detail as you walk. Detail now dissolves in smoothly, loads ahead of you in the direction you are walking, and stays sharp much further out, even when you are zoomed far out.',
+      'Districts you just walked past no longer flicker between rough and sharp as you move back and forth.',
+      'The rest of Tokyo beyond the map has been rebuilt to look like the game: streets carry on from the city in a grid, lined with little houses under stepped tile roofs, shops and offices with rooftop water tanks and glowing blade signs, glass towers on the horizon, parks and the canal running on into the distance.',
+      'At night the far city lights up: lit windows, bright shop fronts, neon signs, tower crowns and street lamps along every road.',
+      'Longer view distance by default on every graphics setting.',
+    ],
+  },
+  {
     version: '0.9.9',
     date: '2026-10-30',
     title: 'Cleaner walls',

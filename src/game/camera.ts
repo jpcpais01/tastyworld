@@ -34,6 +34,9 @@ export class IsoCamera {
   /** Player ground speed, for a gentle head bob. */
   fpSpeed = 0;
   private fpTurn = 0;
+  /** Eases the first-person eye back and up a little (metres), e.g. to see your own hands while eating. */
+  fpBack = 0;
+  private fpBackCur = 0;
   private bobT = 0;
 
   constructor(readonly cam: THREE.OrthographicCamera, readonly persp: THREE.PerspectiveCamera) {}
@@ -139,7 +142,8 @@ export class IsoCamera {
     const moving = Math.min(1, this.fpSpeed / 3.2);
     this.bobT += dt * (5 + this.fpSpeed * 2.2) * (moving > 0.05 ? 1 : 0);
     const bob = Math.sin(this.bobT * 2) * 0.022 * moving;
-    c.position.set(this.target.x, this.target.y + EYE_H + bob, this.target.z);
+    this.fpBackCur += (this.fpBack - this.fpBackCur) * (1 - Math.exp(-dt * 4));
+    c.position.set(this.target.x - Math.sin(this.fpYaw) * this.fpBackCur, this.target.y + EYE_H + bob + this.fpBackCur * 0.5, this.target.z - Math.cos(this.fpYaw) * this.fpBackCur);
     if (this.shake > 0) {
       c.position.x += (Math.random() - 0.5) * this.shake * 0.3;
       c.position.y += (Math.random() - 0.5) * this.shake * 0.3;

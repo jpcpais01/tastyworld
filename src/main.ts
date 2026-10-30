@@ -11,6 +11,7 @@ import { Streamer, StreamView } from './engine/streamer';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, randomLook, Look } from './world/characters';
 import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ, WX0, WZ0, WX1, WZ1 } from './world/layout';
+import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
 import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
@@ -128,6 +129,10 @@ class Game {
   private lastTap = { t: 0, x: 0, y: 0 };
   private slideSide = 1;
   private eatT = 0;
+  /** The dish being served and eaten right now, and who is serving at the counter we last spoke at. */
+  private meal: Meal | null = null;
+  private server: Actor | null = null;
+  private mealZoom = 0;
   private crowd!: Crowd;
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
@@ -522,8 +527,9 @@ class Game {
           prompt: () => [place.buy[0]?.icon ?? '💬', name, `Talk to ${info.name}`],
           act: () => {
             this.faceEachOther(act, n.sit);
+            this.server = act;
             act.anim = 'bow';
-            setTimeout(() => { act.anim = anim; }, 1200);
+            setTimeout(() => { if (act.anim === 'bow') act.anim = anim; }, 1200);
             this.audio.play('pop');
             const line = place.lines[entry.talk++ % place.lines.length];
             this.ui.shop(name, jp, `${place.label} · ${info.name}`, info.name, line, place.buy, (it) => this.buyThing(it));
@@ -568,7 +574,7 @@ class Game {
     this.s.yen -= it.price;
     this.audio.play('coin');
     this.ui.toast(it.icon, it.name, it.text);
-    if (it.snack) { this.eatT = 3.2; this.player.anim = 'eat'; }
+    if (it.snack) setTimeout(() => this.startMeal(it.icon, this.server, () => {}), 150);
     this.afterChange();
     return true;
   }
@@ -727,9 +733,45 @@ class Game {
     const dish = DISHES.find((x) => x.id === d)!;
     if (this.s.yen < dish.price) return false;
     this.s.yen -= dish.price;
+    const isNew = !this.s.tasted[d];
     this.eat(d);
     this.audio.play('coin');
+    const count = this.s.tasted[d] ?? 1;
+    this.startMeal(d, this.server, () => this.ui.savour(d, { isNew, count }));
     return true;
+  }
+
+  /**
+   * Serve and eat something: the vendor (if any) hands it over, then the traveller eats it bite by bite
+   * (game/meal.ts). Walking away finishes it on the spot; a tap or the interact key hurries it along.
+   */
+  private startMeal(id: string, server: Actor | null, done: () => void): void {
+    this.endMeal();
+    for (const v of this.vendors) if (v.actor === server) v.waveT = 0;
+    this.path = [];
+    this.pending = null;
+    this.mealZoom = this.cam.zoom;
+    const nav = this.nav, pl = this.player;
+    this.meal = new Meal(id, {
+      scene: this.r.scene,
+      shared: this.r.shared,
+      audio: this.audio,
+      player: pl,
+      vendor: server,
+      firstPerson: () => this.cam.fp,
+      viewYaw: () => (this.cam.fp ? null : this.cam.yaw),
+      canStand: (x, z) => nav.canStand(x, z, nav.standHeightVox(pl.position.x, pl.position.z)),
+      bubble: (key, text, pos, secs) => this.ui.bubble(key, text, pos, secs),
+      fx: (steam, amount, sparkle) => this.particles.meal(steam, amount, sparkle),
+    }, done);
+  }
+
+  private endMeal(): void {
+    if (!this.meal) return;
+    this.meal.stop();
+    this.meal.dispose();
+    this.meal = null;
+    if (!this.cam.fp && this.mealZoom) this.cam.zoom = this.mealZoom;
   }
 
   private eat(d: FoodId): void {
@@ -745,7 +787,10 @@ class Game {
     this.s.cooked[d] = Math.max(this.s.cooked[d] ?? 0, stars);
     const tip = stars * 150;
     this.s.yen += tip;
+    const isNew = !this.s.tasted[d];
     this.eat(d);
+    const count = this.s.tasted[d] ?? 1;
+    this.startMeal(d, this.server, () => this.ui.savour(d, { isNew, count, cooked: stars, tip }));
     return tip;
   }
 
@@ -780,6 +825,7 @@ class Game {
   }
 
   private openStall(st: StallInfo, vendor: Actor, at: [number, number]): void {
+    this.server = vendor;
     const p = this.player.position;
     this.player.targetFacing = Math.atan2(at[0] - p.x, at[1] - p.z);
     vendor.targetFacing = Math.atan2(p.x - at[0], p.z - at[1]);
@@ -832,6 +878,7 @@ class Game {
     this.audio.play('coin');
     this.ui.toast(d[0], d[1], d[2]);
     this.afterChange();
+    this.startMeal(d[0], null, () => {});
   }
 
   /** Switch between the isometric view and first person. */
@@ -919,6 +966,7 @@ class Game {
 
   private interact(): void {
     if (this.ui.advanceDialogue()) return;
+    if (this.meal) { this.meal.hurry(); return; }
     if (this.ui.busy || !this.near) return;
     this.path = [];
     this.near.act();
@@ -1000,7 +1048,7 @@ class Game {
     this.sendT = SEND_EVERY;
     const pl = this.player, p = pl.position;
     const r2 = (n: number) => Math.round(n * 100) / 100;
-    c.sendState([r2(p.x), r2(p.y), r2(p.z), r2(pl.targetFacing), Math.max(0, ANIMS.indexOf(pl.anim)), r2(pl.speed), this.inside ? 1 : 0, c.host ? r2(this.tod.hour) : -1]);
+    c.sendState([r2(p.x), r2(p.y), r2(p.z), r2(pl.targetFacing), Math.max(0, ANIMS.indexOf(this.meal ? 'eat' : pl.anim)), r2(pl.speed), this.inside ? 1 : 0, c.host ? r2(this.tod.hour) : -1]);
   }
 
   /** Friends: glide toward their latest sample, and follow the trip leader's clock. */
@@ -1098,7 +1146,7 @@ class Game {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement === canvas && this.cam.fp && !this.ui.busy) this.cam.look(e.movementX * 0.0022, e.movementY * 0.0022);
+      if (document.pointerLockElement === canvas && this.cam.fp && !this.ui.busy && !this.meal) this.cam.look(e.movementX * 0.0022, e.movementY * 0.0022);
     });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.cam.zoomBy(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
     canvas.addEventListener('pointerdown', (e) => {
@@ -1122,7 +1170,7 @@ class Game {
       if (lp && lp.id === e.pointerId) {
         const k = e.pointerType === 'mouse' ? 0.004 : 0.0058;
         if (!lp.moved && Math.hypot(e.clientX - lp.sx, e.clientY - lp.sy) > 8) lp.moved = true;
-        if (lp.moved && !this.ui.busy) this.cam.look((e.clientX - lp.x) * k, (e.clientY - lp.y) * k);
+        if (lp.moved && !this.ui.busy && !this.meal) this.cam.look((e.clientX - lp.x) * k, (e.clientY - lp.y) * k);
         lp.x = e.clientX; lp.y = e.clientY;
         return;
       }
@@ -1200,6 +1248,7 @@ class Game {
   private fpUse(): void {
     if (this.ui.advanceDialogue()) return;
     if (!this.started || this.ui.busy) return;
+    if (this.meal) { this.meal.hurry(); return; }
     if (this.near) { this.interact(); return; }
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
     let best: Interactable | null = null, bd = 60;
@@ -1218,6 +1267,7 @@ class Game {
 
   private tap(x: number, y: number): void {
     if (!this.started || this.ui.busy) return;
+    if (this.meal) { this.meal.hurry(); return; }
     // tapped an interactable?
     let best: Interactable | null = null, bd = 46;
     for (const it of this.interactables) {
@@ -1315,6 +1365,7 @@ class Game {
     if (!this.path.length) this.pathRun = false;
     p.y += (this.nav.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 14);
     pl.speed = speed;
+    if (this.meal && speed > 0) this.endMeal();
     if (this.eatT > 0) { this.eatT -= dt; if (speed > 0) this.eatT = 0; }
     if (this.waveT > 0) { this.waveT -= dt; if (speed > 0) this.waveT = 0; }
     pl.anim = speed > 0 ? (run && speed > PLAYER_SPEED ? 'run' : 'walk') : this.waveT > 0 ? 'wave' : this.eatT > 0 ? 'eat' : 'idle';
@@ -1345,7 +1396,7 @@ class Game {
       const pl = this.player;
       const friends: [number, number][] = [];
       for (const rm of this.remotes.values()) if (rm.actor.root.visible) friends.push([rm.actor.position.x, rm.actor.position.z]);
-      this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0, facing: pl.facing }, friends);
+      this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends);
       this.updateCats(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
@@ -1470,10 +1521,20 @@ class Game {
   }
 
   private updateCamera(dt: number): void {
+    const meal = this.meal;
     if (this.cam.fp) {
       this.cam.target.copy(this.player.position);
       this.cam.fpSpeed = this.player.speed;
       if (this.inside !== this.wasInside) this.cam.fpYaw = this.player.facing; // just came through a door
+      this.cam.fpBack = meal ? 0.12 : 0;
+      if (meal) {
+        // look down at your hands, the way you face
+        this.cam.turnToward(this.player.facing, dt);
+        this.cam.fpPitch += (meal.pitch - this.cam.fpPitch) * (1 - Math.exp(-dt * 3));
+      }
+    } else if (meal) {
+      this.cam.target.copy(meal.focus);
+      this.cam.zoom = meal.zoom;
     } else if (this.started) this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
     this.wasInside = this.inside;
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
@@ -1493,15 +1554,21 @@ class Game {
     if (this.inside) { sh.uLamp.value = Math.max(sh.uLamp.value, 0.95); sh.uSunColor.value.multiplyScalar(0.35); }
     if (this.started) this.s.playTime += dt;
 
+    this.meal?.update(dt);
     this.movePlayer(dt);
     this.updateRemotes(dt);
     this.updateNPCs(dt);
+    if (this.meal) {
+      this.meal.place(dt);
+      if (this.meal.finished) this.endMeal();
+    }
     this.updateNear();
     this.updateCamera(dt);
     this.streamer.update(dt, this.streamView(), !this.inside);
     this.updateCutaway(dt);
     const fp = this.cam.fp;
-    this.player.root.visible = !fp;
+    // in first person the body shows while eating, so the food is seen in your own hands (the camera sits inside the head)
+    this.player.root.visible = !fp || !!this.meal;
     const eye = this.r.persp.position;
     sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? FP_FOG : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();

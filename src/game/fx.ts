@@ -10,12 +10,15 @@ import { geometryFrom } from './actors';
 import { voxelMaterial } from '../engine/renderer';
 
 const KIND = { steam: 0, smoke: 1, incense: 2, petal: 3, firefly: 4, sparkle: 5 };
+const MEAL_STEAM = 10, MEAL_SPARKLE = 10;
 
 /** All particles in one instanced draw call, animated entirely on the GPU. */
 export class Particles {
   readonly mesh: THREE.Mesh;
   readonly mat: THREE.ShaderMaterial;
   private sparkleStart = 0;
+  private mealStart = 0;
+  private mealOn = false;
   private origins: Float32Array;
   private seeds: Float32Array;
   private geo: THREE.InstancedBufferGeometry;
@@ -32,6 +35,10 @@ export class Particles {
     for (let i = 0; i < 46; i++) list.push({ o: [rnd() * 70 + 1, 0.6 + rnd() * 1.2, 41 + rnd() * 13], s: [rnd(), 0.5 + rnd(), 0.09, KIND.firefly] });
     this.sparkleStart = list.length;
     for (const sp of sparkles) for (let i = 0; i < 6; i++) list.push({ o: [sp[0] + (rnd() - 0.5) * 0.5, sp[1] + 0.2 + rnd() * 0.6, sp[2] + (rnd() - 0.5) * 0.5], s: [rnd(), 0.8 + rnd(), 0.07, KIND.sparkle] });
+    // steam over food being eaten and a sparkle of delight, moved around by the meal (see game/meal.ts)
+    this.mealStart = list.length;
+    for (let i = 0; i < MEAL_STEAM; i++) list.push({ o: [0, -50, 0], s: [i / MEAL_STEAM, 1.6, 0.085, KIND.steam] });
+    for (let i = 0; i < MEAL_SPARKLE; i++) list.push({ o: [0, -50, 0], s: [i / MEAL_SPARKLE, 1.1 + rnd() * 0.6, 0.06, KIND.sparkle] });
 
     const geo = new THREE.InstancedBufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
@@ -77,6 +84,24 @@ export class Particles {
       if (k * 3 + 1 < this.origins.length) this.origins[k * 3 + 1] = -50;
     }
     a.needsUpdate = true;
+  }
+
+  /** Steam (amount 0..1 shows that share of the wisps) and sparkles, at world positions; null hides them. */
+  meal(steam: THREE.Vector3 | null, amount: number, sparkle: THREE.Vector3 | null): void {
+    if (!steam && !sparkle && !this.mealOn) return;
+    this.mealOn = !!(steam || sparkle);
+    const o = this.origins, n = Math.round(MEAL_STEAM * Math.min(1, Math.max(0, amount)));
+    for (let i = 0; i < MEAL_STEAM; i++) {
+      const k = (this.mealStart + i) * 3;
+      if (steam && i < n) { o[k] = steam.x + Math.sin(i * 2.4) * 0.04; o[k + 1] = steam.y; o[k + 2] = steam.z + Math.cos(i * 2.4) * 0.04; }
+      else o[k + 1] = -50;
+    }
+    for (let i = 0; i < MEAL_SPARKLE; i++) {
+      const k = (this.mealStart + MEAL_STEAM + i) * 3, a = (i / MEAL_SPARKLE) * Math.PI * 2;
+      if (sparkle) { o[k] = sparkle.x + Math.cos(a) * 0.32; o[k + 1] = sparkle.y + Math.sin(a * 3) * 0.12; o[k + 2] = sparkle.z + Math.sin(a) * 0.32; }
+      else o[k + 1] = -50;
+    }
+    (this.geo.getAttribute('aOrigin') as THREE.InstancedBufferAttribute).needsUpdate = true;
   }
 
   update(right: THREE.Vector3, up: THREE.Vector3, light: THREE.Color): void {

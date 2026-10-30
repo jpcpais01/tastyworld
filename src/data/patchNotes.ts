@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.4.1',
+    date: '2026-10-30',
+    title: 'Notes on top',
+    items: [
+      'Fixed the "What\'s new" notes opening behind the title screen. Menus and dialogue now always sit on top.',
+    ],
+  },
+  {
     version: '0.4.0',
     date: '2026-10-30',
     title: 'A living canal',

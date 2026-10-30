@@ -6,6 +6,8 @@ export interface PalOpts {
   night?: boolean;
   /** Per-voxel brightness jitter 0..1. */
   vary?: number;
+  /** Foliage: lit softly by the bake only, never speckled by the real-time shadow map. */
+  leaf?: boolean;
 }
 
 export class Palette {
@@ -15,11 +17,12 @@ export class Palette {
   emit: number[] = [0];
   night: boolean[] = [false];
   vary: number[] = [0];
+  leaf: boolean[] = [false];
   private keys = new Map<string, number>();
 
   add(hex: number, o: PalOpts = {}): number {
     const vary = o.vary ?? 0.06;
-    const key = `${hex}|${o.emit ?? 0}|${o.night ? 1 : 0}|${vary}`;
+    const key = `${hex}|${o.emit ?? 0}|${o.night ? 1 : 0}|${vary}|${o.leaf ? 1 : 0}`;
     const hit = this.keys.get(key);
     if (hit !== undefined) return hit;
     const i = this.r.length;
@@ -30,6 +33,7 @@ export class Palette {
     this.emit.push(o.emit ?? 0);
     this.night.push(!!o.night);
     this.vary.push(vary);
+    this.leaf.push(!!o.leaf);
     this.keys.set(key, i);
     return i;
   }

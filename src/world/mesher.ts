@@ -12,7 +12,7 @@ import { Palette } from './palette';
  * Vertex layout (28 bytes):
  *   position: float32 x3 (object space)
  *   pack:  u8 x4 [face | scaleIdx << 3, ao, edgeBits | vary << 4, sky | partId]
- *   color: u8 x4 [r, g, b, emissive code]  (code 1..127 always on, 128..255 night only)
+ *   color: u8 x4 [r, g, b, emissive code]  (code 1..127 always on, 129..255 night only, 128 foliage)
  *   light: u8 x4 [lamp r, lamp g, lamp b (x2 range), sun]
  *   quad:  u8 x4 [dist to u-min edge, to u-max, to v-min, to v-max] in voxels (for the bevel highlight)
  */
@@ -133,7 +133,8 @@ export function meshGrid(o: MeshOpts): MeshData {
     b.ensure(4);
     const base = b.nv;
     const bx = px + (n[0] > 0 ? 1 : 0), by = py + (n[1] > 0 ? 1 : 0), bz = pz + (n[2] > 0 ? 1 : 0);
-    const em = pal.emit[col] > 0 ? (pal.night[col] ? 128 : 0) + Math.max(1, Math.round(pal.emit[col] * 127)) : 0;
+    // code 128 (night-only, zero strength) never emits: it marks foliage for the shadow lookup
+    const em = pal.emit[col] > 0 ? (pal.night[col] ? 128 : 0) + Math.max(1, Math.round(pal.emit[col] * 127)) : pal.leaf[col] ? 128 : 0;
     const vary = Math.min(15, Math.round(pal.vary[col] / 0.02));
     for (let k = 0; k < 4; k++) {
       const cu = k === 1 || k === 2 ? 1 : 0;

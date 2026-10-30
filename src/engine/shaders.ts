@@ -134,6 +134,11 @@ uniform float uTime;
 uniform float uCloud;
 uniform vec4 uBounds; // x0, z0, x1, z1 of the playable map (fade outside)
 uniform vec4 uFog;    // first-person eye position and haze density (0 in the iso view)
+#ifndef ICON
+uniform highp sampler2DShadow tShadow;
+uniform mat4 uShadowMat;
+uniform vec4 uShadow; // strength (0 = baked only), normal offset (m), one texel in uv, taps
+#endif
 #ifdef CHARACTER
 uniform vec3 uCharLight; // sun, sky, highlight
 uniform vec3 uCharLamp;
@@ -178,6 +183,38 @@ in float vAO;
 in float vSky;
 layout(location = 0) out vec4 outColor;
 
+#ifndef ICON
+// Sun visibility from the real-time shadow map (see engine/shadows.ts). w is how much the map has a say:
+// it fades out at the map's edge, where the baked sun takes over.
+float sunShadow(vec3 n, out float w) {
+  vec3 s = (uShadowMat * vec4(vWorld + n * uShadow.y, 1.0)).xyz;
+  vec2 e = min(s.xy, 1.0 - s.xy);
+  w = smoothstep(0.0, 0.03, min(e.x, e.y)) * step(s.z, 1.0) * uShadow.x;
+  if (w <= 0.0) return 1.0;
+  float t = uShadow.z;
+  if (uShadow.w > 4.5) {
+    // two rotated rings of hardware PCF taps: a soft ~5 texel penumbra
+    float v = texture(tShadow, vec3(s.xy + vec2(0.45, -0.85) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(0.85, 0.45) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(-0.45, 0.85) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(-0.85, -0.45) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(1.75, -0.6) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(0.6, 1.75) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(-1.75, 0.6) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(-0.6, -1.75) * t, s.z));
+    return v * 0.125;
+  }
+  if (uShadow.w > 1.5) {
+    float v = texture(tShadow, vec3(s.xy + vec2(-0.7, -0.7) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(0.7, -0.7) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(-0.7, 0.7) * t, s.z))
+            + texture(tShadow, vec3(s.xy + vec2(0.7, 0.7) * t, s.z));
+    return v * 0.25;
+  }
+  return texture(tShadow, s);
+}
+#endif
+
 void main() {
 #ifdef CUTAWAY
   // Whole-object cutaway: anything owned by a lowered occluder is removed above that occluder's cut
@@ -220,6 +257,22 @@ void main() {
 #endif
   float ao = vAO;
   float ndl = max(dot(n, uSunDir), 0.0);
+#ifndef ICON
+  // the real-time map adds what the bake can't see (props, people, anything that moves) and sharpens the
+  // rest; faces turned from the sun, and world faces the bake already has in deep shadow, skip it
+#ifdef CHARACTER
+  bool lookup = ndl > 0.0 && uShadow.x > 0.0;
+#else
+  // foliage (emission code 128, see Palette leaf) keeps the bake's soft canopy light: a hard map turns every
+  // leafy bump into a speck of shadow
+  bool lookup = ndl > 0.0 && uShadow.x > 0.0 && sun > 0.004 && abs(vColor.a * 255.0 - 128.0) > 0.5;
+#endif
+  if (lookup) {
+    float w;
+    float v = sunShadow(n, w);
+    sun = mix(sun, v, w);
+  }
+#endif
   // drifting cloud shadows
   float cloud = 1.0;
   if (uCloud > 0.0) {

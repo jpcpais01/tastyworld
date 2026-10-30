@@ -2,6 +2,7 @@ import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
 import { Renderer, voxelMaterial, Quality, groundApron } from './engine/renderer';
+import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
 import type { BakedWorld, LightMap2D } from './world/bake';
 import type { MeshData } from './world/mesher';
@@ -227,6 +228,7 @@ class Game {
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
     const m = new THREE.Mesh(geometryFrom(md), mat);
+    m.layers.enable(SHADOW_STATIC);
     m.matrixAutoUpdate = false;
     m.updateMatrix();
     group.add(m);

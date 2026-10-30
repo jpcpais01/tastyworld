@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.3',
+    date: '2026-10-30',
+    title: 'Real sun shadows',
+    items: [
+      'Everything in the street now casts a proper shadow in the sun: shop signs, lanterns, awnings, stools, air conditioners on the roofs, and every person and cat walking by, you included.',
+      'Shadows are crisp near the ground with soft edges, and they stay perfectly still while the camera follows you, no flicker or crawling edges.',
+      'Cherry trees keep their soft glow in the sun instead of getting speckled.',
+      'At dusk the sharp shadows fade gently into the moonlit night, and the lanterns take over as before.',
+      'Built to be light: the street\'s shadows are only redrawn when you walk far or zoom a lot, so phones stay smooth. Low quality uses a lighter version.',
+    ],
+  },
+  {
     version: '0.8.2',
     date: '2026-10-30',
     title: 'Solid all round',

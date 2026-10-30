@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.10',
+    date: '2026-10-30',
+    title: 'No more ghost outlines',
+    items: [
+      'Fixed the faint dotted white lines that traced the old outline of a lowered building in the air, on Medium and High graphics.',
+    ],
+  },
+  {
     version: '0.10.9',
     date: '2026-10-30',
     title: 'Every wall finished',

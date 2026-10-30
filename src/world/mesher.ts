@@ -15,6 +15,7 @@ import { Palette } from './palette';
  *   color: u8 x4 [r, g, b, emissive code]  (code 1..127 always on, 129..255 night only, 128 foliage)
  *   light: u8 x4 [lamp r, lamp g, lamp b (x2 range), sun]
  *   quad:  u8 x4 [dist to u-min edge, to u-max, to v-min, to v-max] in voxels (for the bevel highlight)
+ * plus a separate u16 per vertex: the sway body it belongs to (0 = static, see world/sway.ts).
  */
 
 // face order: +X -X +Y -Y +Z -Z ; u x v = n
@@ -35,6 +36,8 @@ export interface MeshData {
   positions: Float32Array;
   attrs: Uint8Array;
   indices: Uint32Array;
+  /** Per vertex: 1-based sway body id, 0 = static. */
+  sway: Uint16Array;
   vertexCount: number;
   bounds: [number, number, number, number, number, number];
 }
@@ -55,18 +58,22 @@ export interface MeshOpts {
   greedy?: boolean;
   /** Treat cells outside the grid below this layer as solid (hides the underside and cut edges of the ground). */
   groundBelow?: number;
+  /** Sway body id of a voxel (grid index), 0 = static. Faces of different bodies never merge. */
+  sway?: (vi: number) => number;
 }
 
 class Buf {
   pos: Float32Array;
   att: Uint8Array;
   idx: Uint32Array;
+  sw: Uint16Array;
   nv = 0;
   ni = 0;
   constructor(cap = 4096) {
     this.pos = new Float32Array(cap * 3);
     this.att = new Uint8Array(cap * STRIDE);
     this.idx = new Uint32Array(Math.ceil(cap * 1.5));
+    this.sw = new Uint16Array(cap);
   }
   ensure(nv: number) {
     if (this.nv + nv <= this.pos.length / 3) return;
@@ -74,6 +81,7 @@ class Buf {
     const p = new Float32Array(cap * 3); p.set(this.pos); this.pos = p;
     const a = new Uint8Array(cap * STRIDE); a.set(this.att); this.att = a;
     const i = new Uint32Array(Math.ceil(cap * 1.5)); i.set(this.idx); this.idx = i;
+    const w = new Uint16Array(cap); w.set(this.sw); this.sw = w;
   }
 }
 
@@ -83,14 +91,14 @@ const q = (val: number, m: number) => Math.min(63, Math.round(val * m));
 // Scratch buffers shared by all mesh calls (slices are at most 300 x 300).
 const MAXS = 320 * 320;
 let scr: {
-  keys: Float64Array; edgesM: Uint8Array; colM: Uint16Array; lightM: Uint8Array; used: Uint8Array;
+  keys: Float64Array; edgesM: Uint8Array; colM: Uint16Array; swM: Uint16Array; lightM: Uint8Array; used: Uint8Array;
   cornerStamp: Int32Array; cornerVals: Float32Array;
 } | null = null;
 let stampBase = 1;
 function scratch() {
   if (!scr) {
     scr = {
-      keys: new Float64Array(MAXS), edgesM: new Uint8Array(MAXS), colM: new Uint16Array(MAXS),
+      keys: new Float64Array(MAXS), edgesM: new Uint8Array(MAXS), colM: new Uint16Array(MAXS), swM: new Uint16Array(MAXS),
       lightM: new Uint8Array(MAXS * 6), used: new Uint8Array(MAXS),
       cornerStamp: new Int32Array(322 * 322), cornerVals: new Float32Array(322 * 322 * 5),
     };
@@ -99,7 +107,7 @@ function scratch() {
 }
 
 export function meshGrid(o: MeshOpts): MeshData {
-  const { grid, pal, scale, origin, light, parts } = o;
+  const { grid, pal, scale, origin, light, parts, sway } = o;
   const greedy = o.greedy !== false;
   const scaleIdx = SCALES.findIndex((s) => Math.abs(s - scale) < 1e-6);
   if (scaleIdx < 0) throw new Error('unknown voxel scale ' + scale);
@@ -120,7 +128,7 @@ export function meshGrid(o: MeshOpts): MeshData {
   };
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-  const { keys, edgesM, colM, lightM, used, cornerStamp, cornerVals } = scratch();
+  const { keys, edgesM, colM, swM, lightM, used, cornerStamp, cornerVals } = scratch();
   const maxU = keys.length;
 
   const cAo = [0, 0, 0, 0];
@@ -128,7 +136,7 @@ export function meshGrid(o: MeshOpts): MeshData {
   let stamp = stampBase;
   const p = [0, 0, 0];
 
-  const emit = (f: number, px: number, py: number, pz: number, w: number, h: number, col: number, edges: number, aoIdx: number[], lightVals: Float32Array | null, uni: Uint8Array | null, uniOff: number, part: number) => {
+  const emit = (f: number, px: number, py: number, pz: number, w: number, h: number, col: number, edges: number, aoIdx: number[], lightVals: Float32Array | null, uni: Uint8Array | null, uniOff: number, part: number, sw: number) => {
     const n = FACE_N[f], u = FACE_U[f], v = FACE_V[f];
     b.ensure(4);
     const base = b.nv;
@@ -144,6 +152,7 @@ export function meshGrid(o: MeshOpts): MeshData {
       const cz = bz + (u[2] * w) * cu + (v[2] * h) * cv;
       const wx = origin[0] + cx * scale, wy = origin[1] + cy * scale, wz = origin[2] + cz * scale;
       const vi = b.nv++;
+      b.sw[vi] = sw;
       b.pos[vi * 3] = wx; b.pos[vi * 3 + 1] = wy; b.pos[vi * 3 + 2] = wz;
       if (wx < minX) minX = wx; if (wx > maxX) maxX = wx;
       if (wy < minY) minY = wy; if (wy > maxY) maxY = wy;
@@ -239,6 +248,7 @@ export function meshGrid(o: MeshOpts): MeshData {
             }
           }
           const part = parts ? parts[vi] : -1;
+          const sw = sway ? sway(vi) : 0;
           // uniform test on quantised values
           let uniform = greedy && part < 0 && cAo[0] === cAo[1] && cAo[1] === cAo[2] && cAo[2] === cAo[3];
           let qs = 0, qk = 0, qr = 0, qg = 0, qb = 0;
@@ -249,12 +259,13 @@ export function meshGrid(o: MeshOpts): MeshData {
             }
           }
           if (!uniform) {
-            emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part);
+            emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw);
             continue;
           }
           keys[mi] = ((((((col * 4 + cAo[0]) * 64 + qs) * 64 + qk) * 64 + qr) * 64 + qg) * 64 + qb);
           edgesM[mi] = edges;
           colM[mi] = col;
+          swM[mi] = sw;
           const lo6 = mi * 6;
           lightM[lo6] = cAo[0]; lightM[lo6 + 1] = qs; lightM[lo6 + 2] = qk; lightM[lo6 + 3] = qr; lightM[lo6 + 4] = qg; lightM[lo6 + 5] = qb;
           used[mi] = 0;
@@ -267,12 +278,13 @@ export function meshGrid(o: MeshOpts): MeshData {
           const mi = iv * U + iu;
           const key = keys[mi];
           if (key < 0 || used[mi]) continue;
+          const sw = swM[mi];
           let w = 1;
-          while (iu + w < U && w < 255 && keys[mi + w] === key && !used[mi + w]) w++;
+          while (iu + w < U && w < 255 && keys[mi + w] === key && swM[mi + w] === sw && !used[mi + w]) w++;
           let h = 1;
           outer: while (iv + h < Vn && h < 255) {
             const row = (iv + h) * U + iu;
-            for (let k = 0; k < w; k++) if (keys[row + k] !== key || used[row + k]) break outer;
+            for (let k = 0; k < w; k++) if (keys[row + k] !== key || swM[row + k] !== sw || used[row + k]) break outer;
             h++;
           }
           let eU0 = 1, eU1 = 2, eV0 = 4, eV1 = 8;
@@ -287,7 +299,7 @@ export function meshGrid(o: MeshOpts): MeshData {
             if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
           }
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
-          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, -1);
+          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, -1, sw);
         }
     }
   }
@@ -296,6 +308,7 @@ export function meshGrid(o: MeshOpts): MeshData {
     positions: b.pos.slice(0, b.nv * 3),
     attrs: b.att.slice(0, b.nv * STRIDE),
     indices: b.idx.slice(0, b.ni),
+    sway: b.sw.slice(0, b.nv),
     vertexCount: b.nv,
     bounds: [minX, minY, minZ, maxX, maxY, maxZ],
   };
@@ -310,11 +323,13 @@ export function mergeMeshes(list: MeshData[]): MeshData | null {
   const positions = new Float32Array(nv * 3);
   const attrs = new Uint8Array(nv * STRIDE);
   const indices = new Uint32Array(ni);
+  const sway = new Uint16Array(nv);
   let ov = 0, oi = 0;
   const bounds: MeshData['bounds'] = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
   for (const m of parts) {
     positions.set(m.positions, ov * 3);
     attrs.set(m.attrs, ov * STRIDE);
+    sway.set(m.sway, ov);
     for (let k = 0; k < m.indices.length; k++) indices[oi + k] = m.indices[k] + ov;
     for (let k = 0; k < 3; k++) {
       bounds[k] = Math.min(bounds[k], m.bounds[k]);
@@ -323,5 +338,5 @@ export function mergeMeshes(list: MeshData[]): MeshData | null {
     ov += m.vertexCount;
     oi += m.indices.length;
   }
-  return { positions, attrs, indices, vertexCount: nv, bounds };
+  return { positions, attrs, indices, sway, vertexCount: nv, bounds };
 }

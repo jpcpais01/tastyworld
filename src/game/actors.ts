@@ -13,6 +13,7 @@ export function geometryFrom(m: MeshData): THREE.BufferGeometry {
   g.setAttribute('aColor', new THREE.InterleavedBufferAttribute(ib, 4, 4, true));
   g.setAttribute('aLight', new THREE.InterleavedBufferAttribute(ib, 4, 8, true));
   g.setAttribute('aQuad', new THREE.InterleavedBufferAttribute(ib, 4, 12, false));
+  g.setAttribute('aSway', new THREE.BufferAttribute(m.sway, 1));
   if (m.vertexCount < 65536) g.setIndex(new THREE.BufferAttribute(Uint16Array.from(m.indices), 1));
   else g.setIndex(new THREE.BufferAttribute(m.indices, 1));
   const [x0, y0, z0, x1, y1, z1] = m.bounds;

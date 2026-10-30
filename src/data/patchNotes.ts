@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.1',
+    date: '2026-10-30',
+    title: 'A breeze through the streets',
+    items: [
+      'There is a gentle breeze in Tokyo now. Paper lanterns sway on their cords, noren curtains stir in shop doorways, banners turn a little on their poles and the overhead wires swing lazily between the poles.',
+      'Lanterns strung on a wire swing with the wire as well as on their own, and the signboards hanging over Lantern Alley rock on their hooks.',
+      'Laundry on balconies and rooftops flaps on its line, potted plants, bamboo and flower buckets bend in the wind, and the cherry trees rock their blossom.',
+      'Everything moves as one solid piece, like the real thing hanging from a hook or growing from a pot, and nothing is in step with its neighbour. Gusts roll down the street now and then, and the wind slowly changes direction through the day.',
+      'Walk through a noren and it swings aside for you. Brushing past a plant or a low lantern nudges it too, and the same goes for everyone else in town, cats included.',
+      'Indoors there is only a faint draught, so things in shops barely stir.',
+    ],
+  },
+  {
     version: '0.9.0',
     date: '2026-10-30',
     title: 'Itadakimasu!',

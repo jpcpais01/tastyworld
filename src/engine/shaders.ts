@@ -122,6 +122,8 @@ flat out float vScale;
 flat out float vVary;
 #ifdef CUTAWAY
 flat out float vSeam;
+flat out vec3 vU; // the face's in-plane axes, the directions vQuad measures along
+flat out vec3 vV;
 #endif
 out vec3 vWorld;
 #ifdef SWAY
@@ -159,6 +161,11 @@ void main() {
   float sIdx = floor(pk / 8.0 + 0.01);
   vScale = SCALES[int(sIdx)];
   vec3 n = faceNormal(face);
+#ifdef CUTAWAY
+  // FACE_U / FACE_V in world/mesher.ts
+  vU = face < 1.5 ? vec3(0.0, 1.0 - face, face) : face < 2.5 ? vec3(0, 0, 1) : face < 4.5 ? vec3(1, 0, 0) : vec3(0, 1, 0);
+  vV = face < 0.5 ? vec3(0, 0, 1) : face < 1.5 ? vec3(0, 1, 0) : face < 2.5 ? vec3(1, 0, 0) : face < 3.5 ? vec3(0, 0, 1) : face < 4.5 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+#endif
   float edges = mod(aPack.z, 16.0);
   vVary = floor(aPack.z / 16.0 + 0.01) * 0.02;
   vEdge = vec4(mod(edges, 2.0), mod(floor(edges / 2.0), 2.0), mod(floor(edges / 4.0), 2.0), floor(edges / 8.0));
@@ -277,6 +284,8 @@ flat in float vScale;
 flat in float vVary;
 #ifdef CUTAWAY
 flat in float vSeam;
+flat in vec3 vU;
+flat in vec3 vV;
 #endif
 in vec3 vWorld;
 #ifdef SWAY
@@ -346,13 +355,19 @@ void main() {
   if (uCutOn > 0.5) {
     vec2 fwdH = normalize(uCamFwd.xz);
     float id;
+    // Where the face's own voxels are. With MSAA a pixel only partly covered by a face is still shaded at the
+    // pixel centre, a little outside the face: looked up there, the edges of a lowered building's faces read
+    // the owner of the column next door (or the building that owns the air above it) and were drawn as thin
+    // lines tracing its old outline. Pull the point back inside the face first.
+    const float IN = 0.05; // voxels
+    vec3 S = vWorld + (vU * (max(0.0, IN - vQuad.x) - max(0.0, IN - vQuad.y)) + vV * (max(0.0, IN - vQuad.z) - max(0.0, IN - vQuad.w))) * vScale;
     if (vSeam > 0.5) {
       // a wall between two buildings only shows where the neighbour across it has been lowered below it
       float idN;
-      if (vWorld.y <= cutAt(vWorld + vNormal * 0.06, fwdH, idN)) discard;
+      if (S.y <= cutAt(S + vNormal * 0.06, fwdH, idN)) discard;
     }
     // step a hair into the voxel this face belongs to, so faces on a column boundary pick the right owner
-    float h = cutAt(vWorld - vNormal * 0.06, fwdH, id);
+    float h = cutAt(S - vNormal * 0.06, fwdH, id);
     if (vWorld.y > h) {
       vec3 P = vWorld + uCamFwd * ((vWorld.y - h) / max(0.05, -uCamFwd.y));
       float idP;

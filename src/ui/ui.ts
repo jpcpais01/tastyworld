@@ -381,8 +381,7 @@ export class UI {
       const show = !!sp && !this.open;
       if (show !== l.visible) { l.el.style.display = show ? '' : 'none'; l.visible = show; }
       if (!sp || !show) continue;
-      l.el.style.left = `${sp[0].toFixed(1)}px`;
-      l.el.style.top = `${sp[1].toFixed(1)}px`;
+      l.el.style.translate = `${sp[0].toFixed(1)}px ${sp[1].toFixed(1)}px`;
     }
   }
 

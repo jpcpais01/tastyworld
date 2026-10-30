@@ -16,7 +16,9 @@ export class Nav {
   private pass: Uint8Array;
   private g: Float32Array;
   private came: Int32Array;
-  private state: Uint8Array;
+  /** Search state per cell, stamped per search so nothing needs clearing: open = stamp, closed = stamp + 1. */
+  private mark: Uint32Array;
+  private stamp = 0;
   private heap: Int32Array;
   private hf: Float32Array;
 
@@ -29,7 +31,7 @@ export class Nav {
     this.flags(0, 0, d.sx - 1, d.sz - 1);
     this.g = new Float32Array(n);
     this.came = new Int32Array(n);
-    this.state = new Uint8Array(n);
+    this.mark = new Uint32Array(n);
     this.heap = new Int32Array(n);
     this.hf = new Float32Array(n);
   }
@@ -187,7 +189,8 @@ export class Nav {
     if (start < 0 || goal < 0) return null;
     const { sx } = this;
     const H = this.d.height;
-    this.state.fill(0);
+    if (this.stamp > 0xfffffff0) { this.mark.fill(0); this.stamp = 0; }
+    const OPEN = (this.stamp += 2), CLOSED = OPEN + 1, mark = this.mark;
     const gx = goal % sx, gz = Math.floor(goal / sx);
     const heur = (i: number) => {
       const dx = Math.abs((i % sx) - gx), dz = Math.abs(Math.floor(i / sx) - gz);
@@ -223,7 +226,7 @@ export class Nav {
     this.g[start] = 0;
     f[start] = heur(start);
     this.came[start] = -1;
-    this.state[start] = 1;
+    mark[start] = OPEN;
     push(start);
     const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
     let found = false;
@@ -231,24 +234,24 @@ export class Nav {
     while (hs > 0 && iter++ < 400000) { // (the city is 216 x 168 m: room for routes across it)
       const cur = pop();
       if (cur === goal) { found = true; break; }
-      if (this.state[cur] === 2) continue;
-      this.state[cur] = 2;
+      if (mark[cur] === CLOSED) continue;
+      mark[cur] = CLOSED;
       const cx = cur % sx, cz = Math.floor(cur / sx);
       const ch = H[cur];
       for (const [dx, dz, cost] of D) {
         const nx = cx + dx, nz = cz + dz;
         if (nx < 0 || nz < 0 || nx >= sx || nz >= this.sz) continue;
         const ni = nz * sx + nx;
-        if (!this.pass[ni] || this.state[ni] === 2) continue;
+        if (!this.pass[ni] || mark[ni] === CLOSED) continue;
         if (Math.abs(H[ni] - ch) > MAX_STEP) continue;
         if (dx && dz && (!this.pass[cz * sx + nx] || !this.pass[nz * sx + cx])) continue;
         // narrow gaps are allowed but cost more, so open ground is still preferred
         const ng = this.g[cur] + cost * (this.clear[ni] ? 1 : TIGHT_COST);
-        if (this.state[ni] === 1 && ng >= this.g[ni]) continue;
+        if (mark[ni] === OPEN && ng >= this.g[ni]) continue;
         this.g[ni] = ng;
         this.came[ni] = cur;
         f[ni] = ng + heur(ni);
-        this.state[ni] = 1;
+        mark[ni] = OPEN;
         push(ni);
       }
     }

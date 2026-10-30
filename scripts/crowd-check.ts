@@ -19,6 +19,9 @@ const fake = () => {
   return f;
 };
 const crowd = new Crowd(nav, a, { bubble: () => { bubbles++; }, serve: () => { served++; }, quiet: () => false }, { person: fake, dog: fake, vehicle: fake, boat: fake });
+// routes arrive a frame later, the way the path worker answers in the game
+const asked: (() => void)[] = [];
+crowd.router = { find: (ax, az, bx, bz, done) => asked.length < 6 && asked.push(() => done(nav.findPath(ax, az, bx, bz))) > 0 };
 crowd.populate({ walkers: 150, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
 let hour = 6;
 crowd.settle(hour);
@@ -39,6 +42,7 @@ for (let s = 0; s < STEPS; s++) {
   player.x = 20 + 30 * (0.5 + 0.5 * Math.sin(s * dt * 0.05));
   player.running = Math.sin(s * dt * 0.3) > 0.7;
   player.speed = player.running ? 4.8 : Math.sin(s * dt * 0.11) > 0 ? 3.2 : 0;
+  for (const f of asked.splice(0)) f();
   crowd.update(dt, hour, player, [], 40);
   for (const _ of crowd.visible()) { /* hides and shows bodies like the game does */ }
   for (const f of fakes) f.facing = f.targetFacing, f.animT += dt;

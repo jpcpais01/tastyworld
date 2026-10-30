@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.7.6',
+    date: '2026-10-30',
+    title: 'Take a seat',
+    items: [
+      'Fixed customers in some cafés sitting on top of each other: smaller cafés squeezed a table in where the counter stools were. Every seat now has room around it and one person on it.',
+      'People sit on their seats properly now, on the stool rather than sunk into it, at every café, izakaya, soba counter and bench. Stools at the counters and tables moved out a little so knees fit underneath instead of through the wood.',
+      'The kissa booths are deeper, with a proper padded seat in front of each high back and a table on one leg, so the people across from each other no longer bump knees.',
+      'Passers-by can now also take a coffee break on the café terrace stools along the canal promenade.',
+    ],
+  },
+  {
     version: '0.7.5',
     date: '2026-10-30',
     title: 'Solid ground all the way',

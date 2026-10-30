@@ -44,6 +44,12 @@ const NP = PART_COUNT;
 /** Pose layout: pitch, yaw, roll per part, then the root offset. */
 const PS = NP * 3 + 3, OFF = NP * 3;
 const HIP_H = 8 * CHAR_SCALE; // hip pivot to sole
+/**
+ * How far below a seat's top surface a seated character's feet origin goes: in the sit pose the
+ * underside of the thighs is this far above the origin (hip height minus half a thigh's thickness,
+ * tilted). Checked by scripts/gait-check.ts.
+ */
+export const SIT_DROP = 0.415;
 const TAU = Math.PI * 2;
 const sstep = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const expK = (rate: number, dt: number) => 1 - Math.exp(-rate * dt);

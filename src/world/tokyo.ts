@@ -57,6 +57,8 @@ export interface Anchors {
   idlers: { id: string; pos: [number, number, number] }[];
   /** Street benches: centre x, z and the angle a sitter faces. */
   benches: [number, number, number][];
+  /** Single outdoor seats (café terrace stools): x, z and the angle a sitter faces. */
+  stools: [number, number, number][];
   cats: [number, number, number][];
   emitters: Emitter[];
   vending: [number, number, number][];
@@ -149,6 +151,7 @@ export class Builder {
   stallAnchors: StallAnchor[] = [];
   occluders: Occluder[] = [];
   benches: [number, number, number][] = [];
+  stools: [number, number, number][] = [];
 
   constructor() {
     this.c = worldColors(this.pal);
@@ -1424,11 +1427,16 @@ export function buildTokyo(): BuildResult {
     // jizō statues keeping watch beside the hokora
     for (const x of [1.95, 4.35]) { b.place(jizo(k), x, 0, 6.0, 0); solid(x, 6.0, 0.22, 0.22); }
     // café terrace tables on the promenade
+    const tablesAt: number[] = [];
     for (const [x0, col] of [[9.6, k.c.fabricRed], [11.4, k.c.fabricWhite], [43.6, k.c.fabricGreen], [45.4, k.c.fabricWhite], [65.2, k.c.fabricOrange]] as [number, number][]) {
       const x = dodge(x0, 38.65, 0.6);
+      // a table nudged out of a doorway must not land on its neighbour's stool
+      if (tablesAt.some((t) => Math.abs(t - x) < 1.4)) continue;
+      tablesAt.push(x);
       b.place(cafeTable(k, col), x, 0, 38.65, 0);
       solid(x, 38.65, 0.3, 0.3);
-      b.place(stool(k, k.c.woodLight), x + 0.55, 0, 38.65);
+      b.place(stool(k, k.c.woodLight), x + 0.6, 0, 38.65);
+      b.stools.push([x + 0.6, 38.65, -Math.PI / 2]);
     }
     // a scooter and planters on the far bank lane
     b.place(scooter(k, k.c.cubCream), 22.5, 0, 54.4, 2);
@@ -1514,6 +1522,7 @@ export function buildTokyo(): BuildResult {
       { id: 'florist', pos: [58.5, 0, 9.7] },
     ],
     benches: b.benches,
+    stools: b.stools,
     cats: [[34.4, 0, 30.4], [12.2, 0, 40.2], [49.4, 0, 52.3]],
     emitters: b.emitters,
     vending,

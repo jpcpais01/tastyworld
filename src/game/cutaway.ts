@@ -8,10 +8,13 @@ import type { Occluder } from '../world/tokyo';
  * for a moment after it stops occluding, so walking past corners or rotating the view never makes it pop.
  *
  * The shader reads two textures:
- *  - an owner map (RG8, one texel per 0.25 m column): R = occluder id, G = 255 for the building's shell
- *    (outer walls plus anything hanging off the facade) and 0 for the inside of the footprint;
- *  - a cut table (256 x 1, RGBA float) per id: shell height on the camera side, shell height on the far
+ *  - an owner map (RG8, one texel per 0.25 m column): the occluder id in R (low byte) and G (high bits,
+ *    shifted up one), and in G's lowest bit whether the column is the building's shell (outer walls plus
+ *   anything hanging off the facade) rather than the inside of the footprint;
+ *  - a cut table (64 x 64, RGBA float) per id: shell height on the camera side, shell height on the far
  *    side, height inside the footprint, and the "along the view" coordinate where the far side starts.
+ *
+ * Only occluders near the player are tested each frame (a coarse bucket grid finds them).
  *
  * Seen from outside, an occluder is cut down evenly. When the player is inside a building it becomes a
  * dollhouse: the near walls drop to waist height while the back wall, the furniture and everything under
@@ -24,6 +27,9 @@ const SPILL = 4; // voxels outside a footprint that still belong to it (awnings,
 const ROOM_TOP = 2.95; // just under the ground-floor ceiling slab (3.0 m)
 const HOLD = 0.45; // seconds an occluder stays lowered after it stops blocking
 const OFF = 1e4;
+const MAX = 4095; // ids that fit the 64 x 64 cut table (0 = nobody)
+const BUCKET = 8; // metres per cell of the lookup grid
+const REACH = 64; // metres around the player that can hold something between it and the camera
 
 export interface GridRect { ox: number; oz: number; sx: number; sz: number }
 
@@ -36,7 +42,12 @@ export class Cutaway {
   /** True for occluders currently lowered at all (drives which chunks need the cutaway material). */
   readonly active: boolean[];
   readonly occ: Occluder[];
-  private data = new Float32Array(256 * 4);
+  private data = new Float32Array(64 * 64 * 4);
+  private buckets = new Map<number, number[]>();
+  /** Occluders tested this frame: those near the player plus any still lowered. */
+  private live: number[] = [];
+  private liveT = 0;
+  private liveAt = new THREE.Vector2(1e9, 1e9);
   private st: State[];
   private worldN: number;
   private blocking: boolean[] = [];
@@ -44,25 +55,47 @@ export class Cutaway {
   private samples = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
 
   constructor(world: Occluder[], inside: Occluder[], wr: GridRect, ir: GridRect) {
-    const room = 254 - inside.length;
+    const room = MAX - inside.length;
     if (world.length > room) console.warn(`cutaway: ${world.length - room} occluders dropped`);
     this.occ = [...world.slice(0, room), ...inside];
     this.worldN = Math.min(world.length, room);
     this.st = this.occ.map(() => ({ e: 0, hold: 0, c: 0 }));
     this.active = this.occ.map(() => false);
     this.data.fill(OFF);
-    this.cut = new THREE.DataTexture(this.data, 256, 1, THREE.RGBAFormat, THREE.FloatType);
+    this.cut = new THREE.DataTexture(this.data, 64, 64, THREE.RGBAFormat, THREE.FloatType);
     this.cut.magFilter = this.cut.minFilter = THREE.NearestFilter;
     this.cut.generateMipmaps = false;
     this.cut.needsUpdate = true;
     this.ownerWorld = this.ownerMap(wr, 0, this.worldN);
     this.ownerInside = this.ownerMap(ir, this.worldN, this.occ.length);
+    this.occ.forEach((_, i) => {
+      const [x0, z0, x1, z1] = this.bounds(i);
+      for (let bz = Math.floor(z0 / BUCKET); bz <= Math.floor(z1 / BUCKET); bz++)
+        for (let bx = Math.floor(x0 / BUCKET); bx <= Math.floor(x1 / BUCKET); bx++) {
+          const k = bz * 4096 + bx;
+          let l = this.buckets.get(k);
+          if (!l) this.buckets.set(k, (l = []));
+          l.push(i);
+        }
+    });
+  }
+
+  /** Occluders whose (spilled) footprint overlaps a rect in metres. */
+  touching(x0: number, z0: number, x1: number, z1: number): number[] {
+    const out = new Set<number>();
+    for (let bz = Math.floor(z0 / BUCKET); bz <= Math.floor(z1 / BUCKET); bz++)
+      for (let bx = Math.floor(x0 / BUCKET); bx <= Math.floor(x1 / BUCKET); bx++)
+        for (const i of this.buckets.get(bz * 4096 + bx) ?? []) {
+          const [a0, b0, a1, b1] = this.bounds(i);
+          if (a0 < x1 && a1 > x0 && b0 < z1 && b1 > z0) out.add(i);
+        }
+    return [...out];
   }
 
   /** Occluder ids are their index + 1 (0 = nobody). */
   private ownerMap(g: GridRect, from: number, to: number): THREE.DataTexture {
     const n = g.sx * g.sz;
-    const id = new Uint8Array(n), shell = new Uint8Array(n), solid = new Uint8Array(n);
+    const id = new Uint16Array(n), shell = new Uint8Array(n), solid = new Uint8Array(n);
     const raster = (i: number) => {
       const o = this.occ[i];
       const [x0, z0, x1, z1] = o.rect;
@@ -100,7 +133,7 @@ export class Cutaway {
       front = next;
     }
     const rg = new Uint8Array(n * 2);
-    for (let c = 0; c < n; c++) { rg[c * 2] = id[c]; rg[c * 2 + 1] = shell[c]; }
+    for (let c = 0; c < n; c++) { rg[c * 2] = id[c] & 255; rg[c * 2 + 1] = ((id[c] >> 8) << 1) | (shell[c] ? 1 : 0); }
     const t = new THREE.DataTexture(rg, g.sx, g.sz, THREE.RGFormat, THREE.UnsignedByteType);
     t.magFilter = t.minFilter = THREE.NearestFilter;
     t.generateMipmaps = false;
@@ -127,7 +160,19 @@ export class Cutaway {
     const dx = -fwd.x, dy = -fwd.y, dz = -fwd.z; // towards the camera
     const block = this.blocking, groups = this.groups;
     groups.clear();
-    for (let i = 0; i < this.occ.length; i++) {
+    // refresh the nearby set now and then (and right away after a teleport)
+    this.liveT -= dt;
+    if (this.liveT <= 0 || Math.hypot(this.liveAt.x - p.x, this.liveAt.y - p.z) > 8) {
+      this.liveT = 0.5;
+      this.liveAt.set(p.x, p.z);
+      const near = new Set(this.touching(p.x - REACH, p.z - REACH, p.x + REACH, p.z + REACH));
+      for (const i of this.live) if (this.active[i] || this.st[i].hold > 0) near.add(i);
+      for (let i = this.worldN; i < this.occ.length; i++) near.add(i);
+      this.live = [...near];
+    }
+    const live = this.live;
+    for (let li = 0; li < live.length; li++) {
+      const i = live[li];
       const o = this.occ[i];
       const mine = inside ? i >= this.worldN : i < this.worldN;
       const [x0, z0, x1, z1] = o.rect;
@@ -141,7 +186,8 @@ export class Cutaway {
       if (b && o.group !== undefined) groups.add(o.group);
     }
     let dirty = false;
-    for (let i = 0; i < this.occ.length; i++) {
+    for (let li = 0; li < live.length; li++) {
+      const i = live[li];
       const o = this.occ[i], st = this.st[i];
       const mine = inside ? i >= this.worldN : i < this.worldN;
       const [x0, z0, x1, z1] = o.rect;

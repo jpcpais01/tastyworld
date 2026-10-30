@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.4',
+    date: '2026-10-30',
+    title: 'Everything in its place',
+    items: [
+      'Tidied up the little things: no more beer crates standing in front of the yakitori counter, stools poking into crates or counters, or menus, planters and bikes parked on top of each other.',
+      'Scooters, bikes and café tables on the pavement now find a free spot by the kerb, never in front of a shop door, and skip it if the pavement is too busy.',
+      'Stone lanterns, jizō statues, benches and street lamps sit cleanly on the ground, off temple steps and out of the cherry blossoms. The lanterns strung along the canal no longer hide inside the trees.',
+      'Inside, gachapon machines stand side by side instead of in each other, and storeroom crates sit in the corner rather than in the wall.',
+      'Under the hood: the town is now built by several helpers at once and streamed in piece by piece as you look around, so loading is quicker and phones use less memory. This makes room for a much bigger Tokyo, coming next.',
+    ],
+  },
+  {
     version: '0.8.3',
     date: '2026-10-30',
     title: 'Real sun shadows',

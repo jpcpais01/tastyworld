@@ -80,3 +80,14 @@ for (const r of town.anchors.rooms) for (const n of r.npcs) if (n.sit && !['kiss
   if (d > 0.15) { seatBad++; console.log('NO STOOL', r.id, d.toFixed(2)); }
 }
 console.log('stools', stools.length, 'tables', tables.length, 'seating problems', seatBad);
+
+// ---- every worker builds the city with only its own strip of voxels: the anchors (which come from the
+// first worker) must not depend on which strip that is
+{
+  const { buildTokyo } = await import('../src/world/tokyo');
+  const { VX0, VZ0, SX } = await import('../src/world/layout');
+  const strip = buildTokyo([VX0, VZ0, VX0 + SX, VZ0 + 32]).anchors;
+  const full = buildTokyo().anchors;
+  const diff = Object.keys(full).filter((k) => JSON.stringify((full as unknown as Record<string, unknown>)[k]) !== JSON.stringify((strip as unknown as Record<string, unknown>)[k]));
+  console.log('anchors independent of the worker strip', diff.length ? `NO: ${diff.join(', ')}` : 'yes');
+}

@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.8.6',
+    date: '2026-10-30',
+    title: 'Seats where the stools are',
+    items: [
+      'Fixed locals sometimes sitting down next to the café terrace stools on the canal promenade instead of on them.',
+      'Two street lamps on the promenade moved out of the cherry blossoms so their light reaches the pavement.',
+    ],
+  },
+  {
     version: '0.8.5',
     date: '2026-10-30',
     title: 'Peace and quiet',

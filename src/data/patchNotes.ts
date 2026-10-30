@@ -8,11 +8,23 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.7.4',
+    version: '0.7.5',
     date: '2026-10-30',
     title: 'Solid ground all the way',
     items: [
       'No more peeking into the void. The ground now carries on past the edges of the map into the soft haze, and there is a floor under everything, so the ends of the canal and the edges of the street never show empty space, from above or at eye level.',
+    ],
+  },
+  {
+    version: '0.7.4',
+    date: '2026-10-30',
+    title: 'A street you can hear',
+    items: [
+      'Footsteps! Yours and everyone else\'s, and they change with the ground: paving stones, the temple gravel, the grass on Cherry Bank and wooden or tiled shop floors.',
+      'People chatting nearby murmur away in their own little made-up language, vendors call out when they greet you, and the regulars in shops natter over their food. Further off you hear the hum of the crowd.',
+      'Some shops keep a radio on: the kissa plays jazz, the izakaya an old ballad, and others a bit of city pop, with a chatty DJ in between. The background tune steps back while you listen.',
+      'Sounds now come from where they happen: they pan as you turn the camera, fade with distance and come through muffled from the other side of a wall.',
+      'More life around town: a bush warbler in the morning, crows at dusk, bicycle bells, a level crossing in the distance, the ramen cart\'s flute late at night, and the temple bell at dusk and dawn.',
     ],
   },
   {

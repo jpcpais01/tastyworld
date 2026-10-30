@@ -58,6 +58,8 @@ const FIDGETS = 5;
  * against the legs. Other actions cross-fade from whatever pose the actor was in.
  */
 export class Actor {
+  /** Called whenever a foot touches the ground in the walk or run cycle (footstep sounds). */
+  static onStep: ((a: Actor, run: boolean) => void) | null = null;
   readonly root = new THREE.Group();
   readonly mesh: THREE.Mesh;
   readonly mat: THREE.ShaderMaterial;
@@ -413,7 +415,10 @@ export class Actor {
     // touch of glide so short legs need not patter
     const glide = 1 + 0.3 * THREE.MathUtils.clamp((v - 1.5) / 1.7, 0, 1) * (1 - run);
     const stance = Math.max(0.12, 2 * L * Math.sin(Math.max(A, 0.15)));
+    const half = Math.floor(this.phase / Math.PI);
     this.phase = (this.phase + (TAU * v * beta * dt) / (stance * glide)) % TAU;
+    // the left foot plants at the start of the cycle, the right one half a cycle later
+    if (Math.floor(this.phase / Math.PI) !== half && amp > 0.5) Actor.onStep?.(this, run > 0.5);
     const u0 = this.phase / TAU;
     const K = THREE.MathUtils.lerp(0.55 + 0.25 * Math.min(1, v / 3), 1.6, run) * amp;
     let lift = 0;

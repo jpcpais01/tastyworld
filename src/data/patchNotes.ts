@@ -8,11 +8,22 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.4.2',
+    version: '0.5.1',
     date: '2026-10-30',
     title: 'Clear water',
     items: [
       'Took the foam off Sakura Canal. The water is clean and glassy again, and it still drifts downstream with ripples, soft lapping edges and the odd floating cherry petal.',
+    ],
+  },
+  {
+    version: '0.5.0',
+    date: '2026-10-30',
+    title: 'See Tokyo through your own eyes',
+    items: [
+      'New first-person view! Tap the eye button or press V to walk the streets at eye level, and again to return to the overhead view. The game remembers which view you like.',
+      'On a computer, click to look around with the mouse and walk with WASD (Shift to run). Q and E turn you in quick steps, and clicking on a stall or person in reach talks to them.',
+      'On a phone, drag on the left side of the screen to walk and on the right side to look around. Tapping still walks you to a spot or a stall.',
+      'Up close you get a real sky at the horizon, with a soft glow around the sun and moon, and the far end of the streets fades gently into the evening haze.',
     ],
   },
   {

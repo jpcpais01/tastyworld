@@ -45,6 +45,8 @@ interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: 
 
 const PLAYER_SPEED = 3.2;
 const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
+const FP_FOG = 0.036; // first-person haze density, hides the draw distance
+const VIEW_KEY = 'tastyworld.view';
 const VENDOR_CALLS = ['Irasshaimase!', 'Fresh and hot!', 'Oishii yo!', 'Come, come!', 'Hai, dōzo!', 'Just made!'];
 
 function playerLook(wear: Record<string, boolean>): Look {
@@ -110,6 +112,9 @@ class Game {
   private joy: { id: number; sx: number; sy: number; x: number; y: number; active: boolean; run: boolean; t: number } | null = null;
   private pinch: { d: number; a: number; twist: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
+  /** First-person look drag (right side of a touch screen, or a mouse drag without pointer lock). */
+  private lookPtr: { id: number; x: number; y: number; sx: number; sy: number; t: number; moved: boolean } | null = null;
+  private wasInside = false;
   private last = performance.now();
   private hudT = 0;
   private callT = 6;
@@ -122,7 +127,7 @@ class Game {
     const mobile = matchMedia('(pointer: coarse)').matches;
     const q: Quality = this.s.settings.quality === 'auto' ? (mobile ? 'medium' : 'high') : this.s.settings.quality;
     this.r = new Renderer(canvas, q);
-    this.cam = new IsoCamera(this.r.camera);
+    this.cam = new IsoCamera(this.r.camera, this.r.persp);
     this.r.scene.add(this.worldGroup, this.insideGroup);
     this.insideGroup.visible = false;
     const hooks: GameHooks = {
@@ -138,6 +143,7 @@ class Game {
     this.ui = new UI(this.s, this.audio, hooks);
     this.ui.onPrompt = () => this.interact();
     this.ui.onRotate = (d) => this.cam.rotate(d);
+    this.ui.onView = () => this.setFirstPerson(!this.cam.fp);
     this.applySettings();
     window.addEventListener('resize', () => this.r.resize());
   }
@@ -397,6 +403,9 @@ class Game {
     this.cam.zoom = this.r.isMobile ? 15 : 17;
     this.ui.showHud(true);
     this.applySettings();
+    let fp = false;
+    try { fp = localStorage.getItem(VIEW_KEY) === 'fp'; } catch { /* storage blocked */ }
+    if (fp) this.setFirstPerson(true, true);
     if (!this.s.flags.introSeen) {
       this.s.flags.introSeen = true;
       this.s.flags.lastPatch = PATCH_NOTES[0].version;
@@ -424,7 +433,7 @@ class Game {
     else { this.r.autoQuality = false; this.r.renderScale = 1; this.r.setQuality(st.quality); this.r.resize(); }
     this.audio.setMusic(st.music);
     this.audio.setSfx(st.sfx);
-    this.r.composite.uniforms.uTilt.value = st.tilt ? 0.6 : 0;
+    this.r.composite.uniforms.uTilt.value = st.tilt && !this.cam.fp ? 0.6 : 0;
     this.tod.dayLength = st.dayLength;
   }
 
@@ -544,6 +553,36 @@ class Game {
     this.afterChange();
   }
 
+  /** Switch between the isometric view and first person. */
+  private setFirstPerson(on: boolean, quiet = false): void {
+    if (!this.started || on === this.cam.fp) return;
+    this.cam.setFirstPerson(on, this.player.facing);
+    this.r.firstPerson = on;
+    this.ui.setFirstPerson(on);
+    this.r.composite.uniforms.uTilt.value = this.s.settings.tilt && !on ? 0.6 : 0;
+    this.lookPtr = null;
+    this.joy = null;
+    this.pinch = null;
+    if (on) this.cutOn = 0;
+    else {
+      this.player.facing = this.player.targetFacing = this.cam.fpYaw;
+      if (document.pointerLockElement) document.exitPointerLock();
+    }
+    try { localStorage.setItem(VIEW_KEY, on ? 'fp' : 'iso'); } catch { /* storage blocked */ }
+    if (!quiet) {
+      this.audio.play('whoosh');
+      if (on) this.ui.toast('👀', 'First-person view', this.r.isMobile
+        ? 'Drag on the left to walk, on the right to look around. Tap the eye to switch back.'
+        : 'Click to look around with the mouse, WASD to walk. Press V to switch back.');
+    }
+  }
+
+  private requestLook(): void {
+    if (this.ui.busy) return;
+    const canvas = this.r.gl.domElement;
+    try { void Promise.resolve(canvas.requestPointerLock()).catch(() => {}); } catch { /* unsupported */ }
+  }
+
   private setHeightField(inside: boolean): void {
     const n = inside ? this.w.interiorNav : this.w.nav;
     const sh = this.r.shared;
@@ -616,6 +655,7 @@ class Game {
         case 'KeyE': this.cam.rotate(1); break;
         case 'KeyP': this.ui.open ? this.ui.close() : this.ui.passport(); break;
         case 'KeyM': this.ui.open ? this.ui.close() : this.ui.map(); break;
+        case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
         case 'Escape': this.ui.endDialogue(); this.ui.close(); break;
         case 'Equal': case 'NumpadAdd': this.cam.zoomBy(0.85); break;
         case 'Minus': case 'NumpadSubtract': this.cam.zoomBy(1.18); break;
@@ -623,11 +663,15 @@ class Game {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
+    document.addEventListener('mousemove', (e) => {
+      if (document.pointerLockElement === canvas && this.cam.fp && !this.ui.busy) this.cam.look(e.movementX * 0.0022, e.movementY * 0.0022);
+    });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.cam.zoomBy(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
     canvas.addEventListener('pointerdown', (e) => {
       this.audio.start();
       canvas.setPointerCapture(e.pointerId);
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.cam.fp) { this.fpPointerDown(e); return; }
       if (this.pointers.size === 2) {
         const [p1, p2] = [...this.pointers.values()];
         this.pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), a: Math.atan2(p2.y - p1.y, p2.x - p1.x), twist: 0 };
@@ -640,6 +684,14 @@ class Game {
       const p = this.pointers.get(e.pointerId);
       if (!p) return;
       p.x = e.clientX; p.y = e.clientY;
+      const lp = this.lookPtr;
+      if (lp && lp.id === e.pointerId) {
+        const k = e.pointerType === 'mouse' ? 0.004 : 0.0058;
+        if (!lp.moved && Math.hypot(e.clientX - lp.sx, e.clientY - lp.sy) > 8) lp.moved = true;
+        if (lp.moved && !this.ui.busy) this.cam.look((e.clientX - lp.x) * k, (e.clientY - lp.y) * k);
+        lp.x = e.clientX; lp.y = e.clientY;
+        return;
+      }
       if (this.pinch && this.pointers.size >= 2) {
         const [p1, p2] = [...this.pointers.values()];
         const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
@@ -672,6 +724,16 @@ class Game {
     const up = (e: PointerEvent) => {
       this.pointers.delete(e.pointerId);
       if (this.pointers.size < 2) this.pinch = null;
+      const lp = this.lookPtr;
+      if (lp && lp.id === e.pointerId) {
+        this.lookPtr = null;
+        if (!lp.moved && performance.now() - lp.t < 450 && e.type === 'pointerup') {
+          // a mouse click grabs the pointer for mouse look, a touch tap walks or interacts like in the iso view
+          if (e.pointerType === 'mouse') this.requestLook();
+          else this.tap(e.clientX, e.clientY);
+        }
+        return;
+      }
       const j = this.joy;
       if (j && j.id === e.pointerId) {
         if (!j.active && performance.now() - j.t < 450 && e.type === 'pointerup') this.tap(e.clientX, e.clientY);
@@ -680,6 +742,44 @@ class Game {
     };
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
+  }
+
+  /** First person: with the mouse locked a click uses whatever is under the crosshair; touches split into a stick (left) and look (right). */
+  private fpPointerDown(e: PointerEvent): void {
+    const canvas = this.r.gl.domElement;
+    if (e.pointerType === 'mouse') {
+      if (document.pointerLockElement === canvas) {
+        if (e.button === 0) this.fpUse();
+        return;
+      }
+      this.lookPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false };
+      return;
+    }
+    if (e.clientX < window.innerWidth * 0.45 && !this.joy) {
+      this.joy = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: 0, y: 0, active: false, run: false, t: performance.now() };
+    } else if (!this.lookPtr) {
+      this.lookPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false };
+    }
+  }
+
+  /** Locked-mouse click: interact with what's in reach, or walk to the thing under the crosshair. */
+  private fpUse(): void {
+    if (this.ui.advanceDialogue()) return;
+    if (!this.started || this.ui.busy) return;
+    if (this.near) { this.interact(); return; }
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    let best: Interactable | null = null, bd = 60;
+    for (const it of this.interactables) {
+      if (it.inside !== this.inside) continue;
+      const sp = this.screen(it.pick);
+      if (!sp) continue;
+      const d = Math.hypot(sp[0] - cx, sp[1] - cy);
+      if (d < bd) { bd = d; best = it; }
+    }
+    if (!best) return;
+    const p = this.player.position;
+    const path = this.nav.findPath(p.x, p.z, best.stand[0], best.stand[1]);
+    if (path) { this.path = path; this.pending = best; this.audio.play('click'); }
   }
 
   private tap(x: number, y: number): void {
@@ -765,6 +865,7 @@ class Game {
       if (this.path.length > 0) {
         p.x += dx * step; p.z += dz * step;
         pl.targetFacing = Math.atan2(dx, dz);
+        if (this.cam.fp) this.cam.turnToward(pl.targetFacing, dt);
       } else {
         // free movement slides along walls and nudges round corners, chairs and tree trunks
         const m = this.nav.slide(p.x, p.z, dx, dz, step, from, this.slideSide);
@@ -888,7 +989,7 @@ class Game {
     const all: Actor[] = this.inside ? [this.chef] : [...this.vendors.map((v) => v.actor), ...this.idlers.map((e) => e.actor), ...this.walkers.map((w) => w.actor), ...this.cats.map((c) => c.actor)];
     this.blobs.begin();
     const pl = this.player.position;
-    this.blobs.add(pl.x, pl.y + 0.02, pl.z, 0.62, 0.5);
+    if (!this.cam.fp) this.blobs.add(pl.x, pl.y + 0.02, pl.z, 0.62, 0.5);
     for (const a of all) {
       a.update(dt);
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
@@ -903,10 +1004,14 @@ class Game {
   private updateNear(): void {
     const p = this.player.position;
     let best: Interactable | null = null, bd = Infinity;
+    // in first person, prefer what you're looking at
+    const fp = this.cam.fp, f = this.cam.fwd, fl = Math.hypot(f.x, f.z) || 1;
     for (const it of this.interactables) {
       if (it.inside !== this.inside) continue;
       const d = Math.hypot(it.x - p.x, it.z - p.z);
-      if (d < it.r && d < bd) { bd = d; best = it; }
+      if (d >= it.r) continue;
+      const score = fp ? d - (((it.x - p.x) * f.x + (it.z - p.z) * f.z) / (fl * Math.max(d, 0.05))) * 0.8 : d;
+      if (score < bd) { bd = score; best = it; }
     }
     this.near = best;
     const pr = best && this.started && !this.ui.busy ? best.prompt() : null;
@@ -921,7 +1026,7 @@ class Game {
   private updateCutaway(dt: number): void {
     const p = this.player.position;
     const sh = this.r.shared;
-    this.cutOn += ((this.started ? 1 : 0) - this.cutOn) * Math.min(1, dt * 3);
+    this.cutOn += ((this.started && !this.cam.fp ? 1 : 0) - this.cutOn) * Math.min(1, dt * 3);
     const R = THREE.MathUtils.clamp(this.cam.zoom * 0.27, 3.6, 7) * (this.inside ? 0.8 : 1);
     sh.uCutOn.value = this.cutOn;
     sh.uCutRadius.value = R;
@@ -946,7 +1051,12 @@ class Game {
   }
 
   private updateCamera(dt: number): void {
-    if (this.started) this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
+    if (this.cam.fp) {
+      this.cam.target.copy(this.player.position);
+      this.cam.fpSpeed = this.player.speed * 1.4;
+      if (this.inside !== this.wasInside) this.cam.fpYaw = this.player.facing; // just came through a door
+    } else if (this.started) this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
+    this.wasInside = this.inside;
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
   }
 
@@ -967,6 +1077,11 @@ class Game {
     this.updateNear();
     this.updateCamera(dt);
     this.updateCutaway(dt);
+    const fp = this.cam.fp;
+    this.player.root.visible = !fp;
+    const eye = this.r.persp.position;
+    sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? FP_FOG : 0);
+    if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi.update(sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     const pl = this.player.position;

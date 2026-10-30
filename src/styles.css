@@ -185,6 +185,10 @@ button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
 .dock button { position: relative; width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; color: var(--ink); transition: background-color 0.15s, transform 0.1s; }
 .dock button:hover { background: var(--cream-2); }
 .dock button:active { transform: scale(0.92); }
+.dock button.on { background: var(--tomato-soft); color: var(--tomato-deep); }
+.xhair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255, 250, 242, 0.9); box-shadow: 0 0 0 1.5px rgba(29, 21, 18, 0.35); display: none; }
+#hud.fp .xhair { display: block; }
+@media (pointer: coarse) { #hud.fp .xhair { display: none; } }
 .dot { position: absolute; top: 5px; right: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--tomato); box-shadow: 0 0 0 2px var(--cream); animation: blip 1.6s ease-in-out infinite; }
 @keyframes blip { 50% { transform: scale(1.25); } }
 

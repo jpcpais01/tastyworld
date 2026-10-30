@@ -7,6 +7,12 @@ float hash12(vec2 p) {
   p3 += dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
 }
+// first-person haze starts this far from the eye (m)
+const float FOG_START = 18.0;
+// depth buffer value -> distance along the view axis in metres (orthographic or perspective)
+float linZ(float d, vec3 clip) {
+  return clip.z > 0.5 ? clip.x * clip.y / (clip.y - d * (clip.y - clip.x)) : clip.x + d * (clip.y - clip.x);
+}
 float vnoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   vec2 u = f * f * (3.0 - 2.0 * f);
@@ -113,6 +119,7 @@ uniform float uEmitDay;
 uniform float uTime;
 uniform float uCloud;
 uniform vec4 uBounds; // x0, z0, x1, z1 of the playable map (fade outside)
+uniform vec4 uFog;    // first-person eye position and haze density (0 in the iso view)
 #ifdef CHARACTER
 uniform vec3 uCharLight; // sun, sky, highlight
 uniform vec3 uCharLamp;
@@ -231,6 +238,10 @@ void main() {
   vec2 outside = max(uBounds.xy - vWorld.xz, vWorld.xz - uBounds.zw);
   float fo = smoothstep(0.0, 9.0, max(outside.x, outside.y));
   col = mix(col, uFogColor, fo);
+  if (uFog.w > 0.0) {
+    float fd = max(0.0, distance(vWorld, uFog.xyz) - FOG_START) * uFog.w;
+    col = mix(col, uFogColor, 1.0 - exp(-fd * fd));
+  }
 #ifdef CUTAWAY
   if (capped) {
     // section cap: dark poché with faint voxel grid and a warm outline along the walls
@@ -352,6 +363,9 @@ uniform mat4 uInvViewProj;
 uniform mat4 uViewProj;
 uniform vec3 uCamFwd;
 uniform vec2 uRes;
+uniform vec3 uClip;     // near, far, perspective
+uniform vec4 uFog;      // first-person eye position and haze density
+uniform vec3 uFogColor;
 uniform float uTime;
 uniform float uWaterY;
 uniform vec3 uSunDir;
@@ -439,12 +453,21 @@ void main() {
   vec3 col = texture(tScene, uv).rgb;
   vec3 wpos = worldAt(uv, depth);
 
+  // per-pixel view ray (constant for the iso camera, fans out in first person)
+  vec3 near = worldAt(uv, 0.0);
+  vec3 rd = normalize(worldAt(uv, 1.0) - near);
   if (depth >= 0.99999) {
-    // background haze gradient
-    col = mix(uSkyHorizon, uSkyTop, smoothstep(-0.2, 1.2, uv.y));
+    if (uClip.z > 0.5) {
+      // eye-level sky: haze at the horizon melting into the gradient, with a soft glow round the sun or moon
+      vec3 sky = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.7, rd.y));
+      col = mix(uFogColor, sky, smoothstep(-0.04, 0.22, rd.y));
+      float sd = max(dot(rd, uSunDir), 0.0);
+      col += uSunColor * (pow(sd, 900.0) * 5.0 + pow(sd, 14.0) * 0.12);
+    } else {
+      // background haze gradient
+      col = mix(uSkyHorizon, uSkyTop, smoothstep(-0.2, 1.2, uv.y));
+    }
   } else if (wpos.y < uWaterY - 0.004 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w) {
-    vec3 rd = normalize(uCamFwd);
-    vec3 near = worldAt(uv, 0.0);
     float tPlane = (uWaterY - near.y) / rd.y;
     vec3 sp = near + rd * tPlane;
     // shoreline field: distance and its gradient (points away from the bank, into open water)
@@ -506,7 +529,7 @@ void main() {
         if (suv.x < 0.0 || suv.y < 0.0 || suv.x > 1.0 || suv.y > 1.0) break;
         float sd = texture(tDepth, suv).r;
         float rz = clip.z / clip.w * 0.5 + 0.5;
-        if (sd < rz && rz - sd < 0.02) {
+        if (sd < rz && linZ(rz, uClip) - linZ(sd, uClip) < (uClip.z > 0.5 ? 1.2 : 8.0)) {
           vec3 hp = worldAt(suv, sd);
           if (hp.y > uWaterY - 0.05) {
             vec2 edgeF = smoothstep(vec2(0.0), vec2(0.08), suv) * smoothstep(vec2(0.0), vec2(0.08), 1.0 - suv);
@@ -537,6 +560,10 @@ void main() {
       f = mat2(cos(a), -sin(a), sin(a), cos(a)) * f;
       float pet = smoothstep(0.075, 0.05, length(f * vec2(1.0, 1.9)));
       water = mix(water, srgb2lin(vec3(0.96, 0.74, 0.82)) * clamp(lightF, 0.08, 1.4), pet * smoothstep(0.05, 0.3, dEdge) * 0.9);
+    }
+    if (uFog.w > 0.0) {
+      float fd = max(0.0, distance(sp, uFog.xyz) - FOG_START) * uFog.w;
+      water = mix(water, uFogColor, 1.0 - exp(-fd * fd));
     }
     col = water;
   } else if (wpos.y < uWaterY + 0.4 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w) {
@@ -650,8 +677,10 @@ void main() {
 
 export const PARTICLE_FRAG = /* glsl */ `
 precision highp float;
+${COMMON}
 uniform sampler2D tDepth;
 uniform vec3 uLight;
+uniform vec3 uClip;
 in vec2 vUv;
 in float vAlpha;
 in vec3 vTint;
@@ -678,8 +707,10 @@ void main() {
   vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5;
   float sd = texture(tDepth, suv).r;
   float pz = vClip.z / vClip.w * 0.5 + 0.5;
-  if (pz > sd + 0.0004) a = 0.0;
-  else a *= clamp((sd - pz) * 900.0, 0.0, 1.0);
+  float lz = linZ(pz, uClip);
+  a *= clamp((linZ(sd, uClip) - lz) * 2.25, 0.0, 1.0);
+  // in first person, don't let a puff of steam fill the screen
+  if (uClip.z > 0.5) a *= smoothstep(0.35, 1.3, lz);
   vec3 col = vTint * (vKind > 3.5 ? vec3(1.0) : uLight);
   if (vKind > 4.5) { outColor = vec4(col * a, a * 0.5); return; }
   outColor = vec4(col * a, a);

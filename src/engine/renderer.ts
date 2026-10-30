@@ -26,6 +26,8 @@ export function makeSharedUniforms() {
     uCutRadius: { value: 9 },
     uCutH: { value: 1.15 },
     uCutOn: { value: 0 },
+    /** First-person distance fog: camera position and density (0 = off). */
+    uFog: { value: new THREE.Vector4(0, 0, 0, 0) },
     tHeight: { value: null as THREE.Texture | null },
     uHeightRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     uViewProj: { value: new THREE.Matrix4() },
@@ -59,6 +61,11 @@ export class Renderer {
   readonly scene = new THREE.Scene();
   readonly particleScene = new THREE.Scene();
   readonly camera: THREE.OrthographicCamera;
+  /** Eye-level camera for first-person view. Its far plane is the draw distance (the fog hides the cut). */
+  readonly persp = new THREE.PerspectiveCamera(72, 1, 0.06, 80);
+  firstPerson = false;
+  /** near, far, 1 when perspective: lets depth-based effects work in metres with either camera. */
+  readonly clip: THREE.IUniform<THREE.Vector3> = { value: new THREE.Vector3(1, 400, 0) };
   readonly shared = makeSharedUniforms();
   /** Depth texture uniform shared with particle materials (refreshed every frame). */
   readonly particleDepth: THREE.IUniform<THREE.Texture | null> = { value: null };
@@ -105,7 +112,8 @@ export class Renderer {
     this.composite = fsMaterial(COMPOSITE_FRAG, {
       tScene: { value: null }, tDepth: { value: null }, tBloom: { value: null }, tHalf: { value: null }, tParticles: { value: null },
       uInvViewProj: { value: new THREE.Matrix4() }, uViewProj: { value: new THREE.Matrix4() },
-      uCamFwd: { value: this.shared.uCamFwd.value }, uRes: { value: new THREE.Vector2() },
+      uCamFwd: { value: this.shared.uCamFwd.value }, uRes: { value: new THREE.Vector2() }, uClip: this.clip,
+      uFog: this.shared.uFog, uFogColor: this.shared.uFogColor,
       uTime: this.shared.uTime, uWaterY: { value: WATER_Y }, uSunDir: this.shared.uSunDir, uSunColor: this.shared.uSunColor,
       uSkyTop: { value: new THREE.Color() }, uSkyHorizon: { value: new THREE.Color() },
       uWaterDeep: { value: new THREE.Color(0.02, 0.09, 0.1) }, uWaterScatter: { value: new THREE.Color(0.05, 0.22, 0.24) },
@@ -150,6 +158,13 @@ export class Renderer {
     this.rtParticles = half(2, THREE.HalfFloatType);
     this.bloom = [half(4), half(8), half(16), half(32)];
     this.composite.uniforms.uRes.value.set(w, h);
+    this.persp.aspect = cw / Math.max(1, ch);
+    this.persp.updateProjectionMatrix();
+  }
+
+  /** The camera the scene is drawn with. */
+  get view(): THREE.OrthographicCamera | THREE.PerspectiveCamera {
+    return this.firstPerson ? this.persp : this.camera;
   }
 
   private disposeTargets() {
@@ -190,8 +205,9 @@ export class Renderer {
 
   render(): void {
     const gl = this.gl;
-    const cam = this.camera;
+    const cam = this.view;
     cam.updateMatrixWorld();
+    this.clip.value.set(cam.near, cam.far, this.firstPerson ? 1 : 0);
     this.shared.uViewProj.value.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     // scene
     gl.setRenderTarget(this.rtScene);

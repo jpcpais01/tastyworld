@@ -12,6 +12,7 @@ export const SHELL = 2; // voxels of outer wall
 export const SPILL = 4; // voxels outside a footprint that still belong to it (awnings, signs, balconies, pipes)
 const MASS_H = 8; // voxels (2 m): a column at least this tall from the street is part of a solid mass
 const MASS_MIN = 12; // columns: smaller unregistered pieces (poles, pipes) are left to the spill
+const REACH = 8; // further voxels a footprint follows things hanging overhead (blade signs, deep eaves)
 const TILE = 32; // columns: unregistered masses are split into tiles of at most 8 m
 /** Ids that fit the cutaway's 64 x 64 cut table and its 12-bit owner texture (0 = nobody). */
 export const MAX_ID = 4095;
@@ -147,6 +148,25 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
         if (kk < 0 || jj < 0 || kk >= g.sx || jj >= g.sz) continue;
         const cc = jj * g.sx + kk;
         if (id[cc]) continue;
+        id[cc] = id[c];
+        shell[cc] = 255;
+        next.push(cc);
+      }
+    }
+    front = next;
+  }
+  // and further out, but only over columns with something up in the air and open ground below it
+  const overhead = (c: number) => f.height[c] < MASS_H && (f.solid[c * 2] >>> MASS_H !== 0 || f.solid[c * 2 + 1] !== 0);
+  front = front.filter(overhead);
+  for (let step = 0; step < REACH && front.length; step++) {
+    const next: number[] = [];
+    for (const c of front) {
+      const k = c % g.sx, j = (c - k) / g.sx;
+      for (const [dk, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const kk = k + dk, jj = j + dj;
+        if (kk < 0 || jj < 0 || kk >= g.sx || jj >= g.sz) continue;
+        const cc = jj * g.sx + kk;
+        if (id[cc] || !overhead(cc)) continue;
         id[cc] = id[c];
         shell[cc] = 255;
         next.push(cc);

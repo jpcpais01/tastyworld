@@ -15,7 +15,7 @@ export const PATCH_NOTES: PatchNote[] = [
       'Buildings no longer lose their side walls when the house next door lowers out of the way. Every building now has a proper wall of its own where it meets its neighbour, so you never look into an empty shell or see a roof floating on nothing.',
       'A building only lowers when it really hides you, not when you are merely standing near its corner. Buildings beside you stay standing.',
       'The back blocks, boundary walls and other tall masses that had no owner now lower cleanly as a whole too, and they no longer drag pieces of the buildings around them down with them.',
-      'Window sills, pipes and eaves stay with their own building, and trees no longer pull a neighbouring awning or balcony down with their canopy.',
+      'Window sills, pipes, eaves and the big neon blade signs stay with their own building and lower with it, and trees no longer pull a neighbouring awning or balcony down with their canopy.',
       'Lowering starts from the true top of each building, so it reacts the moment you step behind it.',
     ],
   },

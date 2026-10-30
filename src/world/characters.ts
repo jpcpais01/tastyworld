@@ -1,0 +1,257 @@
+import { Grid, rng } from './grid';
+import { Palette } from './palette';
+
+/** Procedural voxel people and cats. Each voxel carries a part id so the shader can animate limbs. */
+
+export const CHAR_SCALE = 0.075;
+export const CAT_SCALE = 0.05;
+
+export const PART = { body: 0, head: 1, armL: 2, armR: 3, legL: 4, legR: 5, tail: 6, extra: 7 };
+
+export interface CharModel {
+  grid: Grid;
+  parts: Uint8Array;
+  pal: Palette;
+  scale: number;
+  origin: [number, number, number];
+  pivots: [number, number, number][];
+}
+
+export interface Look {
+  skin: number;
+  hair: number;
+  hairStyle: 'short' | 'bob' | 'bun' | 'long' | 'bald' | 'spiky' | 'ponytail';
+  top: number;
+  topStyle: 'tee' | 'jacket' | 'apron' | 'yukata' | 'suit' | 'sailor' | 'vest' | 'cardigan' | 'happi';
+  accent: number;
+  bottom: number;
+  skirt?: boolean;
+  shoes: number;
+  hat?: 'cap' | 'headband' | 'chef' | 'straw' | 'bucket' | 'beanie' | 'none';
+  hatColor?: number;
+  backpack?: number;
+  glasses?: boolean;
+  charm?: boolean;
+}
+
+const SKINS = [0xf6d2b4, 0xeec39f, 0xe0ac86, 0xc98f6a, 0xa8714f, 0xf9dcc4];
+const HAIRS = [0x1d1a1c, 0x2a1d17, 0x3b2a20, 0x5a3b26, 0x8a5a36, 0x6b6b70, 0xb9b6b0, 0x1d1a1c, 0x2a1d17];
+const TOPS = [0xe8e4da, 0x3f6e9a, 0xd9534a, 0x4f9a6b, 0xf2c74a, 0x8a6fb0, 0x2b3a62, 0xf08ac0, 0x6a8a9a, 0xd98a5a, 0x2f2f35, 0xf4f1ea];
+const BOTTOMS = [0x2b3a62, 0x3a3a40, 0x5a4a3a, 0x7a8a9a, 0x2f2f35, 0x8a6a4a, 0x4a5a3a];
+const SHOES = [0x2a2a2e, 0xf2efe7, 0x6b4630, 0xc9463d, 0x3f6e9a];
+
+export function randomLook(seed: number): Look {
+  const r = rng(seed);
+  const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
+  const hairStyles: Look['hairStyle'][] = ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald'];
+  const topStyles: Look['topStyle'][] = ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'];
+  const topStyle = pick(topStyles);
+  const hats: Look['hat'][] = ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'];
+  return {
+    skin: pick(SKINS), hair: pick(HAIRS), hairStyle: pick(hairStyles), top: pick(TOPS), topStyle,
+    accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.3, shoes: pick(SHOES),
+    hat: pick(hats), hatColor: pick(TOPS), backpack: r() < 0.15 ? pick(TOPS) : undefined, glasses: r() < 0.15,
+  };
+}
+
+export function buildPerson(look: Look): CharModel {
+  const W = 10, H = 25, D = 8;
+  const grid = new Grid(W, H, D);
+  const parts = new Uint8Array(W * H * D);
+  const pal = new Palette();
+  const C = (hex: number, vary = 0.04) => pal.add(hex, { vary });
+  const set = (x: number, y: number, z: number, c: number, part: number) => {
+    if (x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= D) return;
+    grid.set(x, y, z, c);
+    parts[y * W * D + z * W + x] = part;
+  };
+  const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, c: number, part: number) => {
+    for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) set(x, y, z, c, part);
+  };
+  const skin = C(look.skin, 0.02), hair = C(look.hair, 0.06), top = C(look.top), accent = C(look.accent), bottom = C(look.bottom), shoes = C(look.shoes, 0.03);
+  const dark = C(0x1d1a1c, 0.01), white = C(0xf8f6f0, 0.01), blush = C(0xf09a90, 0.02), mouth = C(0xb0584a, 0.02);
+
+  // legs
+  if (look.skirt && look.topStyle !== 'yukata') {
+    box(2, 2, 2, 4, 3, 5, skin, PART.legL); box(5, 2, 2, 7, 3, 5, skin, PART.legR);
+    box(2, 4, 2, 4, 7, 5, bottom, PART.legL); box(5, 4, 2, 7, 7, 5, bottom, PART.legR);
+    box(1, 5, 1, 8, 8, 6, bottom, PART.body);
+  } else {
+    box(2, 2, 2, 4, 7, 5, bottom, PART.legL); box(5, 2, 2, 7, 7, 5, bottom, PART.legR);
+  }
+  box(2, 0, 2, 4, 1, 6, shoes, PART.legL); box(5, 0, 2, 7, 1, 6, shoes, PART.legR);
+
+  // torso
+  box(2, 8, 2, 7, 14, 5, top, PART.body);
+  // arms
+  const sleeve = look.topStyle === 'tee' || look.topStyle === 'apron' || look.topStyle === 'vest' ? skin : top;
+  box(0, 8, 3, 1, 9, 4, skin, PART.armL); box(8, 8, 3, 9, 9, 4, skin, PART.armR);
+  box(0, 10, 3, 1, 12, 4, sleeve, PART.armL); box(8, 10, 3, 9, 12, 4, sleeve, PART.armR);
+  box(0, 13, 3, 1, 14, 4, top, PART.armL); box(8, 13, 3, 9, 14, 4, top, PART.armR);
+
+  switch (look.topStyle) {
+    case 'jacket':
+      box(2, 8, 2, 7, 14, 5, accent, PART.body);
+      box(4, 8, 5, 5, 14, 5, top, PART.body);
+      box(0, 10, 3, 1, 14, 4, accent, PART.armL); box(8, 10, 3, 9, 14, 4, accent, PART.armR);
+      break;
+    case 'suit': {
+      const suit = C(0x2b3346), shirt = white, tie = C(0xb3302a);
+      box(2, 8, 2, 7, 14, 5, suit, PART.body);
+      box(4, 10, 5, 5, 14, 5, shirt, PART.body);
+      box(4, 9, 5, 4, 13, 5, tie, PART.body);
+      box(0, 10, 3, 1, 14, 4, suit, PART.armL); box(8, 10, 3, 9, 14, 4, suit, PART.armR);
+      box(2, 2, 2, 4, 7, 5, suit, PART.legL); box(5, 2, 2, 7, 7, 5, suit, PART.legR);
+      break;
+    }
+    case 'sailor': {
+      const navy = C(0x23345e), red = C(0xc8372d);
+      box(2, 8, 2, 7, 14, 5, white, PART.body);
+      box(2, 13, 1, 7, 14, 2, navy, PART.body);
+      box(3, 11, 5, 6, 14, 5, navy, PART.body);
+      box(4, 11, 5, 5, 12, 5, red, PART.body);
+      break;
+    }
+    case 'apron':
+      box(2, 4, 5, 7, 12, 6, accent, PART.body);
+      box(3, 13, 5, 6, 13, 5, accent, PART.body);
+      break;
+    case 'yukata': {
+      const obi = accent;
+      box(2, 2, 2, 7, 14, 5, top, PART.body);
+      box(1, 2, 2, 8, 4, 6, top, PART.body);
+      box(2, 9, 2, 7, 10, 6, obi, PART.body);
+      box(4, 11, 5, 5, 14, 5, C(0xf2efe7), PART.body);
+      box(0, 10, 3, 1, 14, 4, top, PART.armL); box(8, 10, 3, 9, 14, 4, top, PART.armR);
+      box(0, 9, 2, 1, 11, 5, top, PART.armL); box(8, 9, 2, 9, 11, 5, top, PART.armR);
+      break;
+    }
+    case 'happi': {
+      box(2, 8, 2, 7, 14, 5, accent, PART.body);
+      box(2, 8, 5, 7, 8, 5, white, PART.body);
+      box(3, 9, 5, 3, 14, 5, white, PART.body); box(6, 9, 5, 6, 14, 5, white, PART.body);
+      box(0, 10, 3, 1, 14, 4, accent, PART.armL); box(8, 10, 3, 9, 14, 4, accent, PART.armR);
+      box(0, 10, 3, 1, 10, 4, white, PART.armL); box(8, 10, 3, 9, 10, 4, white, PART.armR);
+      break;
+    }
+    case 'vest':
+      box(2, 8, 2, 7, 14, 2, accent, PART.body);
+      box(2, 8, 5, 3, 14, 5, accent, PART.body); box(6, 8, 5, 7, 14, 5, accent, PART.body);
+      box(2, 8, 3, 2, 14, 4, accent, PART.body); box(7, 8, 3, 7, 14, 4, accent, PART.body);
+      break;
+    case 'cardigan':
+      box(2, 8, 2, 7, 14, 5, accent, PART.body);
+      box(4, 9, 5, 5, 14, 5, top, PART.body);
+      for (let y = 9; y <= 13; y += 2) set(3, y, 5, white, PART.body);
+      box(0, 10, 3, 1, 14, 4, accent, PART.armL); box(8, 10, 3, 9, 14, 4, accent, PART.armR);
+      break;
+    default:
+      if (look.accent !== look.top) box(2, 12, 5, 7, 12, 5, accent, PART.body);
+  }
+
+  // head
+  box(2, 15, 1, 7, 21, 6, skin, PART.head);
+  set(1, 18, 3, skin, PART.head); set(8, 18, 3, skin, PART.head);
+  // face
+  set(3, 18, 6, dark, PART.head); set(6, 18, 6, dark, PART.head);
+  set(3, 19, 6, look.glasses ? dark : skin, PART.head); set(6, 19, 6, look.glasses ? dark : skin, PART.head);
+  if (look.glasses) { box(2, 18, 6, 7, 18, 6, dark, PART.head); set(3, 18, 6, white, PART.head); set(6, 18, 6, white, PART.head); }
+  set(2, 17, 6, blush, PART.head); set(7, 17, 6, blush, PART.head);
+  set(4, 16, 6, mouth, PART.head); set(5, 16, 6, mouth, PART.head);
+
+  // hair
+  const hs = look.hairStyle;
+  if (hs !== 'bald') {
+    box(2, 21, 1, 7, 22, 6, hair, PART.head);
+    box(2, 16, 1, 7, 21, 1, hair, PART.head);
+    box(2, 18, 1, 2, 21, 4, hair, PART.head); box(7, 18, 1, 7, 21, 4, hair, PART.head);
+    box(2, 21, 6, 7, 21, 6, hair, PART.head);
+    if (hs === 'bob' || hs === 'long') {
+      box(1, 16, 1, 1, 21, 5, hair, PART.head); box(8, 16, 1, 8, 21, 5, hair, PART.head);
+      box(2, 20, 6, 7, 20, 6, hair, PART.head);
+      if (hs === 'long') box(2, 11, 0, 7, 16, 1, hair, PART.head);
+    }
+    if (hs === 'bun') box(4, 23, 2, 5, 24, 3, hair, PART.head);
+    if (hs === 'ponytail') { box(4, 17, 0, 5, 20, 0, hair, PART.head); box(4, 15, 0, 5, 16, 0, hair, PART.head); }
+    if (hs === 'spiky') { set(3, 23, 3, hair, PART.head); set(5, 23, 4, hair, PART.head); set(6, 23, 2, hair, PART.head); set(2, 22, 5, hair, PART.head); }
+  } else {
+    box(2, 18, 1, 2, 19, 3, C(0xb9b6b0), PART.head); box(7, 18, 1, 7, 19, 3, C(0xb9b6b0), PART.head);
+  }
+
+  // hats
+  const hc = C(look.hatColor ?? 0xf2efe7);
+  switch (look.hat) {
+    case 'cap': box(2, 22, 1, 7, 23, 6, hc, PART.head); box(2, 22, 7, 7, 22, 7, hc, PART.head); break;
+    case 'beanie': box(2, 21, 1, 7, 23, 6, hc, PART.head); box(1, 21, 1, 8, 21, 6, hc, PART.head); break;
+    case 'bucket': box(1, 22, 0, 8, 22, 7, hc, PART.head); box(2, 23, 1, 7, 24, 6, hc, PART.head); break;
+    case 'straw': { const st = C(0xe6c98a, 0.08); box(0, 22, 0, 9, 22, 7, st, PART.head); box(2, 23, 1, 7, 24, 6, st, PART.head); box(2, 23, 1, 7, 23, 6, C(0xc8372d), PART.head); break; }
+    case 'chef': box(2, 21, 1, 7, 24, 6, white, PART.head); box(1, 23, 0, 8, 24, 7, white, PART.head); break;
+    case 'headband': { const hb = C(look.hatColor ?? 0xf2efe7); box(2, 20, 1, 7, 20, 6, hb, PART.head); box(1, 20, 1, 1, 20, 6, hb, PART.head); box(8, 20, 1, 8, 20, 6, hb, PART.head); set(4, 20, 0, hb, PART.head); set(4, 19, 0, hb, PART.head); set(5, 18, 0, hb, PART.head); break; }
+  }
+  if (look.backpack !== undefined) {
+    const bp = C(look.backpack);
+    box(3, 8, 0, 6, 13, 1, bp, PART.body);
+    box(3, 13, 1, 6, 13, 1, C(0x5a3a28), PART.body);
+    if (look.charm) { set(6, 9, 0, C(0xd8372b), PART.body); set(6, 8, 0, C(0xd8372b), PART.body); }
+  }
+
+  const s = CHAR_SCALE;
+  const ox = -W / 2 * s, oz = -4 * s;
+  const pivots: [number, number, number][] = [
+    [0, 0, 0],
+    [0, 15 * s, (3.5 * s) + oz], // head at the neck
+    [ox + 1 * s, 14.5 * s, oz + 3.5 * s], // left arm (x 0..1)
+    [ox + 9 * s, 14.5 * s, oz + 3.5 * s], // right arm
+    [ox + 3.5 * s, 8 * s, oz + 3.5 * s], // left leg
+    [ox + 6.5 * s, 8 * s, oz + 3.5 * s],
+    [0, 0, 0],
+    [0, 0, 0],
+  ];
+  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots };
+}
+
+export function buildCat(seed: number): CharModel {
+  const r = rng(seed);
+  const W = 6, H = 8, D = 14;
+  const grid = new Grid(W, H, D);
+  const parts = new Uint8Array(W * H * D);
+  const pal = new Palette();
+  const coats = [[0x2a2628, 0x2a2628], [0xf2efe7, 0xe0a050], [0xe0a050, 0xf2efe7], [0x9a9aa0, 0x6a6a70], [0xf2efe7, 0x2a2628]];
+  const [main, spot] = coats[Math.floor(r() * coats.length)];
+  const cm = pal.add(main, { vary: 0.04 }), cs = pal.add(spot, { vary: 0.04 });
+  const eye = pal.add(0xc8e04a, { vary: 0.01 }), nose = pal.add(0xf09aa0, { vary: 0.01 }), dark = pal.add(0x1d1a1c, { vary: 0.01 });
+  const set = (x: number, y: number, z: number, c: number, part: number) => {
+    if (x < 0 || y < 0 || z < 0 || x >= W || y >= H || z >= D) return;
+    grid.set(x, y, z, c); parts[y * W * D + z * W + x] = part;
+  };
+  const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, c: number, part: number) => {
+    for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) set(x, y, z, c, part);
+  };
+  // legs
+  box(1, 0, 3, 1, 2, 3, cm, PART.legL); box(4, 0, 3, 4, 2, 3, cm, PART.legR);
+  box(1, 0, 8, 1, 2, 8, cm, PART.armL); box(4, 0, 8, 4, 2, 8, cm, PART.armR);
+  // body
+  box(1, 3, 2, 4, 5, 9, cm, PART.body);
+  box(2, 5, 4, 3, 5, 7, cs, PART.body);
+  // head
+  box(1, 4, 10, 4, 7, 13, cm, PART.head);
+  set(1, 8, 11, cm, PART.head); set(4, 8, 11, cm, PART.head);
+  set(1, 6, 13, eye, PART.head); set(4, 6, 13, eye, PART.head);
+  set(2, 5, 13, nose, PART.head); set(3, 5, 13, dark, PART.head);
+  if (r() < 0.5) set(2, 7, 12, cs, PART.head);
+  // tail
+  box(2, 5, 0, 3, 5, 1, cm, PART.tail); box(2, 6, 0, 3, 7, 0, cs, PART.tail);
+  const s = CAT_SCALE;
+  const ox = -W / 2 * s, oz = -D / 2 * s;
+  const pivots: [number, number, number][] = [
+    [0, 0, 0],
+    [0, 5 * s, oz + 10 * s],
+    [ox + 1.5 * s, 3 * s, oz + 8.5 * s],
+    [ox + 4.5 * s, 3 * s, oz + 8.5 * s],
+    [ox + 1.5 * s, 3 * s, oz + 3.5 * s],
+    [ox + 4.5 * s, 3 * s, oz + 3.5 * s],
+    [0, 5.5 * s, oz + 2 * s],
+    [0, 0, 0],
+  ];
+  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots };
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#1b1430" />
+    <meta name="description" content="A cozy isometric voxel adventure: travel the world through its street food. First stop, Tokyo." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <title>Tasty World</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="gl"></canvas>
+      <div id="labels"></div>
+      <div id="hud" class="hidden"></div>
+      <div id="prompt" class="hidden"></div>
+      <div id="toasts"></div>
+      <div id="panel-root"></div>
+      <div id="title" class="hidden"></div>
+      <div id="loading">
+        <div class="load-inner">
+          <div class="load-bowl">
+            <div class="steam s1"></div><div class="steam s2"></div><div class="steam s3"></div>
+            <div class="bowl"></div>
+          </div>
+          <h1 class="load-logo">Tasty World</h1>
+          <p class="load-sub">Street Food Adventure</p>
+          <div class="load-bar"><div class="load-fill" id="load-fill"></div></div>
+          <p class="load-stage" id="load-stage">Packing your bags…</p>
+        </div>
+      </div>
+      <div id="fade"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

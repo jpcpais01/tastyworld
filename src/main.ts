@@ -11,7 +11,7 @@ import { Streamer, StreamView } from './engine/streamer';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
 import { bikeModel, scooterModel, swanBoatModel } from './world/vehicles';
-import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ, WX0, WZ0, WX1, WZ1 } from './world/layout';
+import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
@@ -239,6 +239,8 @@ class Game {
       worker.postMessage({ type: 'init', part, parts } satisfies WorkerIn);
     })));
     this.w = assemble(inits);
+    // chunks meshed from here on keep the walls between neighbouring buildings (see world/owners.ts)
+    for (const wk of this.workers) wk.postMessage({ type: 'owners', id: this.w.owners.world.id } satisfies WorkerIn);
     const rowsOf = inits.map((p) => p.rows);
     this.partOf = (iz: number) => Math.max(0, rowsOf.findIndex(([r0, r1]) => iz >= r0 && iz < r1));
     this.ui.loading(0.82, 'Hanging the lanterns…');
@@ -308,13 +310,7 @@ class Game {
     };
     this.heightWorld = heightTex(w.height, w.nav.sx, w.nav.sz);
     this.heightInside = heightTex(w.interiorHeight, w.interiorNav.sx, w.interiorNav.sz);
-    // the Kakurega's two tall walls lower like any building when they come between camera and player
-    const [iox, , ioz] = INTERIOR_ORIGIN;
-    const V = 0.25;
-    this.cutaway = new Cutaway(a.occluders, [
-      { rect: [iox, ioz, iox + 3 * V, ioz + ISZ * V], top: 4.5, low: 0.95, kind: 'landmark' },
-      { rect: [iox, ioz, iox + ISX * V, ioz + 3 * V], top: 4.5, low: 0.95, kind: 'landmark' },
-    ], w.nav, w.interiorNav);
+    this.cutaway = new Cutaway(w.owners, w.nav, w.interiorNav, { height: w.height, solid: w.solid }, { height: w.interiorHeight, solid: w.interiorSolid });
     sh.tCut.value = this.cutaway.cut;
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
     this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile);

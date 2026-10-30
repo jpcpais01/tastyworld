@@ -7,7 +7,7 @@ import { G, V } from '../src/world/layout';
 const place = Builder.prototype.place;
 Builder.prototype.place = function (this: Builder, ...args: Parameters<typeof place>) {
   const r = place.apply(this, args);
-  const site = (new Error().stack ?? '').split('\n').slice(2).find((l) => /world\/(tokyo|interiors)\.ts/.test(l) && !/wallProp|\bput\b/.test(l));
+  const site = (new Error().stack ?? '').split('\n').slice(2).find((l) => /world\/(tokyo|interiors|city)\.ts/.test(l) && !/wallProp|\bput\b/.test(l));
   const m = site?.match(/(\w+)\.ts:(\d+)/);
   const last = this.props[this.props.length - 1];
   if (last && m) (last.prop as unknown as { name: string }).name = `${m[1]}:${m[2]} ${last.prop.sx}x${last.prop.sy}x${last.prop.sz}`;

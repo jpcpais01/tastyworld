@@ -313,8 +313,8 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       } else {
         lot.wallProp(plantPot(k, 'shrub', o.seed), 1.6, 0, 0.12);
         lot.wallProp(plantPot(k, 'bamboo', o.seed + 1), w - 1.6, 0, 0.12);
-        lot.wallProp(aFrame(k, o.seed + 2), Math.max(2.8, leftA1 - 0.5), 0, 0.12);
-        const [ax, az] = front(Math.max(2.8, leftA1 - 0.5), 0.3);
+        lot.wallProp(aFrame(k, o.seed + 2), Math.max(3.8, leftA1 - 0.5), 0, 0.12);
+        const [ax, az] = front(Math.max(3.8, leftA1 - 0.5), 0.3);
         b.block(ax - 0.3, az - 0.3, ax + 0.3, az + 0.3);
       }
       const [lx, lz] = front(w / 2, 0.8);
@@ -612,8 +612,10 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
     }
     case 'bakery': {
       put(breadShelf(k, o.seed), A0 + 0.65, D0 + 4, 0, PA, 0);
-      put(breadShelf(k, o.seed + 1), A0 + 0.65, D0 + 8, 0, PA, 0);
-      blockCells(A0, D0 + 2, A0 + 1, D0 + 9);
+      // a second shelf only where it keeps clear of the counter and the queue in front of it
+      const two = D1 - D0 >= 16;
+      if (two) put(breadShelf(k, o.seed + 1), A0 + 0.65, D0 + 8, 0, PA, 0);
+      blockCells(A0, D0 + 2, A0 + 1, two ? D0 + 9 : D0 + 5);
       // glass case counter with breads, oven glowing behind
       const { ka, a1 } = backCounter(ic.wain, ic.case);
       for (let a = A0; a <= a1; a++) lot.set(a, 2, D1 - 3, (a % 3) ? ic.bread : ic.melon);

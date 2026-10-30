@@ -7,12 +7,14 @@ export const G = 12; // voxel layer of street level (world y = 0 at the top of l
  * the original district keeps 0..72 x 0..56 m and the city grows around it, so the world's first voxel
  * column is at (VX0, VZ0) = (-72 m, -56 m).
  */
-export const VX0 = 0, VZ0 = 0;
-export const SX = 288, SY = 160, SZ = 224;
+export const VX0 = -288, VZ0 = -224;
+export const SX = 864, SY = 160, SZ = 672;
 export const WX0 = VX0 * V, WZ0 = VZ0 * V;
 export const WX1 = (VX0 + SX) * V, WZ1 = (VZ0 + SZ) * V;
 export const WORLD_W = SX * V, WORLD_D = SZ * V;
 export const WATER_Y = -0.55;
+/** The Inari hill (inclusive voxel rect): the only ground above street level people walk on. */
+export const HILL: [number, number, number, number] = [-288, 260, -41, 447];
 export const CHUNK = 32; // voxel columns per chunk side
 export const CHUNKS_X = SX / CHUNK, CHUNKS_Z = SZ / CHUNK;
 
@@ -34,6 +36,21 @@ export const ZONES: StreetZone[] = [
   { id: 'passage', name: 'Nameless Passage', jp: '名もなき路地', rect: [37.4, 29.4, 46, 31.6] },
   { id: 'canal', name: 'Sakura Canal', jp: '桜運河', rect: [WX0, 37.8, WX1, 50] },
   { id: 'farbank', name: 'Cherry Bank', jp: '桜並木', rect: [WX0, 49.8, WX1, 56] },
+  { id: 'hikari', name: 'Hikari-dori', jp: '光通り', rect: [-72, -28, 144, -18.25] },
+  { id: 'ekimae', name: 'Station Square', jp: '駅前広場', rect: [0, -39, 72, -28] },
+  { id: 'station', name: 'Hikari-machi Station', jp: '光町駅', rect: [20, -46, 52, -39] },
+  { id: 'midori', name: 'Midori Shrine', jp: '緑神社', rect: [-72, -46, 0, -28] },
+  { id: 'gado', name: 'Under the Tracks', jp: 'ガード下', rect: [-72, -56, 144, -46] },
+  { id: 'uramichi', name: 'Ura-michi', jp: '裏道', rect: [0, -6.25, 72, 0] },
+  { id: 'neon', name: 'Neon-dori', jp: 'ネオン通り', rect: [72, -50, 82, 112] },
+  { id: 'center', name: 'Center-gai', jp: 'センター街', rect: [82, 9, 144, 16] },
+  { id: 'golden', name: 'Golden Lane', jp: 'ゴールデン横丁', rect: [106, -18, 122, 38] },
+  { id: 'nishi', name: 'Nishi-dori', jp: '西通り', rect: [-10, -28, 0, 112] },
+  { id: 'yanaka', name: 'Yanaka Lanes', jp: '谷中', rect: [-72, -18, -10, 38] },
+  { id: 'minami', name: 'Minami-dori', jp: '南通り', rect: [-72, 56, 144, 65] },
+  { id: 'ginza', name: 'Hikari Ginza Arcade', jp: '光銀座商店街', rect: [20, 65, 52, 112] },
+  { id: 'park', name: 'Hikari Park', jp: '光公園', rect: [82, 65, 144, 112] },
+  { id: 'inari', name: 'Inari Hill', jp: '稲荷山', rect: [-72, 65, -10, 112] },
   { id: 'kakurega', name: 'Kakurega · Hidden Counter', jp: '隠れ家', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
 ];
 

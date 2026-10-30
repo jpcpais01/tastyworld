@@ -12,6 +12,7 @@ import {
   billboard, antenna, planterBox, cafeTable,
 } from './props';
 import { buildFood, FoodId } from './food';
+import { buildCity } from './city';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
 
 export interface PlacedProp {
@@ -1140,10 +1141,7 @@ export function buildTokyo(win?: Window): BuildResult {
       }
     }
   }
-  // konbini closing the east end of Kaminari Lane
-  building(new Lot(b, 280, 36, 287, 63, 'w'), { floors: 2, style: 'modern', ground: 'konbini', seed: 77, wall: c.tileWhite, signs: false });
-  g.box(280, G, 64, 287, G + 24, 151, c.concreteWall);
-  g.box(280, G, 0, 287, G + 24, 35, c.concreteWall);
+  // (the east end of Kaminari Lane opens onto Neon-dori; city.ts builds the corner blocks)
 
   // --- west edges around the plaza
   building(new Lot(b, 22, 4, 41, 31, 'w'), { floors: 2, style: 'machiya', ground: 'shop', seed: 61, awning: [c.awnNavy, c.awnNavy], doorA: 17 });
@@ -1530,6 +1528,9 @@ export function buildTokyo(win?: Window): BuildResult {
   }
   stalls.push(...b.stallAnchors);
 
+  // the city around the old district
+  const city = buildCity(b);
+
   const anchors: Anchors = {
     spawn: [11.2, 0, 12.5],
     stalls,
@@ -1560,7 +1561,7 @@ export function buildTokyo(win?: Window): BuildResult {
     ],
     benches: b.benches,
     stools: b.stools,
-    cats: [[34.4, 0, 30.4], [12.2, 0, 40.2], [49.4, 0, 52.3]],
+    cats: [[34.4, 0, 30.4], [12.2, 0, 40.2], [49.4, 0, 52.3], ...city.cats],
     emitters: b.emitters,
     vending,
     blockers: b.blockers,
@@ -1570,6 +1571,15 @@ export function buildTokyo(win?: Window): BuildResult {
     secret: b.secret,
     occluders: b.occluders,
   };
+
+  // join the city's street graph onto the old district's (negative indices name old nodes)
+  {
+    const base = anchors.graph.nodes.length;
+    anchors.graph.nodes.push(...city.nodes);
+    const id = (i: number) => (i < 0 ? -i - 1 : base + i);
+    for (const [a, bb] of city.edges) anchors.graph.edges.push([id(a), id(bb)]);
+    anchors.idlers.push(...city.idlers);
+  }
 
   const interior = buildInterior(b, anchors);
   return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor };

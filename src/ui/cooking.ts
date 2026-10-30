@@ -1,6 +1,7 @@
 import type { Recipe, Step, Ingredient } from '../data/stalls';
 import type { Audio } from '../game/audio';
 import { DISH } from '../data/dishes';
+import { G } from './glyphs';
 
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
   const e = document.createElement(tag);
@@ -30,10 +31,11 @@ export class CookingGame {
     panel.classList.add('cook');
     panel.innerHTML = '';
     const head = h('div', 'panel-head');
-    head.innerHTML = `<h2>Cook: ${dish.name}</h2><div class="jp">${dish.jp}</div>`;
+    head.innerHTML = `<div class="ph-icon">${G.chef}</div><div><h2>${dish.name}<span class="jp">${dish.jp}</span></h2></div>`;
     this.titleEl = h('div', 'sub');
-    head.appendChild(this.titleEl);
-    const close = h('button', 'close', '✕');
+    head.lastElementChild!.appendChild(this.titleEl);
+    const close = h('button', 'close', G.close);
+    close.setAttribute('aria-label', 'Close');
     close.onclick = () => { this.stop(); done(-1); };
     head.appendChild(close);
     panel.appendChild(head);
@@ -77,7 +79,7 @@ export class CookingGame {
     this.stage.innerHTML = '';
     if (this.idx >= this.recipe.steps.length) return this.result();
     const step = this.recipe.steps[this.idx];
-    this.titleEl.textContent = `Step ${this.idx + 1} of ${this.recipe.steps.length}: ${step.title}`;
+    this.titleEl.textContent = `Step ${this.idx + 1} of ${this.recipe.steps.length} · ${step.title}`;
     this.stage.appendChild(h('div', 'cook-hint', step.hint));
     switch (step.kind) {
       case 'pick': return this.pick(step);
@@ -212,7 +214,7 @@ export class CookingGame {
       const s = d < zw * 0.18 ? 1 : d < zw / 2 ? 0.8 : d < zw ? 0.45 : 0.1;
       scores.push(s);
       const r = gauge.getBoundingClientRect(), sr = this.stage.getBoundingClientRect();
-      this.pop(s >= 1 ? 'Perfect!' : s >= 0.8 ? 'Great' : s >= 0.45 ? 'OK' : 'Oops', r.left - sr.left + pos * r.width, r.top - sr.top - 10, s >= 0.8 ? '#3f8f72' : s >= 0.45 ? '#c58a12' : '#d8452f');
+      this.pop(s >= 1 ? 'Perfect!' : s >= 0.8 ? 'Great' : s >= 0.45 ? 'OK' : 'Oops', r.left - sr.left + pos * r.width, r.top - sr.top - 10, s >= 0.8 ? '#4f9a6a' : s >= 0.45 ? '#c88a14' : '#e9573f');
       this.audio.play(s >= 0.45 ? 'sizzle' : 'fail');
       round++;
       if (round >= rounds) {
@@ -266,7 +268,7 @@ export class CookingGame {
       if (s > 0) { best.cut = true; best.el.classList.add('cut'); scores.push(s); }
       else scores.push(0);
       const r = board.getBoundingClientRect(), sr = this.stage.getBoundingClientRect();
-      this.pop(s >= 1 ? 'Clean!' : s > 0.5 ? 'Nice' : s > 0 ? 'Rough' : 'Miss', r.left - sr.left + pos * r.width, r.top - sr.top, s > 0.5 ? '#3f8f72' : '#d8452f');
+      this.pop(s >= 1 ? 'Clean!' : s > 0.5 ? 'Nice' : s > 0 ? 'Rough' : 'Miss', r.left - sr.left + pos * r.width, r.top - sr.top, s > 0.5 ? '#4f9a6a' : '#e9573f');
       if (lines.every((l) => l.cut) || scores.length >= cuts + 3) {
         cancelAnimationFrame(this.raf);
         btn.setAttribute('disabled', '');
@@ -371,10 +373,10 @@ export class CookingGame {
     const msgs = ['Edible! Everyone starts somewhere.', 'Delicious! The vendor nods approvingly.', 'Perfect! You cook like a local master.'];
     this.titleEl.textContent = 'Finished!';
     this.stage.innerHTML = `<div class="result">
-      <img src="${this.icon}" style="width:140px;height:140px;object-fit:contain;filter:drop-shadow(0 10px 10px rgba(0,0,0,.2))" alt="">
-      <div class="stars-big">${'★'.repeat(stars)}<span class="off">${'★'.repeat(3 - stars)}</span></div>
-      <h3>${dish.name}</h3><p>${msgs[stars - 1]}<br>Tip earned: ¥${stars * 150}</p></div>`;
-    const b = h('button', 'btn btn-red', 'Taste it!');
+      ${this.icon ? `<img src="${this.icon}" alt="">` : ''}
+      <div class="stars-big">${G.star.repeat(stars)}<span class="off" style="display:contents">${G.star.repeat(3 - stars)}</span></div>
+      <h3>${dish.name}</h3><p>${msgs[stars - 1]}<br>Tip earned: <b>¥${stars * 150}</b></p></div>`;
+    const b = h('button', 'btn btn-red btn-hero', 'Taste it!');
     b.onclick = () => { this.stop(); this.done(stars); };
     this.stage.querySelector('.result')!.appendChild(b);
     this.audio.play(stars === 3 ? 'chime' : 'success');

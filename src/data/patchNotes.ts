@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.2.0',
+    version: '0.3.0',
     date: '2026-10-30',
     title: 'Clear views, busier streets',
     items: [
@@ -19,6 +19,20 @@ export const PATCH_NOTES: PatchNote[] = [
       'New buildings: tiled apartment blocks with balconies, and white kura storehouses with their diamond-tiled walls.',
       'Every building is more detailed, with drainpipes, meters, flower boxes, back windows, rooftop antennas, planters, laundry lines and the odd billboard.',
       'More street life: parked delivery scooters, a red post box, a convex traffic mirror, jizō statues by the shrine, café tables by the canal, decorated manhole covers and yellow tactile paving.',
+    ],
+  },
+  {
+    version: '0.2.0',
+    date: '2026-10-30',
+    title: 'A fresh coat of paint',
+    items: [
+      'A brand new look for every menu: warm paper cards, rounder buttons and crisp new icons.',
+      'The HUD is calmer and easier to read. A little sun, sunset or moon shows the time of day next to where you are.',
+      'Missions ready to claim now jump to the top of your tracker and passport.',
+      'Stall menus hang a noren curtain over the counter, and vendors greet you in their own speech bubble.',
+      'Tasting cards show flavour as dots and lay the dish story out in tidy sections.',
+      'Settings now use simple switches, grouped into Look, Sound and More.',
+      'Dialogue shows how many lines are left, and cooking results award shiny new stars.',
     ],
   },
   {

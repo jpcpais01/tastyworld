@@ -228,7 +228,7 @@ uniform vec3 uCamFwd;
 uniform float uCutOn;      // 0 or 1: off in first person and on the title screen
 uniform sampler2D tHeight; // per-column top of the solid run that starts at street level (0.25 m units)
 uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres), shared by tHeight and tOwner
-uniform sampler2D tOwner;  // per column: occluder id (R low byte, G high bits << 1) and a shell flag in G's low bit (see game/cutaway.ts)
+uniform sampler2D tOwner;  // per column: occluder id, owner above a split height, shell flag and split (see game/cutaway.ts)
 uniform sampler2D tCut;    // per id: shell height near side, shell height far side, inside height, far-side start
 uniform mat4 uViewProj;
 float solidTop(vec2 xz) {
@@ -236,20 +236,24 @@ float solidTop(vec2 xz) {
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return -100.0;
   return texture(tHeight, uv).r * 255.0 * 0.25;
 }
-// cut height of the column under xz, and its owner id (0 = nothing to cut)
-float cutAt(vec2 xz, vec2 fwdH, out float id) {
-  vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
+// cut height at p (the column under p.xz, or the building hanging over it above the split), and the owner id
+// (0 = nothing to cut)
+float cutAt(vec3 p, vec2 fwdH, out float id) {
+  vec2 uv = (p.xz - uHeightRect.xy) * uHeightRect.zw;
   id = 0.0;
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return 1e4;
-  vec2 o = floor(texelFetch(tOwner, ivec2(uv * vec2(textureSize(tOwner, 0))), 0).rg * 255.0 + 0.5);
-  // R = low byte of the id, G = high bits of the id << 1 | shell flag
-  float hi = floor(o.g * 0.5);
-  id = o.r + hi * 256.0;
+  vec4 o = floor(texelFetch(tOwner, ivec2(uv * vec2(textureSize(tOwner, 0))), 0) * 255.0 + 0.5);
+  // R + low nibble of G = id, B + high nibble of G = owner above the split, A = shell flag (128) + split
+  float gHi = floor(o.g / 16.0);
+  float up = o.b + gHi * 256.0;
+  float shell = step(127.5, o.a);
+  bool over = up > 0.5 && p.y > (o.a - shell * 128.0) * 0.25 + 0.01;
+  id = over ? up : o.r + (o.g - gHi * 16.0) * 256.0;
   if (id < 0.5) return 1e4;
   int ii = int(id);
   vec4 c = texelFetch(tCut, ivec2(ii % 64, ii / 64), 0);
-  if (o.g - hi * 2.0 < 0.5) return c.z;
-  return dot(xz, fwdH) > c.w ? c.y : c.x;
+  if (!over && shell < 0.5) return c.z;
+  return dot(p.xz, fwdH) > c.w ? c.y : c.x;
 }
 #endif
 flat in vec3 vNormal;
@@ -318,11 +322,11 @@ void main() {
     vec2 fwdH = normalize(uCamFwd.xz);
     float id;
     // step a hair into the voxel this face belongs to, so faces on a column boundary pick the right owner
-    float h = cutAt(vWorld.xz - vNormal.xz * 0.06, fwdH, id);
+    float h = cutAt(vWorld - vNormal * 0.06, fwdH, id);
     if (vWorld.y > h) {
       vec3 P = vWorld + uCamFwd * ((vWorld.y - h) / max(0.05, -uCamFwd.y));
       float idP;
-      float hP = cutAt(P.xz, fwdH, idP);
+      float hP = cutAt(P, fwdH, idP);
       if (idP == id && abs(hP - h) < 0.001 && solidTop(P.xz) > h + 0.02) { capped = true; capP = P; capH = h; }
       else discard;
     }

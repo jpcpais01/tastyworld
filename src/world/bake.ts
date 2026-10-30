@@ -5,6 +5,7 @@ import { Palette } from './palette';
 import { buildTokyo, Anchors, PlacedProp, BuildResult } from './tokyo';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
 import { assemble } from './assemble';
+import type { Owners } from './owners';
 import { packSway, swayKey, SWAY_PART } from './sway';
 export { assemble };
 
@@ -39,6 +40,11 @@ export interface BakedWorld {
   /** Per-column height (voxels above street level) of the solid run that starts at the street, for section caps. */
   height: Uint8Array;
   interiorHeight: Uint8Array;
+  /** Per-column occupancy of the 64 voxel layers from street level up, two 32-bit words per column (cutaway ray tests). */
+  solid: Uint32Array;
+  interiorSolid: Uint32Array;
+  /** Column ownership and the final occluder list (registered ones plus the solid masses found in the bake). */
+  owners: Owners;
   /** Signed distance to the water's edge per column: 128 + 16 x voxels (positive over open water). */
   shore: Uint8Array;
   anchors: Anchors;
@@ -53,12 +59,13 @@ export interface PartInit {
   /** Chunk rows this part owns, [r0, r1). */
   rows: [number, number];
   height: Uint8Array;
+  solid: Uint32Array;
   nav: Uint8Array;
   shore: Uint8Array;
   lightmap: Uint8Array;
   tagged: { tag: string; mesh: MeshData }[];
   anchors: Anchors;
-  interior: { chunks: MeshData[]; nav: NavData; lightmap: LightMap2D; height: Uint8Array } | null;
+  interior: { chunks: MeshData[]; nav: NavData; lightmap: LightMap2D; height: Uint8Array; solid: Uint32Array } | null;
   /** This part's sway bodies, packed (ids from part * SWAY_PART + 1). */
   sway: Float32Array;
   stats: { lamps: number; ms: number; bytes: number };
@@ -134,6 +141,18 @@ function computeHeight(grid: SparseGrid, x0: number, z0: number, x1: number, z1:
   return out;
 }
 
+function computeSolid(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number): Uint32Array {
+  const sx = x1 - x0;
+  const out = new Uint32Array(sx * (z1 - z0) * 2);
+  const top = Math.min(grid.sy, G + 64);
+  for (let z = z0; z < z1; z++)
+    for (let x = x0; x < x1; x++) {
+      const c = ((z - z0) * sx + x - x0) * 2;
+      for (let y = G; y < top; y++) if (grid.get(x, y, z) !== 0) out[c + ((y - G) >> 5)] |= 1 << ((y - G) & 31);
+    }
+  return out;
+}
+
 function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, blockers: [number, number, number, number][], minH: number): Uint8Array {
   const sx = x1 - x0, sz = z1 - z0;
   const height = new Uint8Array(sx * sz).fill(BLOCKED);
@@ -197,8 +216,21 @@ function propSway(p: PlacedProp, base: number): ((vi: number) => number) | undef
 }
 
 /** Mesh columns [x0,x1) x [z0,z1) of a sparse grid (builder coords) plus the props given, at full detail. */
-function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number, props: PlacedProp[], cells: Map<number, number>, base: number): MeshData | null {
+function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number, props: PlacedProp[], cells: Map<number, number>, base: number, owners: Uint16Array | null): MeshData | null {
   const dense = grid.extract(x0, x1, z0, z1, G);
+  // column owners under the dense grid (with its border), so faces between two buildings are kept
+  let seam: Uint16Array | undefined;
+  if (owners) {
+    seam = new Uint16Array(dense.sx * dense.sz);
+    for (let z = 0; z < dense.sz; z++) {
+      const wz = z0 - 1 + z - VZ0;
+      if (wz < 0 || wz >= SZ) continue;
+      for (let x = 0; x < dense.sx; x++) {
+        const wx = x0 - 1 + x - VX0;
+        if (wx >= 0 && wx < SX) seam[z * dense.sx + x] = owners[wz * SX + wx];
+      }
+    }
+  }
   // dense voxel (with its one-voxel border) -> builder voxel -> sway body
   const sway = cells.size ? (vi: number) => {
     const y = Math.floor(vi / dense.sxz), r = vi - y * dense.sxz, z = Math.floor(r / dense.sx);
@@ -206,7 +238,7 @@ function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, 
     return id ? id + base : 0;
   } : undefined;
   const pieces: MeshData[] = [
-    meshGrid({ grid: dense, pal, scale: V, origin: [(x0 - 1) * V, -G * V, (z0 - 1) * V], region: [1, x1 - x0 + 1, 1, z1 - z0 + 1], light, groundBelow: G, sway }),
+    meshGrid({ grid: dense, pal, scale: V, origin: [(x0 - 1) * V, -G * V, (z0 - 1) * V], region: [1, x1 - x0 + 1, 1, z1 - z0 + 1], light, groundBelow: G, sway, seam }),
   ];
   for (const p of props) pieces.push(meshGrid({ grid: p.prop.grid, pal, scale: p.prop.scale, origin: p.origin, light, sway: propSway(p, base) }));
   return mergeMeshes(pieces);
@@ -250,6 +282,8 @@ export class WorldPart {
   private res!: BuildResult;
   private light!: LightFn;
   private buckets: PlacedProp[][] = [];
+  /** World column owners (see world/owners.ts), sent once every part is ready; chunks meshed after keep shared walls. */
+  owners: Uint16Array | null = null;
   private t0 = performance.now();
 
   /** First sway id of this part, minus one. */
@@ -295,6 +329,7 @@ export class WorldPart {
     const nav = computeNav(res.grid, x0, z0, x1, z1, res.anchors.blockers, 10);
     const lightmap = computeLightmap(field, nav, x0, z0, x1, z1);
     const height = computeHeight(res.grid, x0, z0, x1, z1);
+    const solid = computeSolid(res.grid, x0, z0, x1, z1);
     const shore = computeShore(res.grid, x0, z0, x1, z1);
 
     let interior: PartInit['interior'] = null;
@@ -330,11 +365,12 @@ export class WorldPart {
         nav: { sx: ISX, sz: ISZ, ox: iox, oz: ioz, height: inav },
         lightmap: { sx: ISX / 2, sz: ISZ / 2, ox: iox, oz: ioz, cell: 0.5, data: ilm },
         height: computeHeight(ig, 0, 0, ISX, ISZ),
+        solid: computeSolid(ig, 0, 0, ISX, ISZ),
       };
     }
     progress?.('Ready', 1);
     return {
-      part: this.part, rows: this.rows, height, nav, shore, lightmap, tagged, anchors: res.anchors, interior,
+      part: this.part, rows: this.rows, height, solid, nav, shore, lightmap, tagged, anchors: res.anchors, interior,
       sway: packSway(res.sway, this.swayBase),
       stats: { lamps: res.lamps.length, ms: performance.now() - this.t0, bytes: res.grid.bytes + field.bytes },
     };
@@ -348,7 +384,7 @@ export class WorldPart {
   mesh(ix: number, iz: number, lod: boolean): MeshData | null {
     const x0 = VX0 + ix * CHUNK, z0 = VZ0 + iz * CHUNK;
     if (lod) return meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK);
-    return meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase);
+    return meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase, this.owners);
   }
 }
 
@@ -356,5 +392,6 @@ export class WorldPart {
 export function bakeWorld(progress?: (stage: string, f: number) => void): BakedWorld & { part: WorldPart } {
   const part = new WorldPart(0, 1);
   const w = assemble([part.init(progress)]);
+  part.owners = w.owners.world.id;
   return { ...w, part };
 }

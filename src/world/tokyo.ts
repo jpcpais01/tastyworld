@@ -1210,6 +1210,7 @@ export function buildTokyo(win?: Window): BuildResult {
         lot.box(0, 0, 0, lot.width - 1, h - 1, lot.depth - 1, pick([c.concreteWall, c.beige, c.sand2, c.slate, c.cream]));
         if (rr() < 0.4) tiledRoof(lot, h, 0, 2);
         else flatRoof(lot, h, rr);
+        b.occlude(x, z, xe, ze, h * V + 2, 0.95, 'landmark');
       }
   };
   fillBlock(0, 92, 111, 123, 31);

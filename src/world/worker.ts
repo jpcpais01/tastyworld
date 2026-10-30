@@ -7,7 +7,8 @@ declare const self: DedicatedWorkerGlobalScope;
 /** Messages a world worker understands. */
 export type WorkerIn =
   | { type: 'init'; part: number; parts: number }
-  | { type: 'mesh'; id: number; ix: number; iz: number; lod: boolean };
+  | { type: 'mesh'; id: number; ix: number; iz: number; lod: boolean }
+  | { type: 'owners'; id: Uint16Array };
 
 /** Messages a world worker sends back. */
 export type WorkerOut =
@@ -31,13 +32,15 @@ self.onmessage = (e: MessageEvent<WorkerIn>) => {
         self.postMessage({ type: 'progress', stage, f } satisfies WorkerOut);
       }
     });
-    const tr: Transferable[] = [init.height.buffer, init.nav.buffer, init.shore.buffer, init.lightmap.buffer, init.sway.buffer];
+    const tr: Transferable[] = [init.height.buffer, init.solid.buffer, init.nav.buffer, init.shore.buffer, init.lightmap.buffer, init.sway.buffer];
     init.tagged.forEach((t) => meshBuffers(t.mesh, tr));
     if (init.interior) {
       init.interior.chunks.forEach((m) => meshBuffers(m, tr));
-      tr.push(init.interior.nav.height.buffer, init.interior.lightmap.data.buffer, init.interior.height.buffer);
+      tr.push(init.interior.nav.height.buffer, init.interior.lightmap.data.buffer, init.interior.height.buffer, init.interior.solid.buffer);
     }
     self.postMessage({ type: 'ready', init } satisfies WorkerOut, tr);
+  } else if (msg.type === 'owners' && part) {
+    part.owners = msg.id;
   } else if (msg.type === 'mesh' && part) {
     const mesh = part.mesh(msg.ix, msg.iz, msg.lod);
     const tr: Transferable[] = [];

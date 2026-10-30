@@ -60,6 +60,9 @@ export interface MeshOpts {
   groundBelow?: number;
   /** Sway body id of a voxel (grid index), 0 = static. Faces of different bodies never merge. */
   sway?: (vi: number) => number;
+  /** Per-column owner ids (grid sx * sz): side faces between two different owners are kept even though both
+   * cells are solid, so a building whose neighbour is cut away still shows its side wall. */
+  seam?: Uint16Array;
 }
 
 class Buf {
@@ -86,6 +89,7 @@ class Buf {
 }
 
 const tmp = new Float32Array(5);
+const SEAM_MIN = 16; // grid layer: street level (12) plus 1 m
 const q = (val: number, m: number) => Math.min(63, Math.round(val * m));
 
 // Scratch buffers shared by all mesh calls (slices are at most 300 x 300).
@@ -107,7 +111,7 @@ function scratch() {
 }
 
 export function meshGrid(o: MeshOpts): MeshData {
-  const { grid, pal, scale, origin, light, parts, sway } = o;
+  const { grid, pal, scale, origin, light, parts, sway, seam } = o;
   const greedy = o.greedy !== false;
   const scaleIdx = SCALES.findIndex((s) => Math.abs(s - scale) < 1e-6);
   if (scaleIdx < 0) throw new Error('unknown voxel scale ' + scale);
@@ -213,11 +217,18 @@ export function meshGrid(o: MeshOpts): MeshData {
           vi += sU;
           const col = data[vi];
           if (col === 0) continue;
-          if (nIn ? data[vi + dn * sN] !== 0 && (!parts || parts[vi + dn * sN] === parts[vi]) : outsideSolid || (na !== 1 && pyOf(vi) < gb)) continue;
-          curPart = parts ? parts[vi] : -1;
-          const mi = iv * U + iu;
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
           const x = p[0], y = p[1], z = p[2];
+          let seamFace = false;
+          if (nIn ? data[vi + dn * sN] !== 0 && (!parts || parts[vi + dn * sN] === parts[vi]) : outsideSolid || (na !== 1 && pyOf(vi) < gb)) {
+            // nothing below waist height is ever cut, so faces there stay buried behind the stub
+            if (!seam || !nIn || na === 1 || y < SEAM_MIN) continue;
+            const a = seam[z * gsx + x], o2 = seam[(z + n[2]) * gsx + x + n[0]];
+            if (!a || !o2 || a === o2) continue;
+            seamFace = true;
+          }
+          curPart = parts ? parts[vi] : -1;
+          const mi = iv * U + iu;
           const lx = x + n[0], ly = y + n[1], lz = z + n[2];
           any = true;
           let edges = 0;
@@ -245,6 +256,13 @@ export function meshGrid(o: MeshOpts): MeshData {
               cL[k * 5] = cornerVals[c5]; cL[k * 5 + 1] = cornerVals[c5 + 1]; cL[k * 5 + 2] = cornerVals[c5 + 2]; cL[k * 5 + 3] = cornerVals[c5 + 3]; cL[k * 5 + 4] = cornerVals[c5 + 4];
             } else {
               cL[k * 5] = 1; cL[k * 5 + 1] = 1; cL[k * 5 + 2] = 0; cL[k * 5 + 3] = 0; cL[k * 5 + 4] = 0;
+            }
+          }
+          if (seamFace) {
+            // buried until the neighbour is cut away: light it like an open outside wall, not the dark inside
+            for (let k = 0; k < 4; k++) {
+              cAo[k] = 3;
+              cL[k * 5] = 0.8; cL[k * 5 + 1] = 0.95; cL[k * 5 + 2] = 0; cL[k * 5 + 3] = 0; cL[k * 5 + 4] = 0;
             }
           }
           const part = parts ? parts[vi] : -1;

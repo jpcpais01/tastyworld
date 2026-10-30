@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.9.9',
+    date: '2026-10-30',
+    title: 'Cleaner walls',
+    items: [
+      'Fixed thin lines that could show along the edges where two buildings meet, like the outline of a box.',
+      'Buildings start lowering a moment sooner: the view looks a little ahead as you walk, and keeps a bit more room around you, so you are never hidden even for a second when stepping behind one.',
+    ],
+  },
+  {
     version: '0.9.8',
     date: '2026-10-30',
     title: 'Solid walls, honest cutaway',

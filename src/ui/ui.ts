@@ -6,6 +6,7 @@ import { DISHES, DISH } from '../data/dishes';
 import { STALL } from '../data/stalls';
 import { MISSIONS, ITEMS, Mission } from '../data/missions';
 import { PATCH_NOTES } from '../data/patchNotes';
+import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
 import { G } from './glyphs';
 
@@ -23,6 +24,7 @@ const touch = () => matchMedia('(pointer: coarse)').matches;
 
 const MISSION_ICONS: Record<string, string> = {
   'first-bite': '🥢', trio: '🍡', sweet: '🍯', apprentice: '👩‍🍳', alley: '🏮', night: '🌙', cats: '🐱', secret: '🚪', stars: '⭐', master: '🏆',
+  browse: '🛍️', tables: '🍽️', gacha: '🎰', 'gacha-all': '👑', shelf: '📚', daruma: '🔴',
 };
 /** Items that can be worn by the traveller. */
 export const WEARABLE = ['headband', 'happi', 'charm', 'chefhat'];
@@ -338,7 +340,7 @@ export class UI {
   stall(st: StallInfo): void {
     const p = this.panel();
     p.appendChild(h('div', 'noren' + (st.hidden ? ' secret' : ''), `<span>${st.jp.split(' ').pop() ?? ''}</span>`));
-    this.head(p, esc(st.name), '', `${esc(st.street)} · ${st.hidden ? 'Omakase counter' : 'Street stall'}`);
+    this.head(p, esc(st.name), '', `${esc(st.street)} · ${st.hidden ? 'Omakase counter' : st.restaurant ? 'Restaurant' : 'Street stall'}`);
     const body = h('div', 'panel-body');
     const greet = st.greeting[Math.floor(Math.random() * st.greeting.length)];
     body.innerHTML = `<div class="vendor-line"><span class="ava">${esc(st.vendor.charAt(0))}</span><div class="say"><b>${esc(st.vendor)}</b>“${esc(greet)}”</div></div>`;
@@ -369,6 +371,32 @@ export class UI {
       };
       const cookBtn = card.querySelector<HTMLButtonElement>('[data-a="cook"]');
       if (cookBtn) cookBtn.onclick = () => this.cook(st);
+      menu.appendChild(card);
+    }
+    body.appendChild(menu);
+    p.appendChild(body);
+  }
+
+  /** Counter of a shop, café or bar: a few small things to buy. */
+  shop(name: string, jp: string, sub: string, keeper: string, line: string, items: Buyable[], buy: (it: Buyable) => boolean): void {
+    const p = this.panel();
+    p.appendChild(h('div', 'noren', `<span>${jp.split(' ').pop() ?? ''}</span>`));
+    this.head(p, esc(name), '', esc(sub));
+    const body = h('div', 'panel-body');
+    body.innerHTML = `<div class="vendor-line"><span class="ava">${esc(keeper.charAt(0))}</span><div class="say"><b>${esc(keeper)}</b>“${esc(line)}”</div></div>`;
+    const menu = h('div', 'menu');
+    for (const it of items) {
+      const card = h('div', 'dish-card', `
+        <div class="dimg"><span class="emo">${it.icon}</span></div>
+        <div>
+          <h3>${esc(it.name)}</h3>
+          <p>${esc(it.text)}</p>
+          <div class="row"><button class="btn btn-red">Buy · ${yen(it.price)}</button></div>
+        </div>`);
+      card.querySelector('button')!.onclick = () => {
+        if (!buy(it)) { this.audio.play('fail'); this.toast('👛', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
+        this.close();
+      };
       menu.appendChild(card);
     }
     body.appendChild(menu);
@@ -495,11 +523,20 @@ export class UI {
   }
 
   private ppItems(page: HTMLElement) {
+    // little finds first: daruma and gachapon capsules
+    const caps = h('div', 'sec finds', `<h4>Finds</h4><p>🔴 Daruma found: <b>${this.s.darumas.length}/8</b> · 🎰 Capsule charms: <b>${this.s.capsules.length}/${CAPSULES.length}</b></p>`);
+    const grid = h('div', 'capsules');
+    for (const c of CAPSULES) {
+      const got = this.s.capsules.includes(c.id);
+      grid.appendChild(h('div', 'cap' + (got ? ' got' : '') + (c.rare ? ' rare' : ''), `<span>${got ? c.icon : '?'}</span><small>${got ? esc(c.name) : c.rare ? 'Rare' : '???'}</small>`));
+    }
+    caps.appendChild(grid);
+    page.appendChild(caps);
     if (!this.s.items.length) {
-      page.innerHTML = `<div class="empty"><div class="ei">${G.bag}</div>Your bag is empty.<br>Complete missions to earn souvenirs for your traveller.</div>`;
+      page.appendChild(h('div', 'empty', `<div class="ei">${G.bag}</div>Your bag is empty.<br>Complete missions to earn souvenirs for your traveller.`));
       return;
     }
-    const grid = h('div', 'items');
+    const items = h('div', 'items');
     for (const id of this.s.items) {
       const it = ITEMS[id];
       if (!it) continue;
@@ -511,9 +548,9 @@ export class UI {
           this.hooks.wearChanged();
         }, 'Wear it'));
       }
-      grid.appendChild(card);
+      items.appendChild(card);
     }
-    page.appendChild(grid);
+    page.appendChild(items);
   }
 
   private ppTokyo(page: HTMLElement) {

@@ -553,3 +553,14 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 .stars-big .off { display: contents; }
+
+/* shop counters and finds */
+.dish-card .dimg .emo { font-size: 44px; line-height: 1; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.08)); }
+.finds { margin-bottom: 12px; }
+.finds p { margin: 0 0 10px; font-size: 13px; color: var(--ink-2); }
+.capsules { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; }
+.cap { background: var(--cream-2); border-radius: 14px; padding: 8px 4px 6px; text-align: center; color: var(--ink-3, #9a8f80); }
+.cap span { display: block; font-size: 24px; line-height: 1.2; font-family: var(--display); }
+.cap small { display: block; font-size: 10px; line-height: 1.2; margin-top: 2px; }
+.cap.got { background: #fff; color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line); }
+.cap.rare.got { box-shadow: inset 0 0 0 2px var(--sun-deep, #d9a12b); }

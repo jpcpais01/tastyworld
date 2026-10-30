@@ -8,6 +8,21 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.6.0',
+    date: '2026-10-30',
+    title: 'Step inside',
+    items: [
+      'Almost every shop on the street now has a real ground floor you can walk into: cafés, izakaya, a konbini, bakeries, bookshops, florists, a fishmonger, zakka shops and a drugstore, each furnished in its own style.',
+      'When a building is cut away in front of you, you now see the rooms inside it instead of a solid block. Shuttered shops show their stock rooms and homes show their tatami front rooms.',
+      'Shopkeepers stand behind their counters and regulars sit at tables and bars. Talk to them for stories, tips and the odd hint, and buy snacks and souvenirs over the counter.',
+      'Two new sit-down restaurants: Kissa Komorebi, a retro coffee house by the canal, and Soba-dokoro Kikyō on Kaminari Lane, where the noodles are cut by hand in the window. Four new dishes to taste and cook: purin, spaghetti Napolitan, zaru soba and ebi tempura.',
+      'Gachapon machines in the konbini and a zakka shop. Collect all twelve capsule charms, if you can find the rare golden shrimp.',
+      'Eight tiny daruma dolls are hidden inside the shops, mostly in their back rooms. A new Finds section in your passport keeps count.',
+      'One old bookshop on Kaminari Lane has a shelf with a red book that is not quite pushed in...',
+      'New missions: Window Shopper, Table for One, Capsule Collector, Gachapon Master, Between the Pages and Daruma Hunt.',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-10-30',
     title: 'See Tokyo through your own eyes',

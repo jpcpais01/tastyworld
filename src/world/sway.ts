@@ -34,7 +34,7 @@ export const SWAY_TEXELS = 3;
  * depend on what lies inside that strip, so every worker numbers its own bodies from part * SWAY_PART and ships
  * its own table; the sway texture stacks the tables (SWAY_PART / SWAY_ROW rows each).
  */
-export const SWAY_PART = 8192;
+export const SWAY_PART = 16384; // 4 workers at most (main.ts), so ids fit the u16 vertex attribute
 
 /** Key of a street voxel (builder coords) in Builder.swayCells. */
 export function swayKey(g: { x0: number; z0: number; sx: number; sz: number }, x: number, y: number, z: number): number {
@@ -92,4 +92,14 @@ export const SWAY = {
   flowers: { up: 1, amp: 0.08, freq: 2.2, push: 0.3 },
   /** Sakura canopy rocking on its trunk. */
   tree: { up: 1, amp: 0.016, freq: 0.75, push: 0 },
+  /** Grass tuft, reeds. */
+  grass: { up: 1, amp: 0.12, freq: 2.6, push: 0.45 },
+  /** Garden bush on the ground. */
+  bush: { up: 1, amp: 0.035, freq: 1.6, push: 0.22 },
+  /** Little bunting flags on a string. */
+  bunting: { up: -1, amp: 0.15, freq: 1.3, push: 0 },
+  /** Glass wind chime under the eaves: the liveliest thing in the street. */
+  chime: { up: -1, amp: 0.2, freq: 2.8, push: 0 },
+  /** A playground swing seat on its chains. */
+  swing: { up: -1, amp: 0.1, freq: 1.4, push: 0.7 },
 } satisfies Record<string, Preset>;

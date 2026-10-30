@@ -1,4 +1,4 @@
-import { Grid, rng } from './grid';
+import { Grid, rng, hash3 } from './grid';
 import { Palette } from './palette';
 import { SwayBody, SWAY } from './sway';
 
@@ -846,5 +846,270 @@ export function cafeTable(k: PropKit, cloth: number): Prop {
   p.box(2, 0, 2, 6, 0, 6, c.steelDark);
   p.cylY(4.5, 4.5, 3.4, 6, 6, c.white);
   for (let y = 14; y <= 17; y++) p.cylY(4.5, 4.5, 4.4 - (y - 14) * 1.2, y, y, cloth);
+  return p;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Set dressing for the wider city (see world/dressing.ts)
+
+/** A row of small pots against a house front, the way Tokyo backstreets grow their gardens. Faces +Z, 1 m long. */
+export function potCluster(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(16, 15, 6, 0.0625);
+  const pots = [c.terracotta, c.terracotta, c.glazeBlue, c.stone, c.white, c.bucket];
+  let x = 0;
+  while (x < 13) {
+    const w = 3 + Math.floor(r() * 3);
+    if (x + w > 16) break;
+    const h = 2 + Math.floor(r() * 3);
+    const z0 = r() < 0.5 ? 0 : 6 - w;
+    const pot = pots[Math.floor(r() * pots.length)];
+    p.box(x, 0, z0, x + w - 1, h - 1, z0 + w - 1, pot);
+    p.box(x + 1, h - 1, z0 + 1, x + w - 2, h - 1, z0 + w - 2, c.coalDark); // soil
+    const cx = x + w / 2, cz = z0 + w / 2;
+    const roll = r();
+    if (roll < 0.45) {
+      // leafy, sometimes in flower
+      const flower = r() < 0.5 ? [c.flowerRed, c.flowerPurple, c.flowerYellow, c.flowerWhite, c.pink][Math.floor(r() * 5)] : 0;
+      const id = p.body(flower ? SWAY.flowers : SWAY.shrub, [cx, h, cz]);
+      const rx = w / 2 + 0.6, ry = 1.6 + r() * 1.6;
+      p.ellipsoid(cx, h + ry - 0.4, cz, rx, ry, rx, (xx, yy, zz) => { p.mark(xx, yy, zz, id); const n = (xx * 7 + yy * 13 + zz * 5) % 7; return flower && n === 0 ? flower : n < 3 ? c.leafDark : n < 5 ? c.leaf : c.leafLight; });
+    } else if (roll < 0.75) {
+      // tall stems: morning glory canes, herbs, a young maple
+      const id = p.body(SWAY.grass, [cx, h, cz]);
+      const tall = 5 + Math.floor(r() * 6);
+      for (let i = 0; i < 3; i++) {
+        const sx = x + 1 + Math.floor(r() * Math.max(1, w - 2)), sz = z0 + 1 + Math.floor(r() * Math.max(1, w - 2));
+        const top = Math.min(14, h + tall - i);
+        for (let y = h; y <= top; y++) { p.set(sx, y, sz, y === top && r() < 0.5 ? c.flowerPurple : y % 3 === 0 ? c.leafLight : c.leaf); p.mark(sx, y, sz, id); }
+      }
+    } else {
+      // a succulent or a little clipped box ball
+      const id = p.body(SWAY.pine, [cx, h, cz]);
+      p.ellipsoid(cx, h + 1, cz, w / 2, 1.5, w / 2, (xx, yy, zz) => { p.mark(xx, yy, zz, id); return (xx + yy + zz) % 3 ? c.leafDark : c.pine; });
+    }
+    x += w + (r() < 0.5 ? 0 : 1);
+  }
+  return p;
+}
+
+/** A tuft of grass, sometimes with a wildflower. */
+export function grassTuft(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(5, 7, 5, 0.0625);
+  const n = 4 + Math.floor(r() * 3);
+  for (let i = 0; i < n; i++) {
+    const x = Math.floor(r() * 5), z = Math.floor(r() * 5);
+    const h = 1 + Math.floor(r() * 5);
+    const blade = r() < 0.5 ? c.leaf : c.leafLight; // one colour a blade, so its sides stay single faces
+    for (let y = 0; y <= h; y++) p.set(x, y, z, y < 2 ? c.leafDark : blade);
+    if (h >= 4 && r() < 0.25) p.set(x, h + 1, z, [c.flowerWhite, c.flowerYellow, c.flowerPurple][Math.floor(r() * 3)]);
+  }
+  p.sway(SWAY.grass, [2.5, 0, 2.5]);
+  return p;
+}
+
+/** A rounded garden bush (azalea, hydrangea or box), about a metre across. */
+export function bush(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(9, 7, 9);
+  const bloom = r() < 0.55 ? [c.pink, c.flowerWhite, c.flowerPurple, c.flowerRed, c.navy][Math.floor(r() * 5)] : 0;
+  const rx = 3.4 + r() * 1.0, ry = 2.6 + r() * 0.8;
+  // broad bands of colour rather than per-voxel noise, so the faces merge (it is all over the parks)
+  p.ellipsoid(4.5, ry - 0.2, 4.5, rx, ry, rx * (0.85 + r() * 0.15), (x, y, z) => {
+    if (bloom && y > 1 && hash3(x, y, z + seed) < 0.12) return bloom;
+    return y < ry * 0.7 ? c.leafDark : hash3(x >> 1, y >> 1, (z >> 1) + seed) < 0.6 ? c.leaf : c.leafLight;
+  });
+  p.sway(SWAY.bush, [4.5, 0, 4.5]);
+  return p;
+}
+
+/** Umbrella stand by a door: a steel bucket with a few handles poking out. */
+export function umbrellaStand(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(4, 11, 4, 0.0625);
+  p.box(0, 0, 0, 3, 5, 3, c.steelDark);
+  p.box(1, 5, 1, 2, 5, 2, c.charcoal);
+  const cols = [c.umbrella, c.fabricRed, c.vmGlass, c.black, c.fabricGreen, c.white];
+  for (const [x, z] of [[1, 1], [2, 2], [1, 2], [2, 1]]) {
+    if (r() < 0.25) continue;
+    const top = 7 + Math.floor(r() * 3);
+    const col = cols[Math.floor(r() * cols.length)];
+    p.box(x, 6, z, x, top, z, col);
+    p.set(x, top + 1, z, c.woodDark);
+  }
+  return p;
+}
+
+/** A pair of propane cylinders chained to a house wall. */
+export function gasTanks(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(9, 15, 4, 0.0625);
+  for (const x of [0, 5]) {
+    p.box(x, 0, 0, x + 3, 12, 3, c.acGray);
+    p.box(x, 9, 0, x + 3, 9, 3, c.steelDark);
+    p.box(x + 1, 13, 1, x + 2, 14, 2, c.steel);
+  }
+  return p;
+}
+
+/** White pavement guard rail along the kerb, `len` metres along +X. */
+export function guardRail(k: PropKit, len: number): Prop {
+  const { c } = k;
+  const n = Math.max(4, Math.round(len / 0.0625));
+  const p = new Prop(n, 12, 2, 0.0625);
+  for (let x = 0; x < n; x += 16) p.box(x, 0, 0, x + 1, 11, 1, c.white);
+  p.box(n - 2, 0, 0, n - 1, 11, 1, c.white);
+  p.box(0, 10, 0, n - 1, 11, 1, c.white);
+  p.box(0, 5, 0, n - 1, 5, 0, c.white);
+  return p;
+}
+
+/** A string of little triangle flags hanging between two points along +X (length and sag in metres). */
+export function bunting(k: PropKit, length: number, sag: number, seed = 1): Prop {
+  const { c } = k;
+  const s = 0.0625;
+  const n = Math.max(2, Math.round(length / s));
+  const sagV = Math.max(1, Math.round(sag / s));
+  const p = new Prop(n, sagV + 6, 1, s);
+  const cols = [c.fabricRed, c.white, c.fabricBlue, c.signYellow, c.fabricGreen, c.pink, c.fabricOrange];
+  const off = Math.floor(rng(seed)() * cols.length);
+  let prevY = sagV + 5;
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const y = Math.round(sagV + 5 - sagV * 4 * t * (1 - t));
+    for (let yy = Math.min(y, prevY); yy <= Math.max(y, prevY); yy++) p.set(i, yy, 0, c.white);
+    prevY = y;
+    // a flag every 6 voxels: 4 wide, tapering down to a point
+    const f = i % 6;
+    if (i > 2 && i < n - 4 && f < 4) {
+      const col = cols[(Math.floor(i / 6) + off) % cols.length];
+      const depth = f === 0 || f === 3 ? 2 : 4;
+      for (let d = 1; d <= depth; d++) p.set(i, y - d, 0, col);
+    }
+  }
+  p.sway(SWAY.bunting, [0, sagV + 5.5, 0.5], [1, 0, 0], undefined, 0);
+  return p;
+}
+
+/** Small shop sign hanging from a bracket that sticks out of the facade (faces +Z, swings across the street). */
+export function hangingSign(k: PropKit, bg: number, fg: number, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(2, 12, 11, 0.0625);
+  p.box(0, 11, 0, 1, 11, 10, c.steelDark); // bracket arm
+  p.box(0, 8, 0, 1, 10, 0, c.steelDark);
+  for (const z of [3, 9]) p.set(0, 10, z, c.steel), p.set(1, 10, z, c.steel);
+  p.box(0, 1, 2, 1, 9, 10, bg);
+  p.box(0, 1, 2, 1, 1, 10, c.signBlack);
+  const g = glyph(r, 4);
+  for (let gy = 0; gy < 4; gy++) for (let gz = 0; gz < 4; gz++) if (g[gy][gz]) { p.set(0, 7 - gy, 4 + gz, fg); p.set(1, 7 - gy, 8 - gz, fg); }
+  p.sway(SWAY.sign, [1, 10.5, 6], [0, 0, 1], (_x, y, z) => y <= 10 && z >= 2);
+  return p;
+}
+
+/** Glass wind chime (furin) with its paper strip. */
+export function furin(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const p = new Prop(3, 10, 3, 0.0625);
+  p.box(1, 7, 1, 1, 9, 1, c.white);
+  p.box(0, 4, 0, 2, 6, 2, c.vmGlass);
+  p.set(1, 6, 1, [c.fabricRed, c.fabricBlue, c.fabricGreen][seed % 3]);
+  p.box(1, 0, 1, 1, 3, 1, [c.paper, c.pink, c.flowerYellow][seed % 3]);
+  p.sway(SWAY.chime, [1.5, 10, 1.5]);
+  return p;
+}
+
+/** Wooden planter with flowers for the middle of a pedestrian street, 1.5 m along +X. */
+export function streetPlanter(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(12, 7, 4);
+  p.box(0, 0, 0, 11, 2, 3, c.woodDark);
+  p.box(1, 2, 1, 10, 2, 2, c.coalDark);
+  const fl = [c.flowerRed, c.flowerYellow, c.flowerPurple, c.flowerWhite, c.pink, c.flowerOrange];
+  const a = fl[Math.floor(r() * fl.length)], bb = fl[Math.floor(r() * fl.length)];
+  for (let i = 0; i < 4; i++) {
+    const x0 = 1 + i * 2.5;
+    const id = p.body(SWAY.flowers, [x0 + 1.25, 3, 2]);
+    p.ellipsoid(x0 + 1.25, 3.4, 2, 1.6, 1.4 + r() * 1.2, 1.4, (x, y, z) => { p.mark(x, y, z, id); const n = (x * 5 + y * 7 + z * 3) % 6; return n === 0 ? a : n === 3 ? bb : n < 3 ? c.leaf : c.leafDark; });
+  }
+  return p;
+}
+
+/** Laundry pole on two stands in a garden, with towels and shirts drying. 3 m along +X. */
+export function laundryRack(k: PropKit, seed = 1): Prop {
+  const { c } = k;
+  const r = rng(seed);
+  const p = new Prop(24, 15, 5);
+  for (const x of [0, 23]) { p.box(x, 0, 2, x, 14, 2, c.steelDark); p.box(x, 0, 0, x, 0, 4, c.steelDark); p.box(x, 13, 1, x, 13, 3, c.steelDark); }
+  p.box(0, 14, 2, 23, 14, 2, c.steel);
+  const cols = [c.white, c.fabricBlue, c.pink, c.flowerYellow, c.fabricGreen, c.white, c.fabricRed];
+  let x = 2;
+  while (x < 21) {
+    const w = 2 + Math.floor(r() * 3), h = 4 + Math.floor(r() * 4);
+    if (x + w > 22) break;
+    const col = cols[Math.floor(r() * cols.length)];
+    p.box(x, 14 - h, 2, x + w - 1, 13, 2, col);
+    if (r() < 0.4) p.box(x, 14 - h, 2, x + w - 1, 14 - h, 2, c.white); // a stripe at the hem
+    p.sway(SWAY.laundry, [x + w / 2, 14.5, 2.5], [1, 0, 0], (xx, yy) => xx >= x && xx < x + w && yy <= 13);
+    x += w + 1;
+  }
+  return p;
+}
+
+/** A playground swing set: green A-frames, two seats on chains. 2.75 m along +X. */
+export function swingSet(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(22, 19, 9);
+  for (const x of [0, 21]) for (let y = 0; y <= 17; y++) {
+    const dz = Math.round((17 - y) * 4 / 17);
+    p.set(x, y, 4 - dz, c.poleGreen); p.set(x, y, 4 + dz, c.poleGreen);
+  }
+  p.box(0, 18, 4, 21, 18, 4, c.poleGreen);
+  for (const sx of [5, 14]) {
+    p.box(sx, 4, 4, sx, 17, 4, c.steel);
+    p.box(sx + 2, 4, 4, sx + 2, 17, 4, c.steel);
+    p.box(sx, 3, 3, sx + 2, 3, 5, sx === 5 ? c.fabricRed : c.fabricBlue);
+    p.sway(SWAY.swing, [sx + 1.5, 18.5, 4.5], [1, 0, 0], (x, y) => x >= sx && x <= sx + 2 && y <= 17);
+  }
+  return p;
+}
+
+/** A small playground slide, ladder at the back. Slides down towards +Z. */
+export function slide(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(6, 15, 20);
+  for (const x of [0, 5]) p.box(x, 0, 16, x, 14, 16, c.poleGreen), p.box(x, 0, 19, x, 14, 19, c.poleGreen);
+  for (let y = 2; y <= 11; y += 3) p.box(1, y, 19, 4, y, 19, c.steel);
+  p.box(0, 11, 16, 5, 11, 19, c.signYellow);
+  p.box(0, 14, 16, 5, 14, 19, c.fabricRed);
+  for (let z = 0; z < 16; z++) {
+    const h = Math.max(0, Math.round((z / 15) * 10));
+    p.box(1, h, z, 4, h, z, c.fabricOrange);
+    p.set(0, h + 1, z, c.fabricOrange); p.set(5, h + 1, z, c.fabricOrange);
+    if (z % 5 === 4 && h > 1) p.box(2, 0, z, 3, h - 1, z, c.poleGreen);
+  }
+  return p;
+}
+
+/** Shopping-street lamp post with a cloth banner on an arm (arm along +X); the banner swings from the arm. */
+export function bannerPole(k: PropKit, cloth: number, fg: number, seed = 1): Prop {
+  const { c } = k;
+  const p = new Prop(7, 32, 3);
+  p.box(0, 0, 0, 2, 1, 2, c.poleGreen);
+  p.box(1, 2, 1, 1, 29, 1, c.poleGreen);
+  p.box(0, 30, 0, 2, 30, 2, c.poleGreen);
+  p.box(0, 28, 0, 2, 29, 2, c.lampNight);
+  p.box(1, 27, 1, 6, 27, 1, c.poleGreen);
+  p.box(3, 15, 1, 6, 26, 1, cloth);
+  p.box(3, 15, 1, 6, 15, 1, fg);
+  const g = glyph(rng(seed), 4);
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) if (g[y][x] && x < 4) p.set(3 + x, 24 - y * 2, 1, fg);
+  p.sway({ ...SWAY.noren, push: 0 }, [4.5, 27, 1.5], [1, 0, 0], (x, y) => x >= 3 && y <= 26, 0);
   return p;
 }

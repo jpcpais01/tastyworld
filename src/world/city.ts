@@ -6,6 +6,8 @@
 // anchors may depend on reading the grid.
 import { hash3, rng } from './grid';
 import { G, V, VX0, VZ0, SX, SZ, HILL } from './layout';
+import { SWAY } from './sway';
+import { dress, noteFront, noteGarden, noteTree } from './dressing';
 import { Builder, Lot, building, tiledRoof, sakuraTree, bridge, boat, surface, RED, WARM, WHITEWARM, COOL, Ground, Style, Side, BuildingOpts } from './tokyo';
 import {
   glyph, lantern, streetLamp, bench, vendingMachine, bicycle, stoneLantern, plantPot, postBox, boardSign, noren, nobori,
@@ -16,7 +18,7 @@ const XW = VX0, XE = VX0 + SX - 1, ZN = VZ0, ZS = VZ0 + SZ - 1;
 
 type Kind = 'avenue' | 'street' | 'lane' | 'alley' | 'arcade';
 /** Inclusive voxel rect; `ew` streets run east-west. */
-interface Street { name: string; kind: Kind; x0: number; z0: number; x1: number; z1: number; ew: boolean }
+export interface Street { name: string; kind: Kind; x0: number; z0: number; x1: number; z1: number; ew: boolean }
 
 export const STREETS: Street[] = [
   { name: 'Hikari-dori', kind: 'avenue', x0: XW, z0: -112, x1: XE, z1: -73, ew: true },
@@ -60,7 +62,7 @@ export function hillAt(x: number, z: number): number {
 // ---------------------------------------------------------------------------------------------
 // Ground
 
-function streetAt(x: number, z: number): Street | null {
+export function streetAt(x: number, z: number): Street | null {
   for (const s of STREETS) if (x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1) return s;
   return null;
 }
@@ -214,17 +216,25 @@ function paint(b: Builder) {
 
 type TreeKind = 'keyaki' | 'pine' | 'maple' | 'sakura';
 
-export function tree(b: Builder, x: number, z: number, seed: number, kind: TreeKind, yBase = G) {
+/**
+ * Street trees take `clear` (voxels of clean trunk under the crown, so it stays above people's heads) and
+ * `spread` (crown size, for trees standing close to a facade).
+ */
+export function tree(b: Builder, x: number, z: number, seed: number, kind: TreeKind, yBase = G, clear = 0, spread = 1) {
   if (kind === 'sakura') { sakuraTree(b, x, z, seed, yBase); return; }
   const g = b.grid, c = b.c;
   const r = rng(seed);
   const pine = kind === 'pine';
   const h = pine ? 16 + Math.floor(r() * 6) : kind === 'maple' ? 10 + Math.floor(r() * 4) : 18 + Math.floor(r() * 8);
-  let tx = x, tz = z;
+  // the crown rocks on the trunk as one piece from a little below where it starts
+  const crownY = Math.max(clear - 2, pine ? h - 10 : kind === 'maple' ? h - 7 : h - 9);
+  let tx = x, tz = z, id = 0;
   for (let y = 0; y < h; y++) {
     if (y > 5 && r() < (pine ? 0.4 : 0.2)) tx += r() < 0.5 ? 1 : -1;
     if (y > 5 && r() < 0.15) tz += r() < 0.5 ? 1 : -1;
+    if (y === crownY) id = b.addSway({ ...SWAY.tree, amp: pine ? 0.009 : SWAY.tree.amp, pivot: [(tx + 1) * V, (yBase - G + y) * V, (tz + 1) * V], axis: [0, 0, 0], reach: 0 });
     g.box(tx, yBase + y, tz, tx + 1, yBase + y, tz + 1, y < 3 ? c.trunkDark : c.trunk);
+    if (id) for (const [ax, az] of [[0, 0], [1, 0], [0, 1], [1, 1]]) b.swayCell(tx + ax, yBase + y, tz + az, id);
   }
   const cols = pine ? [c.pine, c.pineB, c.pine, c.leafDark] : kind === 'maple' ? [c.maple, c.mapleB, c.maple, c.leaf] : [c.keyaki, c.keyakiB, c.leaf, c.leafDark];
   const blobs: [number, number, number, number, number][] = [];
@@ -234,7 +244,11 @@ export function tree(b: Builder, x: number, z: number, seed: number, kind: TreeK
       const ang = r() * Math.PI * 2, rad = 3 + r() * 5;
       const py = yBase + h - 10 + i * 3 + Math.floor(r() * 2);
       const px = tx + Math.cos(ang) * rad, pz = tz + Math.sin(ang) * rad;
-      for (let s = 0; s <= rad; s++) g.set(Math.round(tx + Math.cos(ang) * s), py - 1, Math.round(tz + Math.sin(ang) * s), c.trunk);
+      for (let s = 0; s <= rad; s++) {
+        const lx = Math.round(tx + Math.cos(ang) * s), lz = Math.round(tz + Math.sin(ang) * s);
+        g.set(lx, py - 1, lz, c.trunk);
+        b.swayCell(lx, py - 1, lz, id);
+      }
       blobs.push([px, py, pz, 4 + r() * 2, 1.6]);
     }
     blobs.push([tx, yBase + h + 1, tz, 4, 2]);
@@ -242,25 +256,26 @@ export function tree(b: Builder, x: number, z: number, seed: number, kind: TreeK
     const n = kind === 'maple' ? 4 : 6;
     for (let i = 0; i < n; i++) {
       const ang = (i / n) * Math.PI * 2 + r();
-      const rad = (kind === 'maple' ? 3 : 5) + r() * 3;
-      blobs.push([tx + Math.cos(ang) * rad, yBase + h - 2 - r() * 4, tz + Math.sin(ang) * rad, kind === 'maple' ? 4 + r() * 2 : 5 + r() * 3, kind === 'maple' ? 3 : 4 + r() * 2]);
+      const rad = ((kind === 'maple' ? 3 : 5) + r() * 3) * spread;
+      blobs.push([tx + Math.cos(ang) * rad, yBase + h - 2 - r() * 4, tz + Math.sin(ang) * rad, (kind === 'maple' ? 4 + r() * 2 : 5 + r() * 3) * spread, kind === 'maple' ? 3 : 4 + r() * 2]);
     }
-    blobs.push([tx, yBase + h + 2, tz, kind === 'maple' ? 5 : 7, 4]);
+    blobs.push([tx, yBase + h + 2, tz, (kind === 'maple' ? 5 : 7) * spread, 4]);
   }
   let x0 = tx, z0 = tz, x1 = tx, z1 = tz;
   for (const [cx, cy, cz, rx, ry] of blobs) {
     x0 = Math.min(x0, cx - rx); z0 = Math.min(z0, cz - rx); x1 = Math.max(x1, cx + rx); z1 = Math.max(z1, cz + rx);
-    for (let y = Math.floor(cy - ry); y <= cy + ry; y++)
+    for (let y = Math.max(Math.floor(cy - ry), yBase + clear); y <= cy + ry; y++)
       for (let zz = Math.floor(cz - rx); zz <= cz + rx; zz++)
         for (let xx = Math.floor(cx - rx); xx <= cx + rx; xx++) {
           const dx = (xx - cx) / rx, dy = (y - cy) / ry, dz = (zz - cz) / rx;
           const d = dx * dx + dy * dy + dz * dz;
           const nn = hash3(xx, y, zz);
-          if (d < 1 - nn * 0.4 && nn > 0.1 && g.get(xx, y, zz) === 0) g.set(xx, y, zz, cols[(nn * 97 | 0) % 4]);
+          if (d < 1 - nn * 0.4 && nn > 0.1 && g.get(xx, y, zz) === 0) { g.set(xx, y, zz, cols[(nn * 97 | 0) % 4]); b.swayCell(xx, y, zz, id); }
         }
   }
   b.occlude(Math.floor(x0), Math.floor(z0), Math.ceil(x1), Math.ceil(z1), (yBase - G + h + 8) * V, (yBase - G) * V + 1.3, 'tree');
   b.block(x * V - 0.1, z * V - 0.1, x * V + 0.6, z * V + 0.6);
+  noteTree(b, x, z);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -322,7 +337,9 @@ function house(lot: Lot, seed: number, mix: Mix, r: () => number) {
   }
   if (o.ground === 'konbini') o.signs = false;
   if ((o.ground === 'pharmacy' || o.ground === 'soba') && lot.width < 20) o.ground = 'shop'; // their layouts need the width
+  const nr = b.rooms.length;
   const { H } = building(lot, o);
+  noteFront(lot, o.ground, o.style, mix, H, seed, b.rooms.slice(nr).map((rm) => rm.door));
   if (mix === 'tower') neonDress(lot, H, o.floors, seed);
   else if (o.style !== 'machiya' && o.style !== 'kura' && lot.width >= 12 && r() < 0.5) {
     lot.wallProp(lantern(k, r() < 0.5 ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
@@ -498,7 +515,9 @@ function viaduct(b: Builder) {
     if (x >= 288 && x <= 327) continue;
     b.place(wire(k, 3.6, 0.3), x * V, 3.9, -192.5 * V, 0);
     if (x % 2 === 0) {
-      b.place(lantern(k, x % 3 ? k.c.lanternRed : k.c.lanternWhite, 4, 5, x), x * V, 3.1, -192.5 * V);
+      b.swayParent = b.lastSway[0];
+      b.place(lantern(k, x % 3 ? k.c.lanternRed : k.c.lanternWhite, 4, 5, x), x * V, 3.0, -192.5 * V);
+      b.swayParent = 0;
       b.lamp(x * V, 3.2, -192.5 * V, x % 3 ? RED : WHITEWARM, 3.2, 0.6);
     }
   }
@@ -749,11 +768,13 @@ function arcade(b: Builder) {
   // hanging decorations: lantern rows and paper sakura garlands, banners
   for (let z = z0 + 8; z < z1; z += 16) {
     if (z >= 356 && z <= 379) continue;
-    b.place(wire(k, 7.8, 0.4, k.c.white), (x0 + x1 + 1) / 2 * V, 3.9, z * V, 1);
+    b.place(wire(k, 7.8, 0.4, k.c.white), (x0 + x1 + 1) / 2 * V, 3.9, (z + 0.5) * V, 0);
+    b.swayParent = b.lastSway[0];
     for (let x = x0 + 4; x < x1 - 2; x += 5) {
       const col = (x + z) % 3 === 0 ? k.c.lanternWhite : k.c.lanternRed;
-      b.place(lantern(k, col, 4, 5, x * 31 + z), x * V, 3.15, z * V);
+      b.place(lantern(k, col, 4, 5, x * 31 + z), x * V, 3.0, (z + 0.5) * V);
     }
+    b.swayParent = 0;
     b.lamp((x0 + x1) / 2 * V, 3.3, z * V, WARM, 6, 0.8);
     for (let x = x0 + 2; x < x1; x += 2) g.set(x, top - 1 - ((x >> 1) % 2), z + 4, (x >> 1) % 3 === 0 ? c.petal : (x >> 1) % 3 === 1 ? c.petalDeep : c.leaf);
   }
@@ -867,7 +888,7 @@ function park(b: Builder) {
 // Inari hill: a path climbing through a tunnel of torii to a fox shrine
 
 /** The path up the hill (metres), from the street to the summit. */
-const INARI_PATH: [number, number][] = [[-35, 64.6], [-35, 72], [-42, 78], [-52, 80], [-58, 86], [-55, 92], [-49, 95]];
+export const INARI_PATH: [number, number][] = [[-35, 64.6], [-35, 72], [-42, 78], [-52, 80], [-58, 86], [-55, 92], [-49, 95]];
 
 function inari(b: Builder) {
   const g = b.grid, c = b.c, k = b.k;
@@ -958,6 +979,7 @@ function inari(b: Builder) {
 function gardens(b: Builder, x0: number, z0: number, x1: number, z1: number, seed: number) {
   const g = b.grid, c = b.c;
   const r = rng(seed);
+  noteGarden(b, x0, z0, x1, z1);
   for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
     const h = hash3(x, z, seed);
     g.set(x, G - 1, z, h < 0.5 ? c.grass : h < 0.8 ? c.grassDark : c.soil);
@@ -969,8 +991,10 @@ function gardens(b: Builder, x0: number, z0: number, x1: number, z1: number, see
     if (r() < 0.5) {
       g.box(x + 9, G, z0 + 1, x + 13, G + 6, z0 + 4, c.woodMid);
       g.box(x + 8, G + 7, z0, x + 14, G + 7, z0 + 5, c.steelDark);
+      b.block((x + 9) * V, (z0 + 1) * V, (x + 14) * V, (z0 + 5) * V);
     } else {
       for (let zz = z0 + 1; zz < Math.min(z1, z0 + 7); zz += 2) for (let xx = x + 8; xx < x + 15; xx++) g.set(xx, G, zz, hash3(xx, zz, 3) < 0.6 ? c.leaf : c.mustard);
+      b.block((x + 8) * V, (z0 + 1) * V, (x + 15) * V, Math.min(z1, z0 + 7) * V);
     }
   }
 }
@@ -1042,7 +1066,7 @@ function furnish(b: Builder) {
         g.box(vx, G + 22, vz, vx, G + 24, vz, c.steel);
         b.lamp(x, 4.2, z, WHITEWARM, 6, 0.7);
         b.block(x - 0.15, z - 0.15, x + 0.4, z + 0.4);
-        b.place(wire(k, step * V - 0.3, 0.6), s.ew ? x + step * V / 2 : x, 7.4, s.ew ? z : z + step * V / 2, s.ew ? 1 : 0);
+        b.place(wire(k, step * V - 0.3, 0.6), s.ew ? x + step * V / 2 : x, 7.4, s.ew ? z : z + step * V / 2, s.ew ? 0 : 1);
       }
       // now and then: a vending machine pair, parked bikes, a post box, potted plants
       const roll = r();
@@ -1128,6 +1152,7 @@ function canal(b: Builder) {
       lot.box(0, 0, 0, w - 1, 9, lot.depth - 1, [c.plaster, c.woodDark, c.cedar][Math.floor(r() * 3)]);
       lot.box(2, 1, 0, w - 3, 7, 0, (a) => (a % 2 ? c.woodDark : c.shoji));
       tiledRoof(lot, 10, 2, 2);
+      noteFront(lot, 'plain', 'machiya', 'canal', 10, x * 7 + 3, [], true);
       x += w;
     }
   }
@@ -1212,7 +1237,9 @@ export function buildCity(b: Builder): CityResult {
   }
 
   furnish(b);
-  return graph();
+  const res = graph();
+  dress(b, res);
+  return res;
 }
 
 /** Street graph for the walkers: junctions and points along the new streets (metres). */

@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.6.2',
+    date: '2026-10-30',
+    title: 'Crisp signs',
+    items: [
+      'Fixed shop signs flickering with jagged dark triangles across their lettering, most visible up close in first-person view. Signs, lanterns and other street details now sit cleanly on the buildings behind them.',
+    ],
+  },
+  {
     version: '0.6.1',
     date: '2026-10-30',
     title: 'Clear water',

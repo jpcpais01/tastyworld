@@ -99,7 +99,15 @@ void main() {
   vLight = aLight;
   vQuad = aQuad;
   vAO = aPack.y / 255.0;
-  gl_Position = projectionMatrix * viewMatrix * wp;
+  vec4 vp = viewMatrix * wp;
+  // Props (fine voxels) often sit flush on the coarse world, e.g. a sign over window trim, so their faces can be
+  // coplanar with world faces and z-fight. Nudge fine voxels a hair towards the camera, along the view ray so the
+  // image does not move: relative to distance in perspective, a fixed few millimetres in the ortho view.
+  if (sIdx > 0.5) {
+    if (projectionMatrix[2][3] < -0.5) vp.xyz *= 0.9992;
+    else vp.z += 0.005;
+  }
+  gl_Position = projectionMatrix * vp;
 }
 `;
 

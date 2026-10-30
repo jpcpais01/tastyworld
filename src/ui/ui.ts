@@ -44,6 +44,18 @@ export interface GameHooks {
 
 interface Label { el: HTMLElement; pos: [number, number, number]; visible: boolean; until?: number; }
 
+/** A noren curtain: one fabric panel per character of the shop's name (two when it is long). */
+function noren(jp: string, secret = false): HTMLElement {
+  const chars = [...(jp.split(' ').pop() ?? '')];
+  const per = chars.length > 5 ? 2 : 1;
+  const words: string[] = [];
+  for (let i = 0; i < chars.length; i += per) words.push(chars.slice(i, i + per).join(''));
+  const n = Math.max(3, Math.min(5, words.length));
+  const pad = Math.floor((n - words.length) / 2);
+  const panels = Array.from({ length: n }, (_, i) => `<span>${words[i - pad] ?? ''}</span>`).join('');
+  return h('div', 'noren' + (secret ? ' secret' : ''), `<i class="rod"></i><div class="cloth">${panels}</div>`);
+}
+
 /** An on/off switch button. */
 function toggle(on: boolean, set: (v: boolean) => void, label = ''): HTMLElement {
   const wrap = h('label', 'toggle', label ? `<span>${label}</span>` : '');
@@ -81,6 +93,7 @@ export class UI {
   private lastZone = '';
   private lastTod = '';
   private lastYen = -1;
+  private keysTimer = 0;
   onPrompt: (() => void) | null = null;
   onRotate: ((dir: number) => void) | null = null;
   onZoom: ((f: number) => void) | null = null;
@@ -113,27 +126,31 @@ export class UI {
   private buildHud() {
     this.hud.innerHTML = `
       <div class="hud-tl">
-        <div class="card place">
+        <div class="glass place">
           <div class="tod" id="h-tod">${G.sun}</div>
-          <div>
-            <div class="place-meta">Tokyo <span class="clock" id="h-clock">16:36</span></div>
-            <div class="place-name" id="h-loc">Temple Plaza</div>
-          </div>
+          <div class="place-name" id="h-loc">Temple Plaza</div>
+          <span class="clock" id="h-clock">16:36</span>
         </div>
-        <button class="card party hidden" id="h-party" aria-label="Your co-op trip"></button>
-        <button class="card tracker" id="h-track" aria-label="Missions"></button>
+        <button class="glass party hidden" id="h-party" aria-label="Your co-op trip"></button>
+        <button class="glass quest" id="h-track" aria-label="Missions"></button>
       </div>
       <div class="hud-tr">
-        <div class="card yen" id="h-yenchip" title="Your yen"><span class="coin">¥</span><span id="h-yen">3,000</span></div>
-        <div class="card dock">
+        <div class="glass bar">
+          <div class="yen" id="h-yenchip" title="Your yen"><span class="coin">¥</span><span id="h-yen">3,000</span></div>
+          <span class="sep"></span>
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="World map (M)" aria-label="World map">${G.map}</button>
           <button id="h-set" title="Settings" aria-label="Settings">${G.gear}</button>
         </div>
       </div>
-      <div class="hud-bl"><div class="keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Q</kbd><kbd>E</kbd> rotate</span><span><kbd>V</kbd> view</span><span><kbd>Space</kbd> interact</span><span><kbd>P</kbd> passport</span></div></div>
+      <div class="hud-bl">
+        <div class="controls" id="h-keys">
+          <button class="glass kb" id="h-kb" title="Controls" aria-label="Show controls">${G.keyboard}</button>
+          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>P</kbd> passport</span></div>
+        </div>
+      </div>
       <div class="hud-br">
-        <div class="card dock">
+        <div class="glass bar">
           <button id="h-wave" class="hidden" title="Wave (G)" aria-label="Wave to your friends">${G.wave}</button>
           <button id="h-view" title="First-person view (V)" aria-label="First-person view" aria-pressed="false">${G.eye}</button>
           <button id="h-rl" title="Rotate left (Q)" aria-label="Rotate left">${G.rotL}</button>
@@ -153,11 +170,21 @@ export class UI {
     tap('h-rr', () => this.onRotate?.(1));
     tap('h-view', () => this.onView?.());
     tap('h-track', () => this.passport('missions'));
+    tap('h-kb', () => this.showKeys(!$('h-keys').classList.contains('open')));
     for (const el of this.hud.querySelectorAll('button')) el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.refresh();
   }
 
-  showHud(on: boolean): void { this.hud.classList.toggle('hidden', !on); }
+  showHud(on: boolean): void {
+    this.hud.classList.toggle('hidden', !on);
+    // controls show for a moment when the HUD appears, then tuck away
+    if (on) { this.showKeys(true); this.keysTimer = window.setTimeout(() => this.showKeys(false), 9000); }
+  }
+
+  private showKeys(open: boolean): void {
+    clearTimeout(this.keysTimer);
+    $('h-keys').classList.toggle('open', open);
+  }
 
   /** The co-op chip: who is on this trip (null hides it). */
   party(code: string, crew: { name: string; color: number; here: boolean }[] | null): void {
@@ -222,13 +249,19 @@ export class UI {
     const open = MISSIONS.filter((m) => !this.s.claimed.includes(m.id));
     const ready = open.filter((m) => { const [a, b] = m.progress(this.s); return a >= b; });
     this.ppDot.classList.toggle('hidden', !ready.length);
-    // claimable missions first, then the ones in progress
-    const show = [...ready, ...open.filter((m) => !ready.includes(m) && (m.id !== 'secret' || this.s.hiddenFound))].slice(0, 3);
-    this.trackerEl.innerHTML = `<div class="eyebrow"><span>Missions</span>${ready.length ? `<em>${ready.length} to claim</em>` : ''}</div>` + (show.length ? show.map((m) => {
-      const [a, b] = m.progress(this.s);
-      const done = a >= b;
-      return `<div class="tm${done ? ' ready' : ''}"><span>${esc(m.name)}</span><small>${done ? 'Claim' : `${a}/${b}`}</small><span class="tb"><i style="width:${Math.min(100, (a / b) * 100)}%"></i></span></div>`;
-    }).join('') : `<div class="tm"><span>Tokyo complete! 🎉</span></div>`);
+    // one mission at a time: a reward to claim first, otherwise the one closest to done
+    const live = open.filter((m) => m.id !== 'secret' || this.s.hiddenFound);
+    const frac = (m: Mission) => { const [a, b] = m.progress(this.s); return a / b; };
+    const next = ready[0] ?? [...live].sort((x, y) => frac(y) - frac(x))[0];
+    this.trackerEl.classList.toggle('ready', !!ready.length);
+    this.trackerEl.classList.toggle('hidden', !next);
+    if (!next) return;
+    const [a, b] = next.progress(this.s);
+    const extra = ready.length > 1 ? `<span class="more">+${ready.length - 1}</span>` : '';
+    this.trackerEl.title = 'Missions (P)';
+    this.trackerEl.innerHTML = ready.length
+      ? `<span class="ring">${G.sparkle}</span><span class="qt"><em>Reward ready · </em>${esc(next.name)}</span>${extra}`
+      : `<span class="ring" style="--p:${Math.round(Math.min(1, a / b) * 100)}"></span><span class="qt">${esc(next.name)}<small>${a}/${b}</small></span>`;
   }
 
   // ------------------------------------------------------------------ prompt, toasts, labels
@@ -316,6 +349,7 @@ export class UI {
     this.root.appendChild(scrim);
     this.root.appendChild(p);
     this.open = cls;
+    this.showKeys(false);
     this.hooks.panel(true);
     return p;
   }
@@ -351,7 +385,7 @@ export class UI {
   // stall menu ------------------------------------------------------------------------------
   stall(st: StallInfo): void {
     const p = this.panel();
-    p.appendChild(h('div', 'noren' + (st.hidden ? ' secret' : ''), `<span>${st.jp.split(' ').pop() ?? ''}</span>`));
+    p.appendChild(noren(st.jp, st.hidden));
     this.head(p, esc(st.name), '', `${esc(st.street)} · ${st.hidden ? 'Omakase counter' : st.restaurant ? 'Restaurant' : 'Street stall'}`);
     const body = h('div', 'panel-body');
     const greet = st.greeting[Math.floor(Math.random() * st.greeting.length)];
@@ -392,7 +426,7 @@ export class UI {
   /** Counter of a shop, café or bar: a few small things to buy. */
   shop(name: string, jp: string, sub: string, keeper: string, line: string, items: Buyable[], buy: (it: Buyable) => boolean): void {
     const p = this.panel();
-    p.appendChild(h('div', 'noren', `<span>${jp.split(' ').pop() ?? ''}</span>`));
+    p.appendChild(noren(jp));
     this.head(p, esc(name), '', esc(sub));
     const body = h('div', 'panel-body');
     body.innerHTML = `<div class="vendor-line"><span class="ava">${esc(keeper.charAt(0))}</span><div class="say"><b>${esc(keeper)}</b>“${esc(line)}”</div></div>`;
@@ -644,6 +678,7 @@ export class UI {
     const el = h('div', 'dialogue', `<div class="dn">${esc(name)}</div><div class="dt"></div><div class="dm"><span class="pips"></span><span class="more"></span></div>`);
     this.root.appendChild(el);
     this.dialogueEl = el;
+    this.showKeys(false);
     this.hooks.panel(true);
     const dt = el.querySelector('.dt') as HTMLElement, more = el.querySelector('.more') as HTMLElement, pips = el.querySelector('.pips') as HTMLElement;
     let i = 0, ch = 0, timer = 0;

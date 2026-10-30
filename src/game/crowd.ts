@@ -1,5 +1,6 @@
 import { Actor, Anim, SIT_DROP } from './actors';
 import type { Nav } from './nav';
+import type { Router } from './paths';
 import type { Anchors, StallAnchor } from '../world/tokyo';
 import type { RoomAnchor, RoomKind } from '../world/interiors';
 import { randomLook, type Look } from '../world/characters';
@@ -188,12 +189,25 @@ function zoneDraw(zone: string, h: number): number {
   }
 }
 
+/** A found path that ends exactly on the target, or [] if it stops short of it. */
+function arrive(r: V2[] | null, bx: number, bz: number): V2[] {
+  if (!r?.length) return [];
+  const [ex, ez] = r[r.length - 1];
+  if (Math.hypot(ex - bx, ez - bz) > 0.6) return [];
+  r[r.length - 1] = [bx, bz];
+  return r;
+}
+
 export class Crowd {
   readonly walkers: Walker[] = [];
   private seats: Seat[] = [];
   private stallSpots = new Map<string, { p: V2; taken: Walker | null }[]>();
   private routes = new Map<string, V2[]>();
+  /** Routes asked of the router and not answered yet. */
+  private asking = new Set<string>();
   private budget = 0;
+  /** Finds routes off the main thread when set; otherwise a couple of searches run inline each frame. */
+  router: Router | null = null;
   private popT = 0;
   private chatT = 0;
   private sayT = 4;
@@ -459,20 +473,19 @@ export class Crowd {
 
   // ------------------------------------------------------------------ routes
 
-  /** Cached A* route; undefined when this frame's path budget is spent, [] when unreachable. */
+  /** Cached A* route; undefined while it is still being found (or this frame's budget is spent), [] when unreachable. */
   private route(key: string, ax: number, az: number, bx: number, bz: number): V2[] | undefined {
-    let r = this.routes.get(key);
+    const r = this.routes.get(key);
     if (r) return r;
+    if (this.router) {
+      if (!this.asking.has(key) && this.router.find(ax, az, bx, bz, (p) => { this.asking.delete(key); this.routes.set(key, arrive(p, bx, bz)); })) this.asking.add(key);
+      return undefined;
+    }
     if (this.budget <= 0) return undefined;
     this.budget--;
-    r = this.nav.findPath(ax, az, bx, bz) ?? [];
-    if (r.length) {
-      const [ex, ez] = r[r.length - 1];
-      if (Math.hypot(ex - bx, ez - bz) > 0.6) r = [];
-      else r[r.length - 1] = [bx, bz];
-    }
-    this.routes.set(key, r);
-    return r;
+    const p = arrive(this.nav.findPath(ax, az, bx, bz), bx, bz);
+    this.routes.set(key, p);
+    return p;
   }
 
   private setPath(w: Walker, path: V2[], goal: Goal): void {

@@ -5,6 +5,7 @@ import { Renderer, voxelMaterial, Quality } from './engine/renderer';
 import { farCity } from './engine/farcity';
 import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
+import { Perf } from './engine/perf';
 import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
 import { assemble } from './world/assemble';
 import type { WorkerIn, WorkerOut } from './world/worker';
@@ -16,6 +17,7 @@ import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
+import { PathService } from './game/paths';
 import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { IsoCamera } from './game/camera';
@@ -56,7 +58,7 @@ interface Interactable {
   act(): void;
 }
 
-interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; }
+interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; it: Interactable | null; }
 /** A friend on a co-op trip, drawn from the samples they send. */
 interface Remote { actor: Actor; look: string; tag: HTMLElement; name: string; tx: number; ty: number; tz: number; }
 
@@ -107,6 +109,7 @@ class Game {
   private beacon!: Beacon;
   /** The walk to the pinned spot: corners still ahead of the player, last one the pin. */
   private route: [number, number][] | null = null;
+  private paths!: PathService;
   private routeT = 0;
   private guideEl: HTMLElement | null = null;
   private walkLeft = 0;
@@ -126,6 +129,8 @@ class Game {
   private matWorld!: THREE.ShaderMaterial;
   /** Scratch list of people near the player, nearest first, for the sway shader. */
   private nudgers: [number, Actor][] = [];
+  private drawn: Actor[] = [];
+  private perf!: Perf;
   private matCut!: THREE.ShaderMaterial;
   private heightWorld!: THREE.DataTexture;
   private heightInside!: THREE.DataTexture;
@@ -178,6 +183,7 @@ class Game {
     const mobile = matchMedia('(pointer: coarse)').matches;
     const q: Quality = this.s.settings.quality === 'auto' ? (mobile ? 'medium' : 'high') : this.s.settings.quality;
     this.r = new Renderer(canvas, q);
+    this.perf = new Perf(this.r.gl, () => this.r.shadows.redraws);
     this.cam = new IsoCamera(this.r.camera, this.r.persp);
     this.r.scene.add(this.worldGroup, this.insideGroup);
     this.insideGroup.visible = false;
@@ -339,6 +345,7 @@ class Game {
     this.r.composite.uniforms.tShore.value = shore;
     this.r.composite.uniforms.uShoreRect.value.set(w.nav.ox, w.nav.oz, 1 / (w.nav.sx * 0.25), 1 / (w.nav.sz * 0.25));
     this.navWorld = new Nav(w.nav);
+    this.paths = new PathService(w.nav);
     this.navInside = new Nav(w.interiorNav);
     this.nav = this.navWorld;
     this.lm = w.lightmap;
@@ -480,6 +487,7 @@ class Game {
       vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), sh, true, true)),
       boat: (seed) => lazy(new Actor(swanBoatModel(seed), sh, true, true)),
     });
+    this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
     const m = this.r.isMobile;
     this.crowd.populate(m
@@ -494,9 +502,9 @@ class Game {
       act.anim = 'sit';
       act.facing = act.targetFacing = i * 2.1;
       this.worldGroup.add(act.root);
-      const cat: Cat = { actor: act, home: c, target: null, timer: 3 + i * 2 };
+      const cat: Cat = { actor: act, home: c, target: null, timer: 3 + i * 2, it: null };
       this.cats.push(cat);
-      this.interactables.push({
+      this.interactables.push(cat.it = {
         key: `cat-${i}`, x: c[0], z: c[2], stand: [c[0], c[2]], pick: [c[0], 0.5, c[2]], r: 1.2, inside: false,
         prompt: () => ['🐈', 'Neighbourhood cat', 'Pet the cat'],
         act: () => {
@@ -662,6 +670,7 @@ class Game {
     this.shelfClosed.visible = !open;
     this.shelfOpen.visible = open;
     this.navWorld.setBlocked('shelf', sec.gate, !open);
+    this.paths.block('shelf', sec.gate, !open);
   }
 
   private pullBook(): void {
@@ -1122,9 +1131,14 @@ class Game {
     const pin = this.s.pin;
     if (!pin) return;
     const [x, z] = this.mapPos();
-    this.route = this.navWorld.findPath(x, z, pin.x, pin.z);
-    // no way there (out over the water, say): just point at it rather than searching again and again
-    this.routeT = this.route ? 2.5 : Infinity;
+    // found off the main thread (a route across town is a big search); the old route shows until it arrives
+    const asked = this.paths.find(x, z, pin.x, pin.z, (r) => {
+      if (this.s.pin !== pin) return;
+      this.route = r;
+      // no way there (out over the water, say): just point at it rather than searching again and again
+      if (!r) this.routeT = Infinity;
+    });
+    this.routeT = asked ? 2.5 : 0.2;
   }
 
   /** Every frame: the HUD compass, the beacon and the tag that points the way. */
@@ -1595,10 +1609,10 @@ class Game {
         }
       }
       // keep cat prompts on the moving cats
-      this.cats.forEach((c, i) => {
-        const it = this.interactables.find((x) => x.key === `cat-${i}`);
+      for (const c of this.cats) {
+        const it = c.it;
         if (it) { it.x = it.stand[0] = c.actor.position.x; it.z = it.stand[1] = c.actor.position.z; it.pick[0] = it.x; it.pick[2] = it.z; }
-      });
+      }
       // a vendor nearby calls out now and then
       this.callT -= dt;
       if (this.callT <= 0 && this.started) {
@@ -1611,7 +1625,16 @@ class Game {
         }
       }
     }
-    const all: Actor[] = this.inside ? [this.chef] : [...this.vendors.map((v) => v.actor), ...this.idlers.map((e) => e.actor), ...this.crowd.visible(), ...this.cats.map((c) => c.actor)];
+    // everyone animated and drawn this frame (one list, reused)
+    const all = this.drawn;
+    all.length = 0;
+    if (this.inside) all.push(this.chef);
+    else {
+      for (const v of this.vendors) all.push(v.actor);
+      for (const e of this.idlers) all.push(e.actor);
+      for (const a of this.crowd.visible()) all.push(a);
+      for (const c of this.cats) all.push(c.actor);
+    }
     // shop keepers and regulars: only the ones near the player are shown and animated
     for (const e of this.roomActors) {
       const q = e.actor.position;
@@ -1732,6 +1755,7 @@ class Game {
     const raw = now - this.last;
     this.last = now;
     const dt = Math.min(0.05, raw / 1000);
+    this.perf.begin(raw);
     const sh = this.r.shared;
     this.syncCoop(dt);
     if (this.covered) return;
@@ -1799,7 +1823,9 @@ class Game {
     }
     this.audio.tick(this.tod.night);
     // the pocket map covers the screen, so the world can rest under it
+    this.perf.beginRender();
     if (!this.cityMap.isOpen) this.r.render();
+    if (this.perf.on) this.perf.endRender({ chunks: this.streamer.resident.size, people: this.drawn.length, scale: this.r.renderScale, quality: this.r.quality });
     this.r.adapt(raw, now);
   }
 }

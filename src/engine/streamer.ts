@@ -119,6 +119,11 @@ export class Streamer {
     return [WX0 + c.ix * CM, WZ0 + c.iz * CM, WX0 + (c.ix + 1) * CM, WZ0 + (c.iz + 1) * CM];
   }
 
+  /** Ground distance from a chunk's centre to a point (m). Runs per chunk per frame, so no allocations. */
+  private dist2d(c: Chunk, p: THREE.Vector3): number {
+    return Math.hypot(WX0 + (c.ix + 0.5) * CM - p.x, WZ0 + (c.iz + 0.5) * CM - p.z);
+  }
+
   /** True when every chunk the view wants at full detail has arrived. */
   get settled(): boolean {
     for (const c of this.chunks) if (c.want === 0 && !c.lv[0]) return false;
@@ -223,9 +228,7 @@ export class Streamer {
       const lod = c.want;
       if (c.lv[lod]) continue;
       if (this.busy[this.partOf(c.iz)] >= 2) continue;
-      const [x0, z0, x1, z1] = this.rect(c);
-      const d = Math.hypot((x0 + x1) / 2 - focus.x, (z0 + z1) / 2 - focus.z);
-      queue.push({ c, lod, pri: d + lod * 60 });
+      queue.push({ c, lod, pri: this.dist2d(c, focus) + lod * 60 });
     }
     queue.sort((a, b) => a.pri - b.pri);
     for (const q of queue) {
@@ -339,8 +342,7 @@ export class Streamer {
     }
     stale.sort((a, b) => a.seen - b.seen);
     for (const c of stale) {
-      const [x0, z0, x1, z1] = this.rect(c);
-      const far = Math.hypot((x0 + x1) / 2 - focus.x, (z0 + z1) / 2 - focus.z) > Math.max(130, this.dist + 30);
+      const far = this.dist2d(c, focus) > Math.max(130, this.dist + 30);
       const old = this.t - c.seen > 20;
       if (full <= this.budget && !far && !old) break;
       if (this.t - c.seen < 1.5) continue;

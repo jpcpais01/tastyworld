@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.6.1',
+    date: '2026-10-30',
+    title: 'Clear water',
+    items: [
+      'Took the foam off Sakura Canal. The water is clean and glassy again, and it still drifts downstream with ripples, soft lapping edges and the odd floating cherry petal.',
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-10-30',
     title: 'Step inside',

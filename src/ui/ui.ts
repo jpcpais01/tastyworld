@@ -84,6 +84,7 @@ export class UI {
   onPrompt: (() => void) | null = null;
   onRotate: ((dir: number) => void) | null = null;
   onZoom: ((f: number) => void) | null = null;
+  onView: (() => void) | null = null;
   open: string | null = null;
 
   constructor(private s: SaveState, private audio: Audio, private hooks: GameHooks) {
@@ -143,13 +144,15 @@ export class UI {
           <button id="h-set" title="Settings" aria-label="Settings">${G.gear}</button>
         </div>
       </div>
-      <div class="hud-bl"><div class="keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Q</kbd><kbd>E</kbd> rotate</span><span><kbd>Space</kbd> interact</span><span><kbd>P</kbd> passport</span></div></div>
+      <div class="hud-bl"><div class="keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Q</kbd><kbd>E</kbd> rotate</span><span><kbd>V</kbd> view</span><span><kbd>Space</kbd> interact</span><span><kbd>P</kbd> passport</span></div></div>
       <div class="hud-br">
         <div class="card dock">
+          <button id="h-view" title="First-person view (V)" aria-label="First-person view" aria-pressed="false">${G.eye}</button>
           <button id="h-rl" title="Rotate left (Q)" aria-label="Rotate left">${G.rotL}</button>
           <button id="h-rr" title="Rotate right (E)" aria-label="Rotate right">${G.rotR}</button>
         </div>
-      </div>`;
+      </div>
+      <div class="xhair" aria-hidden="true"></div>`;
     this.locName = $('h-loc'); this.clockEl = $('h-clock'); this.todEl = $('h-tod');
     this.yenEl = $('h-yen'); this.yenChip = $('h-yenchip'); this.trackerEl = $('h-track'); this.ppDot = $('h-dot');
     const tap = (id: string, fn: () => void) => $(id).addEventListener('click', (e) => { e.stopPropagation(); this.audio.play('click'); fn(); });
@@ -158,12 +161,22 @@ export class UI {
     tap('h-set', () => this.settings());
     tap('h-rl', () => this.onRotate?.(-1));
     tap('h-rr', () => this.onRotate?.(1));
+    tap('h-view', () => this.onView?.());
     tap('h-track', () => this.passport('missions'));
     for (const el of this.hud.querySelectorAll('button')) el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.refresh();
   }
 
   showHud(on: boolean): void { this.hud.classList.toggle('hidden', !on); }
+
+  /** First-person HUD: crosshair on, view button lit. */
+  setFirstPerson(on: boolean): void {
+    this.hud.classList.toggle('fp', on);
+    const b = $('h-view');
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+    b.title = on ? 'Back to the overhead view (V)' : 'First-person view (V)';
+  }
 
   location(name: string, jp: string, clock: string): void {
     if (name !== this.lastZone) {

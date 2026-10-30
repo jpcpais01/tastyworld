@@ -120,6 +120,9 @@ flat out vec3 vNormal;
 flat out vec4 vEdge;
 flat out float vScale;
 flat out float vVary;
+#ifdef CUTAWAY
+flat out float vSeam;
+#endif
 out vec3 vWorld;
 #ifdef SWAY
 out vec3 vRest; // world position before the sway: shadows are looked up where the cached shadow map drew it
@@ -144,8 +147,16 @@ mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0, -s, 0, 1, 0
 mat3 rotZ(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0, -s, c, 0, 0, 0, 1); }
 
 void main() {
-  float face = mod(aPack.x, 8.0);
-  float sIdx = floor(aPack.x / 8.0 + 0.01);
+  // a face kept between two buildings (world/mesher.ts) stays buried unless the cutaway can expose it
+  float seam = step(127.5, aPack.x);
+#ifdef CUTAWAY
+  vSeam = seam;
+#else
+  if (seam > 0.5) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
+#endif
+  float pk = aPack.x - seam * 128.0;
+  float face = mod(pk, 8.0);
+  float sIdx = floor(pk / 8.0 + 0.01);
   vScale = SCALES[int(sIdx)];
   vec3 n = faceNormal(face);
   float edges = mod(aPack.z, 16.0);
@@ -223,6 +234,10 @@ uniform vec3 uCharLight; // sun, sky, highlight
 uniform vec3 uCharLamp;
 uniform float uFlash;
 #endif
+#ifdef LODFADE
+uniform vec2 uFade; // share of pixels the new level draws (0..1); y = 1 draws the rest (the level going away)
+const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
+#endif
 #ifdef CUTAWAY
 uniform vec3 uCamFwd;
 uniform float uCutOn;      // 0 or 1: off in first person and on the title screen
@@ -260,6 +275,9 @@ flat in vec3 vNormal;
 flat in vec4 vEdge;
 flat in float vScale;
 flat in float vVary;
+#ifdef CUTAWAY
+flat in float vSeam;
+#endif
 in vec3 vWorld;
 #ifdef SWAY
 in vec3 vRest;
@@ -311,6 +329,12 @@ float sunShadow(vec3 n, out float w) {
 #endif
 
 void main() {
+#ifdef LODFADE
+  // level-of-detail swap: old and new meshes split the pixels by a 4x4 ordered dither, so it dissolves instead of popping
+  ivec2 bq = ivec2(gl_FragCoord.xy) & 3;
+  bool keep = (BAYER[bq.y * 4 + bq.x] + 0.5) / 16.0 < uFade.x;
+  if (keep == (uFade.y > 0.5)) discard;
+#endif
 #ifdef CUTAWAY
   // Whole-object cutaway: anything owned by a lowered occluder is removed above that occluder's cut
   // height. Where the view ray meets solid wall of the same occluder at that height, a section cap is
@@ -318,9 +342,15 @@ void main() {
   bool capped = false;
   vec3 capP = vec3(0.0);
   float capH = 0.0;
+  if (uCutOn < 0.5 && vSeam > 0.5) discard;
   if (uCutOn > 0.5) {
     vec2 fwdH = normalize(uCamFwd.xz);
     float id;
+    if (vSeam > 0.5) {
+      // a wall between two buildings only shows where the neighbour across it has been lowered below it
+      float idN;
+      if (vWorld.y <= cutAt(vWorld + vNormal * 0.06, fwdH, idN)) discard;
+    }
     // step a hair into the voxel this face belongs to, so faces on a column boundary pick the right owner
     float h = cutAt(vWorld - vNormal * 0.06, fwdH, id);
     if (vWorld.y > h) {

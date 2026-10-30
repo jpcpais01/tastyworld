@@ -3,6 +3,7 @@ import type { MeshData } from '../world/mesher';
 import type { WorkerOut } from '../world/worker';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, V, WX0, WZ0 } from '../world/layout';
 import { geometryFrom } from '../game/actors';
+import { SHADOW_STATIC } from './shadows';
 
 const CM = CHUNK * V; // chunk side in metres
 
@@ -21,7 +22,22 @@ export interface Chunk {
   /** Cutaway: occluders the chunk can touch, and whether it currently uses the cutaway material. */
   occ: number[];
   cut: boolean;
+  /** Cross-fade in progress: the mesh being replaced, still drawn with the complementary dither. */
+  fade: Fade | null;
 }
+
+interface Fade {
+  old: THREE.Mesh;
+  next: THREE.Mesh;
+  t: number;
+  mIn: THREE.ShaderMaterial;
+  mOut: THREE.ShaderMaterial;
+}
+
+/** Seconds a level-of-detail swap takes to dissolve from the old mesh into the new one. */
+const FADE_TIME = 0.5;
+/** Metres of head start a chunk already at full detail gets in the ranking, so the edge doesn't flicker as you walk. */
+const KEEP = 18;
 
 export interface StreamView {
   cam: THREE.Camera;
@@ -32,8 +48,8 @@ export interface StreamView {
 
 /** Level-of-detail rings for a view distance (metres): full detail inside `full`, half inside `half`, quarter out to `far`. */
 export function lodRings(dist: number): { full: number; half: number; far: number } {
-  const full = Math.min(64, Math.max(40, dist * 0.34));
-  return { full, half: Math.max(full + 16, dist * 0.62), far: dist + CHUNK * V };
+  const full = Math.min(80, Math.max(46, dist * 0.4));
+  return { full, half: Math.max(full + 20, dist * 0.68), far: dist + CHUNK * V };
 }
 
 /**
@@ -55,6 +71,14 @@ export class Streamer {
   private m4 = new THREE.Matrix4();
   private box = new THREE.Box3();
   private waiters: (() => void)[] = [];
+  /** Where the focus is heading: chunks ahead of the walk are ranked as if already nearer. */
+  private lead = new THREE.Vector3();
+  private lastFocus = new THREE.Vector3(NaN, 0, 0);
+  private vel = new THREE.Vector2();
+  private fading = new Set<Chunk>();
+  private fadePool: THREE.ShaderMaterial[] = [];
+  /** Makes a world material with the LODFADE dither (a `uFade` uniform of its own); null disables fading. */
+  fadeMaterial: (() => THREE.ShaderMaterial) | null = null;
   /** Full-detail chunks kept around before the least recently seen are dropped. */
   budget: number;
   /** View distance in metres (first person draws out to it; the iso view uses coarser chunks when zoomed far out). */
@@ -71,13 +95,13 @@ export class Streamer {
     mobile: boolean,
   ) {
     this.busy = workers.map(() => 0);
-    this.budget = mobile ? 110 : 190;
+    this.budget = mobile ? 130 : 240;
     for (let iz = 0; iz < CHUNKS_Z; iz++)
       for (let ix = 0; ix < CHUNKS_X; ix++) {
         let h = 0;
         for (let z = iz * CHUNK; z < (iz + 1) * CHUNK; z++)
           for (let x = ix * CHUNK; x < (ix + 1) * CHUNK; x++) h = Math.max(h, height[z * CHUNKS_X * CHUNK + x]);
-        this.chunks.push({ ix, iz, top: h * V + 6, lv: [null, null, null], pending: null, want: null, seen: -1e9, occ: [], cut: false });
+        this.chunks.push({ ix, iz, top: h * V + 6, lv: [null, null, null], pending: null, want: null, seen: -1e9, occ: [], cut: false, fade: null });
       }
     workers.forEach((w, i) => {
       w.addEventListener('message', (e: MessageEvent<WorkerOut>) => { if (e.data.type === 'mesh') this.arrive(i, e.data); });
@@ -116,15 +140,36 @@ export class Streamer {
   update(dt: number, view: StreamView, active = true): void {
     this.t += dt;
     if (active && (this.planT -= dt) <= 0) {
+      const dtPlan = 0.12 - this.planT;
       this.planT = 0.12;
+      this.track(view.focus, dtPlan);
       this.plan(view);
     }
-    this.pump(view.focus);
+    this.pump(this.lead);
+    if (this.fading.size) this.stepFades(dt);
     if (this.waiters.length && this.settled) { const w = this.waiters; this.waiters = []; w.forEach((f) => f()); }
   }
 
+  /** Smoothed walking velocity, and the point a second or two ahead of it. Jumps (travel, doors) reset it. */
+  private track(focus: THREE.Vector3, dt: number): void {
+    const lf = this.lastFocus;
+    if (Number.isNaN(lf.x) || Math.hypot(focus.x - lf.x, focus.z - lf.z) > 12 || dt <= 0) this.vel.set(0, 0);
+    else {
+      const k = 1 - Math.exp(-dt * 3);
+      this.vel.x += ((focus.x - lf.x) / dt - this.vel.x) * k;
+      this.vel.y += ((focus.z - lf.z) / dt - this.vel.y) * k;
+    }
+    lf.copy(focus);
+    const ahead = 2.2, max = 14;
+    let lx = this.vel.x * ahead, lz = this.vel.y * ahead;
+    const l = Math.hypot(lx, lz);
+    if (l > max) { lx *= max / l; lz *= max / l; }
+    this.lead.set(focus.x + lx, focus.y, focus.z + lz);
+  }
+
   private plan(view: StreamView): void {
-    const { cam, fp, focus } = view;
+    const { cam, fp } = view;
+    const focus = this.lead;
     cam.updateMatrixWorld();
     // a slightly larger frustum than the screen, so chunks arrive just before they scroll into view
     if (cam instanceof THREE.OrthographicCamera) {
@@ -153,10 +198,15 @@ export class Streamer {
         // all around close by; further out only what the eye can see (turning round streams the rest in)
         const d = Math.hypot(cx - eye.x, cz - eye.z);
         if (d < 30) want = 0;
-        else if (d < ring.far && this.frustum.intersectsBox(this.box)) want = d < ring.full ? 0 : d < ring.half ? 1 : 2;
+        else if (d < ring.far && this.frustum.intersectsBox(this.box)) {
+          // a chunk keeps the finer level a little past the ring it earned it in
+          const h = c.lv[0] || c.pending === 0 ? 8 : 0, h1 = c.lv[1] || c.pending === 1 ? 8 : 0;
+          want = d < ring.full + h ? 0 : d < ring.half + h1 ? 1 : 2;
+        }
       } else if (dFocus < 14 || this.frustum.intersectsBox(this.box)) {
         want = 0;
-        wanted.push({ c, d: dFocus });
+        // rank by distance ahead of the walk, with a head start for chunks already at full detail
+        wanted.push({ c, d: dFocus - (c.lv[0] || c.pending === 0 ? KEEP : 0) });
       }
       c.want = want;
       if (want !== null) c.seen = this.t;
@@ -166,7 +216,7 @@ export class Streamer {
       wanted.sort((a, b) => a.d - b.d);
       for (let i = Math.floor(this.budget * 0.8); i < wanted.length; i++) wanted[i].c.want = 1;
     }
-    this.evict(focus);
+    this.evict(view.focus);
   }
 
   /** Send the most urgent requests to idle workers. */
@@ -208,12 +258,58 @@ export class Streamer {
     // a coarser mesh is only worth showing while it is still wanted or nothing finer is there
     if (c.want !== null && c.want < lv && c.lv.some((m, i) => m && i < lv)) return;
     const m = this.make(msg.mesh);
-    // keep one mesh per chunk: the new one replaces whatever was drawn before
-    for (let i = 0; i < 3; i++) if (c.lv[i]) { this.drop(c.lv[i]!); c.lv[i] = null; }
+    this.endFade(c);
+    // keep one mesh per chunk: the new one replaces whatever was drawn before, dissolving in over it
+    let old: THREE.Mesh | null = null;
+    for (let i = 0; i < 3; i++) if (c.lv[i]) {
+      if (!old && c.lv[i]!.geometry.attributes.position) old = c.lv[i];
+      else this.drop(c.lv[i]!);
+      c.lv[i] = null;
+    }
     c.lv[lv] = m;
     this.group.add(m);
     this.resident.add(c);
     this.onMesh(c, m);
+    if (old) {
+      if (this.fadeMaterial && !c.cut && old.material === m.material) this.startFade(c, old, m);
+      else this.drop(old);
+    }
+  }
+
+  private startFade(c: Chunk, old: THREE.Mesh, next: THREE.Mesh): void {
+    const mk = () => this.fadePool.pop() ?? this.fadeMaterial!();
+    const mIn = mk(), mOut = mk();
+    mIn.uniforms.uFade.value.set(0, 0);
+    mOut.uniforms.uFade.value.set(0, 1);
+    c.fade = { old, next, t: 0, mIn, mOut };
+    old.material = mOut;
+    next.material = mIn;
+    // the shadow cache only needs redrawing once, when the swap is complete
+    next.layers.disable(SHADOW_STATIC);
+    this.fading.add(c);
+  }
+
+  private stepFades(dt: number): void {
+    for (const c of this.fading) {
+      const f = c.fade!;
+      f.t += dt / FADE_TIME;
+      if (f.t >= 1) { this.endFade(c); continue; }
+      const s = f.t * f.t * (3 - 2 * f.t);
+      f.mIn.uniforms.uFade.value.x = s;
+      f.mOut.uniforms.uFade.value.x = s;
+    }
+  }
+
+  /** Finish a chunk's cross-fade now (the new mesh takes over fully). Safe to call when none is running. */
+  endFade(c: Chunk): void {
+    const f = c.fade;
+    if (!f) return;
+    c.fade = null;
+    this.fading.delete(c);
+    this.drop(f.old);
+    this.fadePool.push(f.mIn, f.mOut);
+    if (f.next.material === f.mIn) f.next.material = this.material();
+    f.next.layers.enable(SHADOW_STATIC);
   }
 
   private make(md: MeshData): THREE.Mesh {
@@ -251,6 +347,7 @@ export class Streamer {
       if (full <= this.budget && !far && !old) break;
       if (this.t - c.seen < 1.5) continue;
       if (c.lv[0]) full--;
+      this.endFade(c);
       for (let i = 0; i < 3; i++) if (c.lv[i]) { this.drop(c.lv[i]!); c.lv[i] = null; }
       c.cut = false;
       this.resident.delete(c);

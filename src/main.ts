@@ -982,7 +982,7 @@ class Game {
         sizzle = Math.max(sizzle, 1 - d / 7);
       }
       const water = this.inside ? 0 : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
-      this.audio.ambience(Math.max(0, sizzle), water, this.tod.night);
+      this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }
     this.audio.tick(this.tod.night);

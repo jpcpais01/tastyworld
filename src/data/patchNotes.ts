@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.3.2',
+    date: '2026-10-30',
+    title: 'Sounds of the street',
+    items: [
+      'A brand new soundtrack: a cozy, laid-back tune with koto, electric piano, warm bass and soft brushed drums. It slows down and gets quieter after dark.',
+      'Tokyo sounds alive: sparrows chirp in the daytime, bell crickets sing at night, wind chimes tinkle in the breeze and the canal laps gently.',
+      'Stand near a grill to hear it crackle and sizzle.',
+      'Every sound effect has been remade to be softer and friendlier: wooden taps, bubbly pops, little coin bells, a proper knife on a chopping board and a much cuter cat.',
+      'Step into the hidden restaurant and the street music drifts in, muffled, from outside.',
+      'Sound now pauses when you switch away from the game.',
+    ],
+  },
+  {
     version: '0.3.1',
     date: '2026-10-30',
     title: 'Light on your feet',

@@ -9,7 +9,8 @@ import { buildPerson, buildCat, randomLook, Look } from './world/characters';
 import { zoneAt, INTERIOR_ORIGIN, ISX, ISZ } from './world/layout';
 import type { FoodId } from './world/food';
 import { Nav } from './game/nav';
-import { Actor, geometryFrom } from './game/actors';
+import { Actor, Anim, geometryFrom } from './game/actors';
+import { Crowd } from './game/crowd';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
 import { Cutaway } from './game/cutaway';
@@ -46,12 +47,12 @@ interface Interactable {
   act(): void;
 }
 
-interface Walker { actor: Actor; from: number; to: number; prev: number; path: [number, number][]; speed: number; wait: number; }
 interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; }
 /** A friend on a co-op trip, drawn from the samples they send. */
 interface Remote { actor: Actor; look: string; tag: HTMLElement; name: string; tx: number; ty: number; tz: number; }
 
-const ANIMS = ['idle', 'walk', 'run', 'cook', 'eat', 'wave', 'sit', 'bow'] as const;
+// synced to friends by index: only ever append
+const ANIMS: readonly Anim[] = ['idle', 'walk', 'run', 'cook', 'eat', 'wave', 'sit', 'bow', 'sitEat', 'talk', 'listen', 'phone', 'photo', 'browse', 'startle'];
 const SEND_EVERY = 0.1; // seconds between co-op movement samples
 
 const PLAYER_SPEED = 3.2;
@@ -109,7 +110,7 @@ class Game {
   private shelfClosed = new THREE.Group();
   private shelfOpen = new THREE.Group();
   /** Keepers and regulars inside the shops; only simulated when the player is close. */
-  private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number }[] = [];
+  private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number; snackT: number }[] = [];
   private roomHere: RoomAnchor | null = null;
   private doorOpen = new THREE.Group();
 
@@ -120,9 +121,8 @@ class Game {
   private lastTap = { t: 0, x: 0, y: 0 };
   private slideSide = 1;
   private eatT = 0;
-  private walkers: Walker[] = [];
-  private pathCache = new Map<string, [number, number][]>();
-  private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean }[] = [];
+  private crowd!: Crowd;
+  private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
   private cats: Cat[] = [];
   private chef!: Actor;
@@ -311,7 +311,6 @@ class Game {
       act.anim = 'cook';
       this.worldGroup.add(act.root);
       this.vendors.push({ actor: act, stall: st, ang: sa.vendor[2], waveT: 0 });
-      this.ui.label(`stall-${st.id}`, this.plateHtml(st), 'plate', [...sa.label]);
       this.interactables.push({
         key: `stall-${st.id}`, x: sa.stand[0], z: sa.stand[1], stand: sa.stand, pick: [sa.label[0], 1.4, sa.label[2]], r: 1.5, inside: false,
         prompt: () => ['🍢', st.name, `Talk to ${st.vendor}`],
@@ -378,7 +377,8 @@ class Game {
       const face = Math.random() * Math.PI * 2;
       act.facing = act.targetFacing = face;
       this.worldGroup.add(act.root);
-      const entry = { actor: act, id: id.id, home: id.pos, baseFacing: face, talk: 0, waved: false };
+      const habit: Anim = id.id === 'tourist' ? 'photo' : id.id === 'salaryman' || id.id === 'student' ? 'phone' : id.id === 'florist' ? 'browse' : 'idle';
+      const entry = { actor: act, id: id.id, home: id.pos, baseFacing: face, talk: 0, waved: false, habit, habitT: 3 + Math.random() * 8 };
       this.idlers.push(entry);
       this.interactables.push({
         key: `idler-${id.id}`, x: id.pos[0], z: id.pos[2], stand: [id.pos[0], id.pos[2]], pick: [id.pos[0], 1.3, id.pos[2]], r: 1.5, inside: false,
@@ -387,17 +387,29 @@ class Game {
       });
     }
 
-    // pedestrians wandering the street graph
-    const n = this.r.isMobile ? 8 : 14;
+    // pedestrians going about their day, a few of them in pairs
+    this.crowd = new Crowd(this.navWorld, a, {
+      bubble: (key, text, pos, secs) => this.ui.bubble(key, text, pos, secs),
+      serve: (id, x, z) => {
+        const v = this.vendors.find((q) => q.stall.id === id);
+        if (!v || v.waveT > 0) return;
+        v.waveT = 1.2;
+        v.actor.targetFacing = Math.atan2(x - v.actor.position.x, z - v.actor.position.z);
+      },
+      quiet: () => !this.started || this.ui.busy,
+    });
+    for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
+    const n = this.r.isMobile ? 10 : 18;
     const nodes = a.graph.nodes;
-    for (let i = 0; i < n; i++) {
-      const act = new Actor(buildPerson(randomLook(1000 + i * 7)), sh);
-      const from = (i * 7) % nodes.length;
-      act.position.set(nodes[from][0], 0, nodes[from][1]);
+    for (let i = 0, prev = null as ReturnType<Crowd['add']> | null; i < n; i++) {
+      const look = randomLook(1000 + i * 7);
+      const act = new Actor(buildPerson(look), sh);
       this.worldGroup.add(act.root);
-      const wk: Walker = { actor: act, from, to: from, prev: -1, path: [], speed: 1.05 + ((i * 37) % 10) / 22, wait: i * 0.4 };
-      this.walkers.push(wk);
+      // every fourth and fifth walker is the companion of the one before
+      const pair = i % 5 === 4 && prev;
+      prev = this.crowd.add(act, look, (i * 7) % nodes.length, pair ? prev! : undefined);
     }
+    this.crowd.settle(this.tod.hour);
 
     // cats
     a.cats.forEach((c, i) => {
@@ -472,7 +484,7 @@ class Game {
       act.anim = anim;
       act.root.visible = false;
       this.worldGroup.add(act.root);
-      const entry = { actor: act, room: rm, keeper, facing: n.facing, sit: n.sit, anim: anim as 'idle' | 'cook' | 'sit', talk: 0, seed: n.seed };
+      const entry = { actor: act, room: rm, keeper, facing: n.facing, sit: n.sit, anim: anim as 'idle' | 'cook' | 'sit', talk: 0, seed: n.seed, snackT: 4 + Math.random() * 12 };
       this.roomActors.push(entry);
       if (keeper && buy) {
         // the keeper serves from the counter: one stop to chat and buy
@@ -591,11 +603,6 @@ class Game {
       if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return rm;
     }
     return null;
-  }
-
-  private plateHtml(st: StallInfo): string {
-    const done = st.dishes.every((d) => this.s.tasted[d]);
-    return `<div class="pn">${st.name}${done ? ' <span class="seen">✓</span>' : ''}<small>${st.jp}</small></div>`;
   }
 
   private setDoor(open: boolean): void {
@@ -735,14 +742,8 @@ class Game {
         }, 900);
       }
     }
-    for (const v of this.vendors) this.ui.label(`stall-${v.stall.id}`, this.plateHtml(v.stall), 'plate', this.labelPos(v.stall.id));
     this.ui.refresh();
     this.save();
-  }
-
-  private labelPos(id: string): V3 {
-    const sa = this.w.anchors.stalls.find((s) => s.id === id)!;
-    return [...sa.label];
   }
 
   private openStall(st: StallInfo, vendor: Actor, at: [number, number]): void {
@@ -1280,58 +1281,12 @@ class Game {
     }
     if (!this.path.length) this.pathRun = false;
     p.y += (this.nav.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 14);
-    pl.speed = speed / 1.4;
+    pl.speed = speed;
     if (this.eatT > 0) { this.eatT -= dt; if (speed > 0) this.eatT = 0; }
     if (this.waveT > 0) { this.waveT -= dt; if (speed > 0) this.waveT = 0; }
     pl.anim = speed > 0 ? (run && speed > PLAYER_SPEED ? 'run' : 'walk') : this.waveT > 0 ? 'wave' : this.eatT > 0 ? 'eat' : 'idle';
     pl.update(dt);
     pl.light(this.lm);
-  }
-
-  private legPath(a: number, b: number): [number, number][] {
-    const key = `${a}-${b}`;
-    let p = this.pathCache.get(key);
-    if (!p) {
-      const n = this.w.anchors.graph.nodes;
-      p = this.navWorld.findPath(n[a][0], n[a][1], n[b][0], n[b][1]) ?? [n[b]];
-      this.pathCache.set(key, p);
-    }
-    return p;
-  }
-
-  private updateWalkers(dt: number): void {
-    const g = this.w.anchors.graph;
-    const pp = this.player.position;
-    for (const wk of this.walkers) {
-      const a = wk.actor, p = a.position;
-      if (wk.wait > 0) {
-        wk.wait -= dt;
-        a.anim = 'idle';
-      } else if (!wk.path.length) {
-        const nbrs = g.edges.filter((e) => e[0] === wk.to || e[1] === wk.to).map((e) => (e[0] === wk.to ? e[1] : e[0]));
-        let next = nbrs[Math.floor(Math.random() * nbrs.length)];
-        if (nbrs.length > 1 && next === wk.prev) next = nbrs.find((x) => x !== wk.prev)!;
-        wk.prev = wk.to;
-        wk.from = wk.to;
-        wk.to = next;
-        wk.path = this.legPath(wk.from, wk.to).slice();
-        if (Math.random() < 0.25) wk.wait = 1 + Math.random() * 3;
-      } else {
-        const [tx, tz] = wk.path[0];
-        const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
-        const blocked = Math.hypot(pp.x - p.x, pp.z - p.z) < 0.7 && (pp.x - p.x) * dx + (pp.z - p.z) * dz > 0 && !this.inside;
-        if (d < 0.15) wk.path.shift();
-        else if (blocked) a.anim = 'idle';
-        else {
-          const s = wk.speed * dt;
-          p.x += (dx / d) * s; p.z += (dz / d) * s;
-          a.targetFacing = Math.atan2(dx, dz);
-          a.anim = 'walk';
-          a.speed = wk.speed / 1.4;
-        }
-      }
-      p.y = this.navWorld.heightAt(p.x, p.z);
-    }
   }
 
   private updateCats(dt: number): void {
@@ -1341,7 +1296,7 @@ class Game {
       if (c.target) {
         const dx = c.target[0] - p.x, dz = c.target[1] - p.z, d = Math.hypot(dx, dz);
         if (d < 0.08) { c.target = null; a.anim = 'sit'; c.timer = 4 + Math.random() * 8; }
-        else { p.x += (dx / d) * 0.55 * dt; p.z += (dz / d) * 0.55 * dt; a.targetFacing = Math.atan2(dx, dz); a.anim = 'walk'; a.speed = 0.5; }
+        else { p.x += (dx / d) * 0.55 * dt; p.z += (dz / d) * 0.55 * dt; a.targetFacing = Math.atan2(dx, dz); a.anim = 'walk'; a.speed = 0.55; }
       } else if (c.timer <= 0) {
         const tx = c.home[0] + (Math.random() - 0.5) * 3, tz = c.home[2] + (Math.random() - 0.5) * 3;
         if (this.navWorld.canStand(tx, tz, this.navWorld.standHeightVox(p.x, p.z), 0.1)) c.target = [tx, tz];
@@ -1354,7 +1309,10 @@ class Game {
   private updateNPCs(dt: number): void {
     const pp = this.player.position;
     if (!this.inside) {
-      this.updateWalkers(dt);
+      const pl = this.player;
+      const friends: [number, number][] = [];
+      for (const rm of this.remotes.values()) if (rm.actor.root.visible) friends.push([rm.actor.position.x, rm.actor.position.z]);
+      this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0, facing: pl.facing }, friends);
       this.updateCats(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
@@ -1369,6 +1327,14 @@ class Game {
           if (!e.waved && this.started) { e.waved = true; e.actor.anim = 'wave'; setTimeout(() => { if (e.actor.anim === 'wave') e.actor.anim = 'idle'; }, 1500); }
           e.actor.targetFacing = want;
         } else if (d > 6) { e.waved = false; e.actor.targetFacing = e.baseFacing; }
+        // their own little habits while nobody is around: a photo, a message, a look at the flowers
+        const an = e.actor.anim;
+        if (d < 3.2) { if (an === e.habit && an !== 'idle') e.actor.anim = 'idle'; }
+        else if (e.habit !== 'idle' && (an === 'idle' || an === e.habit) && (e.habitT -= dt) <= 0) {
+          const on = an !== e.habit;
+          e.actor.anim = on ? e.habit : 'idle';
+          e.habitT = on ? 5 + Math.random() * 6 : 6 + Math.random() * 10;
+        }
       }
       // keep cat prompts on the moving cats
       this.cats.forEach((c, i) => {
@@ -1387,7 +1353,7 @@ class Game {
         }
       }
     }
-    const all: Actor[] = this.inside ? [this.chef] : [...this.vendors.map((v) => v.actor), ...this.idlers.map((e) => e.actor), ...this.walkers.map((w) => w.actor), ...this.cats.map((c) => c.actor)];
+    const all: Actor[] = this.inside ? [this.chef] : [...this.vendors.map((v) => v.actor), ...this.idlers.map((e) => e.actor), ...this.crowd.visible(), ...this.cats.map((c) => c.actor)];
     // shop keepers and regulars: only the ones near the player are shown and animated
     for (const e of this.roomActors) {
       const q = e.actor.position;
@@ -1396,6 +1362,12 @@ class Game {
       e.actor.root.visible = on;
       if (!on) continue;
       all.push(e.actor);
+      // regulars nibble at their food now and then
+      if (e.sit && (e.snackT -= dt) <= 0) {
+        e.snackT = 6 + Math.random() * 14;
+        if (e.actor.anim === 'sit') e.actor.anim = 'sitEat';
+        else if (e.actor.anim === 'sitEat') e.actor.anim = 'sit';
+      }
       if (e.keeper && !e.sit && d < 3.5 && !this.ui.busy) e.actor.headYawTarget = THREE.MathUtils.clamp(Math.atan2(Math.sin(Math.atan2(pp.x - q.x, pp.z - q.z) - e.actor.facing), Math.cos(Math.atan2(pp.x - q.x, pp.z - q.z) - e.actor.facing)), -0.8, 0.8);
       else if (!this.ui.busy) e.actor.headYawTarget = 0;
     }
@@ -1457,7 +1429,7 @@ class Game {
   private updateCamera(dt: number): void {
     if (this.cam.fp) {
       this.cam.target.copy(this.player.position);
-      this.cam.fpSpeed = this.player.speed * 1.4;
+      this.cam.fpSpeed = this.player.speed;
       if (this.inside !== this.wasInside) this.cam.fpYaw = this.player.facing; // just came through a door
     } else if (this.started) this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
     this.wasInside = this.inside;
@@ -1492,10 +1464,7 @@ class Game {
     this.koi.update(sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     const pl = this.player.position;
-    this.ui.updateLabels((p) => this.screen(p), (p) => {
-      const d = Math.hypot(p[0] - pl.x, p[2] - pl.z);
-      return Math.max(0.0, Math.min(1, 1.6 - d / 14));
-    });
+    this.ui.updateLabels((p) => this.screen(p));
     this.placeTags();
 
     // HUD + audio at a calmer rate

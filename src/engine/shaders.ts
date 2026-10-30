@@ -29,9 +29,11 @@ in vec4 aLight;
 in vec4 aQuad;
 uniform float uTime;
 #ifdef CHARACTER
-uniform vec3 uPivot[8];
-uniform vec2 uRot[8];
-uniform float uBob;
+uniform vec3 uPivot[12];
+uniform vec3 uRot[12]; // pitch, yaw, roll
+uniform vec3 uOffset;
+// skeleton: torso <- head, arms <- forearms; hips <- thighs <- shins (see PART in characters.ts)
+const int PARENT[12] = int[12](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3);
 #endif
 #ifdef SWAY
 uniform float uSway;
@@ -59,6 +61,7 @@ vec3 faceNormal(float f) {
 }
 mat3 rotX(float a) { float c = cos(a), s = sin(a); return mat3(1, 0, 0, 0, c, s, 0, -s, c); }
 mat3 rotY(float a) { float c = cos(a), s = sin(a); return mat3(c, 0, -s, 0, 1, 0, s, 0, c); }
+mat3 rotZ(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0, -s, c, 0, 0, 0, 1); }
 
 void main() {
   float face = mod(aPack.x, 8.0);
@@ -71,13 +74,16 @@ void main() {
   vCell = position - n * (0.5 * vScale);
   vec3 p = position;
 #ifdef CHARACTER
-  int part = int(aPack.w + 0.5);
-  if (part > 0) {
-    mat3 R = rotY(uRot[part].y) * rotX(uRot[part].x);
-    p = R * (p - uPivot[part]) + uPivot[part];
+  int j = int(aPack.w + 0.5);
+  for (int k = 0; k < 3; k++) {
+    if (j < 0) break;
+    vec3 a = uRot[j];
+    mat3 R = rotY(a.y) * rotX(a.x) * rotZ(a.z);
+    p = R * (p - uPivot[j]) + uPivot[j];
     n = R * n;
+    j = PARENT[j];
   }
-  p.y += uBob;
+  p += uOffset;
   vSky = 1.0;
 #else
   vSky = aPack.w / 255.0;

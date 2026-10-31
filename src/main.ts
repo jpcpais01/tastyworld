@@ -395,8 +395,12 @@ class Game {
       this.r.camera.far = 1800;
       this.r.camera.updateProjectionMatrix();
     } else {
-      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]]);
+      // Tokyo Tower closes the view up the north-south avenue, 150 m past the north edge of the map
+      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]], 300, [77, WZ0 - 150]);
       this.worldGroup.add(far.ground, far.city);
+      // the iso camera sits 120 m back: let it see the tower's full height over the rooftops
+      this.r.camera.far = 900;
+      this.r.camera.updateProjectionMatrix();
       this.r.composite.uniforms.uWaterBounds.value.set(WX0 - 5, WZ0 - 5, WX1 + 5, WZ1 + 5);
     }
     sh.uBounds.value.set(WX0, WZ0, WX1, WZ1);

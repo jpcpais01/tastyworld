@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
+import { tokyoTower } from './tokyoTower';
 
 /**
  * The rest of Tokyo past the edges of the playable map. Streets carry on from the ring road round the map
@@ -57,7 +58,7 @@ vec3 farHaze(vec3 col, vec3 w, vec4 rect, vec3 fogColor, vec4 fog) {
 `;
 
 // building parts: 0 plaster house wall, 1 shop / office block, 2 tower, 3 tile roof, 4 roof slab or
-// equipment, 5 sign, 6 tree crown, 7 apartment block (balconies on its long faces)
+// equipment, 5 sign, 6 tree crown, 7 apartment block (balconies on its long faces); 8-10 Tokyo Tower (tokyoTower.ts)
 const HOUSE = ['#ddd2bd', '#c8b39a', '#9e8670', '#b9bdc2', '#e8e2d6', '#cdbfa6', '#a7b2a6', '#d9c7b8'];
 const ROOF = ['#4c5561', '#6b4d42', '#5a6559', '#3f4652', '#7a6a5c'];
 const MID = ['#bcb8ae', '#d1c6b2', '#a9a19b', '#e0dbd1', '#94929a', '#c9b49c', '#b8c0c4', '#8e7f72', '#cfc9bd'];
@@ -68,7 +69,11 @@ const STONE = ['#c9bda9', '#b0aaa0', '#d8d2c6', '#8f8a84', '#a99a88'];
 const SIGN = ['#e8473a', '#f2c230', '#36c6d8', '#e85aa8', '#5bd16a', '#f08a2e'];
 const TREE = ['#5c8a4a', '#4f7a43', '#6a9550', '#e9b4c4'];
 
-export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300): { city: THREE.Mesh; ground: THREE.Mesh } {
+/**
+ * `tower` puts Tokyo Tower at that point (x, z), on a plaza with Foot Town under its legs; the blocks round it
+ * are left clear.
+ */
+export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300, tower?: [number, number]): { city: THREE.Mesh; ground: THREE.Mesh } {
   const [x0, z0, x1, z1] = rect;
   const parts: number[] = [];
   let seed = 9173;
@@ -80,7 +85,9 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     parts.push(cx, cz, w, d, y0, h, kind, s, col.r, col.g, col.b, 0);
   };
   const outOf = (ax0: number, az0: number, ax1: number, az1: number) => Math.max(x0 - ax1, ax0 - x1, z0 - az1, az0 - z1);
-  const inGap = (ax0: number, az0: number, ax1: number, az1: number) => gaps.some(([a, b, c, e]) => ax1 > a && ax0 < c && az1 > b && az0 < e);
+  const site: Rect = tower ? [tower[0] - 52, tower[1] - 52, tower[0] + 52, tower[1] + 52] : [0, 0, 0, 0];
+  const inGap = (ax0: number, az0: number, ax1: number, az1: number) =>
+    [...gaps, site].some(([a, b, c, e]) => ax1 > a && ax0 < c && az1 > b && az0 < e);
   // Tokyo is a sea of low and mid-rise blocks; towers only gather in a few far-off business districts
   const CLUSTERS: [number, number, number][] = [[x1 + 210, z0 - 170, 120], [x0 - 190, z1 + 170, 95], [x0 - 230, z0 - 120, 80]];
   const cluster = (x: number, z: number) => CLUSTERS.reduce((m, [cx, cz, r]) => Math.max(m, 1 - Math.hypot(x - cx, z - cz) / r), 0);
@@ -168,6 +175,19 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     }
   };
 
+  if (tower) {
+    tokyoTower(part, tower[0], tower[1]);
+    // the plaza's trees: a ring of zelkovas and the odd cherry round the edge, clear of the legs
+    const [tx, tz] = tower;
+    for (let a = 0; a < 40; a++) {
+      const t = (a / 40) * Math.PI * 2, r = 47 + rnd() * 3;
+      const x = tx + Math.cos(t) * r, z = tz + Math.sin(t) * r;
+      const s = 3.5 + rnd() * 2.5;
+      part(x, z, 0.5, 0.5, 0, 2.4, 4, '#6b5240');
+      part(x, z, s, s, 2 + rnd(), s * 0.85, 6, rnd() < 0.2 ? TREE[3] : pick(TREE.slice(0, 3)));
+    }
+  }
+
   // park blocks (centres), for the ground shader to green
   const parks: number[] = [];
   const xs = intervals(x0, x1, reach), zs = intervals(z0, z1, reach);
@@ -177,7 +197,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       if (out < RING - 0.01) continue;
       const k = Math.min(1, out / 220);
       const ne = cluster((bx0 + bx1) / 2, (bz0 + bz1) / 2);
-      if (rnd() < 0.06 && out > 20 && parks.length < 64) {
+      if (rnd() < 0.06 && out > 20 && parks.length < 64 && !inGap(bx0, bz0, bx1, bz1)) {
         // a park: trees on grass (the ground shader greens the block)
         for (let i = 0; i < 9; i++) {
           const s = 3 + rnd() * 3.5, tx = bx0 + 3 + rnd() * (bx1 - bx0 - 6), tz = bz0 + 3 + rnd() * (bz1 - bz0 - 6);
@@ -221,6 +241,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     uSunDir: shared.uSunDir, uWindowColor: shared.uWindowColor, uNight: shared.uNight, uLamp: shared.uLamp, uEmitDay: shared.uEmitDay,
     uFog: shared.uFog, uCamFwd: shared.uCamFwd,
     uRect: { value: new THREE.Vector4(x0, z0, x1, z1) }, uMid: { value: new THREE.Vector2(mx, mz) },
+    uTime: shared.uTime, uSite: { value: new THREE.Vector4(...site) },
   };
   const city = new THREE.Mesh(g, new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
@@ -247,7 +268,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       ${COMMON}
       ${AXIS_ROAD}
       uniform vec3 uFogColor, uSkyColor, uGroundColor, uSunColor, uSunDir, uWindowColor;
-      uniform float uNight, uLamp, uEmitDay; uniform vec4 uFog; uniform vec4 uRect;
+      uniform float uNight, uLamp, uEmitDay, uTime; uniform vec4 uFog; uniform vec4 uRect;
       in vec3 vWorld; in vec3 vN; in vec3 vLocal; in vec3 vSize; in vec4 vPart; in vec3 vCol;
       layout(location = 0) out vec4 outColor;
       // window mask in a cell of (period u, floor height), fading to its average where it would shimmer
@@ -313,6 +334,11 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
               win = grid(u + 0.7, y, 2.6, 2.9, vec4(0.35, 0.65, 0.45, 0.8), cell);
               albedo = mix(albedo, glass * 0.6 + vec3(0.02), win);
             }
+          } else if (kind == 9) {
+            // Tokyo Tower's observation decks: tall panes in white mullions that mirror the sky, lit warm at night
+            win = grid(u, y, 2.4, 100.0, vec4(0.12, 0.88, -1.0, 2.0), cell);
+            vec3 refl = vec3(0.04, 0.06, 0.08) + uSkyColor * 0.22 + uFogColor * 0.06;
+            albedo = mix(srgb2lin(vec3(0.9, 0.89, 0.86)), refl, win);
           } else if (kind == 5) {
             // a lit sign: a column of characters
             float c = step(0.2, fract(y / 1.1)) * step(fract(y / 1.1), 0.85) * step(0.2, fract(u * 3.0 + 0.5));
@@ -323,7 +349,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
           float r = fract((abs(vSize.x) >= abs(vSize.z) ? vLocal.z : vLocal.x) * 3.0);
           albedo *= mix(0.86 + 0.14 * step(0.5, r), 0.93, smoothstep(0.1, 0.3, fw));
         }
-        float glassy = kind == 2 && wall ? win : 0.0;
+        float glassy = (kind == 2 || kind == 9) && wall ? win : 0.0;
         if (kind == 1 || kind == 2) { if (n.y > 0.5) albedo = srgb2lin(vec3(0.55, 0.55, 0.54)) * (0.9 + 0.1 * g); }
         if (kind == 6) albedo *= 0.85 + 0.3 * hash12(floor(vWorld.xz * 1.5) + floor(vWorld.y * 1.5) * 7.0);
 
@@ -351,7 +377,25 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
           col += win * on * wc * uNight * (0.3 + 0.25 * fract(seed * 13.7 + cell.y * 0.37));
         }
         if (kind == 5) col += albedo * emit * mix(uEmitDay, 2.6, uNight);
-        outColor = vec4(farHaze(col, vWorld, uRect, uFogColor, uFog), 1.0);
+        vec3 glow = vec3(0.0);
+        if (kind == 8) {
+          // the Landmark Light: floodlights from the foot and the decks wash the whole lattice amber-orange after
+          // dark, brightest low down and under the decks, the white bands glowing gold
+          float up = vWorld.y;
+          float flood = 0.55 + 0.45 * exp(-up / 60.0) + 0.35 * exp(-abs(up - 140.0) / 14.0) + 0.3 * exp(-abs(up - 245.0) / 10.0);
+          glow = mix(vec3(1.0, 0.42, 0.1), vec3(1.0, 0.62, 0.25), step(0.6, vCol.g)) * flood * uNight * 0.9;
+        } else if (kind == 9) {
+          glow = win * uWindowColor * uNight * 0.9 + (1.0 - win) * vec3(1.0, 0.8, 0.55) * uNight * 0.15;
+        } else if (kind == 10) {
+          // aviation lights: a slow red pulse, the tip a little brighter
+          float b = 0.25 + 0.75 * smoothstep(0.55, 1.0, sin((uTime * 0.5 + seed) * 6.2832) * 0.5 + 0.5);
+          glow = vec3(1.0, 0.08, 0.04) * b * mix(0.8, 3.5, uNight);
+        }
+        // the tower is the one landmark that has to read from anywhere in the city: half the haze on its
+        // international orange, and its lights carry through further still
+        float haze = farHaze(vec3(0.0), vWorld, uRect, vec3(1.0), uFog).x * (kind >= 8 ? 0.5 : 1.0);
+        col = mix(col, uFogColor, haze) + glow * (1.0 - 0.6 * haze);
+        outColor = vec4(col, 1.0);
       }`,
   }));
   city.frustumCulled = false;
@@ -387,7 +431,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       ${AXIS_ROAD}
       uniform vec3 uFogColor, uSkyColor, uGroundColor, uSunColor, uSunDir, uWindowColor;
       uniform float uNight, uLamp; uniform vec4 uFog; uniform vec4 uRect;
-      uniform vec4 uCanal, uAve0, uAve1; uniform vec2 uParks[32]; uniform int uParkN;
+      uniform vec4 uCanal, uAve0, uAve1, uSite; uniform vec2 uParks[32]; uniform int uParkN;
       in vec3 vWorld;
       layout(location = 0) out vec4 outColor;
       bool inside(vec2 p, vec4 r) { return p.x > r.x && p.x < r.z && p.y > r.y && p.y < r.w; }
@@ -400,7 +444,15 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         vec3 alb;
         float grain = hash12(floor(p * 2.0));
         float lampGlow = 0.0;
-        if (inside(p, uCanal)) {
+        if (inside(p, uSite)) {
+          // the tower's plaza: pale granite setts in a grid, a lawn ring round the edge under the trees
+          vec2 c = p - (uSite.xy + uSite.zw) * 0.5;
+          float r = length(c);
+          vec2 g = abs(fract(p / 4.0) - 0.5);
+          alb = srgb2lin(vec3(0.68, 0.66, 0.62)) * (1.0 - 0.12 * step(0.46, max(g.x, g.y)) * (1.0 - smoothstep(0.1, 0.3, fw)));
+          if (r > 44.0) alb = srgb2lin(vec3(0.38, 0.55, 0.3)) * (0.9 + 0.2 * vnoise(p * 0.7));
+          lampGlow = 0.6 * exp(-pow(r - 30.0, 2.0) * 0.02);
+        } else if (inside(p, uCanal)) {
           // the canal carries on: dark water that takes the sky's colour
           float edge = min(p.y - uCanal.y, uCanal.w - p.y);
           vec3 water = mix(srgb2lin(vec3(0.16, 0.27, 0.3)), uSkyColor * 0.5, 0.35);

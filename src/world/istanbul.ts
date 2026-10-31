@@ -564,10 +564,10 @@ export function buildIstanbul(win?: Window): BuildResult {
     cats: CATS,
     extras: anglers(),
     emitters: b.emitters,
-    noPetals: true,
+    // no fireflies over the Golden Horn's busy quays
+    fireflies: [],
     vending: [],
     blockers: b.blockers,
-    koiArea: [0, 0, 0, 0],
     rooms: b.rooms,
     hotels: b.hotels,
     darumas: [],

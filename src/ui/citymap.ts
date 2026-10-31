@@ -1,5 +1,5 @@
-import { TEXT } from '../data/cityText';
-import { AMALFI, ISTANBUL, HILLSIDE } from '../world/cityId';
+import { TEXT, localName } from '../data/cityText';
+import { AMALFI, ISTANBUL, HILLSIDE, CITY } from '../world/cityId';
 import type { NavData } from '../world/bake';
 import type { Occluder, StallAnchor } from '../world/tokyo';
 import { V, G as STREET, WX0, WZ0, WX1, WZ1, WORLD_W, WORLD_D, ZONES, zoneAt } from '../world/layout';
@@ -223,7 +223,7 @@ function labelsOf(): Label[] {
     const district = DISTRICTS.has(zn.id);
     out.push({ name: zn.name, jp: zn.jp, x: (x0 + x1) / 2, z: (z0 + z1) / 2, district, vertical: !district && z1 - z0 > (x1 - x0) * 1.8, icon: ZONE_ICON[zn.id], zone: zn.id });
   }
-  if (!HILLSIDE) for (const p of EXTRA_PLACES) out.push({ name: p.name, jp: p.jp, x: p.at[0], z: p.at[1], district: false, vertical: false, icon: p.icon });
+  if (CITY === 'tokyo') for (const p of EXTRA_PLACES) out.push({ name: p.name, jp: p.jp, x: p.at[0], z: p.at[1], district: false, vertical: false, icon: p.icon });
   // districts claim their space before the streets
   return out.sort((a, b) => Number(b.district) - Number(a.district));
 }
@@ -300,7 +300,7 @@ export class CityMap {
       <div class="cm-sheet">
         <canvas class="cm-view" aria-label="Map of the city"></canvas>
         <div class="cm-folds" aria-hidden="true"></div>
-        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>${TEXT.district[0]} <span class="jp">${TEXT.district[1]}</span></h2><small>${AMALFI ? 'Costiera Amalfitana · Italy' : ISTANBUL ? 'Eminönü · İstanbul' : 'Tokyo · 東京'}</small></div>
+        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>${TEXT.district[0]} <span class="jp">${TEXT.district[1]}</span></h2><small>${TEXT.region}</small></div>
         <button class="cm-btn cm-close" data-a="close" aria-label="Fold the map away">${G.close}</button>
         <div class="cm-tools">
           <button class="cm-btn" data-a="in" aria-label="Zoom in">${G.plus}</button>
@@ -599,10 +599,10 @@ export class CityMap {
       guide = { x: stand[0], z: stand[1], name: m.kind === 'unknown' ? 'Something smells good' : st.name, jp: m.kind === 'unknown' ? undefined : st.jp, id: st.id };
       const img = this.icons[DISHES.find((d) => d.stall === st.id)?.id ?? ''];
       const sub = m.kind === 'unknown' ? 'Follow your nose to find out what is cooking here.'
-        : `${esc(st.street)} · ${st.hidden ? 'Omakase counter' : st.restaurant ? 'Restaurant' : 'Street stall'}`;
+        : `${esc(st.street)} · ${st.hidden ? TEXT.hiddenKind : st.restaurant ? 'Restaurant' : 'Street stall'}`;
       const tasted = m.kind === 'unknown' ? '' : m.done >= m.total ? `<span class="cm-tag ok">${G.check}All ${m.total} tasted</span>` : `<span class="cm-tag">${m.done}/${m.total} tasted</span>`;
       html = `<div class="cm-ic${m.kind === 'unknown' ? ' q' : ''}">${m.kind === 'unknown' ? '?' : img ? `<img src="${img}" alt="">` : G.bowl}</div>
-        <div class="cm-tx"><b>${esc(guide.name)}${guide.jp ? `<span class="jp">${guide.jp}</span>` : ''}</b><small>${sub}</small><div class="cm-meta">${tasted}${m.target ? `<span class="cm-tag mq">${G.sparkle}Mission</span>` : ''}<span class="cm-dist">${dist(stand[0], stand[1])}</span></div></div>`;
+        <div class="cm-tx"><b>${esc(guide.name)}${guide.jp && localName(guide.name, guide.jp) ? `<span class="jp">${esc(guide.jp)}</span>` : ''}</b><small>${sub}</small><div class="cm-meta">${tasted}${m.target ? `<span class="cm-tag mq">${G.sparkle}Mission</span>` : ''}<span class="cm-dist">${dist(stand[0], stand[1])}</span></div></div>`;
     } else if (sel.kind === 'hotel') {
       const h = sel.m.h, booked = this.s.hotel?.id === h.id;
       guide = { x: sel.m.x, z: sel.m.z, name: h.name, jp: h.jp, id: `hotel-${h.id}` };

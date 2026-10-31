@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { MeshData } from '../world/mesher';
+import { FACE_WINDOW, type MeshData } from '../world/mesher';
 import type { WorkerOut } from '../world/worker';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, V, WX0, WZ0 } from '../world/layout';
 import { geometryFrom } from '../game/actors';
@@ -43,6 +43,35 @@ interface Fade {
   t: number;
   mIn: THREE.ShaderMaterial;
   mOut: THREE.ShaderMaterial;
+}
+
+const toEye = new THREE.Vector3();
+/** Faces of a swaying prop can turn this far (m) past their resting plane. */
+const SWAY_SLACK = 0.3;
+
+/**
+ * Before each draw of a chunk: submit only the run of its faces (laid out by direction, see orderFaces) whose
+ * directions can face this camera. The GPU would discard the rest anyway, but only after transforming them.
+ * The sun's shadow passes (which don't draw layer 0) and two-sided materials get every face.
+ */
+function facingRange(this: THREE.Mesh, _r: THREE.WebGLRenderer, _s: THREE.Scene, camera: THREE.Camera, geometry: THREE.BufferGeometry): void {
+  const segs = geometry.userData.segs as Uint32Array;
+  let mask = 63;
+  // (the cutaway material draws back faces too: inside a lowered building they stand in for missing walls)
+  if (camera.layers.isEnabled(0) && (this.material as THREE.Material).side !== THREE.DoubleSide) {
+    if ((camera as THREE.OrthographicCamera).isOrthographicCamera) {
+      // every face has the same view direction: one side of each axis (the other is edge-on or turned away)
+      camera.getWorldDirection(toEye).negate();
+      const e = 0.02;
+      mask = (toEye.x > -e ? 1 : 0) | (toEye.x < e ? 2 : 0) | (toEye.y > -e ? 4 : 0) | (toEye.y < e ? 8 : 0) | (toEye.z > -e ? 16 : 0) | (toEye.z < e ? 32 : 0);
+    } else {
+      // a +X face can only be seen from beyond its plane, and the chunk's +X planes are all past its min x
+      const p = camera.position, b = geometry.boundingBox!, k = SWAY_SLACK;
+      mask = (p.x > b.min.x - k ? 1 : 0) | (p.x < b.max.x + k ? 2 : 0) | (p.y > b.min.y - k ? 4 : 0) | (p.y < b.max.y + k ? 8 : 0) | (p.z > b.min.z - k ? 16 : 0) | (p.z < b.max.z + k ? 32 : 0);
+    }
+  }
+  const [a, z] = FACE_WINDOW[mask];
+  geometry.setDrawRange(segs[a], segs[z + 1] - segs[a]);
 }
 
 /** Seconds a level-of-detail swap takes to dissolve from the old mesh into the new one. */
@@ -284,6 +313,9 @@ export class Streamer {
       c.lv[i] = null;
     }
     c.lv[lv] = m;
+    // the sun's shadow cache treats a chunk's meshes as one caster, so a level swap doesn't redraw it
+    m.userData.shadowKey = c;
+    for (const ch of m.children) ch.userData.shadowKey = c;
     this.group.add(m);
     const im = m.children[0] as THREE.Mesh | undefined;
     if (im) {
@@ -358,6 +390,7 @@ export class Streamer {
     }
     g.index?.onUpload(release as () => void);
     const m = new THREE.Mesh(g, this.material());
+    if (md.segs) { g.userData.segs = md.segs; m.onBeforeRender = facingRange; }
     m.matrixAutoUpdate = false;
     m.updateMatrix();
     if (ig) {

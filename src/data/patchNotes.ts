@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.14',
+    date: '2026-10-31',
+    title: 'Smoother when zoomed out',
+    items: [
+      'The city now only sends the graphics card the sides of buildings that face the camera. The rest were always hidden, but they still cost work. In the iso view that cuts about 40% of the city\'s triangles, and nothing on screen changes.',
+      'Fixed the stutters when you walk around zoomed out: when part of the city switched between its near and far detail, the whole sun shadow map was being redrawn. Now only the new part is added.',
+    ],
+  },
+  {
     version: '0.10.13',
     date: '2026-10-31',
     title: 'Lighter rooms behind the shopfronts',

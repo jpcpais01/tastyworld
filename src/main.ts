@@ -284,7 +284,10 @@ class Game {
 
   /** What the chunk streamer should keep loaded for the current camera. */
   private streamView(): StreamView {
-    return { cam: this.r.view, fp: this.cam.fp, focus: this.started ? this.player.position : this.cam.target };
+    const fp = this.cam.fp;
+    // room contents: 20 m around you in first person; in the iso view as far as the crowd is drawn (about the screen)
+    const inner = fp ? 20 : Math.max(20, this.cam.zoom * 1.3 + 8);
+    return { cam: this.r.view, fp, focus: this.started ? this.player.position : this.cam.target, inner };
   }
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
@@ -1756,7 +1759,8 @@ class Game {
         c.cut = cut;
         this.streamer.endFade(c);
         const mat = cut ? this.matCut : this.matWorld;
-        for (const m of c.lv) if (m) m.material = mat;
+        // (room contents inside the chunk mesh too)
+        for (const m of c.lv) if (m) { m.material = mat; for (const ch of m.children) (ch as THREE.Mesh).material = mat; }
       }
     }
   }

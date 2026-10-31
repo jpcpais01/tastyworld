@@ -24,6 +24,17 @@ export interface Chunk {
   cut: boolean;
   /** Cross-fade in progress: the mesh being replaced, still drawn with the complementary dither. */
   fade: Fade | null;
+  /** What is inside the chunk's ground-floor rooms, drawn only near the view (full detail only). */
+  inner: Inner | null;
+}
+
+interface Inner {
+  mesh: THREE.Mesh;
+  /** Ground rect of the contents (x0, z0, x1, z1). */
+  rect: [number, number, number, number];
+  /** 0 hidden .. 1 shown; in between it dissolves with its own dither material. */
+  t: number;
+  mat: THREE.ShaderMaterial | null;
 }
 
 interface Fade {
@@ -38,12 +49,16 @@ interface Fade {
 const FADE_TIME = 0.5;
 /** Metres of head start a chunk already at full detail gets in the ranking, so the edge doesn't flicker as you walk. */
 const KEEP = 18;
+/** Room contents shown within `inner` metres stay until this much further, so standing at the edge doesn't flicker. */
+const INNER_KEEP = 4;
 
 export interface StreamView {
   cam: THREE.Camera;
   fp: boolean;
   /** The point the game is about (the player, or the title screen's focus). */
   focus: THREE.Vector3;
+  /** What is inside ground-floor rooms is drawn within this many metres (of the eye in first person, else of the focus). */
+  inner: number;
 }
 
 /** Level-of-detail rings for a view distance (metres): full detail inside `full`, half inside `half`, quarter out to `far`. */
@@ -101,7 +116,7 @@ export class Streamer {
         let h = 0;
         for (let z = iz * CHUNK; z < (iz + 1) * CHUNK; z++)
           for (let x = ix * CHUNK; x < (ix + 1) * CHUNK; x++) h = Math.max(h, height[z * CHUNKS_X * CHUNK + x]);
-        this.chunks.push({ ix, iz, top: h * V + 6, lv: [null, null, null], pending: null, want: null, seen: -1e9, occ: [], cut: false, fade: null });
+        this.chunks.push({ ix, iz, top: h * V + 6, lv: [null, null, null], pending: null, want: null, seen: -1e9, occ: [], cut: false, fade: null, inner: null });
       }
     workers.forEach((w, i) => {
       w.addEventListener('message', (e: MessageEvent<WorkerOut>) => { if (e.data.type === 'mesh') this.arrive(i, e.data); });
@@ -147,6 +162,7 @@ export class Streamer {
     }
     this.pump(this.lead);
     if (this.fading.size) this.stepFades(dt);
+    this.stepInner(dt, view);
     if (this.waiters.length && this.settled) { const w = this.waiters; this.waiters = []; w.forEach((f) => f()); }
   }
 
@@ -259,6 +275,7 @@ export class Streamer {
     if (c.want !== null && c.want < lv && c.lv.some((m, i) => m && i < lv)) return;
     const m = this.make(msg.mesh);
     this.endFade(c);
+    this.dropInner(c);
     // keep one mesh per chunk: the new one replaces whatever was drawn before, dissolving in over it
     let old: THREE.Mesh | null = null;
     for (let i = 0; i < 3; i++) if (c.lv[i]) {
@@ -268,6 +285,11 @@ export class Streamer {
     }
     c.lv[lv] = m;
     this.group.add(m);
+    const im = m.children[0] as THREE.Mesh | undefined;
+    if (im) {
+      const [x0, , z0, x1, , z1] = msg.mesh.innerBounds!;
+      c.inner = { mesh: im, rect: [x0, z0, x1, z1], t: 0, mat: null };
+    }
     this.resident.add(c);
     this.onMesh(c, m);
     if (old) {
@@ -283,6 +305,7 @@ export class Streamer {
     mOut.uniforms.uFade.value.set(0, 1);
     c.fade = { old, next, t: 0, mIn, mOut };
     old.material = mOut;
+    for (const ch of old.children) (ch as THREE.Mesh).material = mOut;
     next.material = mIn;
     // the shadow cache only needs redrawing once, when the swap is complete
     next.layers.disable(SHADOW_STATIC);
@@ -320,16 +343,76 @@ export class Streamer {
       const buf = (a as THREE.InterleavedBufferAttribute).data ?? a;
       (buf as unknown as THREE.BufferAttribute).onUpload(release as () => void);
     }
+    let ig: THREE.BufferGeometry | null = null;
+    if (md.shell !== undefined) {
+      // room contents: their own draw over the same vertex buffers, from the tail of the index list
+      const all = g.index!.array;
+      ig = new THREE.BufferGeometry();
+      for (const [name, a] of Object.entries(g.attributes)) ig.setAttribute(name, a);
+      ig.setIndex(new THREE.BufferAttribute(all.subarray(md.shell), 1));
+      ig.index!.onUpload(release as () => void);
+      const [x0, y0, z0, x1, y1, z1] = md.innerBounds!;
+      ig.boundingBox = new THREE.Box3(new THREE.Vector3(x0, y0, z0), new THREE.Vector3(x1, y1, z1));
+      ig.boundingSphere = ig.boundingBox.getBoundingSphere(new THREE.Sphere());
+      g.setIndex(new THREE.BufferAttribute(all.subarray(0, md.shell), 1));
+    }
     g.index?.onUpload(release as () => void);
     const m = new THREE.Mesh(g, this.material());
     m.matrixAutoUpdate = false;
     m.updateMatrix();
+    if (ig) {
+      const im = new THREE.Mesh(ig, m.material);
+      im.matrixAutoUpdate = false;
+      // always in the sun's shadow cache (so coming and going never redraws it), out of the view until near
+      im.layers.set(SHADOW_STATIC);
+      m.add(im);
+    }
     return m;
   }
 
   private drop(m: THREE.Mesh): void {
     m.removeFromParent();
     m.geometry.dispose();
+    for (const ch of m.children) (ch as THREE.Mesh).geometry.dispose();
+  }
+
+  /**
+   * Room contents fade in as the view comes within `inner` metres and out again past it. Shown, they wear
+   * the chunk's own material (so the cutaway and level-of-detail dissolves apply to them as well).
+   */
+  private stepInner(dt: number, view: StreamView): void {
+    const p = view.fp ? view.cam.position : view.focus;
+    for (const c of this.resident) {
+      const n = c.inner;
+      if (!n) continue;
+      const [x0, z0, x1, z1] = n.rect;
+      const d = Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(z0 - p.z, 0, p.z - z1));
+      const want = d < view.inner + (n.t > 0 ? INNER_KEEP : 0) ? 1 : 0;
+      // a cut building has its own material to wear, so it snaps (it is near the player anyway)
+      if (c.cut) n.t = want;
+      else if (n.t !== want) n.t = want ? Math.min(1, n.t + dt / FADE_TIME) : Math.max(0, n.t - dt / FADE_TIME);
+      const shell = n.mesh.parent as THREE.Mesh;
+      if (n.t > 0 && n.t < 1) {
+        if (!n.mat) {
+          if (!this.fadeMaterial) { n.t = want; continue; }
+          n.mat = this.fadePool.pop() ?? this.fadeMaterial();
+        }
+        n.mat.uniforms.uFade.value.set(n.t * n.t * (3 - 2 * n.t), 0);
+        n.mesh.material = n.mat;
+      } else {
+        if (n.mat) { this.fadePool.push(n.mat); n.mat = null; }
+        n.mesh.material = shell.material;
+      }
+      if (n.t > 0) n.mesh.layers.enable(0);
+      else n.mesh.layers.disable(0);
+    }
+  }
+
+  private dropInner(c: Chunk): void {
+    const n = c.inner;
+    if (!n) return;
+    if (n.mat) this.fadePool.push(n.mat);
+    c.inner = null;
   }
 
   /** Free chunks nobody has looked at for a while, oldest first, once over budget (or long gone). */
@@ -348,6 +431,7 @@ export class Streamer {
       if (this.t - c.seen < 1.5) continue;
       if (c.lv[0]) full--;
       this.endFade(c);
+      this.dropInner(c);
       for (let i = 0; i < 3; i++) if (c.lv[i]) { this.drop(c.lv[i]!); c.lv[i] = null; }
       c.cut = false;
       this.resident.delete(c);

@@ -1,6 +1,6 @@
 import { Grid, SparseGrid } from './grid';
 import { LightField, Lamp } from './lighting';
-import { meshGrid, mergeMeshes, MeshData, LightFn } from './mesher';
+import { meshGrid, mergeMeshes, splitInner, MeshData, LightFn } from './mesher';
 import { Palette } from './palette';
 import { buildTokyo, Anchors, PlacedProp, BuildResult } from './tokyo';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
@@ -288,6 +288,7 @@ export class WorldPart {
   private res!: BuildResult;
   private light!: LightFn;
   private buckets: PlacedProp[][] = [];
+  private rooms: number[][] = [];
   /** World column owners (see world/owners.ts), sent once every part is ready; chunks meshed after keep shared walls. */
   owners: Uint16Array | null = null;
   private t0 = performance.now();
@@ -315,6 +316,10 @@ export class WorldPart {
     const field = new LightField(res.grid, SUN_STEP);
     for (const l of res.lamps) field.addLamp(l);
     for (const bx of res.indoor) field.indoor(bx[0], bx[1], bx[2], bx[3], bx[4], bx[5], 0.62);
+    // ground-floor rooms in metres, whose contents are drawn near the player only (the station hall is a
+    // landmark seen from across the square, so it keeps its insides)
+    this.rooms = res.indoor.filter((b) => b[4] - b[1] <= 11)
+      .map((b) => [b[0] * V, (b[1] - G) * V, b[2] * V, (b[3] + 1) * V, (b[4] + 1 - G) * V, (b[5] + 1) * V]);
     this.light = lightFnFor(field);
     progress?.('Placing lanterns', 0.75);
     // props go to the chunk under their footprint centre; tagged ones are meshed separately by their owner strip
@@ -390,7 +395,8 @@ export class WorldPart {
   mesh(ix: number, iz: number, lod: number): MeshData | null {
     const x0 = VX0 + ix * CHUNK, z0 = VZ0 + iz * CHUNK;
     if (lod) return meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, lod === 1 ? 2 : 4);
-    return meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase, this.owners);
+    const md = meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase, this.owners);
+    return md && splitInner(md, this.rooms.filter((b) => b[0] < (x0 + CHUNK) * V && b[3] > x0 * V && b[2] < (z0 + CHUNK) * V && b[5] > z0 * V));
   }
 }
 

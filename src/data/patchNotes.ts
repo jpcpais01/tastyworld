@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.19',
+    date: '2026-10-31',
+    title: 'The garden of stones',
+    items: [
+      'Behind the Süleymaniye\'s prayer hall lies its graveyard. Rows of slim marble headstones stand in the grass among cypresses and tulips. The men\'s stones are crowned with a carved turban or fez, and the women\'s are rounded and carved with flowers.',
+      'The square by the New Mosque has its people: two women sell seed for the pigeons, and the shoeshine man waits by his brass box.',
+    ],
+  },
+  {
     version: '0.16.18',
     date: '2026-10-31',
     title: 'Window boxes and wisteria',

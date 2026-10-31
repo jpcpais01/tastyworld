@@ -579,6 +579,27 @@ function scooter(c: IC2, seed: number): Prop {
   return p;
 }
 
+/**
+ * An Ottoman headstone: a slim marble slab, a man's crowned with his turban or fez carved in stone, a woman's
+ * rounded with a carved spray of flowers. Faces +z.
+ */
+function headstone(c: IC2, seed: number): Prop {
+  const p = new Prop(5, 14, 3);
+  const man = seed % 3 !== 0, tall = 8 + (seed % 3);
+  const stone = (x: number, y: number, z: number) => (y < 2 && hash3(x, y, z + seed) < 0.4 ? c.algae : hash3(x, y, z + seed) < 0.2 ? c.marbleGrey : c.marble);
+  p.box(1, 0, 1, 3, tall, 1, stone);
+  // the inscription in lines down the face
+  for (let y = 3; y < tall - 1; y += 2) p.box(1, y, 2, 3, y, 2, (x) => (hash3(x, y, seed) < 0.6 ? c.limeDark : 0));
+  if (man) {
+    if (seed % 2) { p.ellipsoid(2, tall + 2, 1, 2.3, 1.7, 1.5, (x, y) => ((x + y) % 2 ? c.marble : c.limeLight)); }
+    else { p.cylY(2, 1, 1.4, tall + 1, tall + 3, c.marble); p.set(2, tall + 4, 1, c.marbleGrey); }
+  } else {
+    p.box(2, tall + 1, 1, 2, tall + 2, 1, c.marble);
+    p.box(1, tall - 3, 2, 3, tall - 1, 2, (x, y) => ((x + y) % 2 ? c.limeDark : 0)); // the carved flowers
+  }
+  return p;
+}
+
 function catHouse(c: IC2): Prop {
   const p = new Prop(8, 7, 6);
   p.box(0, 0, 0, 5, 4, 5, c.woodBare);
@@ -1926,6 +1947,8 @@ function yeniCami(ctx: Ctx): void {
   b.place(lampPost(c), 9.6, QUAY_Y, 31.6); b.lamp(9.6, QUAY_Y + 3.8, 31.6, WARM, 6, 0.8);
 }
 
+const HAZIRE_TREES: [number, number][] = [[-143.5, -32.1], [-131, -30.3], [-125.4, -33]];
+
 function suleymaniye(ctx: Ctx): void {
   const { b, c, plan } = ctx;
   const g = b.grid;
@@ -1959,6 +1982,18 @@ function suleymaniye(ctx: Ctx): void {
     leadDome(g, c, tx + 0.5, tz + 0.5, Y + 18, 8);
   }
   b.block(-157, -25, -151, -19);
+  // the hazire behind the qibla wall: rows of headstones in the grass among cypresses and roses
+  const r = rng(1557);
+  for (let z0 = Math.round(-33.6 / V); z0 <= Math.round(-27.4 / V); z0++) for (let x = Math.round(-148 / V); x <= Math.round(-126 / V); x++)
+    if (g.get(x, Y - 1, z0) && !g.get(x, Y, z0)) g.set(x, Y - 1, z0, hash3(x, 5, z0) < 0.3 ? c.clover : hash3(x, 6, z0) < 0.08 ? c.gravel : c.grass);
+  for (const z of [-33, -31.2, -29.4, -27.8]) for (let x = -147.4; x < -126.5; x += 0.9 + r() * 0.6) {
+    if (r() < 0.3 || Math.abs(x + 137) < 1.3 || HAZIRE_TREES.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 1.1)) continue; // gaps, and the path down the middle to the tomb gate
+    const j = (r() - 0.5) * 0.25;
+    b.place(headstone(c, Math.floor(r() * 1e4)), x, HILLTOP_Y, z + j, 0);
+    b.block(x - 0.2, z + j - 0.1, x + 0.2, z + j + 0.1);
+  }
+  for (const [x, z] of HAZIRE_TREES) b.place(cypress(c, Math.round(x * 3 + z), 28), x, HILLTOP_Y, z);
+  for (const [x, z] of [[-139.4, -28.6], [-134.6, -28.6], [-146.6, -30.3]]) b.place(pottedPlant(c, Math.round(-x)), x, HILLTOP_Y, z);
   // the terrace: a stone balustrade on the Horn side, the tea garden's tables under the plane trees
   const [tx0, tz0, tx1, tz1] = SULEY.terrace;
   const BZ = Math.round(tz1 / V) - 1;
@@ -2179,6 +2214,8 @@ function square(ctx: Ctx): void {
   b.place(seedTable(c), 11, QUAY_Y, 35); b.block(10.3, 34.5, 11.7, 35.5);
   b.place(seedTable(c), -2, QUAY_Y, 33.5); b.block(-2.7, 33, -1.3, 34);
   b.place(shoeshine(c), 22, QUAY_Y, 24); b.block(21.5, 23.6, 22.5, 24.4);
+  // the women selling seed for the pigeons, and the shoeshine man by his brass box
+  ctx.keepers.push({ pos: [11, QUAY_Y, 36.1], face: Math.PI, seed: 611 }, { pos: [-2, QUAY_Y, 34.6], face: Math.PI, seed: 617 }, { pos: [22.9, QUAY_Y, 24.2], face: -Math.PI / 2, seed: 619 });
   for (const [x, z] of [[20.5, 6], [20.5, 18], [-8, 31.5], [24, 32]] as const) { b.place(bench(b.k), x, QUAY_Y, z, 1); b.benches.push([x, z, Math.PI / 2, QUAY_Y]); b.block(x - 0.4, z - 0.9, x + 0.4, z + 0.9); }
   for (const [x, z] of [[17, 2], [17, 28], [-10, 38], [24.5, 12], [24.5, 26]] as const) { b.place(lampPost(c), x, QUAY_Y, z); b.lamp(x, QUAY_Y + 3.8, z, WARM, 7, 0.9); }
   for (const [x, z] of [[22.5, -0.5], [-10.5, 41]] as const) { b.place(planeTree(c, x * 13 + z, true), x, QUAY_Y, z); b.block(x - 0.5, z - 0.5, x + 0.5, z + 0.5); }

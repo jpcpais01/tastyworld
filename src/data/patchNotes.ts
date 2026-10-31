@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.6',
+    date: '2026-10-31',
+    title: 'Rooms you can see into',
+    items: [
+      'Walking into a café, restaurant, shop or hotel lobby in Istanbul now opens it up like a dollhouse, as in Tokyo. A slab of ceiling no longer covers the whole room from above.',
+      'The Spice Bazaar\'s halls are paved in stone right up to the shopfronts, with no strips of grass under the vaults.',
+    ],
+  },
+  {
     version: '0.16.5',
     date: '2026-10-31',
     title: 'Fits your phone',

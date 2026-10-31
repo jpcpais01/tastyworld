@@ -418,6 +418,7 @@ export function buildAmalfi(win?: Window): BuildResult {
   shore(b, c, plan);
   gardens(b, c, plan, inWin);
   lanes(b, c, plan);
+  shopfronts(b, c, plan);
   const stalls = foodStalls(b, c, plan);
   // the three majolica lemons, on the ground where the plan says it is
   const groundY = (x: number, z: number) => (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
@@ -1160,6 +1161,87 @@ function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) =>
   }
 }
 
+/** The turns that point a prop's front (+z as built) along a direction, to the nearest axis. */
+function faceTurn(fx: number, fz: number): number {
+  return Math.abs(fx) > Math.abs(fz) ? (fx > 0 ? 1 : 3) : (fz > 0 ? 0 : 2);
+}
+
+/** Linen shirts and dresses on a rail outside a shop. Faces +z. */
+function clothesRail(c: AC, seed: number): Prop {
+  const p = new Prop(12, 14, 4);
+  p.box(0, 0, 2, 0, 13, 2, c.iron); p.box(11, 0, 2, 11, 13, 2, c.iron); p.box(0, 13, 2, 11, 13, 2, c.iron);
+  const cols = [c.white, c.sky, c.lemonWall, c.whiteWarm, c.sage, c.rose];
+  for (let x = 1; x < 11; x += 2) {
+    const col = cols[Math.floor(hash3(x, seed, 5) * cols.length)];
+    const long = hash3(seed, x, 9) < 0.4;
+    p.box(x, long ? 3 : 6, 1, x + 1, 12, 3, col);
+  }
+  return p;
+}
+
+/** A shelf of limoncello bottles and jars of lemon sweets by a shop door. Faces +z. */
+function limoncelloShelf(c: AC, seed: number): Prop {
+  const p = new Prop(10, 14, 3);
+  p.box(0, 0, 0, 9, 13, 0, c.deckWood);
+  p.box(0, 0, 0, 0, 13, 2, c.deckWood); p.box(9, 0, 0, 9, 13, 2, c.deckWood);
+  for (const y of [0, 4, 8]) {
+    p.box(1, y, 1, 8, y, 2, c.deckWood);
+    for (let x = 1; x < 9; x += 2) {
+      const h = hash3(x, y, seed) < 0.5 ? 3 : 2;
+      p.box(x, y + 1, 1, x, y + h, 1, h === 3 ? c.lemon : c.majolicaWhite);
+      if (h === 3) p.set(x, y + 3, 1, c.cotto);
+    }
+  }
+  p.box(1, 12, 0, 8, 13, 0, c.lemon); // the painted sign
+  return p;
+}
+
+/** A striped canvas awning over a shop door, out from the wall. Faces +z. */
+function awning(c: AC, col: number): Prop {
+  const p = new Prop(18, 4, 9);
+  for (let z = 0; z < 9; z++) p.box(0, 3 - Math.floor(z / 3), z, 17, 3 - Math.floor(z / 3), z, (x) => ((x >> 1) % 2 ? col : c.white));
+  p.box(0, 0, 8, 17, 0, 8, (x) => ((x >> 1) % 2 ? col : c.white)); // the valance
+  return p;
+}
+
+/**
+ * Via Lorenzo d'Amalfi and the streets off the piazza: the shops spill out of their doors, ceramics on racks,
+ * limoncello on shelves, linen on rails and crates of lemons, under striped awnings.
+ */
+function shopfronts(b: Builder, c: AC, plan: Plan): void {
+  const r = rng(5150);
+  const awnings = [c.umbrellaC, c.umbrellaA, c.umbrellaE, c.majolicaYellow, c.hullRed];
+  for (const s of plan.segs) {
+    if (s.kind !== K.Street) continue;
+    const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
+    const len = Math.hypot(bx - ax, bz - az);
+    const nx = -(bz - az) / len, nz = (bx - ax) / len;
+    for (const side of [1, -1]) {
+      for (let t = 2 + r() * 2; t < len - 2; t += 3.2 + r() * 2.4) {
+        if (r() < 0.35) continue;
+        const f = t / len;
+        // the house front: a little way past the edge of the paving, across a step or a strip of garden
+        const ex = ax + (bx - ax) * f + nx * (s.w / 2) * side, ez = az + (bz - az) * f + nz * (s.w / 2) * side;
+        const y = ay + (by - ay) * f;
+        let d = -0.5;
+        while (d <= 1.75 && !plan.lot[col(Math.floor((ex + nx * side * d) / V), Math.floor((ez + nz * side * d) / V))]) d += 0.25;
+        // no house close by: the goods stand against the street's own wall
+        const front = d <= 1.75;
+        const back = front ? d - 0.4 : -0.4;
+        const x = ex + nx * side * back, z = ez + nz * side * back;
+        const fl = (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
+        if (Math.abs(fl - y) > 0.6) continue;
+        const turn = faceTurn(-nx * side, -nz * side);
+        const pick = r();
+        const prop = pick < 0.3 ? ceramicRack(c, Math.floor(r() * 1e4)) : pick < 0.55 ? limoncelloShelf(c, Math.floor(r() * 1e4)) : pick < 0.8 ? clothesRail(c, Math.floor(r() * 1e4)) : crateLemons(c, Math.floor(r() * 1e4));
+        b.place(prop, x, fl, z, turn);
+        b.block(x - 0.6, z - 0.6, x + 0.6, z + 0.6);
+        if (front && r() < 0.6) b.place(awning(c, awnings[Math.floor(r() * awnings.length)]), x - nx * side * 0.3, fl + 2.5, z - nz * side * 0.3, turn);
+      }
+    }
+  }
+}
+
 /** Lamps, potted plants and little shrines along the lanes and stairways. */
 function lanes(b: Builder, c: AC, plan: Plan): void {
   const r = rng(4242);
@@ -1176,7 +1258,7 @@ function lanes(b: Builder, c: AC, plan: Plan): void {
       // wall lantern on the house beside the lane, if there is one, else a post
       const vx = Math.floor((x + nx * side * 0.5) / V), vz = Math.floor((z + nz * side * 0.5) / V);
       const beside = plan.lot[col(vx, vz)];
-      if (beside) b.place(wallLantern(c), x, y + 2.6, z, Math.abs(nx) > Math.abs(nz) ? (nx * side > 0 ? 3 : 1) : (nz * side > 0 ? 0 : 2));
+      if (beside) b.place(wallLantern(c), x, y + 2.6, z, faceTurn(-nx * side, -nz * side));
       else b.place(lampPost(c), x, y, z);
       b.lamp(x, y + 2.6, z, WARM, 5.5, 0.75);
       const ex = ax + (bx - ax) * f - nx * off * side, ez = az + (bz - az) * f - nz * off * side;

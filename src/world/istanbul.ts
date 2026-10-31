@@ -653,6 +653,7 @@ export function buildIstanbul(win?: Window): BuildResult {
 
   terrain(ctx, wx0, wz0, wx1, wz1);
   townEdge(ctx, wx0, wz0, wx1, wz1);
+  yardWalls(ctx, wx0, wz0, wx1, wz1);
   const uses = assignUses(plan);
   for (const lt of plan.lots) building(ctx, lt, uses.get(lt.id));
   halls(ctx);
@@ -1002,6 +1003,41 @@ function townEdge(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number):
       });
       for (let k = 0; k < 4; k++) g.box(tx + k, Y + 20 + k, tz + k, tx + 5 - k, Y + 20 + k, tz + 7 - k, c.lead);
       g.set(tx + 2, Y + 24, tz + 3, c.gold);
+    }
+}
+
+/**
+ * The yards and gardens behind the houses are walled off from the street, so a street reads as one frontage from
+ * house to house: whitewashed or stone walls with a tiled coping, a gateway in them every few metres (a lintel
+ * overhead, low enough to walk under), the gardens' trees showing over the top.
+ */
+function yardWalls(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): void {
+  const { b, c, plan } = ctx;
+  const g = b.grid;
+  const STREETS = new Set<number>([K.Street, K.Lane, K.Stair, K.Tram, K.Quay, K.Square]);
+  for (let z = wz0; z < wz1; z++)
+    for (let x = wx0; x < wx1; x++) {
+      const ci = col(x, z);
+      if (plan.kind[ci] !== K.Ground || outCell(x, z)) continue;
+      if (shoreDist(x * V, z * V) < 6) continue; // the quays stay open to the water
+      let along = -1, pw = 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ax = x + dx, az = z + dz;
+        if (!inMap(ax, az)) continue;
+        const ak = plan.kind[col(ax, az)];
+        if (ak === K.Mosque || ak === K.Court || ak === K.Park || ak === K.Terrace) { along = -1; break; }
+        if (STREETS.has(ak)) { along = dx !== 0 ? z : x; pw = plan.walk[col(ax, az)]; }
+      }
+      if (along < 0) continue;
+      const w = plan.walk[ci], base = Math.min(w, pw) , top = Math.max(w, pw) + 8;
+      const gate = pm(along, 26) < 4;
+      const white = hash3(x >> 5, 21, z >> 5) < 0.55;
+      g.box(x, base, z, x, top, z, (xx, y, zz) => {
+        if (gate && y >= Math.max(w, pw) && y < top - 1) return 0; // the gateway, a lintel over it
+        if (y === top) return c.roofTile;
+        if (y === top - 1) return gate ? c.woodDark : white ? c.trim : c.limeLight;
+        return white ? (y < base + 2 ? c.stone : c.white) : almasik(c, xx, y, zz);
+      });
     }
 }
 

@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.37',
+    date: '2026-10-31',
+    title: 'A built-up old city',
+    items: [
+      'Istanbul\'s old city is far denser. About sixty more houses stand in the yards and the wedges of ground left beside the slanting streets, so the streets read as rows of houses shoulder to shoulder rather than houses dotted about open ground.',
+      'Yards and gardens are walled off from the street by whitewashed or stone and brick walls with tiled copings. Every few metres a gateway with a wooden lintel lets you in.',
+    ],
+  },
+  {
     version: '0.16.36',
     date: '2026-10-31',
     title: 'Walk to your pin',

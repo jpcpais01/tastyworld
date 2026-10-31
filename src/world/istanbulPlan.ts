@@ -425,6 +425,28 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
       const w = 18 + Math.floor(r() * 18), d = 18 + Math.floor(r() * 16);
       tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground);
     }
+  // the old city is built up: the bigger yards left between the houses get a house of their own (a few stay open,
+  // and the ground round the mosques and the waterfront is kept clear for the views)
+  let infill = 0;
+  // (the Grand Bazaar's courtyards between its halls stay open, and so does the tea garden on the Bosphorus)
+  const inGrand = (x: number, z: number) => (x * V > GRAND[0] - 6 && x * V < GRAND[2] + 2 && z * V > GRAND[1] - 6 && z * V < GRAND[3] + 2) || (x * V > 12 && x * V < 25 && z * V > -112 && z * V < -82);
+  for (let gz = VZ0 + 4; gz < VZ0 + SZ - 20 && infill < 60; gz += 4)
+    for (let gx = VX0 + 4; gx < VX0 + SX - 20 && infill < 60; gx += 4) {
+      const c = col(gx, gz);
+      if (kind[c] !== K.Ground || lot[c] || beyond((gx + 8) * V, (gz + 8) * V) || r() < 0.3) continue;
+      if (shoreDist(gx * V, gz * V) < 10 || inGrand(gx, gz)) continue;
+      const w = 16 + Math.floor(r() * 12), d = 16 + Math.floor(r() * 12);
+      if (tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground)) infill++;
+    }
+  // then narrower houses into the wedges left where a street runs on the slant
+  for (let gz = VZ0 + 4; gz < VZ0 + SZ - 16 && infill < 110; gz += 3)
+    for (let gx = VX0 + 4; gx < VX0 + SX - 16 && infill < 110; gx += 3) {
+      const c = col(gx, gz);
+      if (kind[c] !== K.Ground || lot[c] || beyond((gx + 6) * V, (gz + 6) * V) || r() < 0.2) continue;
+      if (shoreDist(gx * V, gz * V) < 10 || inGrand(gx, gz)) continue;
+      const w = 14 + Math.floor(r() * 6), d = 14 + Math.floor(r() * 6);
+      if (tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground)) infill++;
+    }
   // past the town's edge the houses stand shoulder to shoulder, so the town reads as going on over the hill
   for (let gz = VZ0 + 1; gz < VZ0 + SZ - 15; gz += 3)
     for (let gx = VX0 + 1; gx < VX0 + SX - 15; gx += 3) {

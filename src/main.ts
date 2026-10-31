@@ -507,8 +507,8 @@ class Game {
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
     const m = this.r.isMobile;
     this.crowd.populate(m
-      ? { walkers: 70, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 }
-      : { walkers: 150, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
+      ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 }
+      : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
     this.crowd.settle(this.tod.hour);
 
     // cats

@@ -15,6 +15,7 @@ import { buildFood, FoodId } from './food';
 import { buildCity } from './city';
 import { SwayBody, SWAY, swayKey } from './sway';
 import { wrapLot, dressBlock } from './facades';
+import { noteFront } from './dressing';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
 
 export interface PlacedProp {
@@ -1151,11 +1152,36 @@ function gate(b: Builder) {
 
 // ---------------------------------------------------------------------------------------------
 
+/** The old district's walking graph (metres); the city's joins onto it. */
+export const OLD_GRAPH: { nodes: [number, number][]; edges: [number, number][] } = {
+  nodes: [
+    [11.5, 12.5], [35.7, 12.5], [69, 12.5], // 0..2 Kaminari
+    [35.7, 17], [35.7, 37.5], // 3..4 alley
+    [2.5, 40.0], [15.9, 40.0], [35.7, 40.0], [54.9, 40.0], [69.5, 40.0], // 5..9 promenade
+    [15.9, 51.8], [54.9, 51.8], [2.5, 52], [69.5, 52], // 10..13 far bank
+    [22, 12.5], [52, 12.5], [26, 40.8], [45, 40.0], [35, 51.0], // 14..18
+    [5.5, 15.0], // 19 plaza
+  ],
+  edges: [[19, 0], [0, 14], [14, 1], [1, 15], [15, 2], [1, 3], [3, 4], [4, 7], [5, 6], [6, 16], [16, 7], [7, 17], [17, 8], [8, 9], [6, 10], [8, 11], [12, 10], [10, 18], [18, 11], [11, 13]],
+};
+/** Where the old district's idlers, cats and the player's first steps stand (metres): kept clear of clutter. */
+export const OLD_KEEP: [number, number][] = [
+  [11.2, 12.5], [44.6, 30.5], [43.0, 30.5],
+  [6.6, 9.6], [36.6, 27.2], [22.0, 40.0], [44.5, 50.5], [20.0, 15.2], [58.5, 9.7],
+  [34.4, 30.4], [12.2, 40.2], [49.4, 52.3],
+];
+
 export function buildTokyo(win?: Window): BuildResult {
   const b = new Builder(win);
   const g = b.grid, c = b.c, k = b.k;
   const r = b.r;
   const pick = <T,>(arr: T[]) => arr[Math.floor(r() * arr.length)];
+  // a building whose front the dressing pass fills with the street's clutter
+  const noted = (lot: Lot, o: BuildingOpts, mix: string) => {
+    const nr = b.rooms.length;
+    const { H } = building(lot, o);
+    noteFront(lot, o.ground, o.style, mix, H, o.seed, b.rooms.slice(nr).map((rm) => rm.door));
+  };
 
   terrain(b);
   temple(b);
@@ -1175,7 +1201,7 @@ export function buildTokyo(win?: Window): BuildResult {
     const floors0 = style0 === 'machiya' || style0 === 'kura' ? 2 : near ? 2 + Math.floor(r() * 2) : 2 + Math.floor(r() * 4);
     const awning = ground0 === 'shop' || ground0 === 'cafe' ? pick(awnPairs) : undefined;
     const ground = force?.ground ?? ground0, style = force?.style ?? style0, floors = force?.floors ?? floors0;
-    building(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' || ground === 'kissa' ? awning ?? awnPairs[seed % awnPairs.length] : undefined, restaurant: force?.restaurant, secret: force?.secret });
+    noted(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' || ground === 'kissa' ? awning ?? awnPairs[seed % awnPairs.length] : undefined, restaurant: force?.restaurant, secret: force?.secret }, 'shops');
     const [fx, fz] = lot.front(lot.width / 2, 0.3);
     if (style !== 'machiya' && style !== 'kura' && b.clear(fx, 3.6, fz)) {
       lot.wallProp(lantern(k, lanternAlt ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
@@ -1267,13 +1293,13 @@ export function buildTokyo(win?: Window): BuildResult {
       }
       let w = 10 + Math.floor(r() * 3) * 2;
       if (z + w > 152 || 152 - (z + w) < 6) w = 152 - z;
-      building(new Lot(b, 112, z, 135, z + w - 1, 'e'), { floors: 2, style: 'izakaya', ground: 'izakaya', seed: 3000 + i, lanterns: pick(izakayaLanterns), roof: r() < 0.5 ? 'tiled' : 'flat' });
+      noted(new Lot(b, 112, z, 135, z + w - 1, 'e'), { floors: 2, style: 'izakaya', ground: 'izakaya', seed: 3000 + i, lanterns: pick(izakayaLanterns), roof: r() < 0.5 ? 'tiled' : 'flat' }, 'bars');
       z += w;
       i++;
     }
     z = 64; i = 0; placed = false;
     const eastLot = (z0: number, z1: number) => {
-      building(new Lot(b, 150, z0, 173, z1, 'w'), { floors: 2, style: 'izakaya', ground: 'izakaya', seed: 3500 + i, lanterns: pick(izakayaLanterns), roof: r() < 0.5 ? 'tiled' : 'flat' });
+      noted(new Lot(b, 150, z0, 173, z1, 'w'), { floors: 2, style: 'izakaya', ground: 'izakaya', seed: 3500 + i, lanterns: pick(izakayaLanterns), roof: r() < 0.5 ? 'tiled' : 'flat' }, 'bars');
       i++;
     };
     while (z < 118) {
@@ -1348,7 +1374,7 @@ export function buildTokyo(win?: Window): BuildResult {
         // the old kissaten by the canal
         const kissa = i === 2;
         const ground: Ground = kissa ? 'kissa' : ground0, style: Style = kissa ? 'showa' : style0, floors = kissa ? 3 : floors0;
-        building(lot, { floors, style, ground, seed: 5000 + i, awning: kissa ? [c.awnRed, c.awnWhite] : awning, lanterns, restaurant: kissa ? { id: 'komorebi', foods: ['purin', 'napolitan'] } : undefined });
+        noted(lot, { floors, style, ground, seed: 5000 + i, awning: kissa ? [c.awnRed, c.awnWhite] : awning, lanterns, restaurant: kissa ? { id: 'komorebi', foods: ['purin', 'napolitan'] } : undefined }, 'canal');
         x += w;
         i++;
       }
@@ -1635,17 +1661,7 @@ export function buildTokyo(win?: Window): BuildResult {
     chef: [0, 0, 0],
     counterStand: [0, 0],
     manekis,
-    graph: {
-      nodes: [
-        [11.5, 12.5], [35.7, 12.5], [69, 12.5], // 0..2 Kaminari
-        [35.7, 17], [35.7, 37.5], // 3..4 alley
-        [2.5, 40.0], [15.9, 40.0], [35.7, 40.0], [54.9, 40.0], [69.5, 40.0], // 5..9 promenade
-        [15.9, 51.8], [54.9, 51.8], [2.5, 52], [69.5, 52], // 10..13 far bank
-        [22, 12.5], [52, 12.5], [26, 40.8], [45, 40.0], [35, 51.0], // 14..18
-        [5.5, 15.0], // 19 plaza
-      ],
-      edges: [[19, 0], [0, 14], [14, 1], [1, 15], [15, 2], [1, 3], [3, 4], [4, 7], [5, 6], [6, 16], [16, 7], [7, 17], [17, 8], [8, 9], [6, 10], [8, 11], [12, 10], [10, 18], [18, 11], [11, 13]],
-    },
+    graph: { nodes: OLD_GRAPH.nodes.map(([x, z]) => [x, z] as [number, number]), edges: OLD_GRAPH.edges.map(([i, j]) => [i, j] as [number, number]) },
     idlers: [
       { id: 'obaachan', pos: [6.6, 0, 9.6] },
       { id: 'salaryman', pos: [36.6, 0, 27.2] },

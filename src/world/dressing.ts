@@ -6,9 +6,9 @@
 // and gardens it was told about), never the voxel grid, so every worker strip places exactly the same things.
 import { hash3, rng } from './grid';
 import { G, V, HILL } from './layout';
-import { Builder, Lot, Ground, Style, RED, WARM, WHITEWARM, COOL } from './tokyo';
+import { Builder, Lot, Ground, Style, RED, WARM, WHITEWARM, COOL, OLD_GRAPH, OLD_KEEP } from './tokyo';
 import {
-  Prop, rotateProp, potCluster, plantPot, bicycle, umbrellaStand, gasTanks, crateStack, binCorner, hangingSign, furin,
+  Prop, rotateProp, potCluster, plantPot, bicycle, umbrellaStand, gasTanks, crateStack, binCorner, hangingSign, furin, aFrame, stool, cafeTable, scooter, nobori,
   lantern, wire, bunting, streetPlanter, bannerPole, utilityBox, workBarrier, trafficCone, bench, bush, grassTuft, laundryRack, swingSet, slide, vendingMachine,
 } from './props';
 import { roadMarks, signals, lanes, paper } from './details';
@@ -128,6 +128,12 @@ export function dress(b: Builder, city: CityResult): void {
   const n = notesOf(b);
   const d = new Dresser(b);
   for (const [i, j] of city.edges) if (i >= 0 && j >= 0) d.paths.push([...city.nodes[i], ...city.nodes[j]]);
+  // the old district's walks, the links between the two, and the spots its people and cats stand on
+  const node = (i: number) => (i < 0 ? OLD_GRAPH.nodes[-i - 1] : city.nodes[i]);
+  for (const [i, j] of city.edges) if (i < 0 || j < 0) d.paths.push([...node(i), ...node(j)]);
+  for (const [i, j] of OLD_GRAPH.edges) d.paths.push([...OLD_GRAPH.nodes[i], ...OLD_GRAPH.nodes[j]]);
+  for (const [x, z] of OLD_KEEP) d.take([x - 0.7, z - 0.7, x + 0.7, z + 0.7]);
+  for (const s of b.stallAnchors) d.take([s.stand[0] - 1.2, s.stand[1] - 1.2, s.stand[0] + 1.2, s.stand[1] + 1.2]);
   // keep every doorway clear first
   for (const f of n.fronts) for (const a of doorsOf(f)) {
     const h = doorHalf(f);
@@ -200,10 +206,19 @@ function front(d: Dresser, f: Front): void {
     const [sx, sz] = lot.front(r() < 0.5 ? 1.5 : w - 1.5, 0.2);
     b.emitters.push({ kind: 'steam', pos: [sx, 3.1, sz], rate: 0.22 });
   }
-  if (f.ground === 'shop' || avenue || f.mix === 'tower' && r() < 0.6) return; // goods tables, or a pavement too narrow for the crowd
+  if (f.mix === 'tower' && !avenue && r() < 0.6) return;
+  const flags = () => {
+    const cloth = [k.c.norenRed, k.c.navy, k.c.signYellow, k.c.signGreen, k.c.norenWhite][Math.floor(r() * 5)];
+    return nobori(k, cloth, cloth === k.c.norenWhite || cloth === k.c.signYellow ? k.c.norenRed : k.c.white, Math.floor(r() * 1e5));
+  };
+  if (f.ground === 'shop') {
+    // the goods tables fill the front; a banner flag stands out past the awning at one or both ends
+    if (!avenue) for (const a of [1.5, w - 1.5]) if (r() < 0.6) d.wallPut(lot, flags(), a, 1.15);
+    return;
+  }
 
   // the clutter, in slots along the facade
-  type Item = { p: () => Prop; len: number; turns?: number; after?: (a: number) => void };
+  type Item = { p: () => Prop; len: number; turns?: number; out?: number; after?: (a: number) => void };
   const pots = (): Item => ({ p: () => potCluster(k, Math.floor(r() * 1e6)), len: 4 });
   const pot = (): Item => ({ p: () => plantPot(k, (['bamboo', 'pine', 'shrub', 'flowers'] as const)[Math.floor(r() * 4)], Math.floor(r() * 1e6)), len: 3 });
   const bike = (): Item => ({ p: () => bicycle(k, [k.c.bikeSilver, k.c.bikeMint, k.c.bikeRed, k.c.vmBlue, k.c.cubCream][Math.floor(r() * 5)]), len: 5.6 });
@@ -220,19 +235,34 @@ function front(d: Dresser, f: Front): void {
   const works = (): Item => ({ p: () => workBarrier(k), len: 9.5, after: (a) => {
     for (const da of [-3.9, 3.9]) d.wallPut(lot, trafficCone(k), a + da, out + 0.05);
   } });
+  const board = (): Item => ({ p: () => aFrame(k, Math.floor(r() * 1e5)), len: 2.2 });
+  const moped = (): Item => ({ p: () => scooter(k, [k.c.vmRed, k.c.vmBlue, k.c.cubCream, k.c.bikeMint][Math.floor(r() * 4)]), len: 6.4 });
+  // a banner flag on its pole, out past the eaves and awnings
+  const flag = (): Item => ({ p: flags, len: 3.6, out: 1.15 });
+  // the standing bar: an upturned crate for a table, a stool either side
+  const perch = (): Item => ({ p: () => crateStack(k, Math.floor(r() * 1e6)), len: 7.4, after: (a) => {
+    for (const da of [-2.7, 2.7]) d.wallPut(lot, stool(k, k.c.lacquer), a + da, out + 0.1);
+  } });
+  // a café table out front with two stools
+  const terrace = (): Item => ({ p: () => cafeTable(k, [k.c.white, k.c.norenRed, k.c.signCream][Math.floor(r() * 3)]), len: 6.4, out: 0.35, after: (a) => {
+    for (const da of [-2.3, 2.3]) d.wallPut(lot, stool(k, k.c.woodDark), a + da, out + 0.3);
+  } });
   const lane = !st || st.kind === 'lane' || st.kind === 'alley';
-  const menu: [number, () => Item][] = home ? [[5, pots], [2, pot], [2.5, bike], [1, brolly], [1.2, gas], [0.6, bins], [0.8, cabinet], [lane ? 0.9 : 0, vend], [lane ? 0.12 : 0, works]]
-    : bar ? [[3, crates], [2, brolly], [1.5, pots], [1, pot], [0.8, gas], [0.4, vend]]
-    : [[3, pots], [2.5, pot], [1.5, bike], [1.5, brolly], [0.5, crates], [0.5, vend], [0.3, cabinet]];
+  const eatery = f.ground === 'cafe' || f.ground === 'kissa' || f.ground === 'bakery';
+  // the avenue pavements keep their walking lanes: only slim things flush with the wall
+  const menu: [number, () => Item][] = avenue ? [[3, pots], [1.5, brolly], [1, bins], [bar || f.ground === 'cafe' ? 2 : 1, board], [0.6, gas], [1.2, bike]]
+    : home ? [[5, pots], [2, pot], [2.5, bike], [1, brolly], [1.2, gas], [0.8, bins], [0.8, cabinet], [1, moped], [lane ? 0.9 : 0, vend], [lane ? 0.12 : 0, works]]
+    : bar ? [[3, crates], [1.5, brolly], [1.5, pots], [1, pot], [0.8, gas], [0.4, vend], [2.5, perch], [2, board], [1, flag], [0.6, bins]]
+    : [[3, pots], [2.5, pot], [1.5, bike], [1.2, brolly], [0.6, crates], [0.5, vend], [0.3, cabinet], [1.8, board], [1.2, flag], [0.7, moped], [eatery ? 2.5 : 0, terrace]];
   const total = menu.reduce((s, [wgt]) => s + wgt, 0);
   const pickItem = () => { let t = r() * total; for (const [wgt, f] of menu) if ((t -= wgt) < 0) return f(); return menu[0][1](); };
   let placed = 0;
-  const most = home ? 5 : 4;
-  for (let a = 1.6 + r() * 2; a < w - 1.6 && placed < most; ) {
+  const most = avenue ? 3 : home ? 7 : 6;
+  for (let a = 1.4 + r() * 1.2; a < w - 1.4 && placed < most; ) {
     const it = pickItem();
-    if (a + it.len > w - 1.5) { a += 1; continue; }
-    if (nearDoor(a, a + it.len)) { a += 2; continue; }
-    if (d.wallPut(lot, it.p(), a + it.len / 2, out, it.turns ?? 0)) { it.after?.(a + it.len / 2); placed++; a += it.len + 0.5 + r() * 3; } else a += 2;
+    if (a + it.len > w - 1.3) { a += 1; continue; }
+    if (nearDoor(a, a + it.len)) { a += 1.5; continue; }
+    if (d.wallPut(lot, it.p(), a + it.len / 2, it.out ?? out, it.turns ?? 0)) { it.after?.(a + it.len / 2); placed++; a += it.len + 0.35 + r() * 1.6; } else a += 1.5;
   }
 }
 

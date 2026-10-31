@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.22',
+    date: '2026-10-31',
+    title: 'Busier streets',
+    items: [
+      'Kaminari Lane, Lantern Alley and the canal promenade in the old district are now as lived in as the rest of town, with plants, bikes, crates and umbrella stands spilling out of every front.',
+      'Bars put out an upturned crate for a table with a stool either side, cafés and bakeries set a little table out front, and chalkboard menus stand by the doors.',
+      'Banner flags flutter outside shops and bars, and scooters are parked against the walls.',
+      'House and shop fronts are packed more densely everywhere, and even the avenue pavements have pots, bins and menu boards along the walls, leaving room to walk.',
+      'More people are out on the streets.',
+    ],
+  },
+  {
     version: '0.10.21',
     date: '2026-10-31',
     title: 'Our own icons',

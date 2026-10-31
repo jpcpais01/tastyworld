@@ -39,14 +39,13 @@ float axisRoad(float x, float a0, float a1) {
   else t = mod(x - a1 - RING, PERIOD);
   return t > BLOCK ? min(t - BLOCK, PERIOD - t) : -min(t, BLOCK - t);
 }
-// shared haze: thicker the further from the map and close to the ground, thinner up where the towers are, so
-// the skyline stands out clearly over the street-level murk (the voxel city's own first-person fog is much
-// thicker: it has to hide where loading stops, which the far city doesn't)
+// shared haze: aerial perspective, thicker the further from the map and close to the ground, a little thinner
+// higher up (the voxel city's own first-person fog is much thicker: it has to hide where loading stops)
 vec3 farHaze(vec3 col, vec3 w, vec4 rect, vec3 fogColor, vec4 fog) {
   vec2 o = max(rect.xy - w.xz, w.xz - rect.zw);
   float out_ = max(0.0, max(o.x, o.y));
-  float lift = mix(1.0, 0.45, smoothstep(4.0, 80.0, w.y));
-  float a = (1.0 - exp(-out_ * 0.0034)) * lift;
+  float lift = mix(1.0, 0.65, smoothstep(4.0, 80.0, w.y));
+  float a = (1.0 - exp(-out_ * 0.0048)) * lift;
   if (fog.w > 0.0) {
     float fd = max(0.0, distance(w, fog.xyz) - FOG_START) * fog.w * 0.3;
     a = max(a, (1.0 - exp(-fd * fd)) * lift);
@@ -57,13 +56,15 @@ vec3 farHaze(vec3 col, vec3 w, vec4 rect, vec3 fogColor, vec4 fog) {
 }
 `;
 
-// building parts: 0 plaster house wall, 1 shop / office block, 2 glass tower, 3 tile roof, 4 roof slab or
-// equipment, 5 sign, 6 tree crown
-const HOUSE = ['#ddd2bd', '#c8b39a', '#9e8670', '#b9bdc2', '#e8e2d6', '#cdbfa6'];
-const ROOF = ['#4c5561', '#6b4d42', '#5a6559', '#3f4652'];
-const MID = ['#bcb8ae', '#d1c6b2', '#a9a19b', '#e0dbd1', '#94929a', '#c9b49c', '#b8c0c4'];
-// tower frames (mullions, spandrels): pale stone, steel, near black, warm granite, blue grey
-const GLASS = ['#dcdad4', '#a9afb7', '#3e454f', '#cbbfae', '#7a8591', '#e9e7e2'];
+// building parts: 0 plaster house wall, 1 shop / office block, 2 tower, 3 tile roof, 4 roof slab or
+// equipment, 5 sign, 6 tree crown, 7 apartment block (balconies on its long faces)
+const HOUSE = ['#ddd2bd', '#c8b39a', '#9e8670', '#b9bdc2', '#e8e2d6', '#cdbfa6', '#a7b2a6', '#d9c7b8'];
+const ROOF = ['#4c5561', '#6b4d42', '#5a6559', '#3f4652', '#7a6a5c'];
+const MID = ['#bcb8ae', '#d1c6b2', '#a9a19b', '#e0dbd1', '#94929a', '#c9b49c', '#b8c0c4', '#8e7f72', '#cfc9bd'];
+const FLAT = ['#ecebe6', '#e6dcc6', '#cdb89a', '#9b6b55', '#b5b3ae', '#e3cfc6', '#c9d3c3', '#d8d4cc', '#a88f78'];
+// towers: dark glass in a frame of the same family, or a stone / precast grid (seed above 0.6 picks stone)
+const DARK = ['#3a4048', '#4a4f55', '#5b6168', '#2e353d', '#47524f'];
+const STONE = ['#c9bda9', '#b0aaa0', '#d8d2c6', '#8f8a84', '#a99a88'];
 const SIGN = ['#e8473a', '#f2c230', '#36c6d8', '#e85aa8', '#5bd16a', '#f08a2e'];
 const TREE = ['#5c8a4a', '#4f7a43', '#6a9550', '#e9b4c4'];
 
@@ -80,76 +81,90 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
   };
   const outOf = (ax0: number, az0: number, ax1: number, az1: number) => Math.max(x0 - ax1, ax0 - x1, z0 - az1, az0 - z1);
   const inGap = (ax0: number, az0: number, ax1: number, az1: number) => gaps.some(([a, b, c, e]) => ax1 > a && ax0 < c && az1 > b && az0 < e);
-  const neX = x1 + 90, neZ = z0 - 70;
+  // Tokyo is a sea of low and mid-rise blocks; towers only gather in a few far-off business districts
+  const CLUSTERS: [number, number, number][] = [[x1 + 210, z0 - 170, 120], [x0 - 190, z1 + 170, 95], [x0 - 230, z0 - 120, 80]];
+  const cluster = (x: number, z: number) => CLUSTERS.reduce((m, [cx, cz, r]) => Math.max(m, 1 - Math.hypot(x - cx, z - cz) / r), 0);
 
-  const building = (lx0: number, lz0: number, lx1: number, lz1: number, k: number, ne: number, face: number) => {
-    const set = 0.4 + rnd() * 0.8;
+  // flat roof furniture: parapet, water tank, stair house, a/c units, sometimes a billboard on legs
+  const roof = (cx: number, cz: number, w: number, d: number, h: number, billboard: boolean) => {
+    part(cx, cz, w + 0.2, d + 0.2, h, 0.45, 4, '#8d8b88');
+    if (rnd() < 0.6) part(cx + (rnd() - 0.5) * (w - 3), cz + (rnd() - 0.5) * (d - 3), 2.2, 2.6, h, 2.6, 4, pick(['#cfccc4', '#b8b4ac']));
+    if (rnd() < 0.55) { const t = 1.4 + rnd() * 1.2; part(cx + (rnd() - 0.5) * (w - t - 1), cz + (rnd() - 0.5) * (d - t - 1), t, t, h + 0.45, 1.4 + rnd() * 1.4, 4, '#dedcd4'); }
+    if (rnd() < 0.5) part(cx + (rnd() - 0.5) * (w - 2), cz + (rnd() - 0.5) * (d - 2), 1.4, 0.9, h + 0.45, 0.8, 4, '#a9a7a0');
+    if (billboard && w > 6) {
+      const bw = Math.min(w - 1, 6 + rnd() * 3), along = w >= d;
+      part(cx, cz, along ? 0.25 : 0.25, along ? 0.25 : 0.25, h, 1.2, 4, '#55524e');
+      part(cx, cz, along ? bw : 0.3, along ? 0.3 : bw, h + 1.2, 2.6 + rnd() * 1.4, 5, pick(SIGN));
+    }
+  };
+
+  const blade = (cx: number, cz: number, w: number, d: number, h: number, face: number) => {
+    // a vertical sign on the street face (face: 0 -z, 2 +z)
+    const sh = Math.min(h - 3.5, 3 + rnd() * 6), sy = 3.2 + rnd() * Math.max(0, h - sh - 4);
+    const along = (rnd() - 0.5) * (w - 2);
+    part(cx + along, face === 0 ? cz - d / 2 - 0.5 : cz + d / 2 + 0.5, 0.25, 1.0, sy, sh, 5, pick(SIGN));
+  };
+
+  const building = (lx0: number, lz0: number, lx1: number, lz1: number, k: number, c: number, face: number) => {
+    const set = 0.3 + rnd() * 0.9;
     const w = lx1 - lx0 - set * 2, d = lz1 - lz0 - set * 2;
     if (w < 3 || d < 3) return;
     const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2;
     const r = rnd();
-    const tall = Math.max(k * k * 0.55, ne * 0.8);
-    if (r < 0.62 - tall * 0.7 && k < 0.7) {
-      // a house: two or three floors and a stepped tile roof along its longer side
-      const h = (rnd() < 0.7 ? 2 : 3) * 2.9 + 0.3;
-      part(cx, cz, w, d, 0, h, 0, pick(HOUSE));
-      const rc = pick(ROOF), alongX = w >= d;
-      const rw = alongX ? w + 0.5 : d + 0.5, rd = alongX ? d + 0.5 : w + 0.5;
-      const steps = 3;
-      for (let i = 0; i < steps; i++) {
-        const f = 1 - i / steps;
-        const a = rw - i * 0.3, b = rd * f;
-        part(cx, cz, alongX ? a : b, alongX ? b : a, h + i * 0.5, 0.5, 3, rc);
-      }
-    } else if (r < 0.93 - tall * 0.5) {
-      // a shop or office block with a parapet, roof tanks and maybe a sign on the street side
-      const floors = 4 + Math.floor(rnd() * 5 + k * 6 + ne * 6);
-      const h = floors * 3.2 + 0.8;
-      part(cx, cz, w, d, 0, h, 1, pick(MID));
-      part(cx, cz, w - 0.2, d - 0.2, h, 0.35, 4, '#8d8b88');
-      if (rnd() < 0.7) {
-        const tw = 1.5 + rnd() * 1.5;
-        part(cx + (rnd() - 0.5) * (w - tw - 1), cz + (rnd() - 0.5) * (d - tw - 1), tw, tw, h + 0.35, 1.6 + rnd() * 1.6, 4, '#d6d4cc');
-      }
-      if (rnd() < 0.5) part(cx + (rnd() - 0.5) * (w - 2), cz + (rnd() - 0.5) * (d - 2), 1.6, 1.0, h + 0.35, 0.9, 4, '#b9b7b0');
-      if (rnd() < 0.55 && floors > 3) {
-        // a vertical blade sign on the street face (face: 0 -z, 1 +x, 2 +z, 3 -x)
-        const sh = Math.min(h - 3.5, 4 + rnd() * 7), sy = 3.2 + rnd() * Math.max(0, h - sh - 4);
-        const along = (rnd() - 0.5) * (Math.min(w, d) - 2);
-        const sc = pick(SIGN);
-        if (face === 0) part(cx + along, cz - d / 2 - 0.5, 0.25, 1.0, sy, sh, 5, sc);
-        else if (face === 2) part(cx + along, cz + d / 2 + 0.5, 0.25, 1.0, sy, sh, 5, sc);
-        else if (face === 1) part(cx + w / 2 + 0.5, cz + along, 1.0, 0.25, sy, sh, 5, sc);
-        else part(cx - w / 2 - 0.5, cz + along, 1.0, 0.25, sy, sh, 5, sc);
-      }
+    const pTower = c > 0.25 && k > 0.45 && w > 9 ? c * 0.55 : 0;
+    const pHouse = Math.max(0.08, 0.62 - k * 0.7 - c * 0.5);
+    if (r < pTower) {
+      // a tower, as varied as real ones: slab or square, glass or stone, a set-back or none, rarely a mast
+      const stone = rnd() < 0.4, ts = stone ? 0.6 + rnd() * 0.4 : rnd() * 0.6;
+      const fc = stone ? pick(STONE) : pick(DARK);
+      const fl = stone ? 3.4 : 3.8;
+      const h = Math.round((40 + rnd() * 55 + c * c * 90) / fl) * fl;
+      const ph = rnd() < 0.6 ? (1 + Math.floor(rnd() * 3)) * 3.4 : 0;
+      if (ph) part(cx, cz, w, d, 0, ph, 1, pick(MID));
+      const slab = rnd() < 0.4;
+      const sw = w * (ph ? 0.8 : 1), sd = d * (ph ? 0.8 : 1) * (slab ? 0.55 : 1);
+      let tw = sw, td = sd, top = h;
+      if (h > 60 && rnd() < 0.35) {
+        const sb = Math.round((h * (0.6 + rnd() * 0.2)) / fl) * fl;
+        part(cx, cz, sw, sd, ph, sb - ph, 2, fc, ts);
+        tw = sw * 0.78; td = sd * 0.78;
+        part(cx, cz, tw, td, sb, h - sb, 2, fc, ts);
+      } else part(cx, cz, sw, sd, ph, h - ph, 2, fc, ts);
+      part(cx, cz, tw + 0.2, td + 0.2, top, 0.8, 4, stone ? fc : '#6c7076');
+      if (rnd() < 0.6) part(cx + (rnd() - 0.5) * tw * 0.4, cz + (rnd() - 0.5) * td * 0.4, tw * 0.4, td * 0.4, top, 3 + rnd() * 2, 4, '#9a9893');
+      if (rnd() < 0.15) part(cx, cz, 0.35, 0.35, top + 3, 6 + rnd() * 10, 4, '#d0d0d0');
+    } else if (r < pTower + pHouse) {
+      // a house: two or three floors, mostly a stepped tile roof, sometimes flat with a balcony rail
+      const h = (rnd() < 0.65 ? 2 : 3) * 2.9 + 0.3;
+      const hw = Math.min(w, 6 + rnd() * 5), hd = Math.min(d, 6 + rnd() * 5);
+      const hx = cx + (rnd() - 0.5) * (w - hw), hz = cz + (rnd() - 0.5) * (d - hd);
+      part(hx, hz, hw, hd, 0, h, 0, pick(HOUSE));
+      if (rnd() < 0.75) {
+        const rc = pick(ROOF), alongX = hw >= hd;
+        const rw = alongX ? hw + 0.5 : hd + 0.5, rd = alongX ? hd + 0.5 : hw + 0.5;
+        for (let i = 0; i < 3; i++) {
+          const a = rw - i * 0.3, b = rd * (1 - i / 3);
+          part(hx, hz, alongX ? a : b, alongX ? b : a, h + i * 0.5, 0.5, 3, rc);
+        }
+      } else part(hx, hz, hw + 0.15, hd + 0.15, h, 0.6, 4, '#9a9690');
+    } else if (r < pTower + pHouse + 0.45) {
+      // an apartment block: balconies down its long faces, often one floor shy of the full height at the back
+      const floors = 3 + Math.floor(rnd() * (4 + k * 6 + c * 6));
+      const h = floors * 2.9 + 0.6;
+      const fc = pick(FLAT);
+      part(cx, cz, w, d, 0, h, 7, fc);
+      if (floors > 4 && rnd() < 0.35) {
+        // a stepped top floor
+        part(cx, cz - d * 0.15, w, d * 0.7, h, 2.9, 7, fc);
+        roof(cx, cz - d * 0.15, w, d * 0.7, h + 2.9, false);
+      } else roof(cx, cz, w, d, h, false);
     } else {
-      // a tower: a podium of shops, the glass shaft with a set-back upper part, a crown, roof plant and a mast
-      let h = 30 + rnd() * 40 + k * 40 + ne * rnd() * 90;
-      h = Math.round(h / 3.6) * 3.6;
-      const frame = pick(GLASS), ts = rnd();
-      const ph = (2 + Math.floor(rnd() * 3)) * 3.2;
-      part(cx, cz, w, d, 0, ph, 1, pick(MID));
-      part(cx, cz, w - 0.2, d - 0.2, ph, 0.3, 4, '#8d8b88');
-      const sw = w * (0.72 + rnd() * 0.18), sd = d * (0.72 + rnd() * 0.18);
-      let top = h, tw = sw, td = sd;
-      if (h > 50 && rnd() < 0.7) {
-        // a set-back two thirds of the way up
-        const sb = Math.round((h * (0.55 + rnd() * 0.2)) / 3.6) * 3.6;
-        part(cx, cz, sw, sd, ph, sb - ph, 2, frame, ts);
-        part(cx, cz, sw + 0.3, sd + 0.3, sb - 0.5, 0.5, 4, '#c8ccd2');
-        tw = sw * (0.7 + rnd() * 0.15); td = sd * (0.7 + rnd() * 0.15);
-        part(cx, cz, tw, td, sb, h - sb, 2, frame, ts);
-      } else part(cx, cz, sw, sd, ph, h - ph, 2, frame, ts);
-      part(cx, cz, tw + 0.3, td + 0.3, top - 0.6, 0.6, 4, '#c8ccd2');
-      const cw = tw * (0.55 + rnd() * 0.2), cd = td * (0.55 + rnd() * 0.2), ch = 3.6 * (1 + Math.floor(rnd() * 3));
-      part(cx, cz, cw, cd, top, ch, 2, frame, ts);
-      // roof plant on the main roof beside the crown
-      for (let i = 0; i < 3; i++) {
-        const ex = (rnd() - 0.5) * (tw - 2.5), ez = (rnd() - 0.5) * (td - 2.5);
-        if (Math.abs(ex) < cw / 2 + 0.8 && Math.abs(ez) < cd / 2 + 0.8) continue;
-        part(cx + ex, cz + ez, 1.2 + rnd() * 1.6, 1.2 + rnd() * 1.6, top, 1 + rnd() * 1.4, 4, rnd() < 0.5 ? '#d6d4cc' : '#9c9a94');
-      }
-      if (rnd() < 0.6) part(cx, cz, 0.35, 0.35, top + ch, 5 + rnd() * 10, 4, '#d8d8d8');
+      // a shop or office building: ribbon windows, a bright ground floor, signs
+      const floors = 3 + Math.floor(rnd() * (3 + k * 5 + c * 8));
+      const h = floors * 3.4 + 0.6;
+      part(cx, cz, w, d, 0, h, 1, pick(MID));
+      roof(cx, cz, w, d, h, rnd() < 0.25);
+      if (rnd() < 0.5) blade(cx, cz, w, d, h, face);
     }
   };
 
@@ -161,7 +176,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       const out = outOf(bx0, bz0, bx1, bz1);
       if (out < RING - 0.01) continue;
       const k = Math.min(1, out / 220);
-      const ne = Math.max(0, 1 - Math.hypot((bx0 + bx1) / 2 - neX, (bz0 + bz1) / 2 - neZ) / 170);
+      const ne = cluster((bx0 + bx1) / 2, (bz0 + bz1) / 2);
       if (rnd() < 0.06 && out > 20 && parks.length < 64) {
         // a park: trees on grass (the ground shader greens the block)
         for (let i = 0; i < 9; i++) {
@@ -271,16 +286,33 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
             if (y < 3.2) { win = grid(u, y, 4.0, 3.2, vec4(0.06, 0.94, 0.05, 0.7), cell); }
             albedo = mix(albedo, glass + vec3(0.03), win);
           } else if (kind == 2) {
-            // curtain wall: dark tinted glass that mirrors the sky (brighter higher up, a cooler bottom), thin
-            // mullions and a spandrel band at every floor in the frame colour; some towers have a stone grid
-            bool stone = seed > 0.7;
-            win = stone ? grid(u, y, 2.4, 3.6, vec4(0.22, 0.78, 0.25, 0.85), cell) : grid(u, y, 1.5, 3.6, vec4(0.05, 0.95, 0.24, 0.97), cell);
-            vec3 tint = mix(vec3(0.07, 0.11, 0.15), vec3(0.1, 0.13, 0.12), fract(seed * 7.3));
+            // a stone or precast grid with punched windows, or a curtain wall of dark tinted glass in a frame of
+            // the same family that mirrors a little of the sky
+            bool stone = seed > 0.6;
+            win = stone ? grid(u, y, 2.0, 3.4, vec4(0.2, 0.8, 0.28, 0.86), cell) : grid(u, y, 1.5, 3.8, vec4(0.04, 0.96, 0.2, 0.97), cell);
+            vec3 tint = mix(vec3(0.05, 0.07, 0.09), vec3(0.08, 0.1, 0.09), fract(seed * 7.3));
             float up = smoothstep(0.0, 160.0, vWorld.y);
-            vec3 refl = tint + uSkyColor * mix(0.18, 0.42, up) + uFogColor * 0.08;
+            vec3 refl = tint + uSkyColor * mix(0.07, 0.17, up) + uFogColor * 0.05;
             // the odd floor with blinds drawn or lights on by day, so faces aren't uniform
             refl *= 0.88 + 0.24 * hash12(cell * vec2(0.37, 1.0) + seed * 53.0);
             albedo = mix(albedo, refl, win);
+          } else if (kind == 7) {
+            // apartment block: the long faces carry a balcony slab and rail at every floor with sliding doors
+            // behind; the ends have a few small windows
+            float faceLen = abs(n.x) > 0.5 ? vSize.z : vSize.x, other = abs(n.x) > 0.5 ? vSize.x : vSize.z;
+            float fy = fract(y / 2.9);
+            if (faceLen >= other) {
+              win = grid(u, y, 3.4, 2.9, vec4(0.08, 0.92, 0.42, 0.95), cell);
+              float aa = smoothstep(0.3, 0.7, fwidth(y) / 2.9 * 1.6);
+              float rail = mix(step(fy, 0.36), 0.36, aa), lip = mix(step(0.36, fy) * step(fy, 0.42), 0.06, aa);
+              albedo = mix(albedo, glass * 0.55 + vec3(0.015), win * (1.0 - rail));
+              albedo = mix(albedo, min(albedo * 1.12 + 0.04, vec3(1.0)), rail);
+              albedo *= 1.0 - 0.45 * lip;
+              win *= 1.0 - rail;
+            } else {
+              win = grid(u + 0.7, y, 2.6, 2.9, vec4(0.35, 0.65, 0.45, 0.8), cell);
+              albedo = mix(albedo, glass * 0.6 + vec3(0.02), win);
+            }
           } else if (kind == 5) {
             // a lit sign: a column of characters
             float c = step(0.2, fract(y / 1.1)) * step(fract(y / 1.1), 0.85) * step(0.2, fract(u * 3.0 + 0.5));
@@ -303,8 +335,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         vec3 col = albedo * (uSunColor * ndl * (0.6 + 0.4 * ao) + hemi * ao + vec3(0.9, 0.7, 0.45) * uLamp * 0.12 * ao);
         // glass shows the sky it reflects rather than the light falling on it, with a glint on the sunny side
         col = mix(col, albedo * (vec3(1.0) + uSunColor * ndl * 0.6), glassy);
-        if (kind == 2) col *= 1.0 - 0.45 * uNight * (1.0 - glassy); // pale frames shouldn't glow in the dark
-
+        
         // bevel highlight on the box edges, like the voxel edges of the real city
         vec2 fa, fe;
         if (abs(n.x) > 0.5) { fa = vec2(vLocal.z + vSize.z * 0.5, vLocal.y); fe = vSize.zy; }
@@ -320,11 +351,6 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
           col += win * on * wc * uNight * (0.3 + 0.25 * fract(seed * 13.7 + cell.y * 0.37));
         }
         if (kind == 5) col += albedo * emit * mix(uEmitDay, 2.6, uNight);
-        if (kind == 2 && vSize.y < 12.0 && vPart.x > 20.0 && wall) {
-          // the crown of a tower: a band of light at night
-          float band = step(vSize.y - 1.2, vLocal.y) * step(vLocal.y, vSize.y - 0.5);
-          col += band * mix(vec3(1.0, 0.35, 0.7), vec3(0.3, 0.9, 1.0), step(0.5, seed)) * uNight * 2.0;
-        }
         outColor = vec4(farHaze(col, vWorld, uRect, uFogColor, uFog), 1.0);
       }`,
   }));

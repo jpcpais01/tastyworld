@@ -15,7 +15,7 @@ import { buildFood, FoodId } from './food';
 import { buildCity } from './city';
 import { tokyoBeyond, beyondCell } from './tokyoEdge';
 import { SwayBody, SWAY, swayKey } from './sway';
-import { wrapLot, dressBlock } from './facades';
+import { wrapLot, dressBlock, skin, lotFace } from './facades';
 import { noteFront } from './dressing';
 import type { HallAnchor } from './sacred';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
@@ -190,6 +190,8 @@ function worldColors(pal: Palette) {
     pine: a(0x2f5b3c, 0.12, F), pineB: a(0x3c6e46, 0.12, F), maple: a(0xd65a3a, 0.12, F), mapleB: a(0xe9853f, 0.12, F), keyaki: a(0x5d9a48, 0.14, F), keyakiB: a(0x7bb55a, 0.12, F),
     moss: a(0x5f7f3a, 0.14), torii: a(0xe0452e, 0.04), toriiBlack: a(0x2b2624, 0.03), foxWhite: a(0xf1ede6, 0.03),
     brick: a(0x9a5a44, 0.08), brickDark: a(0x7a4434, 0.08), water: a(0x3f6f7a, 0.05),
+    // the wear on a city wall: grime under the sills, the form-tie holes of bare concrete, a rust run, a window's hood
+    grime: a(0x8f8a80, 0.05), tieHole: a(0x8c8881, 0.03), rust: a(0x8a5a3a, 0.06), hood: a(0x9ea3a6, 0.04), amado: a(0xc9c1b0, 0.04),
   };
 }
 
@@ -485,6 +487,13 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
           lot.box(a0, base + 4, -1, a1, base + 4, -1, c.trimDark);
         }
         if (!balcony && r() < 0.3) lot.wallProp(acUnit(k), a0 + ww / 2, (base - 0.5) * V + 0.1 + 0.25, 0);
+        // a thin hood over the glass against the rain, and on the old houses the box the night shutters slide into
+        if (!balcony && o.style !== 'apartment') {
+          const hv = hash3(a0, base, o.seed + 71);
+          // (clear of the front corners, where the vertical signs hang)
+          if (hv < 0.55) lot.box(Math.max(2, a0 - 1), base + 9, -1, Math.min(w - 3, a1 + 1), base + 9, -1, (a, y, d) => lot.get(a, y, d) || (o.style === 'showa' ? c.hood : c.concrete));
+          if (o.style === 'showa' && hv > 0.45 && a1 + 2 < w - 2) lot.box(a1 + 1, base + 3, -1, a1 + 2, base + 8, -1, (a, y, d) => lot.get(a, y, d) || (y === base + 8 ? c.hood : c.amado));
+        }
       }
     }
     if (balcony) {
@@ -689,6 +698,7 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
 
   // the same finish round the sides and back as on the front
   wrapLot(lot, { h: H, gh: GH, fh: FH, wall, trim, look: wood ? 'wood' : o.style === 'kura' ? 'kura' : 'plain', seed: o.seed * 5 + 3, pipe: !wood && o.style !== 'kura' });
+  if (!wood && o.style !== 'kura') for (const which of ['f', 'l', 'r', 'b'] as const) skin(b, lotFace(lot, which), H, wall, o.seed * 11 + which.charCodeAt(0));
   if (o.hotel) {
     const lobby = b.rooms[b.rooms.length - 1];
     if (lobby?.hotel !== o.hotel.id) throw new Error(`hotel ${o.hotel.id}: the lot is too small for a lobby`);

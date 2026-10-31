@@ -29,9 +29,9 @@ export interface FaceStyle {
 }
 
 /** One face of a lot: 'l'/'r' are the side walls (a = 0 / w - 1), 'b' the back wall. Corners are left to the front. */
-export function lotFace(lot: Lot, which: 'l' | 'r' | 'b'): Face {
+export function lotFace(lot: Lot, which: 'f' | 'l' | 'r' | 'b'): Face {
   const w = lot.width, dep = lot.depth;
-  const [a0, d0, da, dd, oa, od, len] = which === 'b' ? [w - 1, dep - 1, -1, 0, 0, 1, w] : which === 'l' ? [0, 0, 0, 1, -1, 0, dep] : [w - 1, dep - 1, 0, -1, 1, 0, dep];
+  const [a0, d0, da, dd, oa, od, len] = which === 'f' ? [0, 0, 1, 0, 0, -1, w] : which === 'b' ? [w - 1, dep - 1, -1, 0, 0, 1, w] : which === 'l' ? [0, 0, 0, 1, -1, 0, dep] : [w - 1, dep - 1, 0, -1, 1, 0, dep];
   const [x, z] = lot.xz(a0, d0), [x1, z1] = lot.xz(a0 + da, d0 + dd), [xo, zo] = lot.xz(a0 + oa, d0 + od);
   return { x, z, dx: x1 - x, dz: z1 - z, nx: xo - x, nz: zo - z, len };
 }
@@ -145,4 +145,42 @@ export function dressBlock(b: Builder, x0: number, z0: number, x1: number, z1: n
     h, gh: 12, fh: 12, wall, trim: block ? b.c.trim : b.c.concreteDark, look: 'plain', seed: seed * 4 + i,
     ground: block ? (i % 2 ? 1 : 2) : 0, pipe: block && i < 2, ac: block,
   }));
+  if (block) boxFaces(x0, z0, x1, z1).forEach((f, i) => skin(b, f, h, wall, seed * 4 + i + 1));
+}
+
+/**
+ * The wear of the city on a wall, over every face of a lot once its windows are in: grime run down from the sills
+ * and the coping, and on bare concrete the grid of form-tie holes and panel joints Tokyo's newer blocks show.
+ * Repaints only cells still in the wall's own colour.
+ */
+export function skin(b: Builder, f: Face, h: number, wall: number, seed: number): void {
+  const g = b.grid, c = b.c;
+  if (f.len < 4 || h < 8) return;
+  const X = (t: number) => f.x + f.dx * t, Z = (t: number) => f.z + f.dz * t;
+  const at = (t: number, y: number) => g.get(X(t), G + y, Z(t));
+  const paint = (t: number, y: number, v: number) => { if (at(t, y) === wall) g.set(X(t), G + y, Z(t), v); };
+  const concrete = wall === c.concreteWall;
+  if (concrete) {
+    // panels 6 voxels wide and tall, a joint between them, two tie holes on each
+    for (let t = 0; t < f.len; t++) for (let y = 1; y < h - 1; y++) {
+      const u = (X(t) + Z(t)) % 6, v = y % 6;
+      if (u === 0 && hash3(t, y >> 3, seed) < 0.6) paint(t, y, c.tieHole);
+      else if ((u === 2 || u === 4) && (v === 2 || v === 4)) paint(t, y, c.tieHole);
+    }
+  }
+  for (let t = 0; t < f.len; t++) {
+    // under an opening (a window's sill, a recess, a hood), now and then a grey run of grime
+    for (let y = 2; y < h - 1; y++) {
+      if (at(t, y) !== wall) continue;
+      const above = at(t, y + 1);
+      if (above !== 0 && above !== c.glass && above !== c.glassLit && above !== c.glassDark && above !== c.shoji) continue;
+      const k = hash3(X(t) * 7 + y, seed, Z(t) * 3);
+      if (k > 0.22) continue;
+      const len = 1 + Math.floor(k * 18);
+      for (let yy = y; yy > Math.max(0, y - len); yy--) paint(t, yy, k < 0.05 ? c.rust : c.grime);
+    }
+    // and down from the coping
+    const k = hash3(X(t), h + seed, Z(t) * 5);
+    if (k < 0.06) for (let y = h - 2; y >= h - 3 - Math.floor(k * 80); y--) paint(t, y, c.grime);
+  }
 }

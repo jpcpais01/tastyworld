@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.24',
+    date: '2026-10-31',
+    title: 'Even lighter city meshes',
+    items: [
+      'The soft dark bands along the foot of walls, under ledges and around corners are now built from long single pieces instead of one per block, cutting another tenth of the nearby city\'s triangles with the same look.',
+    ],
+  },
+  {
     version: '0.10.23',
     date: '2026-10-31',
     title: 'Lighter city meshes',

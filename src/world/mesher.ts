@@ -112,7 +112,7 @@ const flat = (L: Float32Array, c: number, m: number): number => {
 const MAXS = 320 * 320;
 let scr: {
   keys: Float64Array; edgesM: Uint8Array; colM: Uint16Array; swM: Uint16Array; partM: Int8Array; lightM: Uint8Array; used: Uint8Array;
-  cornerStamp: Int32Array; cornerVals: Float32Array;
+  cornerStamp: Int32Array; cornerVals: Float32Array; cornerAo: Uint8Array; cornerAoV: Float32Array;
 } | null = null;
 let stampBase = 1;
 function scratch() {
@@ -120,7 +120,7 @@ function scratch() {
     scr = {
       keys: new Float64Array(MAXS), edgesM: new Uint8Array(MAXS), colM: new Uint16Array(MAXS), swM: new Uint16Array(MAXS), partM: new Int8Array(MAXS),
       lightM: new Uint8Array(MAXS * 6), used: new Uint8Array(MAXS),
-      cornerStamp: new Int32Array(322 * 322), cornerVals: new Float32Array(322 * 322 * 5),
+      cornerStamp: new Int32Array(322 * 322), cornerVals: new Float32Array(322 * 322 * 5), cornerAo: new Uint8Array(322 * 322), cornerAoV: new Float32Array(322 * 322),
     };
   }
   return scr;
@@ -148,7 +148,7 @@ export function meshGrid(o: MeshOpts): MeshData {
   };
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-  const { keys, edgesM, colM, swM, partM, lightM, used, cornerStamp, cornerVals } = scratch();
+  const { keys, edgesM, colM, swM, partM, lightM, used, cornerStamp, cornerVals, cornerAo, cornerAoV } = scratch();
   const maxU = keys.length;
 
   const cAo = [0, 0, 0, 0];
@@ -268,6 +268,7 @@ export function meshGrid(o: MeshOpts): MeshData {
             if (light) {
               const ci = (iu + cu) + (iv + cv) * (U + 1);
               const c5 = ci * 5;
+              cornerAo[ci] = cAo[k]; cornerAoV[ci] = AO_CURVE[cAo[k]];
               if (cornerStamp[ci] !== stamp) {
                 const cx = bx + u[0] * cu + v[0] * cv, cy = by + u[1] * cu + v[1] * cv, cz = bz + u[2] * cu + v[2] * cv;
                 light(origin[0] + cx * scale, origin[1] + cy * scale, origin[2] + cz * scale, n[0], n[1], n[2], tmp);
@@ -298,12 +299,12 @@ export function meshGrid(o: MeshOpts): MeshData {
             uniform = qs >= 0 && qk >= 0 && qr >= 0 && qg >= 0 && qb >= 0;
           }
           if (!uniform) {
-            if (!greedy || !light || cAo[0] !== cAo[1] || cAo[1] !== cAo[2] || cAo[2] !== cAo[3]) {
+            if (!greedy || !light || seamFace) {
               emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
               continue;
             }
-            // light varies across it but AO doesn't: may still merge where the light is a plane (see below)
-            keys[mi] = -3 - ((((col * 4 + cAo[0]) * 16 + part + 1) * 2) + (seamFace ? 1 : 0));
+            // light or AO varies across it: may still merge where they change evenly (see below)
+            keys[mi] = -3 - (col * 16 + part + 1);
             edgesM[mi] = edges; colM[mi] = col; partM[mi] = part; swM[mi] = sw; used[mi] = 0;
             continue;
           }
@@ -347,21 +348,30 @@ export function meshGrid(o: MeshOpts): MeshData {
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
           emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, partM[mi], sw, key % 2);
         }
-      // Faces whose light changes across them (soft shadow edges, lamp falloff, sky under an overhang) merge
-      // too where the light over the whole rectangle is what its two triangles would interpolate from the
-      // corners anyway, to within under a step of what the faces had: long even gradients become one quad.
+      // Faces whose light or AO changes across them (soft shadow edges, lamp falloff, the dark strip along the
+      // foot of a wall) merge too where what the merged quad's two triangles interpolate from its corners is,
+      // at every voxel corner inside it, within under a step of what the faces had: even gradients become one quad.
       const C = U + 1;
       const fits = (iu: number, iv: number, w: number, h: number): boolean => {
-        const c00 = (iu + iv * C) * 5, c10 = (iu + w + iv * C) * 5, c01 = (iu + (iv + h) * C) * 5, c11 = (iu + w + (iv + h) * C) * 5;
+        const i00 = iu + iv * C, i10 = i00 + w, i01 = i00 + h * C, i11 = i01 + w;
+        // the diagonal emit() picks: corner 0 to 2, (0, 0) to (w, h), unless AO says 1 to 3
+        const flip = cornerAo[i00] + cornerAo[i11] < cornerAo[i10] + cornerAo[i01];
         for (let b = 0; b <= h; b++)
           for (let a = 0; a <= w; a++) {
-            const su = a / w, tv = b / h, c = (iu + a + (iv + b) * C) * 5;
+            const su = a / w, tv = b / h, c = i00 + a + b * C;
+            // weights of the four corners at this point
+            let k00: number, k10: number, k01: number, k11: number;
+            if (flip) {
+              if (su + tv >= 1) { k00 = 0; k10 = 1 - tv; k11 = su + tv - 1; k01 = 1 - su; }
+              else { k00 = 1 - su - tv; k10 = su; k01 = tv; k11 = 0; }
+            } else if (su >= tv) { k00 = 1 - su; k10 = su - tv; k11 = tv; k01 = 0; }
+            else { k00 = 1 - tv; k01 = tv - su; k11 = su; k10 = 0; }
             for (let ch = 0; ch < 5; ch++) {
-              const v00 = cornerVals[c00 + ch], v10 = cornerVals[c10 + ch], v01 = cornerVals[c01 + ch], v11 = cornerVals[c11 + ch];
-              // the quad's diagonal runs corner 0 to 2, (0, 0) to (w, h): emit()
-              const pred = su >= tv ? v00 + su * (v10 - v00) + tv * (v11 - v10) : v00 + tv * (v01 - v00) + su * (v11 - v01);
-              if (Math.abs(pred - cornerVals[c + ch]) > (ch < 2 ? GRAD_TOL / 63 : GRAD_TOL / 31.875)) return false;
+              const pred = k00 * cornerVals[i00 * 5 + ch] + k10 * cornerVals[i10 * 5 + ch] + k01 * cornerVals[i01 * 5 + ch] + k11 * cornerVals[i11 * 5 + ch];
+              if (Math.abs(pred - cornerVals[c * 5 + ch]) > (ch < 2 ? GRAD_TOL / 63 : GRAD_TOL / 31.875)) return false;
             }
+            const pa = k00 * cornerAoV[i00] + k10 * cornerAoV[i10] + k01 * cornerAoV[i01] + k11 * cornerAoV[i11];
+            if (Math.abs(pa - cornerAoV[c]) > GRAD_TOL / 255) return false;
           }
         return true;
       };
@@ -392,11 +402,12 @@ export function meshGrid(o: MeshOpts): MeshData {
             if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
           }
           const ci = [iu + iv * C, iu + w + iv * C, iu + w + (iv + h) * C, iu + (iv + h) * C];
-          for (let k = 0; k < 4; k++) for (let ch = 0; ch < 5; ch++) cL[k * 5 + ch] = cornerVals[ci[k] * 5 + ch];
-          const ao = (-3 - key) >> 1;
-          cAo[0] = cAo[1] = cAo[2] = cAo[3] = Math.floor(ao / 16) % 4;
+          for (let k = 0; k < 4; k++) {
+            cAo[k] = cornerAo[ci[k]];
+            for (let ch = 0; ch < 5; ch++) cL[k * 5 + ch] = cornerVals[ci[k] * 5 + ch];
+          }
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
-          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, cL, null, 0, partM[mi], sw, (-3 - key) % 2);
+          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, cL, null, 0, partM[mi], sw);
         }
     }
   }

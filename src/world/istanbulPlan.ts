@@ -94,6 +94,43 @@ export function hillY(x: number, z: number): number {
   return QUAY_Y + Math.max(0, hill * mask + roll);
 }
 
+// ------------------------------------------------------------------------------------------- the town's edge
+
+/** A smooth wander in [0, 1] along a line, from the plan's own hash (every worker agrees). */
+const wander = (t: number, s: number) => { const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f); return hash3(i, s, 911) * (1 - u) + hash3(i + 1, s, 911) * u; };
+/** Linear interpolation through [at, value] points (sorted by at), held flat past the ends. */
+const through = (pts: [number, number][], t: number) => {
+  if (t <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) if (t <= pts[i][0]) { const [a0, v0] = pts[i - 1], [a1, v1] = pts[i]; return v0 + (v1 - v0) * (t - a0) / (a1 - a0); }
+  return pts[pts.length - 1][1];
+};
+const MAP_W = VX0 * V, MAP_S = VZ0 * V;
+/**
+ * How far in from the map's west line the town stops (m), at z: a wandering line held back where the great mosque's
+ * precinct and terrace and the Grand Bazaar's west halls come close to the edge, so their own walls close the town.
+ */
+function insetW(z: number): number {
+  const v = 2.5 + 8 * wander(z / 22, 1) + 3 * wander(z / 7, 2);
+  return Math.min(v, through([[-112, 14], [-104, 14], [-100, 6], [-40, 6], [-37, 2], [24, 2], [27, 14], [64, 14]], z));
+}
+/** How far in from the map's south line the town stops (m), at x: held back by the lanes, the tea garden and the quay. */
+function insetS(x: number): number {
+  const v = 3 + 8 * wander(x / 24, 3) + 3 * wander(x / 8, 4);
+  return Math.min(v, through([[-160, 14], [-153, 14], [-150, 9], [-77, 9], [-72, 3.5], [-31, 3.5], [-27, 8], [-6, 8], [-3, 14], [11, 14], [14, 3.5], [26, 3.5], [27, 7], [48, 7]], x));
+}
+/** The Galata Bridge's walkable deck ends at its bascule towers; beyond them the bridge goes on to Karaköy. */
+export const BRIDGE_GATE_Z = 60.5;
+
+/**
+ * Beyond the town's edge (metres): the band between the wandering edge and the map's west and south lines, and the
+ * bridge past its gates. Built up and planted like the rest of the town, but never walked: lanes end at a house
+ * or a garden gate, the avenue and the quays at the roadworks' hoardings, the bridge at its towers.
+ */
+export function beyond(x: number, z: number): boolean {
+  if (z > BRIDGE_GATE_Z && x > -23 && x < -13) return true;
+  return x - MAP_W < insetW(z) || z - MAP_S < insetS(x);
+}
+
 // ------------------------------------------------------------------------------------------- path network
 
 interface N { x: number; z: number; y?: number }
@@ -230,10 +267,37 @@ export function istanbulPlan(): Plan {
       const c = col(x, z);
       if (kind[c] !== K.Stair) walk[c] = layerOf(BAZAAR_Y); // the stairs up to its gates keep their grade
     }
+  // past the town's edge the lanes and streets give way to houses and gardens (the avenue, the quays and the
+  // bridge carry on, closed off by the builder at the edge)
+  for (let z = VZ0; z < VZ0 + SZ; z++)
+    for (let x = VX0; x < VX0 + SX; x++) {
+      const c = col(x, z), k = kind[c];
+      if ((k === K.Lane || k === K.Stair || k === K.Street) && beyond((x + 0.5) * V, (z + 0.5) * V)) { kind[c] = K.Ground; walk[c] = Math.min(250, layerOf(hillY((x + 0.5) * V, (z + 0.5) * V))); }
+    }
   const lots = placeLots(walk, kind, lot, segs);
-  const nodeList = ids.map((id) => [nodes[id].x, nodes[id].z] as [number, number]);
+  // the crowd's walking graph stops at the edge: a path running out of the town ends at its last walkable point
+  const nodeList: [number, number][] = ids.map((id) => [nodes[id].x, nodes[id].z]);
   const index = new Map(ids.map((id, i) => [id, i]));
-  cached = { walk, kind, lot, lots, segs, nodes: nodeList, edges: edges.map(([a, b]) => [index.get(a)!, index.get(b)!]) };
+  const edgeList: [number, number][] = [];
+  const out = (i: number) => beyond(nodeList[i][0], nodeList[i][1]);
+  for (const [a, b] of edges) {
+    let i = index.get(a)!, j = index.get(b)!;
+    if (out(i) && out(j)) continue;
+    if (out(i)) [i, j] = [j, i];
+    if (out(j)) {
+      const [ax, az] = nodeList[i], [bx, bz] = nodeList[j];
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 20; k++) { const m = (lo + hi) / 2; if (beyond(ax + (bx - ax) * m, az + (bz - az) * m)) hi = m; else lo = m; }
+      const len = Math.hypot(bx - ax, bz - az), f = Math.max(0, lo - 1.5 / Math.max(1, len));
+      if (f * len < 2) continue;
+      nodeList.push([ax + (bx - ax) * f, az + (bz - az) * f]);
+      j = nodeList.length - 1;
+    }
+    edgeList.push([i, j]);
+  }
+  // and the nodes left past the edge with no path to them go
+  const used = [...new Set(edgeList.flat())].sort((p, q) => p - q), remap = new Map(used.map((o, i) => [o, i]));
+  cached = { walk, kind, lot, lots, segs, nodes: used.map((i) => nodeList[i]), edges: edgeList.map(([i, j]) => [remap.get(i)!, remap.get(j)!]) };
   return cached;
 }
 
@@ -359,6 +423,14 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
       if (kind[c] !== K.Ground || lot[c]) continue;
       if (shoreDist(gx * V, gz * V) < 3) continue;
       const w = 18 + Math.floor(r() * 18), d = 18 + Math.floor(r() * 16);
+      tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground);
+    }
+  // past the town's edge the houses stand shoulder to shoulder, so the town reads as going on over the hill
+  for (let gz = VZ0 + 1; gz < VZ0 + SZ - 15; gz += 3)
+    for (let gx = VX0 + 1; gx < VX0 + SX - 15; gx += 3) {
+      const c = col(gx, gz);
+      if (kind[c] !== K.Ground || lot[c] || !beyond((gx + 8) * V, (gz + 8) * V)) continue;
+      const w = 14 + Math.floor(r() * 14), d = 14 + Math.floor(r() * 14);
       tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground);
     }
   return lots;

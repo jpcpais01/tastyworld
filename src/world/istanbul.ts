@@ -8,9 +8,10 @@ import { SWAY } from './sway';
 import type { RoomAnchor, RoomKind } from './interiors';
 import { paneOf, type HotelAnchor, type HotelRoomAnchor } from './hotels';
 import { ISTANBUL_HOTELS } from '../data/hotels';
+import { halls, bazaarShop, bazaarKeeper, bazaarShoppers, hallFloor, WARM_ZONES } from './bazaars';
 import {
   istanbulPlan, K, col, layerOf, inMap, hillY, isPath, shoreDist, type LotPlan, type Plan, type PathSeg,
-  QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, BAZAAR_Y, STATION, GRAND, beyond, BRIDGE_GATE_Z,
+  QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, STATION, GRAND, beyond, BRIDGE_GATE_Z,
 } from './istanbulPlan';
 
 /**
@@ -54,6 +55,12 @@ function istanbulColors(b: Builder) {
     // the bazaars' goods
     spiceRed: a(0xb8322a, 0.08), spiceOrange: a(0xd8762a, 0.08), spiceYellow: a(0xe0b02a, 0.08), spiceGreen: a(0x6a8a3a, 0.08), spiceBrown: a(0x7a4a2a, 0.08), spiceDark: a(0x4a2a1a, 0.08),
     lokumPink: a(0xf2a0b8, 0.04), lokumWhite: a(0xf6f0e4, 0.03), lokumGreen: a(0x9ac87a, 0.04), apricot2: a(0xe89a3a, 0.06), fig2: a(0x6a4a3a, 0.06), nut: a(0xb88a5a, 0.08), pistachio: a(0x9ab86a, 0.06),
+    // the halls' flagstones and inlays, the skylights' glass, and more of the bazaars' wares
+    floorA: a(0xcdbfa6, 0.04), floorB: a(0xbfb197, 0.04), floorC: a(0xd9cdb5, 0.03), floorD: a(0xa89a80, 0.05), marbleRed: a(0x9a4a3a, 0.04), marbleGreen: a(0x3f6a58, 0.04),
+    skyGlass: a(0xdce9ef, 0.02, GL), woodFloor: a(0x8a6440, 0.06), woodFloorB: a(0x765434, 0.06),
+    silkPink: a(0xd04a7a, 0.04), silkTeal: a(0x2a9a9a, 0.04), silkPurple: a(0x6a3a8a, 0.04), silkGold: a(0xe0b040, 0.04),
+    silver: a(0xc8ccd0, 0.03, { emit: 0.12 }), ruby: a(0xc0203a, 0.03, { emit: 0.3 }), emerald: a(0x20a060, 0.03, { emit: 0.3 }), turquoise: a(0x3ab8b0, 0.03, { emit: 0.2 }),
+    leather: a(0x8a5a32, 0.06), leatherDark: a(0x5a3a22, 0.06), soapGreen: a(0x8aa858, 0.05), soapCream: a(0xe8dcb0, 0.04), sponge: a(0xd8b878, 0.08),
     carpetRed: a(0x9a2a2a, 0.06), carpetBlue: a(0x2a3a6a, 0.06), carpetCream: a(0xe6d8b8, 0.05), carpetGold: a(0xc8963a, 0.06),
     lampRed: a(0xe84a3a, 0.03, { emit: 0.9 }), lampBlue: a(0x4a8ae8, 0.03, { emit: 0.9 }), lampGreen: a(0x4ac87a, 0.03, { emit: 0.9 }), lampAmber: a(0xf2a640, 0.03, { emit: 0.9 }),
     copper: a(0xb8693a, 0.06), brass: a(0xc8a04a, 0.05), tea: a(0xa83a1a, 0.05, { emit: 0.1 }), simit: a(0xb8743a, 0.08), simitDark: a(0x8a4a22, 0.08), sesame: a(0xe8d8a8, 0.08),
@@ -63,7 +70,7 @@ function istanbulColors(b: Builder) {
   };
 }
 
-type IC2 = ReturnType<typeof istanbulColors>;
+export type IC2 = ReturnType<typeof istanbulColors>;
 
 // ------------------------------------------------------------------------------------------- lot frames
 
@@ -72,11 +79,11 @@ type IC2 = ReturnType<typeof istanbulColors>;
  * `out` is the direction from the front into the street.
  */
 /** v mod m, never negative: world voxel coordinates run below zero west and south of the origin. */
-const pm = (v: number, m: number) => ((v % m) + m) % m;
+export const pm = (v: number, m: number) => ((v % m) + m) % m;
 /** Past the town's edge, at voxel column (x, z). */
 const outCell = (x: number, z: number) => beyond((x + 0.5) * V, (z + 0.5) * V);
 
-class Frame {
+export class Frame {
   W: number; D: number; out: [number, number];
   constructor(readonly lt: LotPlan) {
     const ns = lt.side === 'n' || lt.side === 's';
@@ -640,7 +647,7 @@ function catHouse(c: IC2): Prop {
 // ------------------------------------------------------------------------------------------- build
 
 type Extra = { pos: [number, number, number]; face: number; seed: number; indoor?: boolean };
-type Ctx = { b: Builder; c: IC2; plan: Plan; inWin: (x: number, z: number) => boolean; keepers: Extra[] };
+export type Ctx = { b: Builder; c: IC2; plan: Plan; inWin: (x: number, z: number) => boolean; keepers: Extra[] };
 
 export function buildIstanbul(win?: Window): BuildResult {
   const b = new Builder(win);
@@ -687,13 +694,13 @@ export function buildIstanbul(win?: Window): BuildResult {
       { id: 'hamal', pos: [-30, 0, -19.5] },
       { id: 'imam', pos: [0, 0, 33] },
       { id: 'cayci', pos: [-126, 0, 18] },
-      { id: 'halici', pos: [-126, 0, -62] },
+      { id: 'halici', pos: [-126, 0, -61.2] },
       { id: 'kaptan', pos: [36, 0, -4] },
     ],
     benches: b.benches.filter(([x, z]) => !beyond(x, z)),
     stools: b.stools.filter(([x, z]) => !beyond(x, z)),
     cats: [...CATS, ...laneCats(plan)].filter(([x, , z]) => !beyond(x, z)),
-    extras: ([...anglers(), ...teaGardenFolk(), ...ctx.keepers] as Extra[]).filter((e) => e.indoor || !beyond(e.pos[0], e.pos[2])),
+    extras: ([...anglers(), ...teaGardenFolk(), ...bazaarShoppers(plan.lots), ...ctx.keepers] as Extra[]).filter((e) => e.indoor || !beyond(e.pos[0], e.pos[2])),
     emitters: b.emitters,
     // no fireflies over the Golden Horn's busy quays
     fireflies: [],
@@ -705,6 +712,8 @@ export function buildIstanbul(win?: Window): BuildResult {
     secret: null,
     occluders: b.occluders,
     wires: b.wires,
+    shafts: b.shafts,
+    warm: WARM_ZONES,
   };
   // a warm city at night: lamp light carries over the pale stone
   for (const l of b.lamps) { l.r *= 1.2; l.g *= 1.2; l.b *= 1.15; l.radius *= 1.1; }
@@ -730,10 +739,10 @@ export function buildIstanbul(win?: Window): BuildResult {
 
 const CATS: [number, number, number][] = [
   [10, 0, 33], [-6, 0, 36.5], [21, 0, 20], [-30, 0, 26], [-12, 0, 0], [6, 0, -18], [12.5, 0, -60], [-48, 0, -27],
-  [-80, 0, 5], [-40, 0, -86], [-126, 0, -70], [-120, 0, 17], [-64, 0, -104], [-100, 0, 30], [24, 0, -96],
+  [-80, 0, 5], [-40, 0, -86], [-120, 0, 17], [-64, 0, -104], [-100, 0, 30], [24, 0, -96],
   // Istanbul is a city of cats: on the quays by the fish boats, in the bazaar halls, on the mosque terraces
   [-100, 0, 39], [-40, 0, 39], [3, 0, 39.5], [26, 0, -30], [26, 0, -70], [-60, 0, 6], [-36, 0, -52], [-66, 0, -90],
-  [-94, 0, -97], [-137, 0, 15], [-40, 0, -103], [-62, 0, -74], [-24, 0, 8], [-80, 0, 34], [-114, 0, -60], [-138, 0, -80],
+  [-94, 0, -97], [-137, 0, 15], [-40, 0, -103], [-62, 0, -74], [-24, 0, 8], [-80, 0, 34], [-114, 0, -60], [-138, 0, -80], [-126, 0, -79],
 ];
 
 /** More cats down the middle of the lanes and stairs, one every thirty metres or so, as the city is full of them. */
@@ -758,7 +767,7 @@ const NAZAR_SPOTS: [number, number, number][] = [[-36.5, 22.9, 1.2], [-15.2, 56,
 
 // ------------------------------------------------------------------------------------------- uses
 
-type Use = { room?: RoomKind; hotel?: number; restaurant?: { id: string; foods: [FoodId, FoodId] } };
+export type Use = { room?: RoomKind; hotel?: number; restaurant?: { id: string; foods: [FoodId, FoodId] } };
 
 /** Which buildings hold the hotels, restaurants and food rooms: decided from the plan alone. */
 /** Whether a lot's front door opens past the town's edge (so nobody could walk in). */
@@ -813,7 +822,7 @@ function assignUses(plan: Plan): Map<number, Use> {
 // ------------------------------------------------------------------------------------------- terrain
 
 /** Ottoman masonry: courses of cut stone banded with brick (the almaşık wall of the hans and the mosques' outbuildings). */
-function almasik(c: IC2, x: number, y: number, z: number): number {
+export function almasik(c: IC2, x: number, y: number, z: number): number {
   const band = ((y >> 1) % 5);
   if (band === 4) return (x + z) % 3 === 0 ? c.mortar : c.brick;
   const off = (y >> 1) & 1 ? 2 : 0;
@@ -863,7 +872,7 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
           case K.Street: case K.Tram:
             if (d === 0) return (xx + (zz >> 1)) % 3 === 0 ? c.settB : hash3(xx, 4, zz) < 0.12 ? c.settLight : c.sett;
             return blockWall(c, xx, y, zz);
-          case K.Covered: return d === 0 ? ((xx + zz) % 2 ? c.slab : c.marbleGrey) : c.granite;
+          case K.Covered: return d === 0 ? hallFloor(c, plan.segs, xx, zz) : c.granite;
           case K.Lane: return d === 0 ? (hash3(xx >> 1, 6, zz >> 1) < 0.5 ? c.sett : c.settB) : blockWall(c, xx, y, zz);
           case K.Stair: return d === 0 ? (hash3(xx, 5, zz) < 0.2 ? c.limeDark : c.lime) : d === 1 ? c.limeDark : blockWall(c, xx, y, zz);
           case K.Lot: case K.Mosque: return d === 0 ? c.slab : blockWall(c, xx, y, zz);
@@ -871,7 +880,7 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
           default: {
             // the ground between the houses: cobbled yards worn to earth, weeds in the joints, and here and there a
             // walled kitchen garden of grass and clover (in 2 m patches, so it reads as yards and gardens, not lawn)
-            if (hallSide) return d === 0 ? ((xx + zz) % 2 ? c.slab : c.marbleGrey) : blockWall(c, xx, y, zz);
+            if (hallSide) return d === 0 ? hallFloor(c, plan.segs, xx, zz) : blockWall(c, xx, y, zz);
             // the Grand Bazaar's plateau is all stone: the courtyards of its hans between the halls
             if (xx * V > GRAND[0] && xx * V < GRAND[2] && zz * V > GRAND[1] && zz * V < GRAND[3]) {
               if (d === 0) return (xx % 8 === 0 || zz % 8 === 0) ? c.marbleGrey : hash3(xx >> 1, 7, zz >> 1) < 0.5 ? c.slab : c.sett;
@@ -1044,7 +1053,7 @@ function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
   }
   if (bazaar) {
     // the bazaar shop's keeper stands just inside the open front, among the goods
-    if (!use?.room) { const [kx, kz] = f.m(f.W / 2 - 3, 2); ctx.keepers.push({ pos: [kx, (base - G) * V, kz], face: f.faceOut, seed: lt.seed * 13 + 5, indoor: true }); }
+    if (!use?.room) { const [kx, kz] = bazaarKeeper(f); ctx.keepers.push({ pos: [kx, (base - G) * V, kz], face: f.faceOut, seed: lt.seed * 13 + 5, indoor: true }); }
     return;
   }
   if (use?.hotel !== undefined) hotel(ctx, f, lt, use.hotel, touched);
@@ -1358,46 +1367,6 @@ function shopInterior(ctx: Ctx, f: Frame, lt: LotPlan, touched: boolean): void {
   ctx.keepers.push({ pos: [kx, y, kz], face: f.faceOut, seed: lt.seed * 13 + 3, indoor: true });
 }
 
-/** A shop in a bazaar hall: open across its front onto the hall, goods spilling out, a little dome on top. */
-function bazaarShop(ctx: Ctx, f: Frame, lt: LotPlan, use: Use | undefined): void {
-  const { b, c } = ctx;
-  const g = b.grid;
-  const { base, top } = lt;
-  const grand = lt.x0 * V < -100;
-  // hollow inside; the front is one wide arch onto the hall
-  f.box(g, 1, base, 1, f.W - 2, base + 10, f.D - 2, 0);
-  f.box(g, 1, base - 1, 1, f.W - 2, base - 1, f.D - 2, (a, _y, d) => ((a + d) % 2 ? c.slab : c.slabB));
-  f.box(g, 1, base, 0, f.W - 2, base + 9, 0, 0);
-  f.box(g, 0, base + 10, 0, f.W - 1, base + 11, 0, (a) => (grand ? (a % 4 < 2 ? c.paintRed : c.paintCream) : a % 3 ? c.kufeki : c.brick));
-  const [vx0, vz0] = f.xz(1, 0), [vx1, vz1] = f.xz(f.W - 2, f.D - 2);
-  b.indoor.push([Math.min(vx0, vx1), base, Math.min(vz0, vz1), Math.max(vx0, vx1), base + 10, Math.max(vz0, vz1)]);
-  // a lead dome over each shop
-  const [cx0, cz0] = f.xz(0, 0), [cx1, cz1] = f.xz(f.W - 1, f.D - 1);
-  const X0 = Math.min(cx0, cx1), X1 = Math.max(cx0, cx1), Z0 = Math.min(cz0, cz1), Z1 = Math.max(cz0, cz1);
-  g.box(X0, top, Z0, X1, top, Z1, c.leadDark);
-  const rr = Math.min(X1 - X0, Z1 - Z0) / 2 - 0.5;
-  for (let y = 0; y <= rr; y++) for (let z = Z0; z <= Z1; z++) for (let x = X0; x <= X1; x++) if (Math.hypot(x + 0.5 - (X0 + X1 + 1) / 2, z + 0.5 - (Z0 + Z1 + 1) / 2, y * 1.2) <= rr) g.set(x, top + 1 + y, z, c.lead);
-  if (use?.room) { foodRoom(ctx, f, lt, use.room, true, undefined, true); return; }
-  // shelves of goods to the back and up the sides, and the stock out front
-  const seed = lt.seed;
-  const kinds = grand ? ['carpet', 'lamp', 'ceramic', 'brass', 'textile'] : ['spice', 'spice', 'tea', 'nuts', 'textile'];
-  const kind = kinds[seed % kinds.length];
-  const goods = kind === 'spice' ? [c.spiceRed, c.spiceOrange, c.spiceYellow, c.spiceGreen, c.spiceBrown] : kind === 'nuts' ? [c.nut, c.pistachio, c.apricot2, c.fig2] : kind === 'tea' ? [c.spiceGreen, c.rose2, c.spiceBrown, c.apricot2] : kind === 'carpet' ? [c.carpetRed, c.carpetBlue, c.carpetGold, c.carpetCream] : kind === 'lamp' ? [c.lampRed, c.lampBlue, c.lampGreen, c.lampAmber] : kind === 'brass' ? [c.brass, c.copper, c.gold] : [c.iznikBlue, c.iznikTeal, c.iznikRed, c.iznikWhite];
-  for (let lv = 0; lv < 3; lv++) f.box(g, 1, base + 1 + lv * 3, f.D - 3, f.W - 2, base + 2 + lv * 3, f.D - 2, (a, y, d) => (y === base + 1 + lv * 3 ? c.woodDark : goods[Math.floor(hash3(a, y, d + seed) * goods.length)]));
-  for (const a of [1, f.W - 2]) f.box(g, a, base, 2, a, base + 8, f.D - 4, (aa, y, d) => (y % 3 === 0 ? c.woodDark : goods[Math.floor(hash3(aa, y, d + seed) * goods.length)]));
-  const [px, pz] = f.m(f.W / 2, -0.8);
-  const y = (base - G) * V;
-  if (kind === 'spice' || kind === 'nuts' || kind === 'tea') b.place(spiceSacks(c, seed), px, y, pz, f.turnOut);
-  if (kind === 'carpet') {
-    const [qx, qz] = f.m(f.W / 2, 0.3);
-    b.place(carpet(c, seed), qx, y + 0.3, qz, f.turnOut);
-  }
-  if (kind === 'lamp') b.place(mosaicLamps(c, seed), px, y + 1.6, pz);
-  b.block(px - 0.8, pz - 0.8, px + 0.8, pz + 0.8);
-  const [lx, lz] = f.m(f.W / 2, f.D / 2);
-  b.lamp(lx, y + 2.2, lz, kind === 'lamp' ? [1, 0.6, 0.45] : WARM, 3.5, 0.7);
-}
-
 // ------------------------------------------------------------------------------------------- food rooms
 
 /** What a food room looks like inside: floor, wall, counter, what is on show, how many tables. */
@@ -1424,7 +1393,7 @@ function roomLook(c: IC2, kind: RoomKind): { floor: (a: number, d: number) => nu
  * A food room behind a shopfront: a counter with the food on show and the keeper behind it, tables by the windows
  * with regulars at them, warm light. Its anchor is all the game needs to put people in it and let you buy.
  */
-function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touched: boolean, restaurant?: Use['restaurant'], bazaar = false): void {
+export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touched: boolean, restaurant?: Use['restaurant'], bazaar = false): void {
   const { b, c } = ctx;
   const g = b.grid;
   const { base } = lt;
@@ -1757,76 +1726,7 @@ function guestRoom(ctx: Ctx, f: Frame, lt: LotPlan, hotelId: string, spec: { flo
   };
 }
 
-// ------------------------------------------------------------------------------------------- the bazaar halls
-
-/** The bazaar halls: a vault over each, painted in the Grand Bazaar, plastered in the Spice Bazaar, with gates. */
-function halls(ctx: Ctx): void {
-  const { b, c, plan } = ctx;
-  const g = b.grid;
-  for (const s of plan.segs) {
-    if (s.kind !== K.Covered || !s.roof) continue;
-    const grand = s.bazaar === 'grand';
-    const r = s.w / 2 + 0.5;
-    const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
-    const dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz || 1;
-    const x0 = Math.floor((Math.min(ax, bx) - r) / V), x1 = Math.ceil((Math.max(ax, bx) + r) / V);
-    const z0 = Math.floor((Math.min(az, bz) - r) / V), z1 = Math.ceil((Math.max(az, bz) + r) / V);
-    b.occlude(x0, z0, x1, z1, Math.max(ay, by) + s.roof + 2.5, Math.min(ay, by) + 0.95, 'building');
-    b.occluders[b.occluders.length - 1].floor = Math.min(ay, by);
-    // lamps hanging down the hall
-    const len = Math.sqrt(len2);
-    for (let t = 2; t < len - 1; t += grand ? 4 : 5) {
-      const fx = ax + dx * t / len, fz = az + dz * t / len, fy = ay + (by - ay) * t / len;
-      if (grand) b.place(mosaicLamps(c, Math.round(t * 7 + fx)), fx, fy + s.roof - 2.6, fz);
-      b.lamp(fx, fy + s.roof - 1.6, fz, grand ? [1, 0.7, 0.5] : WARM, 5, 0.8);
-    }
-    if (!g.touches(x0, z0, x1, z1)) continue;
-    for (let z = z0; z <= z1; z++)
-      for (let x = x0; x <= x1; x++) {
-        const px = (x + 0.5) * V, pz = (z + 0.5) * V;
-        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2));
-        const d = Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
-        if (d > r) continue;
-        const floor = layerOf(ay + (by - ay) * t);
-        const spring = floor + Math.round((s.roof - 1.4) / V);
-        const crown = spring + Math.round(Math.sqrt(Math.max(0, 1 - (d / r) ** 2)) * 1.4 / V);
-        const along = t * Math.sqrt(len2);
-        // the vault, painted with bands where the arches cross it, a skylight every few metres
-        if (plan.kind[col(x, z)] === K.Covered) g.box(x, floor, z, x, crown - 1, z, 0);
-        g.box(x, crown, z, x, crown + 3, z, (_x, y) => {
-          if (y > crown) return y === crown + 3 ? c.leadDark : c.kufeki;
-          const rib = Math.floor(along / 0.25) % 16 < 2;
-          if (grand) return rib ? c.paintRed : d < 0.5 && Math.floor(along / 0.25) % 16 === 8 ? c.glassLit : (Math.floor(along / 0.25) + Math.floor(d * 8)) % 7 === 0 ? c.paintBlue : c.paintCream;
-          return rib ? c.brick : c.white;
-        });
-      }
-  }
-  // the gates at the hall ends: a tall stone portal with an inscription panel
-  const gate = (x: number, z: number, y: number, alongX: boolean, grand: boolean) => {
-    const vx = Math.round(x / V), vz = Math.round(z / V), Y = layerOf(y);
-    b.occlude(vx - (alongX ? 2 : 14), vz - (alongX ? 14 : 2), vx + (alongX ? 2 : 14), vz + (alongX ? 14 : 2), y + 8.5, y + 0.95, 'landmark');
-    b.occluders[b.occluders.length - 1].floor = y;
-    if (!g.touches(vx - 16, vz - 16, vx + 16, vz + 16)) return;
-    for (let i = -13; i <= 13; i++) for (let j = -1; j <= 1; j++) {
-      const X = alongX ? vx + j : vx + i, Z = alongX ? vz + i : vz + j;
-      const half = Math.abs(i);
-      const arch = Y + 18 + Math.round(Math.sqrt(Math.max(0, 1 - (half / 9) ** 2)) * 6);
-      g.box(X, half < 9 ? arch : Y, Z, X, Y + 32, Z, (xx, yy, zz) => {
-        if (yy > Y + 30) return grand ? c.lead : c.leadDark;
-        if (half < 6 && yy > Y + 25 && yy < Y + 30) return (xx + yy + zz) % 4 === 0 ? c.gold : c.cobalt; // the tuğra panel
-        return yy < arch + 2 && half < 10 ? c.marble : almasik(c, xx, yy, zz);
-      });
-    }
-    b.lamp(x, y + 5, z, WARM, 6, 0.8);
-  };
-  gate(-12, 30.2, 1.0, false, false);
-  gate(-12, -13.8, hillY(-12, -13.8), false, false);
-  gate(-62.2, 25, 1.0, true, false);
-  gate(-101.8, -60, BAZAAR_Y, true, true);
-  gate(-101.8, -80, BAZAAR_Y, true, true);
-  gate(-114, -42.2, BAZAAR_Y, false, true);
-  gate(-138, -42.2, BAZAAR_Y, false, true);
-}
+// the bazaar halls and their shops are in world/bazaars.ts
 
 // ------------------------------------------------------------------------------------------- mosques
 

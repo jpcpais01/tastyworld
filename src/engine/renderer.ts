@@ -41,6 +41,9 @@ export function makeSharedUniforms() {
     uNight: { value: 0 },
     uEmitDay: { value: 0.5 },
     uCloud: { value: 0.25 },
+    /** Covered markets: warm light and lamps lit all day inside these rects (x0, z0, x1, z1 m), under each top. */
+    uWarm: { value: [new THREE.Vector4(1, 1, 0, 0), new THREE.Vector4(1, 1, 0, 0), new THREE.Vector4(1, 1, 0, 0)] },
+    uWarmTop: { value: new THREE.Vector3(-1e9, -1e9, -1e9) },
     tNoise: { value: latticeNoise() },
     uBounds: { value: new THREE.Vector4(0, 0, 72, 56) },
     uCamFwd: { value: new THREE.Vector3(0, -1, 0) },

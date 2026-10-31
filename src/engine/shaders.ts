@@ -278,6 +278,8 @@ uniform float uNight;
 uniform float uEmitDay;
 uniform float uTime;
 uniform float uCloud;
+uniform vec4 uWarm[3];  // covered markets (x0, z0, x1, z1 in metres): lamplit and warm all day under their roofs
+uniform vec3 uWarmTop;  // and the height each one's roof stops at
 uniform sampler2D tNoise; // value-noise lattice (see latticeNoise in renderer.ts)
 // value noise from one filtered fetch: smoothstep-warped coordinates make the bilinear filter do the
 // cubic blend that vnoise does with four hashes
@@ -554,7 +556,18 @@ void main() {
   vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
   vec3 direct = uSunColor * ndl * sun * cloud * (0.6 + 0.4 * ao);
   vec3 ambient = hemi * ao * (0.25 + 0.75 * sky);
-  vec3 lamp = lampL * uLamp * (0.45 + 0.55 * ao);
+  float lampOn = uLamp;
+#ifndef CHARACTER
+  // under the bazaars' vaults the daylight is warm and the shops' lamps burn all day
+  for (int i = 0; i < 3; i++) {
+    vec4 wb = uWarm[i];
+    if (vWorld.x > wb.x && vWorld.x < wb.z && vWorld.z > wb.y && vWorld.z < wb.w && vWorld.y < uWarmTop[i]) {
+      ambient = mix(ambient, vec3(dot(ambient, vec3(0.3, 0.55, 0.15))) * vec3(1.3, 1.0, 0.7), 0.85);
+      lampOn = max(lampOn, 0.6);
+    }
+  }
+#endif
+  vec3 lamp = lampL * lampOn * (0.45 + 0.55 * ao);
   vec3 col = albedo * (direct + ambient + lamp);
 #ifndef CHARACTER
   if (glass) {

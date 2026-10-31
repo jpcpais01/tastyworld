@@ -447,6 +447,14 @@ function cart(c: AC, kind: 'pastry' | 'fry' | 'pizza' | 'gelato' | 'lemon'): Pro
 
 // ------------------------------------------------------------------------------------------- build
 
+/** The plan's walking surface under a point (metres): what a post, a pot or a bench stands on. */
+function floorAt(plan: Plan, x: number, z: number): number {
+  return (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
+}
+
+/** A height snapped down to the voxel layer it falls in (a post on a sloping flight stands on its tread). */
+const layerY = (y: number) => Math.floor(y / V + 1e-6) * V;
+
 export function buildAmalfi(win?: Window): BuildResult {
   const b = new Builder(win);
   const g = b.grid;
@@ -1033,9 +1041,10 @@ function duomo(b: Builder, c: AC): void {
     g.box(Math.floor(cx), Y + TH + 24, Math.floor(cz), Math.floor(cx), Y + TH + 27, Math.floor(cz), c.iron);
   }
   // the steps get lamps either side, all the way up
-  for (let i = 0; i < 4; i++) {
-    const x = -5 - i * 4.5, y = PIAZZA_Y + (DUOMO_Y - PIAZZA_Y) * (i * 4.5 / 15.5);
-    for (const z of [8.6, 19.4]) { b.place(lampPost(c), x, y, z); b.lamp(x, y + 3.4, z, WARM, 5, 0.7); }
+  // (on the outermost tread, between the people sitting along the edges)
+  for (const x of [-5.6, -10.8, -15.7]) {
+    const y = PIAZZA_Y + (DUOMO_Y - PIAZZA_Y) * ((-4.5 - x) / 15.5);
+    for (const z of [9.3, 18.7]) { b.place(lampPost(c), x, layerY(y), z); b.lamp(x, y + 3.4, z, WARM, 5, 0.7); }
   }
 }
 
@@ -1187,7 +1196,7 @@ function shore(b: Builder, c: AC, plan: Plan): void {
   b.place(ferry(c), 70, -1.3, 58.2, 0);
   // bitts, crates and nets on the quay
   for (let z = 44; z < 80; z += 4) b.place(bitt(c), 45.6, 1.0, z);
-  for (let x = 50; x < 84; x += 5) b.place(bitt(c), x, 1.0, 53.2);
+  for (let x = 50; x < 80; x += 5) b.place(bitt(c), x, 1.0, 53.2);
   // the working quay: nets drying, lobster pots, rope, the fishermen's crates, and the ferry ticket booths
   const gear: [Prop, number, number, number][] = [
     [netPile(c, 1), 44, 59.5, 0], [netPile(c, 2), 44.3, 69, 1], [netPile(c, 3), 43.6, 75.5, 0],
@@ -1214,8 +1223,8 @@ function shore(b: Builder, c: AC, plan: Plan): void {
   b.block(81, 50, 83, 52);
   b.lamp(82, 8, 51, [1, 0.5, 0.35], 6, 1.2);
   // lamps along the lungomare
-  for (let z = -48; z < 80; z += 9) { b.place(lampPost(c), ROAD_X1 + 0.6, 2.0, z); b.lamp(ROAD_X1 + 0.6, 5.4, z, WARM, 7, 0.8); }
-  for (let z = -46; z < 78; z += 9) { b.place(bench(k(b)), ROAD_X1 + 0.6, 2.0, z + 4.5, 1); b.benches.push([ROAD_X1 + 0.6, z + 4.5, Math.PI / 2, 2.0]); }
+  for (let z = -48; z < 80; z += 9) { const y = floorAt(plan, ROAD_X1 + 0.6, z); b.place(lampPost(c), ROAD_X1 + 0.6, y, z); b.lamp(ROAD_X1 + 0.6, y + 3.4, z, WARM, 7, 0.8); }
+  for (let z = -46; z < 78; z += 9) { const y = floorAt(plan, ROAD_X1 + 0.6, z + 4.5); b.place(bench(k(b)), ROAD_X1 + 0.6, y, z + 4.5, 1); b.benches.push([ROAD_X1 + 0.6, z + 4.5, Math.PI / 2, y]); }
   // the road tunnel's mouth
   const tz = TUNNEL_Z / V;
   if (g.touches(ROAD_X0 / V - 4, tz - 3, ROAD_X1 / V + 4, tz + 2)) {
@@ -1368,7 +1377,7 @@ function shopfronts(b: Builder, c: AC, plan: Plan): void {
         const prop = pick < 0.3 ? ceramicRack(c, Math.floor(r() * 1e4)) : pick < 0.55 ? limoncelloShelf(c, Math.floor(r() * 1e4)) : pick < 0.8 ? clothesRail(c, Math.floor(r() * 1e4)) : crateLemons(c, Math.floor(r() * 1e4));
         b.place(prop, x, fl, z, turn);
         b.block(x - 0.6, z - 0.6, x + 0.6, z + 0.6);
-        if (front && r() < 0.6) b.place(awning(c, awnings[Math.floor(r() * awnings.length)]), x - nx * side * 0.3, fl + 2.5, z - nz * side * 0.3, turn);
+        if (front && r() < 0.6) b.place(awning(c, awnings[Math.floor(r() * awnings.length)]), ex + nx * side * (d - 0.5625), fl + 2.5, ez + nz * side * (d - 0.5625), turn); // its back against the wall
       }
     }
   }
@@ -1435,17 +1444,27 @@ function lanes(b: Builder, c: AC, plan: Plan): void {
     for (let t = 3 + r() * 3; t < len - 2; t += 9 + r() * 5) {
       const f = t / len, side = r() < 0.5 ? 1 : -1;
       const off = s.w / 2 - 0.2;
-      const x = ax + (bx - ax) * f + nx * off * side, z = az + (bz - az) * f + nz * off * side;
-      const y = ay + (by - ay) * f;
+      const cx = ax + (bx - ax) * f, cz = az + (bz - az) * f, cy = ay + (by - ay) * f;
+      const x = cx + nx * off * side, z = cz + nz * off * side;
+      // everything stands on the ground actually under it; where that is not this lane (another path or a drop
+      // beside a flight of steps) the spot is left alone
+      const y = floorAt(plan, x, z), own = (py: number) => Math.abs(py - cy) < 0.8;
       // wall lantern on the house beside the lane, if there is one, else a post
       const vx = Math.floor((x + nx * side * 0.5) / V), vz = Math.floor((z + nz * side * 0.5) / V);
       const beside = plan.lot[col(vx, vz)];
-      if (beside) b.place(wallLantern(c), x, y + 2.6, z, faceTurn(-nx * side, -nz * side));
-      else b.place(lampPost(c), x, y, z);
-      b.lamp(x, y + 2.6, z, WARM, 5.5, 0.75);
-      const ex = ax + (bx - ax) * f - nx * off * side, ez = az + (bz - az) * f - nz * off * side;
-      if (r() < 0.5) b.place(geraniumPot(c, Math.floor(r() * 1e4)), ex, y, ez);
-      else if (r() < 0.4) b.place(potLemon(c, Math.floor(r() * 1e4)), ex, y, ez);
+      if (beside) {
+        // fixed to the wall itself: lots stand 0.6 m off the lane's edge
+        const wo = s.w / 2 + 0.6 - 0.25, lx = cx + nx * wo * side, lz = cz + nz * wo * side;
+        b.place(wallLantern(c), lx, cy + 2.6, lz, faceTurn(-nx * side, -nz * side));
+        b.lamp(lx, cy + 2.6, lz, WARM, 5.5, 0.75);
+      } else if (own(y)) {
+        b.place(lampPost(c), x, layerY(y), z);
+        b.lamp(x, y + 2.6, z, WARM, 5.5, 0.75);
+      }
+      const ex = cx - nx * off * side, ez = cz - nz * off * side, ey = floorAt(plan, ex, ez);
+      if (!own(ey)) continue;
+      if (r() < 0.5) b.place(geraniumPot(c, Math.floor(r() * 1e4)), ex, ey, ez);
+      else if (r() < 0.4) b.place(potLemon(c, Math.floor(r() * 1e4)), ex, ey, ez);
     }
   }
 }

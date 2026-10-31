@@ -1062,6 +1062,10 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       const da = Math.floor(fr.W / 2) - 2;
       fr.box(g, da, yb, 0, da + 3, yb + 8, 0, o.wooden ? c.door : [c.door, c.doorGreen, c.doorBlue][lt.seed % 3]);
       fr.box(g, da - 1, yb + 9, -1, da + 4, yb + 9, -1, o.trim);
+      // the blue enamel number plate beside the door and a brass knocker, flush so the doorstep stays clear
+      fr.box(g, da + 5, yb + 7, 0, da + 6, yb + 7, 0, (a) => (a === da + 5 ? c.signBlue : c.white));
+      fr.box(g, da + 5, yb + 6, 0, da + 6, yb + 6, 0, c.signBlue);
+      if (hash3(lt.seed, 7, 7) < 0.6) fr.box(g, da + 1, yb + 5, 0, da + 2, yb + 5, 0, c.brass);
       const [lx, lz] = fr.m(da + 1.5, -0.4);
       if (hash3(lt.seed, 3, 3) < 0.5) { b.place(wallLantern(c), lx, (yb - G) * V + 2.4, lz, fr.turnOut); b.lamp(lx, (yb - G) * V + 2.4, lz, WARM, 4.5, 0.6); }
     }

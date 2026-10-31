@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.20',
+    date: '2026-10-31',
+    title: 'Pomegranate juice and string lights',
+    items: [
+      'Juice sellers have set up along Istanbul\'s wider streets. Their white carts are heaped with pomegranates and oranges under red and white sunshades, with a chrome press and a row of glasses of ruby juice, and the seller stands behind.',
+      'Strings of café bulbs hang across some of the lanes in place of the washing, and they glow warm after dark.',
+    ],
+  },
+  {
     version: '0.16.19',
     date: '2026-10-31',
     title: 'The garden of stones',

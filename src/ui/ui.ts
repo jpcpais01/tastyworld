@@ -226,7 +226,12 @@ export class UI {
     tap('h-rr', () => this.onRotate?.(1));
     tap('h-view', () => this.onView?.());
     tap('h-photo', () => this.onPhoto?.());
-    tap('h-track', () => (this.goalInfo ? this.map() : this.passport('missions')));
+    tap('h-track', () => {
+      if (this.goalInfo) return this.map();
+      // a reward to claim opens the missions page right at it
+      const { next, ready } = trackedMission(this.s);
+      this.passport('missions', ready.length ? next?.id : undefined);
+    });
     tap('h-kb', () => this.showKeys(!$('h-keys').classList.contains('open')));
     for (const el of this.hud.querySelectorAll('button')) el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.refresh();
@@ -350,7 +355,7 @@ export class UI {
     if (!next) return;
     const [a, b] = next.progress(this.s);
     const extra = ready.length > 1 ? `<span class="more">+${ready.length - 1}</span>` : '';
-    this.trackerEl.title = 'Missions (P)';
+    this.trackerEl.title = ready.length ? 'Claim your reward' : 'Missions (P)';
     this.trackerEl.innerHTML = ready.length
       ? `<span class="ring">${G.sparkle}</span><span class="qt"><em>Reward ready · </em>${esc(next.name)}</span>${extra}`
       : `<span class="ring" style="--p:${Math.round(Math.min(1, a / b) * 100)}"></span><span class="qt">${esc(next.name)}<small>${a}/${b}</small></span>`;
@@ -688,7 +693,7 @@ export class UI {
   }
 
   // passport ------------------------------------------------------------------------------
-  passport(tab: 'stamps' | 'missions' | 'items' | 'album' | 'city' = 'stamps'): void {
+  passport(tab: 'stamps' | 'missions' | 'items' | 'album' | 'city' = 'stamps', focus?: string): void {
     const p = this.panel('panel passport');
     const got = DISHES.filter((d) => this.s.tasted[d.id]).length;
     this.head(p, 'Food Passport', TEXT.country, `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
@@ -709,7 +714,7 @@ export class UI {
       }
       page.innerHTML = '';
       if (t === 'stamps') this.ppStamps(page);
-      else if (t === 'missions') this.ppMissions(page, () => render('missions'));
+      else if (t === 'missions') { this.ppMissions(page, () => render('missions'), focus); focus = undefined; }
       else if (t === 'items') this.ppItems(page);
       else if (t === 'album') this.ppAlbum(page);
       else this.ppCity(page);
@@ -757,7 +762,7 @@ export class UI {
     }
   }
 
-  private ppMissions(page: HTMLElement, rerender: () => void) {
+  private ppMissions(page: HTMLElement, rerender: () => void, focus?: string) {
     // ready to claim first, then in progress, then claimed
     const rank = (m: Mission) => { const [a, b] = m.progress(this.s); return this.s.claimed.includes(m.id) ? 2 : a >= b ? 0 : 1; };
     for (const m of [...MISSIONS].sort((x, y) => rank(x) - rank(y))) {
@@ -778,6 +783,10 @@ export class UI {
         rwEl.appendChild(btn);
       } else rwEl.innerHTML = claimed ? `<span class="claimed">${G.check}Claimed</span>` : rw;
       page.appendChild(row);
+      if (m.id === focus) {
+        row.classList.add('focus');
+        requestAnimationFrame(() => row.scrollIntoView({ block: 'center' }));
+      }
     }
   }
 

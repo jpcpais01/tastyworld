@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.14',
+    date: '2026-10-31',
+    title: 'By the sea',
+    items: [
+      'Amalfi has new music, slow and easy like Tokyo\'s but from the coast: a fingerpicked nylon guitar sings the verse, a soft flute takes the chorus, a mandolin drops in a few plucked notes in the break, over upright bass and brushes. The busy mandolin tremolo is gone.',
+      'You can hear the sea all over town now: small waves breaking on Marina Grande and draining back over the pebbles, faint up in the lanes and fuller down by the shore.',
+      'The gulls are fewer and further off, out over the bay.',
+    ],
+  },
+  {
     version: '0.15.13',
     date: '2026-10-31',
     title: 'Hop down',

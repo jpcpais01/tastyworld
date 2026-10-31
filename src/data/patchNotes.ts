@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.19',
+    date: '2026-10-31',
+    title: 'Buildings behind you stay up',
+    items: [
+      'Walking right up to a building that is beside or behind you no longer makes it disappear. Buildings only lower when they actually stand between the camera and you (or you go inside).',
+    ],
+  },
+  {
     version: '0.10.18',
     date: '2026-10-31',
     title: 'Leaner city shader',

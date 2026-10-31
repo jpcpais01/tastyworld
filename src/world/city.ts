@@ -482,8 +482,8 @@ function viaduct(b: Builder) {
       lot.box(0, 0, 0, w - 1, 13, 0, c.cream);
       lot.box(2, 0, 0, w - 3, 9, 0, 0);
       lot.box(2, 0, 2, w - 3, 9, 2, c.woodDark);
-      lot.box(2, 0, 1, w - 3, 3, 1, c.wood);
-      lot.box(2, 4, 1, w - 3, 4, 1, c.hinoki);
+      lot.box(2, 0, 1, w - 3, 2, 1, c.wood);
+      lot.box(2, 3, 1, w - 3, 3, 1, c.hinoki);
       lot.box(1, 10, -1, w - 2, 10, -3, (a) => (a % 4 < 2 ? c.awnRed : c.awnWhite));
       const [sx, sz] = lot.front(w / 2, -0.2);
       b.emitters.push({ kind: 'smoke', pos: [sx, 1.3, sz], rate: 0.6 });

@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.28',
+    date: '2026-10-31',
+    title: 'Counters you can see over',
+    items: [
+      'Every seller\'s counter is now at a real counter height in Tokyo, Amalfi and Istanbul, so you can always see the cook behind it, including the hidden kitchens, the Tokyo yatai and Istanbul\'s simit and ice-cream carts.',
+      'The cook holds your dish up over the counter and passes it across in a clean arc instead of through the counter.',
+      'Every Istanbul restaurant door is at least four blocks wide, so you can always walk in.',
+    ],
+  },
+  {
     version: '0.16.27',
     date: '2026-10-31',
     title: 'Calmer water from afar',

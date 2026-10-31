@@ -8,11 +8,27 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.25',
+    version: '0.16.27',
     date: '2026-10-31',
     title: 'Calmer water from afar',
     items: [
       'Zoomed out, the sea, the Bosphorus and the canal no longer break into a shimmering checker pattern. The smallest ripples fade away smoothly as they get too fine to see, so distant water reads as a calm, even surface and close-up water keeps all its detail.',
+    ],
+  },
+  {
+    version: '0.16.26',
+    date: '2026-10-31',
+    title: 'Clear cathedral steps',
+    items: [
+      'The grand stairway up to Amalfi\'s cathedral is clear again: the row of lamp posts is gone, leaving a single pair near the top that frames the portico and lights the steps at night.',
+    ],
+  },
+  {
+    version: '0.16.25',
+    date: '2026-10-31',
+    title: 'Naples leaves the map',
+    items: [
+      'Naples is no longer on the world map. Its pizza, fried fish and coffee are waiting for you down the coast in Amalfi.',
     ],
   },
   {

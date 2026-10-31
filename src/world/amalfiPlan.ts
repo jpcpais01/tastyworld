@@ -1,5 +1,6 @@
 import { G, V, VX0, VZ0, SX, SZ } from './layout';
 import { hash3, rng } from './grid';
+import { regradePaths, gardenFlights } from './regrade';
 
 /**
  * Amalfi's ground plan: the hillside, the paths across it and the house lots on it, worked out once for the whole
@@ -304,6 +305,12 @@ let cached: Plan | null = null;
 export const col = (x: number, z: number) => (z - VZ0) * SX + (x - VX0);
 export const layerOf = (y: number) => G + Math.round(y / V);
 
+/**
+ * The wild hillside (voxel column, its ground layer): the headland and the slopes above the highest lanes, left as
+ * cliff, scrub and woods rather than terraced. The town ends where it starts; no steps are cut up into it.
+ */
+export const wildRock = (x: number, z: number, w: number) => z * V < -44 || x * V > ROAD_X0 || w > layerOf(29);
+
 export function amalfiPlan(): Plan {
   if (cached) return cached;
   const n = SX * SZ;
@@ -367,7 +374,12 @@ export function amalfiPlan(): Plan {
   // the cathedral and its bell tower stand on their own terrace above the steps
   rect(-60, 3, -26, 25, DUOMO_Y, K.Church, walk, kind, best);
   rect(-40, 25, -32, 30, DUOMO_Y, K.Church, walk, kind, best);
+  // every riser left where a stair meets a square or two paths cross on different grades becomes steps
+  regradePaths(walk, kind, { adjustable: new Set([K.Stair, K.Lane, K.Street]), fixed: new Set([K.Road, K.Walk, K.Piazza, K.Steps, K.Quay, K.Pier, K.Church, K.Sand]) });
   const lots = placeLots(walk, kind, lot, segs);
+  // and every garden terrace left between the houses gets its steps down to the lane (the wild slopes above the
+  // town and the headland's crags stay as they are)
+  gardenFlights(walk, kind, lot, { ground: K.Rock, stair: K.Stair, path: (k) => isPath(k) && k !== K.Covered && k !== K.Tunnel, wild: (x, z) => wildRock(x, z, walk[col(x, z)]) });
   const nodeList = ids.map((id) => [nodes[id].x, nodes[id].z] as [number, number]);
   const index = new Map(ids.map((id, i) => [id, i]));
   cached = { walk, kind, lot, lots, segs, nodes: nodeList, edges: edges.map(([a, b]) => [index.get(a)!, index.get(b)!]) };

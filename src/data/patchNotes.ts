@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.25',
+    date: '2026-10-31',
+    title: 'Calmer water from afar',
+    items: [
+      'Zoomed out, the sea, the Bosphorus and the canal no longer break into a shimmering checker pattern. The smallest ripples fade away smoothly as they get too fine to see, so distant water reads as a calm, even surface and close-up water keeps all its detail.',
+    ],
+  },
+  {
     version: '0.16.24',
     date: '2026-10-31',
     title: 'Look around on the way',

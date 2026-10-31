@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.53',
+    date: '2026-10-31',
+    title: 'The Duomo\'s paintings and its crucifix',
+    items: [
+      'The paintings in Amalfi\'s Duomo are repainted at twice the detail, with real scenes from the saint\'s life. The altarpiece shows Andrew\'s martyrdom on his X-shaped cross, with soldiers below and an angel bringing his crown and palm. The ceiling shows him called from his fishing boat, his martyrdom, his relics coming ashore at Amalfi in 1208, his glory in heaven, and the Immaculata among cherubs. Apostles with their keys, sword, cup and cross stand in painted niches over the arches, and the side altars hold a Madonna and Child and Saint Andrew.',
+      'A great gilt crucifix now hangs over the presbytery facing the pews, and the cross on the high altar is turned to face the people too.',
+    ],
+  },
+  {
     version: '0.16.52',
     date: '2026-10-31',
     title: 'A tidier settings menu',

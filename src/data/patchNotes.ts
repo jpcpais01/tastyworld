@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.10.15',
+    version: '0.10.16',
     date: '2026-10-31',
     title: 'Less work behind the walls',
     items: [
@@ -16,6 +16,15 @@ export const PATCH_NOTES: PatchNote[] = [
       'Each part of the city is now drawn from the front to the back, so the graphics card skips more of what\'s hidden behind walls and roofs before shading it.',
       'Patches of wall and ground with nearly identical lighting merge into bigger pieces, so the city has about 6% fewer triangles and looks the same.',
       'Less work on the processor for each part of the city drawn.',
+    ],
+  },
+  {
+    version: '0.10.15',
+    date: '2026-10-31',
+    title: 'A wider clear view',
+    items: [
+      'Buildings now lower over a wider band on both sides of you, about two metres either way, so the street around you stays in view instead of just a narrow gap where you stand.',
+      'Buildings no longer try to guess where you are walking next: what lowers depends only on where you are.',
     ],
   },
   {

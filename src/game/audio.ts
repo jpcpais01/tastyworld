@@ -1,13 +1,15 @@
 /**
  * Procedural audio, no assets. A cozy lo-fi street-food loop (koto melody, electric piano, upright bass, brushed kit)
  * over the J-pop "royal road" progression, a deliberately quiet street (a soft city hush, the canal lapping, the odd
- * sparrow by day and bell cricket by night, a faint grill crackle) and soft, rounded UI sounds.
+ * sparrow by day and bell cricket by night, a faint grill crackle) and soft, rounded UI sounds. Amalfi swaps the
+ * band for a mandolin and guitar canzone, and adds gulls and the cathedral bell.
  * Music, ambience and effects each have their own volume.
  * Every note and sound is synthesised once into a small mono buffer and then replayed, so at runtime a note costs a
  * buffer source and a gain node. Rendering is spread over frames by a warm-up queue.
  */
 
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
+import { AMALFI } from '../world/cityId';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh' | 'jet'
   | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
@@ -47,8 +49,10 @@ interface Song {
   swing: number;
   sections: Section[];
   loopFrom: number;
+  /** How it is played: Tokyo's lo-fi band, or Amalfi's mandolin and guitar. */
+  style?: 'lofi' | 'canzone';
 }
-type Inst = 'koto' | 'bell' | 'ep' | 'bass';
+type Inst = 'koto' | 'bell' | 'ep' | 'bass' | 'mando';
 interface Out { lead: AudioNode; ep: AudioNode; bass: AudioNode; drums: AudioNode }
 interface Seq { song: Song; t: number; sec: number; bar: number; step: number; out: Out; bpm: number }
 
@@ -98,6 +102,55 @@ const BGM: Song = (() => {
   };
 })();
 
+/**
+ * Amalfi's tune: a little canzone in A minor turning to C major for the chorus. Mandolin lead (long notes in
+ * tremolo), a nylon guitar keeping the bass-and-chord "oom-pa", a tambourine shaken softly.
+ */
+const CANZONE: Song = (() => {
+  const A = [0, 0, 1, 0, 2, 2, 0, 0], B = [3, 4, 5, 4, 6, 1, 2, 0];
+  const m1: Phrase = [
+    [[0, 76, 3], [3, 74, 1], [4, 72, 2], [6, 71, 2]],
+    [[0, 72, 6], [6, 69, 2]],
+    [[0, 74, 3], [3, 72, 1], [4, 74, 2], [6, 77, 2]],
+    [[0, 76, 8]],
+    [[0, 71, 3], [3, 72, 1], [4, 74, 2], [6, 76, 2]],
+    [[0, 77, 2], [2, 76, 2], [4, 74, 2], [6, 68, 2]],
+    [[0, 69, 6], [6, 71, 1], [7, 72, 1]],
+    [[0, 69, 8]],
+  ];
+  const m2: Phrase = [
+    [[0, 81, 3], [3, 79, 1], [4, 77, 2], [6, 76, 2]],
+    [[0, 76, 4], [4, 72, 2], [6, 76, 2]],
+    [[0, 79, 3], [3, 77, 1], [4, 74, 2], [6, 71, 2]],
+    [[0, 72, 8]],
+    [[0, 73, 2], [2, 76, 2], [4, 79, 2], [6, 81, 2]],
+    [[0, 77, 4], [4, 74, 2], [6, 77, 2]],
+    [[0, 76, 3], [3, 74, 1], [4, 71, 2], [6, 68, 2]],
+    [[0, 69, 8]],
+  ];
+  return {
+    chords: [
+      [45, 57, 60, 64, 69], // Am
+      [38, 57, 62, 65, 69], // Dm
+      [40, 56, 59, 62, 64], // E7
+      [41, 57, 60, 65, 69], // F
+      [36, 55, 60, 64, 67], // C
+      [43, 55, 59, 62, 65], // G7
+      [45, 55, 61, 64, 67], // A7
+    ],
+    bpm: 96, swing: 0.5, loopFrom: 1, style: 'canzone',
+    sections: [
+      { prog: A, bass: true, drums: 1 },
+      { prog: A, mel: m1, bass: true, drums: 1 },
+      { prog: B, mel: m2, bass: true, drums: 2 },
+      { prog: A, arp: true, bass: true, drums: 1 },
+      { prog: A, mel: m1, bass: true, drums: 1 },
+      { prog: B, mel: m2, bass: true, drums: 2 },
+      { prog: B, arp: true, bass: true, drums: 0 },
+    ],
+  };
+})();
+
 /** A semitone or whole tone below, staying in the scale: the koto's little lead-in. */
 const graceOf = (m: number) => m - ([0, 5].includes(m % 12) ? 1 : 2);
 
@@ -133,6 +186,8 @@ export class Audio {
   private timers: Record<string, number> = {};
   /** Volumes 0..1 for the music, the world around you and UI/cooking effects. */
   private vol = { music: 0.8, amb: 0.6, sfx: 0.8 };
+  /** How near the open water is, 0..1 (gulls carry further by the sea). */
+  private sea = 0;
 
   start(): void {
     if (this.ctx) { if (this.ctx.state !== 'running' && !document.hidden) void this.ctx.resume(); return; }
@@ -184,12 +239,14 @@ export class Audio {
     this.setVolumes(this.vol.music, this.vol.amb, this.vol.sfx);
 
     const now = ctx.currentTime;
-    this.bgm = { song: BGM, t: now + 0.4, sec: 0, bar: 0, step: 0, out: this.bgmOut, bpm: BGM.bpm };
+    const song = AMALFI ? CANZONE : BGM;
+    this.bgm = { song, t: now + 0.4, sec: 0, bar: 0, step: 0, out: this.bgmOut, bpm: song.bpm };
     this.timers.bird = now + rand(15, 40);
     this.timers.cricket = now + rand(5, 12);
 
     // queue the tune's notes and footsteps so they're rendered a couple per frame before they're needed
-    this.queueSong(BGM);
+    this.queueSong(song);
+    if (AMALFI) this.warm.push('gull', 'toll');
     for (const s of ['stone', 'wood', 'tile', 'gravel', 'grass']) for (let i = 0; i < 3; i++) this.warm.push(`step-${s}-${i}`);
     for (const k of ['bite', 'chew', 'crunch', 'slurp', 'gulp', 'blow', 'rustle', 'drop']) this.warm.push(k);
 
@@ -228,6 +285,7 @@ export class Audio {
     }
     this.sizzle.gain.setTargetAtTime(sizzle * sizzle * 0.04, t, 0.6);
     this.water.gain.setTargetAtTime(water * 0.3, t, 0.8);
+    this.sea = water;
     this.bed.gain.setTargetAtTime(inside ? 0.01 : 0.03 * (1 - night * 0.4), t, 1.5);
   }
 
@@ -347,11 +405,12 @@ export class Audio {
   private queueSong(s: Song): void {
     const q = new Set<string>();
     const add = (i: Inst, m: number) => q.add(this.instKey(i, m)[0]);
+    const lead: Inst = s.style === 'canzone' ? 'mando' : 'koto';
     for (const c of s.chords) {
-      c.slice(1).forEach((m) => { add('ep', m); add('koto', m + 12); });
+      c.slice(1).forEach((m) => { add(s.style === 'canzone' ? 'koto' : 'ep', m); add(lead, m + 12); });
       for (let d = 0; d <= 12; d++) add('bass', c[0] + d);
     }
-    for (const sec of s.sections) for (const b of sec.mel ?? []) for (const n of b) { add('koto', n[1]); add('koto', graceOf(n[1])); }
+    for (const sec of s.sections) for (const b of sec.mel ?? []) for (const n of b) { add(lead, n[1]); add(lead, graceOf(n[1])); }
     for (const k of ['kick', 'brush', 'shaker']) q.add(k);
     for (const k of q) this.warm.push(k);
   }
@@ -372,6 +431,7 @@ export class Audio {
   }
 
   private playStep(q: Seq, t: number, e: number): void {
+    if (q.song.style === 'canzone') { this.playCanzone(q, t, e); return; }
     const song = q.song, sec = song.sections[q.sec], s = q.step, bar = q.bar, o = q.out;
     const ch = song.chords[sec.prog[bar]];
     const night = this.night > 0.5;
@@ -413,6 +473,46 @@ export class Audio {
     }
   }
 
+  /** Amalfi: guitar bass on 1 and 5, a strummed chord on the off-beats, mandolin tremolo on the long notes. */
+  private playCanzone(q: Seq, t: number, e: number): void {
+    const song = q.song, sec = song.sections[q.sec], s = q.step, bar = q.bar, o = q.out;
+    const ch = song.chords[sec.prog[bar]];
+    const night = this.night > 0.5;
+    const h = () => t + rand(-0.007, 0.007);
+    const v = (x: number) => x * rand(0.85, 1.1);
+    if (sec.bass) {
+      if (s === 0) this.note('bass', ch[0], t, v(0.6), o.bass, e * 3.5);
+      if (s === 4) this.note('bass', ch[0] + 7, h(), v(0.45), o.bass, e * 3.5);
+    }
+    // the guitar's chord, strummed down on 2 and 4 (up-strum on the last "and" now and then)
+    if (s === 2 || s === 6 || (s === 7 && !night && Math.random() < 0.3)) {
+      const up = s === 7;
+      const notes = ch.slice(1);
+      (up ? [...notes].reverse() : notes).forEach((m, i) => this.note('koto', m, t + i * 0.014, v(up ? 0.08 : night ? 0.12 : 0.16), o.ep, e * 1.8));
+    }
+    if (sec.drums) {
+      if (s % 2 === 1) this.fire(this.buf('shaker'), h(), v(sec.drums === 2 ? 0.16 : 0.1), o.drums);
+      if (sec.drums === 2 && !night && (s === 2 || s === 6)) this.fire(this.buf('brush'), h(), v(0.2), o.drums);
+    }
+    if (sec.mel) {
+      for (const [at, m, len] of sec.mel[bar]) {
+        if (at !== s) continue;
+        if (len >= 3) {
+          // tremolo: the same note picked fast, swelling and fading
+          const n = Math.floor(len * 2.4);
+          for (let i = 0; i < n; i++) {
+            const k = i / n;
+            this.note('mando', m, t + (i * e) / 2.4 + rand(-0.004, 0.004), v((night ? 0.24 : 0.3) * (0.75 + 0.35 * Math.sin(Math.PI * k))), o.lead, e * 0.7);
+          }
+        } else {
+          if (len >= 2 && Math.random() < 0.15) this.note('mando', graceOf(m), t - 0.05, v(0.18), o.lead, 0.06);
+          this.note('mando', m, h(), v(night ? 0.36 : 0.44), o.lead, e * len + 0.2);
+        }
+      }
+    }
+    if (sec.arp && Math.random() < (s % 2 ? 0.25 : 0.7)) this.note('mando', ch[1 + Math.floor(Math.random() * 4)] + 12, h(), v(0.26), o.lead, e * 2);
+  }
+
   // ---- the street around you: kept sparse on purpose ----
 
   private life(now: number): void {
@@ -428,6 +528,18 @@ export class Audio {
       for (let i = 0, c = 1 + Math.floor(rand(0, 2)); i < c; i++) this.fire(this.buf('chirp'), at + i * rand(0.2, 0.35), rand(0.025, 0.05), this.street, rand(0.9, 1.15), undefined, pan);
     }
     if (due('cricket', 4, 10) && n > 0.55) this.fire(this.buf('cricket'), at, rand(0.01, 0.02) * n, this.street, rand(0.97, 1.03), undefined, rand(-0.9, 0.9));
+    // Amalfi: the gulls over the harbour, louder the nearer the sea
+    if (AMALFI && due('gull', 9, 26) && n < 0.6) {
+      const pan = rand(-0.9, 0.9), vol = rand(0.02, 0.04) * (0.4 + 0.6 * this.sea);
+      for (let i = 0, c = 1 + Math.floor(rand(0, 3)); i < c; i++) this.fire(this.buf('gull'), at + i * rand(0.45, 0.7), vol * (1 - i * 0.15), this.street, rand(0.92, 1.08), undefined, pan);
+    }
+  }
+
+  /** The cathedral bell striking the hour, fainter the further away it is. */
+  toll(strokes: number, vol: number): void {
+    if (!this.ctx || this.inside) return;
+    const t = this.ctx.currentTime + 0.1;
+    for (let i = 0; i < strokes; i++) this.fire(this.buf('toll'), t + i * 2.4, vol, this.street, 1, undefined, 0.2);
   }
 
   /** A furin (glass wind bell) catching the breeze. */
@@ -524,11 +636,12 @@ export class Audio {
 
   private make(k: string): AudioBuffer {
     let m: RegExpMatchArray | null;
-    if ((m = k.match(/^(ep|koto|bass|bell)(\d+)$/))) {
+    if ((m = k.match(/^(ep|koto|bass|bell|mando)(\d+)$/))) {
       const n = Number(m[2]);
       switch (m[1]) {
         case 'ep': return this.renderEp(n);
         case 'koto': return this.renderKoto(n);
+        case 'mando': return this.renderKoto(n, true);
         case 'bass': return this.renderBass(n);
         default: return this.renderBell(n);
       }
@@ -550,16 +663,21 @@ export class Audio {
     });
   }
 
-  /** Karplus-Strong plucked string; the buffer's sample rate is picked so the delay line tunes exactly. */
-  private renderKoto(m: number): AudioBuffer {
+  /**
+   * Karplus-Strong plucked string; the buffer's sample rate is picked so the delay line tunes exactly. `bright` is
+   * the mandolin: picked hard near the bridge (a brighter burst), a pair of steel strings ringing shorter.
+   */
+  private renderKoto(m: number, bright = false): AudioBuffer {
     const f = mtof(m);
     const N = Math.max(4, Math.round(24000 / f - 0.5));
     const sr = f * (N + 0.5);
     const len = Math.ceil(sr * 2.2);
     const y = new Float32Array(len);
     let lp = 0;
-    for (let i = 0; i <= N && i < len; i++) { lp = 0.6 * lp + 0.4 * noise(); y[i] = lp; }
-    const keep = 10 ** (-3 / (f * Math.max(1.2, 3.6 - f / 600))); // per-period loss for the wanted ring time
+    const smooth = bright ? 0.15 : 0.6;
+    for (let i = 0; i <= N && i < len; i++) { lp = smooth * lp + (1 - smooth) * noise(); y[i] = lp; }
+    const ring = bright ? Math.max(0.6, 1.6 - f / 900) : Math.max(1.2, 3.6 - f / 600);
+    const keep = 10 ** (-3 / (f * ring)); // per-period loss for the wanted ring time
     for (let i = N + 1; i < len; i++) y[i] = keep * 0.5 * (y[i - N] + y[i - N - 1]);
     let dc = 0, prev = 0, peak = 1e-6;
     for (let i = 0; i < len; i++) { // remove DC
@@ -683,6 +801,18 @@ export class Audio {
       }; });
       case 'shutter': return this.render(0.07, SR, () => { const bp = new SVF(SR, 1.4); return (t) => // a small mechanical clack
         (bp.run(noise(), 2600) * 0.9 + Math.sin(TAU * 1450 * t) * 0.35) * Math.min(1, t / 0.0008) * Math.exp(-t * 85);
+      });
+      case 'gull': return this.render(0.62, SR, () => { let ph = 0; return (t) => { // a yellow-legged gull's "kyow"
+        const f = 1350 * (1 - 0.42 * Math.min(1, t / 0.5)) * (1 + 0.04 * Math.sin(TAU * 26 * t));
+        ph += (TAU * f) / SR;
+        const env = Math.min(1, t / 0.03) * Math.exp(-Math.max(0, t - 0.25) * 7);
+        return (Math.sin(ph) + 0.55 * Math.sin(2 * ph) + 0.3 * Math.sin(3 * ph)) * 0.55 * env * (0.8 + 0.2 * Math.sin(TAU * 52 * t));
+      }; });
+      case 'toll': return this.render(6, LSR, () => (t) => { // a big bronze bell: hum, prime, minor third, fifth, nominal
+        const f = 196;
+        let s = 0;
+        for (const [r, a, d] of [[0.5, 0.5, 0.35], [1, 0.8, 0.6], [1.19, 0.45, 0.8], [1.5, 0.3, 1.1], [2, 0.5, 1.4], [2.98, 0.18, 2.4]]) s += a * Math.sin(TAU * f * r * t) * Math.exp(-t * d);
+        return s * 0.45 * Math.min(1, t / 0.003);
       });
       case 'chirp': return this.render(0.14, SR, () => (t) => { // one sparrow "tsip"
         const f = 3600 + 1800 * Math.sin(Math.PI * Math.min(1, t / 0.07));

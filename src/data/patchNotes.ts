@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.17',
+    date: '2026-10-31',
+    title: 'Il Belvedere e il Molo',
+    items: [
+      'The houses between Amalfi\'s piazza and the sea are gone. The piazza now runs right out to the old sea wall as a belvedere over the beach, with a marble balustrade, benches looking out to sea, palms in stone planters, oleanders, lamps and a coin telescope.',
+      'Porta della Marina stands free on the belvedere: a whitewashed arch with Saint Andrew in majolica over it, framing the sea, and wide steps go down through it to the road.',
+      'A new stone pier, the Molo, runs out from the beach below the piazza. It has a seat-high parapet, lamps, lifebuoys and gozzi tied alongside, and at its end a round belvedere with benches and a cast-iron candelabra. Townsfolk stroll out to it.',
+    ],
+  },
+  {
     version: '0.15.16',
     date: '2026-10-31',
     title: 'Phones out',

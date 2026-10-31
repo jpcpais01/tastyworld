@@ -5,7 +5,7 @@ import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, Sta
 import { Prop, rotateProp, bench, cafeTable, scooter, stool, bush, grassTuft } from './props';
 import { buildFood } from './food';
 import { SWAY } from './sway';
-import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, type Plan } from './amalfiPlan';
+import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -469,6 +469,7 @@ export function buildAmalfi(win?: Window): BuildResult {
   duomo(b, c);
   cloister(b, c);
   gate(b, c);
+  molo(b, c);
   carvePassages(b, c, plan);
   piazza(b, c);
   shore(b, c, plan);
@@ -1082,26 +1083,189 @@ function cloister(b: Builder, c: AC): void {
   b.lamp((X0 + X1) / 2 * V, DUOMO_Y + 2.5, (Z0 + Z1) / 2 * V, WARM, 7, 0.5);
 }
 
-/** Porta della Marina: the arch through the old sea wall, with its tile panel over the road side. */
+/**
+ * The belvedere in front of the piazza and Porta della Marina. The old sea gate now stands free: a whitewashed
+ * arch with Saint Andrew in majolica over it, framing the sea, steps going down through it to the road. Either
+ * side of it a marble balustrade runs along the edge over the road, with benches looking out to sea, palms in
+ * stone planters, lamps and a coin telescope.
+ */
 function gate(b: Builder, c: AC): void {
   const g = b.grid;
-  const Y = layerOf(2.0);
-  const X0 = 18.5 / V, X1 = 26.5 / V, Z0 = 4 / V, Z1 = 14 / V;
-  b.occlude(X0, Z0, X1, Z1, 11, 2.95, 'landmark');
-  if (!g.touches(X0, Z0, X1, Z1)) return;
-  for (let z = Z0; z <= Z1; z++) for (let x = X0; x <= X1; x++) {
-    const pz = (z + 0.5) * V;
-    const inside = Math.abs(pz - 9) < 2;
-    const yb = layerOf(PIAZZA_Y) - 4;
-    if (!inside) { g.box(x, Y, z, x, Y + 34, z, (xx, y, zz) => (y > Y + 32 ? c.roofWhite : masonry(c, xx, y, zz, true))); continue; }
-    const crown = Y + 18 + Math.round(Math.sqrt(Math.max(0, 1 - ((pz - 9) / 2) ** 2)) * 6);
-    g.box(x, crown, z, x, Y + 34, z, (_xx, y) => (y > Y + 32 ? c.roofWhite : y < crown + 2 ? c.stripeTufa : c.whiteWarm));
-    void yb;
+  const Y = layerOf(PIAZZA_Y);
+  // the arch: two piers either side of the 4 m steps, a round arch and a gable wall over it
+  const X0 = Math.round((GATE_X - 1) / V), X1 = Math.round((GATE_X + 1) / V) - 1, Z0 = Math.round(5.75 / V), Z1 = Math.round(12.25 / V) - 1;
+  b.occlude(X0, Z0, X1, Z1, PIAZZA_Y + 7.5, PIAZZA_Y + 0.6, 'landmark');
+  b.occluders[b.occluders.length - 1].floor = PIAZZA_Y;
+  b.block(X0 * V, Z0 * V, (X1 + 1) * V, 7);
+  b.block(X0 * V, 11, (X1 + 1) * V, (Z1 + 1) * V);
+  if (g.touches(X0, Z0, X1, Z1)) {
+    for (let z = Z0; z <= Z1; z++) for (let x = X0; x <= X1; x++) {
+      const pz = (z + 0.5) * V, open = Math.abs(pz - 9) < 2;
+      const top = Y + 27 + (Math.abs(pz - 9) < 1.25 ? 3 - Math.round(Math.abs(pz - 9) / V / 2) : 0); // a low gable
+      const face = x === X0 || x === X1;
+      if (!open) {
+        g.box(x, Y, z, x, top, z, (_xx, y, zz) => (y === top ? c.roofWhite : y < Y + 2 ? c.plinth : y === Y + 16 || y === Y + 24 ? c.stripeTufa : face && (zz === Z0 || zz === Z1) ? c.white : c.whiteWarm));
+        continue;
+      }
+      const crown = Y + 16 + Math.round(Math.sqrt(Math.max(0, 1 - ((pz - 9) / 2) ** 2)) * 5);
+      g.box(x, crown, z, x, top, z, (_xx, y) => (y === top ? c.roofWhite : y < crown + 2 ? c.stripeTufa : y === Y + 24 ? c.stripeTufa : c.whiteWarm));
+    }
+    // Saint Andrew in majolica on the sea face, a smaller panel of the town's arms on the piazza face
+    for (const [x, big] of [[X1 + 1, true], [X0 - 1, false]] as const) {
+      const z0 = Math.round((9 - (big ? 1.25 : 0.75)) / V), z1 = Math.round((9 + (big ? 1.25 : 0.75)) / V) - 1;
+      g.box(x, Y + 25, z0 - 1, x, Y + 25 + (big ? 7 : 5), z1 + 1, c.stripeTufa);
+      g.box(x, Y + 26, z0, x, Y + 25 + (big ? 6 : 4), z1, (_x, y, z) => ((y + z) % 3 === 0 ? c.majolicaYellow : (y * 3 + z) % 5 === 0 ? c.majolicaGreen : (z === z0 || z === z1) ? c.majolicaWhite : c.majolicaBlue));
+    }
+    // a lantern hangs in the arch
+    g.box(Math.round(GATE_X / V), Y + 18, Math.round(9 / V), Math.round(GATE_X / V), Y + 20, Math.round(9 / V), c.iron);
+    g.set(Math.round(GATE_X / V), Y + 17, Math.round(9 / V), c.lampGlow);
   }
-  // the majolica panel of Saint Andrew facing the sea
-  g.box(X1, Y + 26, Z0 + 10, X1, Y + 32, Z1 - 10, (_x, y, z) => ((y + z) % 3 === 0 ? c.majolicaYellow : (y * 3 + z) % 5 === 0 ? c.majolicaGreen : c.majolicaBlue));
-  b.lamp(27.4, 6.5, 9, WARM, 6, 0.8);
-  b.lamp(18, 6.5, 9, WARM, 6, 0.6);
+  b.lamp(GATE_X, PIAZZA_Y + 4.1, 9, WARM, 6, 0.9);
+  b.lamp(GATE_X + 1.6, PIAZZA_Y + 6, 9, WARM, 5, 0.5);
+  // the balustrade along the edge over the road, turning down both sides of the steps
+  const BX = Math.round(BELV_X1 / V) - 1;
+  const zA = Math.round(-6 / V), zB = Math.round(30 / V) - 1, s0 = Math.round(7 / V), s1 = Math.round(11 / V);
+  const rail: [number, number][] = [];
+  for (let z = zA; z <= zB; z++) if (z < s0 - 1 || z > s1) rail.push([BX, z]);
+  for (let x = Math.round((GATE_X + 1) / V); x <= BX; x++) rail.push([x, s0 - 1], [x, s1]);
+  for (const [x, z] of rail) {
+    b.block(x * V, z * V, (x + 1) * V - 0.01, (z + 1) * V - 0.01);
+    if (!g.touches(x, z, x, z)) continue;
+    const y0 = Y;
+    g.set(x, y0, z, c.marbleGrey);
+    if ((x + z) % 2 === 0) g.box(x, y0 + 1, z, x, y0 + 2, z, c.marble);
+    g.set(x, y0 + 3, z, c.marble);
+  }
+  // stone posts where the rail ends at the steps
+  for (const z of [s0 - 1, s1]) if (g.touches(BX, z, BX, z)) g.box(BX, Y, z, BX, Y + 4, z, c.marbleGrey);
+  // benches looking out to sea, lamps between them
+  for (const z of [-3.5, 0.5, 16, 20, 24, 28]) { b.place(bench(k(b)), BELV_X1 - 1.15, PIAZZA_Y, z, 1); b.benches.push([BELV_X1 - 1.15, z, Math.PI / 2, PIAZZA_Y]); }
+  for (const z of [-5.4, 4, 14, 22, 29.4]) { b.place(lampPost(c), BELV_X1 - 0.75, PIAZZA_Y, z); b.lamp(BELV_X1 - 0.75, PIAZZA_Y + 3.4, z, WARM, 7, 0.85); }
+  // palms in stone planters, oleander between
+  for (const [x, z, seed] of [[BELV_X0 + 2.5, 2.5, 61], [BELV_X0 + 2.5, 15.5, 62], [BELV_X0 + 2.5, -3, 63], [BELV_X0 + 2.5, 26, 64]] as const) {
+    const px = Math.round(x / V), pz = Math.round(z / V);
+    b.block(x - 0.75, z - 0.75, x + 0.75, z + 0.75);
+    if (g.touches(px - 3, pz - 3, px + 3, pz + 3)) {
+      g.box(px - 3, Y, pz - 3, px + 2, Y + 1, pz + 2, (xx, _y, zz) => (xx === px - 3 || xx === px + 2 || zz === pz - 3 || zz === pz + 2 ? c.marbleGrey : c.soil));
+      for (let zz = pz - 2; zz <= pz + 1; zz++) for (let xx = px - 2; xx <= px + 1; xx++) if (hash3(xx, 3, zz) < 0.35) g.set(xx, Y + 2, zz, hash3(xx, 4, zz) < 0.4 ? c.geranium : c.leaf);
+    }
+    b.place(palmTree(c, seed), x, PIAZZA_Y + 0.5, z);
+  }
+  for (const z of [8.2 - 4.5, 9.8 + 4.5]) b.place(oleander(c, Math.round(z * 10)), BELV_X0 + 4.6, PIAZZA_Y, z);
+  b.place(telescope(c), BELV_X1 - 0.8, PIAZZA_Y, 18, 1);
+  b.block(BELV_X1 - 1.1, 17.7, BELV_X1 - 0.5, 18.3);
+}
+
+/** A flowering oleander bush in a terracotta pot. */
+function oleander(c: AC, seed: number): Prop {
+  const p = new Prop(11, 16, 11);
+  p.box(3, 0, 3, 7, 3, 7, c.terracotta);
+  p.box(4, 3, 4, 6, 3, 6, c.soil);
+  p.ellipsoid(5, 10, 5, 5, 5, 5, (x, y, z) => { const n = hash3(x + seed, y, z); return n < 0.25 ? 0 : n < 0.45 ? c.bougainB : n < 0.52 ? c.white : n < 0.8 ? c.leaf : c.leafDark; });
+  p.sway(SWAY.bush, [5, 4, 5], [0, 0, 0], (_x, y) => y >= 5);
+  return p;
+}
+
+/** The coin telescope on the belvedere, pointed out to sea (+z before turning). */
+function telescope(c: AC): Prop {
+  const p = new Prop(5, 13, 9);
+  p.box(1, 0, 1, 3, 0, 3, c.iron);
+  p.box(2, 1, 2, 2, 8, 2, c.iron);
+  p.box(1, 9, 1, 3, 10, 6, c.bronzeDoor);
+  p.box(2, 10, 7, 2, 10, 8, c.iron);
+  p.box(1, 11, 2, 3, 11, 4, c.bronzeDoor);
+  p.set(2, 9, 0, c.iron);
+  return p;
+}
+
+/**
+ * Il Molo: a stone pier straight out from the beach below the piazza, a seat-high parapet along it, lamps,
+ * lifebuoys and a round belvedere at the end with benches and a cast-iron candelabra.
+ */
+function molo(b: Builder, c: AC): void {
+  const g = b.grid;
+  const Y = layerOf(PIER_Y);
+  const cx = PIER_END - PIER_R, cz = 9;
+  const zL = Math.round((cz - PIER_HALF) / V), zR = Math.round((cz + PIER_HALF) / V) - 1;
+  const xA = Math.round(37.25 / V), xB = Math.round(cx / V);
+  const wall: [number, number][] = [];
+  for (let x = xA; x <= xB; x++) {
+    const px = (x + 0.5) * V;
+    if (Math.hypot(px - cx, (zL + 0.5) * V - cz) < PIER_R - 0.6) continue;
+    wall.push([x, zL], [x, zR]);
+  }
+  // the rim of the round end, with an opening onto the pier
+  const xr0 = Math.round((cx - PIER_R) / V), xr1 = Math.round((cx + PIER_R) / V);
+  for (let z = Math.round((cz - PIER_R) / V); z <= Math.round((cz + PIER_R) / V); z++)
+    for (let x = xr0; x <= xr1; x++) {
+      const d = Math.hypot((x + 0.5) * V - cx, (z + 0.5) * V - cz);
+      if (d > PIER_R || d < PIER_R - 0.3) continue;
+      if (x * V < cx && z >= zL && z <= zR) continue;
+      wall.push([x, z]);
+    }
+  for (const [x, z] of wall) {
+    b.block(x * V, z * V, (x + 1) * V - 0.01, (z + 1) * V - 0.01);
+    if (!g.touches(x, z, x, z)) continue;
+    g.box(x, Y, z, x, Y + 1, z, (xx, y, zz) => (y === Y + 1 ? c.stepEdge : masonry(c, xx, y, zz, false)));
+  }
+  // lamps along the pier, alternating sides, and lifebuoys on posts
+  for (let x = 40, i = 0; x < cx - PIER_R; x += 5.5, i++) {
+    const z = i % 2 ? cz + PIER_HALF - 0.55 : cz - PIER_HALF + 0.55;
+    b.place(lampPost(c), x, PIER_Y, z);
+    b.lamp(x, PIER_Y + 3.4, z, WARM, 6.5, 0.85);
+    b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3);
+    if (i % 2 === 0) { b.place(lifebuoy(c), x + 2.7, PIER_Y, cz + PIER_HALF - 0.4, 2); b.block(x + 2.4, cz + PIER_HALF - 0.6, x + 3, cz + PIER_HALF); }
+  }
+  // the round end: benches facing out, a candelabra in the middle
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + (i * Math.PI) / 2, x = cx + Math.cos(a) * (PIER_R - 1.1), z = cz + Math.sin(a) * (PIER_R - 1.1);
+    if (x < cx) continue;
+    const turn = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a)) ? 1 : 0;
+    b.place(bench(k(b)), x, PIER_Y, z, turn);
+    b.benches.push([x, z, Math.atan2(Math.cos(a), Math.sin(a)), PIER_Y]);
+  }
+  for (const [x, z] of [[cx + PIER_R - 1.1, cz]] as const) { b.place(bench(k(b)), x, PIER_Y, z, 1); b.benches.push([x, z, Math.PI / 2, PIER_Y]); }
+  const mx = Math.round(cx / V), mz = Math.round(cz / V);
+  b.block(cx - 0.4, cz - 0.4, cx + 0.4, cz + 0.4);
+  b.place(candelabra(c), cx, PIER_Y, cz);
+  b.lamp(cx, PIER_Y + 3.8, cz, WARM, 8, 1.1);
+  b.occlude(mx - 4, mz - 4, mx + 3, mz + 3, PIER_Y + 4.5, PIER_Y + 0.6, 'landmark');
+  b.occluders[b.occluders.length - 1].floor = PIER_Y;
+  // a net pile and a couple of creels left by an angler, a gozzo tied up alongside
+  b.place(netPile(c, 7), cx - 1.6, PIER_Y, cz + PIER_R - 1.4);
+  b.block(cx - 2.2, cz + PIER_R - 2, cx - 1, cz + PIER_R - 0.8);
+  b.place(gozzo(c, 21, 30), 45, -0.7, cz - PIER_HALF - 1.2, 1);
+  b.place(gozzo(c, 22, 34), 50.5, -0.7, cz + PIER_HALF + 1.2, 1);
+}
+
+/** The cast-iron candelabra on the Molo's round end: a fluted column, four arms and five glass lanterns. */
+function candelabra(c: AC): Prop {
+  const p = new Prop(11, 36, 11);
+  p.box(3, 0, 3, 7, 1, 7, c.marbleGrey);
+  p.box(4, 2, 4, 6, 3, 6, c.iron);
+  p.box(5, 4, 5, 5, 30, 5, c.iron);
+  p.box(4, 12, 4, 6, 12, 6, c.iron);
+  p.box(4, 26, 4, 6, 26, 6, c.iron);
+  for (const [x, z] of [[1, 5], [9, 5], [5, 1], [5, 9]]) {
+    p.box(Math.min(x, 5), 27, Math.min(z, 5), Math.max(x, 5), 27, Math.max(z, 5), c.iron);
+    p.box(x, 28, z, x, 30, z, c.lampGlow);
+    p.set(x, 31, z, c.iron);
+  }
+  p.box(4, 31, 4, 6, 34, 6, c.lampGlow);
+  p.box(4, 35, 4, 6, 35, 6, c.iron);
+  return p;
+}
+
+/** A lifebuoy on a short post (ring facing +z). */
+function lifebuoy(c: AC): Prop {
+  const p = new Prop(9, 12, 3);
+  p.box(4, 0, 0, 4, 5, 0, c.iron);
+  for (let y = 0; y < 9; y++) for (let x = 0; x < 9; x++) {
+    const d = Math.hypot(x - 4, y - 4);
+    if (d > 4.4 || d < 2.4) continue;
+    p.set(x, y + 3, 1, Math.floor(Math.atan2(y - 4, x - 4) / (Math.PI / 4) + 8) % 2 ? c.white : c.hullRed);
+  }
+  return p;
 }
 
 /** Piazza Duomo: Saint Andrew's fountain, café tables under umbrellas, the pastry shop's tables. */

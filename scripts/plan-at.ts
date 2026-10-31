@@ -1,4 +1,6 @@
-// plan kinds + heights around a point: CITY=amalfi npx tsx scripts/_pk.ts x z r
+// CITY=amalfi|istanbul npx tsx scripts/plan-at.ts x z r
+// The plan round a point (metres): each column's kind (# a house lot) and, beside it, its ground height in voxels
+// over the lowest column shown. For working out what ledge-check reports.
 import { CITY } from '../src/world/cityId';
 import { V, G } from '../src/world/layout';
 const mod: any = CITY === 'amalfi' ? await import('../src/world/amalfiPlan') : await import('../src/world/istanbulPlan');

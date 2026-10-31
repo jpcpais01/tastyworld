@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.23',
+    date: '2026-10-31',
+    title: 'Lighter city meshes',
+    items: [
+      'Walls, roofs and streets where the light fades smoothly (soft shadow edges, lamp glow, shade under awnings) are now built from far fewer pieces, cutting about a sixth of the nearby city\'s triangles with the same look.',
+    ],
+  },
+  {
     version: '0.10.22',
     date: '2026-10-31',
     title: 'Busier streets',

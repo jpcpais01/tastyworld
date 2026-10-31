@@ -67,6 +67,15 @@ export interface Occluder {
   walls?: number;
   /** Voxels of outer wall where it is thicker than a building's (world/owners.ts SHELL). */
   shell?: number;
+  /**
+   * A great hall's air, its floor plan inside the walls (metres): everything of the hall outside it (walls, front,
+   * portico, apse) belongs to one of its four sides, and each side falls or stands as one piece.
+   */
+  air?: [number, number, number, number];
+  /** Index of the great hall (in the same list) this one falls with, side by side: its bell tower, minarets, court. */
+  follow?: number;
+  /** Columns (metres) it owns even where a building's footprint overlaps them: a front wider than its neighbours' lots. */
+  claim?: [number, number, number, number];
 }
 
 export interface Anchors {

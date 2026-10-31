@@ -1237,9 +1237,12 @@ function duomo(b: Builder, c: AC): void {
   // nave x -58..-28, z 6..22, the front faces the steps at x = -27
   const X0 = -58 / V, X1 = -27 / V - 1, Z0 = 4 / V, Z1 = 24 / V - 1;
   const H = Math.round(15 / V);
-  b.occlude(X0, Z0, X1, Z1, DUOMO_Y + 24, DUOMO_Y + 0.95, 'landmark');
+  // (the footprint takes in the portico, and it claims the whole front screen, X1 + 1 .. X1 + 12 across
+  // Z0 - 6 .. Z1 + 6, over the houses' lots either side: the front falls with the rest of its side, never in strips)
+  b.occlude(X0, Z0, X1 + 12, Z1, DUOMO_Y + 24, DUOMO_Y + 0.95, 'landmark');
   // the nave is walked into from the portico like a shop: the cutaway opens it 6 m over its floor
-  Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, room: HALL_ROOM, walls: DUOMO_WALLS, shell: 3 });
+  const hallOcc = b.occluders.length - 1;
+  Object.assign(b.occluders[hallOcc], { floor: DUOMO_Y, room: HALL_ROOM, walls: DUOMO_WALLS, shell: 3, claim: [(X1 + 1) * V, (Z0 - 6) * V, (X1 + 13) * V, (Z1 + 7) * V] });
   if (g.touches(X0, Z0 - 30, X1 + 30, Z1 + 30)) {
     g.box(X0, Y, Z0, X1, Y + H, Z1, (_x, y) => (y < Y + 2 ? c.marbleGrey : ((y - Y) >> 1) % 6 === 0 ? c.stripeTufa : c.cream));
     // pitched roof along the nave
@@ -1290,10 +1293,11 @@ function duomo(b: Builder, c: AC): void {
   }
   // inside: the baroque nave, the apse and the crypt (registers its anchors in every worker)
   duomoInterior(b, { X0, X1, Z0, Z1, Y, H, FX: X1 + 1, zc: (Z0 + Z1) >> 1, roof: [c.roofTile, c.roofTileB] });
+  b.occluders[hallOcc].air = b.halls[b.halls.length - 1].rect;
   // the bell tower (1180), finished with a drum of interlaced arches and green and yellow tiles
   const TX0 = -40 / V, TZ0 = 25 / V, TS = 22;
   b.occlude(TX0, TZ0, TX0 + TS - 1, TZ0 + TS - 1, DUOMO_Y + 40, DUOMO_Y + 0.95, 'landmark');
-  b.occluders[b.occluders.length - 1].floor = DUOMO_Y;
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, follow: hallOcc });
   if (g.touches(TX0, TZ0, TX0 + TS, TZ0 + TS)) {
     const TH = 116;
     g.box(TX0, Y, TZ0, TX0 + TS - 1, Y + TH, TZ0 + TS - 1, (_x, y) => (((y - Y) % 28) < 2 ? c.stripeDark : c.tufa));

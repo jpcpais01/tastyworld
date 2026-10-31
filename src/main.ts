@@ -10,6 +10,7 @@ import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
 import { assemble } from './world/assemble';
 import type { WorkerIn, WorkerOut } from './world/worker';
 import { Streamer, StreamView } from './engine/streamer';
+import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
 import { bikeModel, scooterModel, swanBoatModel } from './world/vehicles';
@@ -330,6 +331,7 @@ class Game {
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
     const m = new THREE.Mesh(geometryFrom(md), mat);
+    if (md.atlas) useAtlas(m, atlasTexture(this.r.gl, md.atlas));
     m.layers.enable(SHADOW_STATIC);
     m.matrixAutoUpdate = false;
     m.updateMatrix();
@@ -344,8 +346,9 @@ class Game {
     sw.generateMipmaps = false;
     sw.needsUpdate = true;
     sh.tSway.value = sw;
-    this.matWorld = voxelMaterial(sh, { SWAY: 1 });
-    this.matCut = voxelMaterial(sh, { CUTAWAY: 1, SWAY: 1 });
+    // the city's meshes keep their light and colours in atlas textures (world/mesher.ts AtlasBlocks)
+    this.matWorld = voxelMaterial(sh, { SWAY: 1, ATLAS: 1 }, { tAtlas: { value: null } });
+    this.matCut = voxelMaterial(sh, { CUTAWAY: 1, SWAY: 1, ATLAS: 1 }, { tAtlas: { value: null } });
     // double-sided so a neighbour's unmeshed party wall shows its far side instead of a hole
     this.matCut.side = THREE.DoubleSide;
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
@@ -383,9 +386,9 @@ class Game {
     this.cutaway = new Cutaway(w.owners, w.nav, w.interiorNav, { height: w.height, solid: w.solid }, { height: w.interiorHeight, solid: w.interiorSolid });
     sh.tCut.value = this.cutaway.cut;
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
-    this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile);
+    this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile, this.r.gl);
     this.streamer.dist = this.viewDist;
-    this.streamer.fadeMaterial = () => voxelMaterial(sh, { SWAY: 1, LODFADE: 1 }, { uFade: { value: new THREE.Vector2() } });
+    this.streamer.fadeMaterial = () => voxelMaterial(sh, { SWAY: 1, LODFADE: 1, ATLAS: 1 }, { uFade: { value: new THREE.Vector2() }, tAtlas: { value: null } });
     this.streamer.onMesh = (c, m) => {
       const [x0, z0, x1, z1] = this.streamer.rect(c);
       c.occ = this.cutaway.touching(x0, z0, x1, z1);

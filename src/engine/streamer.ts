@@ -4,6 +4,7 @@ import type { WorkerOut } from '../world/worker';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, V, WX0, WZ0 } from '../world/layout';
 import { geometryFrom } from '../game/actors';
 import { SHADOW_STATIC } from './shadows';
+import { atlasTexture, useAtlas } from './atlas';
 
 const CM = CHUNK * V; // chunk side in metres
 
@@ -138,6 +139,7 @@ export class Streamer {
     private group: THREE.Group,
     private material: () => THREE.Material,
     mobile: boolean,
+    private renderer: THREE.WebGLRenderer,
   ) {
     this.busy = workers.map(() => 0);
     this.budget = mobile ? 130 : 240;
@@ -401,12 +403,18 @@ export class Streamer {
       im.layers.set(SHADOW_STATIC);
       m.add(im);
     }
+    if (md.atlas) {
+      const tex = atlasTexture(this.renderer, md.atlas);
+      useAtlas(m, tex);
+      for (const ch of m.children) useAtlas(ch as THREE.Mesh, tex);
+    }
     return m;
   }
 
   private drop(m: THREE.Mesh): void {
     m.removeFromParent();
     m.geometry.dispose();
+    (m.userData.atlas as THREE.Texture | undefined)?.dispose();
     for (const ch of m.children) (ch as THREE.Mesh).geometry.dispose();
   }
 

@@ -95,6 +95,10 @@ class Buf {
 }
 
 const tmp = new Float32Array(5);
+/** How far (in quantisation steps) a merged gradient quad may stray from its faces' own corner light, and its largest side. */
+const GRAD_TOL = 0.75, GRAD_MAX = 64;
+/** How far (in voxels) a merged quad tucks under its coplanar neighbours. */
+const T_EPS = 0.01;
 const SEAM_MIN = 16; // grid layer: street level (12) plus 1 m
 const q = (val: number, m: number) => Math.min(63, Math.round(val * m));
 /** Channel c of four corners' light (stride 5), quantised, when they are at most one step apart; else -1. */
@@ -160,12 +164,17 @@ export function meshGrid(o: MeshOpts): MeshData {
     // code 128 (night-only, zero strength) never emits: it marks foliage for the shadow lookup
     const em = pal.emit[col] > 0 ? (pal.night[col] ? 128 : 0) + Math.max(1, Math.round(pal.emit[col] * 127)) : pal.leaf[col] ? 128 : 0;
     const vary = Math.min(15, Math.round(pal.vary[col] / 0.02));
+    // a merged quad's long edges meet its smaller neighbours' corners mid-edge (T-junctions), where rounding can
+    // leave pixel cracks: it reaches a hair under the coplanar neighbours on every side that has one
+    const grow = (w > 1 || h > 1) && part < 0, g0u = grow && !(edges & 1) ? T_EPS : 0, g1u = grow && !(edges & 2) ? T_EPS : 0;
+    const g0v = grow && !(edges & 4) ? T_EPS : 0, g1v = grow && !(edges & 8) ? T_EPS : 0;
     for (let k = 0; k < 4; k++) {
       const cu = k === 1 || k === 2 ? 1 : 0;
       const cv = k >= 2 ? 1 : 0;
-      const cx = bx + (u[0] * w) * cu + (v[0] * h) * cv;
-      const cy = by + (u[1] * w) * cu + (v[1] * h) * cv;
-      const cz = bz + (u[2] * w) * cu + (v[2] * h) * cv;
+      const eu = cu ? w + g1u : -g0u, ev = cv ? h + g1v : -g0v;
+      const cx = bx + u[0] * eu + v[0] * ev;
+      const cy = by + u[1] * eu + v[1] * ev;
+      const cz = bz + u[2] * eu + v[2] * ev;
       const wx = origin[0] + cx * scale, wy = origin[1] + cy * scale, wz = origin[2] + cz * scale;
       const vi = b.nv++;
       b.sw[vi] = sw;
@@ -289,7 +298,13 @@ export function meshGrid(o: MeshOpts): MeshData {
             uniform = qs >= 0 && qk >= 0 && qr >= 0 && qg >= 0 && qb >= 0;
           }
           if (!uniform) {
-            emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
+            if (!greedy || !light || cAo[0] !== cAo[1] || cAo[1] !== cAo[2] || cAo[2] !== cAo[3]) {
+              emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
+              continue;
+            }
+            // light varies across it but AO doesn't: may still merge where the light is a plane (see below)
+            keys[mi] = -3 - ((((col * 4 + cAo[0]) * 16 + part + 1) * 2) + (seamFace ? 1 : 0));
+            edgesM[mi] = edges; colM[mi] = col; partM[mi] = part; swM[mi] = sw; used[mi] = 0;
             continue;
           }
           keys[mi] = (((((((col * 4 + cAo[0]) * 64 + qs) * 64 + qk) * 64 + qr) * 64 + qg) * 64 + qb) * 16 + part + 1) * 2 + (seamFace ? 1 : 0);
@@ -331,6 +346,57 @@ export function meshGrid(o: MeshOpts): MeshData {
           }
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
           emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, partM[mi], sw, key % 2);
+        }
+      // Faces whose light changes across them (soft shadow edges, lamp falloff, sky under an overhang) merge
+      // too where the light over the whole rectangle is what its two triangles would interpolate from the
+      // corners anyway, to within under a step of what the faces had: long even gradients become one quad.
+      const C = U + 1;
+      const fits = (iu: number, iv: number, w: number, h: number): boolean => {
+        const c00 = (iu + iv * C) * 5, c10 = (iu + w + iv * C) * 5, c01 = (iu + (iv + h) * C) * 5, c11 = (iu + w + (iv + h) * C) * 5;
+        for (let b = 0; b <= h; b++)
+          for (let a = 0; a <= w; a++) {
+            const su = a / w, tv = b / h, c = (iu + a + (iv + b) * C) * 5;
+            for (let ch = 0; ch < 5; ch++) {
+              const v00 = cornerVals[c00 + ch], v10 = cornerVals[c10 + ch], v01 = cornerVals[c01 + ch], v11 = cornerVals[c11 + ch];
+              // the quad's diagonal runs corner 0 to 2, (0, 0) to (w, h): emit()
+              const pred = su >= tv ? v00 + su * (v10 - v00) + tv * (v11 - v10) : v00 + tv * (v01 - v00) + su * (v11 - v01);
+              if (Math.abs(pred - cornerVals[c + ch]) > (ch < 2 ? GRAD_TOL / 63 : GRAD_TOL / 31.875)) return false;
+            }
+          }
+        return true;
+      };
+      for (let iv = 0; iv < Vn; iv++)
+        for (let iu = 0; iu < U; iu++) {
+          const mi = iv * U + iu;
+          const key = keys[mi];
+          if (key > -3 || used[mi]) continue;
+          const sw = swM[mi];
+          let w = 1;
+          while (iu + w < U && w < GRAD_MAX && keys[mi + w] === key && swM[mi + w] === sw && !used[mi + w] && fits(iu, iv, w + 1, 1)) w++;
+          let h = 1;
+          outer: while (iv + h < Vn && h < GRAD_MAX) {
+            const row = (iv + h) * U + iu;
+            for (let k = 0; k < w; k++) if (keys[row + k] !== key || swM[row + k] !== sw || used[row + k]) break outer;
+            if (!fits(iu, iv, w, h + 1)) break;
+            h++;
+          }
+          let eU0 = 1, eU1 = 2, eV0 = 4, eV1 = 8;
+          for (let jv = 0; jv < h; jv++) {
+            const row = (iv + jv) * U + iu;
+            for (let ju = 0; ju < w; ju++) used[row + ju] = 1;
+            if (!(edgesM[row] & 1)) eU0 = 0;
+            if (!(edgesM[row + w - 1] & 2)) eU1 = 0;
+          }
+          for (let ju = 0; ju < w; ju++) {
+            if (!(edgesM[iv * U + iu + ju] & 4)) eV0 = 0;
+            if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
+          }
+          const ci = [iu + iv * C, iu + w + iv * C, iu + w + (iv + h) * C, iu + (iv + h) * C];
+          for (let k = 0; k < 4; k++) for (let ch = 0; ch < 5; ch++) cL[k * 5 + ch] = cornerVals[ci[k] * 5 + ch];
+          const ao = (-3 - key) >> 1;
+          cAo[0] = cAo[1] = cAo[2] = cAo[3] = Math.floor(ao / 16) % 4;
+          p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
+          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, cL, null, 0, partM[mi], sw, (-3 - key) % 2);
         }
     }
   }

@@ -12,13 +12,14 @@ import type { WorkerIn, WorkerOut } from './world/worker';
 import { Streamer, StreamView } from './engine/streamer';
 import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
-import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
+import { buildPerson, buildCat, buildDog, randomLook, Look, CHAR_FINE } from './world/characters';
 import { bikeModel, scooterModel, swanBoatModel, gozzoModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
 import { Nav, PLAYER_REACH } from './game/nav';
 import { PathService } from './game/paths';
+import { BodyDetails } from './game/details';
 import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { CharacterBatch } from './game/charbatch';
@@ -37,13 +38,14 @@ import { DISHES, ALL_DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
+import { TIP_PER_STAR } from './data/money';
 import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
 import { nightAt, dropLanding } from './ui/arrival';
 import { farCoast } from './engine/farcoast';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
-import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable } from './data/places';
+import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, VENDING_PRICE, roomName, keeperOf, Buyable } from './data/places';
 import type { RoomAnchor } from './world/interiors';
 import type { HotelAnchor, HotelRoomAnchor } from './world/hotels';
 import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo, byStairs } from './data/hotels';
@@ -88,7 +90,10 @@ const ANIMS: readonly Anim[] = ['idle', 'walk', 'run', 'cook', 'eat', 'wave', 's
 const SEND_EVERY = 0.1; // seconds between co-op movement samples
 
 const PLAYER_SPEED = 3.2;
-const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
+const RUN_SPEED = 4.8; // the fast pace, a long joystick drag, or a double tap
+/** Walking paces that Shift (or the HUD button) cycles through, in m/s. */
+const PACES = [1.7, PLAYER_SPEED, RUN_SPEED] as const;
+const PACE_KEY = 'tastyworld.pace';
 const BODY_R = 0.32; // how wide a person is to the sway shader (a cat is 0.1)
 const VIEW_KEY = 'tastyworld.view';
 const VENDOR_CALLS = TEXT.vendorCalls;
@@ -158,6 +163,8 @@ class Game {
   /** Scratch list of people near the player, nearest first, for the sway shader. */
   private nudgers: [number, Actor][] = [];
   private drawn: Actor[] = [];
+  /** Scratch for picking who is drawn with a close-up body (see the close-up choice in frame). */
+  private fineD2 = new Float64Array(4096);
   private animFrame = 0;
   /** Every character's body, drawn in one call. */
   private chars: CharacterBatch;
@@ -195,6 +202,8 @@ class Game {
   private path: [number, number][] = [];
   private pending: Interactable | null = null;
   private pathRun = false;
+  /** Chosen walking pace: 0 slow, 1 normal, 2 fast (index into PACES). */
+  private pace = 1;
   private lastTap = { t: 0, x: 0, y: 0 };
   private slideSide = 1;
   /** Vertical speed while dropping off a ledge (m/s, negative is down). */
@@ -299,6 +308,7 @@ class Game {
     this.ui.onEndTrip = () => this.endTrip();
     this.ui.onWave = () => this.wave();
     this.ui.onPhoto = () => this.setPhoto(true);
+    this.ui.onPace = () => this.cyclePace();
     this.photo = new PhotoUI({
       shutter: () => this.shutter(),
       close: () => this.setPhoto(false),
@@ -489,6 +499,7 @@ class Game {
     this.r.composite.uniforms.uShoreRect.value.set(w.nav.ox, w.nav.oz, 1 / (w.nav.sx * 0.25), 1 / (w.nav.sz * 0.25));
     this.navWorld = new Nav(w.nav);
     this.paths = new PathService(w.nav);
+    Actor.details ??= new BodyDetails();
     this.navInside = new Nav(w.interiorNav);
     this.nav = this.navWorld;
     this.lm = w.lightmap;
@@ -718,7 +729,7 @@ class Game {
     a.vending.forEach((v, i) => {
       this.interactables.push({
         key: `vend-${i}`, x: v[0], z: v[2], stand: [v[0], v[2]], pick: [v[0], 1.4, v[2]], r: 1.3, inside: false,
-        prompt: () => ['can', 'Vending machine', `Buy a drink · ${TEXT.money(130)}`],
+        prompt: () => ['can', 'Vending machine', `Buy a drink · ${TEXT.money(VENDING_PRICE)}`],
         act: () => this.vend(),
       });
     });
@@ -1115,6 +1126,30 @@ class Game {
     return null;
   }
 
+  /**
+   * Who is drawn with a close-up body (twice the voxel detail): the nearest people, as many as the quality
+   * tier allows, and only while a fine voxel still spans a pixel or more on screen. Returns the squared
+   * distance from the player within which people are chosen; you are always.
+   */
+  private closeUps(all: Actor[], pl: THREE.Vector3): number {
+    Actor.sweepDetail();
+    this.player.prefer();
+    const FINE_PX = 1.1, h = this.r.pixelHeight;
+    let far: number;
+    if (this.cam.fp) far = CHAR_FINE * h / (2 * Math.tan(this.r.persp.fov * Math.PI / 360) * FINE_PX);
+    else far = CHAR_FINE * h / this.cam.zoom >= FINE_PX ? Infinity : 0;
+    const max = this.r.quality === 'low' ? 24 : this.r.quality === 'medium' ? 56 : 96;
+    const ds = this.fineD2;
+    let n = 0;
+    for (const a of all) {
+      if (!a.detailed || n >= ds.length) continue;
+      const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
+      ds[n++] = dx * dx + dz * dz;
+    }
+    let cut = far * far;
+    if (n > max) cut = Math.min(cut, ds.subarray(0, n).sort()[max - 1]);
+    return cut;
+  }
   private setDoor(open: boolean): void {
     this.doorClosed.visible = !open;
     this.doorOpen.visible = open;
@@ -1232,6 +1267,9 @@ class Game {
     let fp = false;
     try { fp = localStorage.getItem(VIEW_KEY) === 'fp'; } catch { /* storage blocked */ }
     if (fp) this.setFirstPerson(true, true);
+    let pace = 1;
+    try { pace = Number(localStorage.getItem(PACE_KEY) ?? 1); } catch { /* storage blocked */ }
+    this.setPace(PACES[pace] ? pace : 1, false);
     if (!this.s.flags.introSeen) {
       this.s.flags.introSeen = true;
       this.s.flags.lastPatch = PATCH_NOTES[0].version;
@@ -1373,7 +1411,7 @@ class Game {
 
   private cooked(d: FoodId, _st: StallInfo, stars: number): number {
     this.s.cooked[d] = Math.max(this.s.cooked[d] ?? 0, stars);
-    const tip = stars * 150;
+    const tip = stars * TIP_PER_STAR;
     this.s.yen += tip;
     const isNew = !this.s.tasted[d];
     this.eat(d);
@@ -1459,8 +1497,8 @@ class Game {
   }
 
   private vend(): void {
-    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(130)}.`); return; }
-    this.s.yen -= 130;
+    if (this.s.yen < VENDING_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(VENDING_PRICE)}.`); return; }
+    this.s.yen -= VENDING_PRICE;
     const drinks = [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
     const d = drinks[Math.floor(Math.random() * drinks.length)];
     this.audio.play('coin');
@@ -1941,6 +1979,17 @@ class Game {
   }
 
   // ------------------------------------------------------------------ input
+  /** Shift or the HUD pace button: slow, normal, fast and round again. The choice is kept between visits. */
+  private cyclePace(): void {
+    this.setPace((this.pace + 1) % PACES.length);
+  }
+
+  private setPace(i: number, save = true): void {
+    this.pace = i;
+    this.ui.setPace(i);
+    if (save) try { localStorage.setItem(PACE_KEY, String(i)); } catch { /* storage blocked */ }
+  }
+
   private bindInput(): void {
     const canvas = this.r.gl.domElement;
     window.addEventListener('keydown', (e) => {
@@ -1956,6 +2005,7 @@ class Game {
         case 'KeyM': this.ui.open ? this.ui.close() : this.ui.map(); break;
         case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
         case 'KeyG': if (!this.ui.busy) this.wave(); break;
+        case 'ShiftLeft': case 'ShiftRight': if (!this.ui.busy) this.cyclePace(); break;
         case 'KeyC': this.setPhoto(true); break;
         case 'Escape': this.ui.endDialogue(); this.ui.close(); break;
         case 'Equal': case 'NumpadAdd': this.cam.zoomBy(0.85); break;
@@ -2210,8 +2260,9 @@ class Game {
         dx = ax.fwd.x * f + ax.right.x * rt;
         dz = ax.fwd.y * f + ax.right.y * rt;
         const len = Math.hypot(dx, dz);
-        run = this.joy?.active ? this.joy.run : k.has('ShiftLeft') || k.has('ShiftRight');
-        speed = (run ? RUN_SPEED : PLAYER_SPEED) * Math.min(1, Math.hypot(f, rt));
+        const pace = this.joy?.active && this.joy.run ? RUN_SPEED : PACES[this.pace];
+        run = pace > PLAYER_SPEED;
+        speed = pace * Math.min(1, Math.hypot(f, rt));
         dx /= len; dz /= len;
       } else if (this.path.length) {
         const [tx, tz] = this.path[0];
@@ -2227,8 +2278,9 @@ class Game {
           }
         } else {
           dx = ddx / d; dz = ddz / d;
-          run = this.pathRun || this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
-          speed = (run ? RUN_SPEED : PLAYER_SPEED) * (this.path.length === 1 ? Math.min(1, 0.35 + d) : 1);
+          const pace = this.pathRun ? RUN_SPEED : PACES[this.pace];
+          run = pace > PLAYER_SPEED;
+          speed = pace * (this.path.length === 1 ? Math.min(1, 0.35 + d) : 1);
         }
       }
     }
@@ -2413,9 +2465,12 @@ class Game {
     // animation level of detail: limbs are posed every frame close up, every 2nd or 3rd frame further out
     const full = Math.max(18, viewR * 0.4) ** 2, half = Math.max(30, viewR * 0.75) ** 2;
     const frame = this.animFrame++;
+    const fine2 = this.closeUps(all, pl);
     for (const a of all) {
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
       const d2 = dx * dx + dz * dz;
+      // a little slack for whoever is close-up already, so people at the edge of the choice do not flicker
+      if (a.detailed && (d2 <= fine2 || (a.preferred && d2 <= fine2 * 1.3))) a.prefer();
       if (a.step(dt, d2 < full ? 1 : d2 < half ? 2 : 3, frame)) a.light(this.lm);
       if (d2 < 900) {
         if (!a.noBlob) this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);

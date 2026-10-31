@@ -46,7 +46,7 @@ const WAVE_TABLE = (() => {
   return `const int WAVES = ${n};\nconst vec4 WAVE[${n}] = vec4[${n}](${rows.join(', ')});\nconst float WAVE_PH[${n}] = float[${n}](${phs.join(', ')});`;
 })();
 
-const VOXEL_SCALES = `const float SCALES[9] = float[9](0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5, 1.0);`;
+const VOXEL_SCALES = `const float SCALES[10] = float[10](0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5, 1.0, 0.0375);`;
 
 /**
  * Rigid sway (see world/sway.ts). Each body rotates as a whole about its pivot: a breeze that leans it
@@ -253,7 +253,7 @@ void main() {
   // Props (fine voxels) often sit flush on the coarse world, e.g. a sign over window trim, so their faces can be
   // coplanar with world faces and z-fight. Nudge fine voxels a hair towards the camera, along the view ray so the
   // image does not move: relative to distance in perspective, a fixed few millimetres in the ortho view.
-  if (sIdx > 0.5 && sIdx < 6.5) { // props only, not the coarse distance chunks
+  if ((sIdx > 0.5 && sIdx < 6.5) || sIdx > 8.5) { // props and people, not the coarse distance chunks
     if (projectionMatrix[2][3] < -0.5) vp.xyz *= 0.9992;
     else vp.z += 0.005;
   }

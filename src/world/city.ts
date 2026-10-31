@@ -946,7 +946,8 @@ function inari(b: Builder) {
       let near = false;
       for (const [px, pz] of INARI_PATH) if (Math.hypot(jx * V - px, jz * V - pz) < 5) near = true;
       if (near) continue;
-      tree(b, jx, jz, 3100 + x * 5 + z, r() < 0.4 ? 'maple' : r() < 0.6 ? 'pine' : 'keyaki', G + hillAt(jx, jz));
+      // (crowns clear of the ground: a low maple's top is never a ledge to climb)
+      tree(b, jx, jz, 3100 + x * 5 + z, r() < 0.4 ? 'maple' : r() < 0.6 ? 'pine' : 'keyaki', G + hillAt(jx, jz), 9);
     }
   // stone fox and a big torii at the foot of the hill, by the street
   torii(b, -147, 262, 14, 24);

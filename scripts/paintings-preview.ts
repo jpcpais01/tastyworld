@@ -23,7 +23,7 @@ function png(im: Img, file: string, S = 8) {
   writeFileSync(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
 }
 const out = process.argv[2];
-png(altarpiece(k, 24, 50), `${out}/altar.png`);
+png(altarpiece(k, 48, 100), `${out}/altar.png`, 6);
 for (let i = 0; i < 5; i++) png(ceilingScene(k, i, 20, 36), `${out}/ceil${i}.png`);
 for (let i = 0; i < 5; i++) png(apostle(k, 20, 34, i), `${out}/apostle${i}.png`);
 for (let i = 0; i < 2; i++) png(sideAltar(k, i, 12, 28), `${out}/side${i}.png`);

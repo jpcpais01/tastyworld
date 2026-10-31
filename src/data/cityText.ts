@@ -1,4 +1,5 @@
 import { perCity } from '../world/cityId';
+import { YEN_PER_EURO, YEN_PER_LIRA } from './money';
 
 /** The words that change from city to city: names, the diary, the hidden restaurant's riddle and the till. */
 export interface CityText {
@@ -39,11 +40,9 @@ export interface CityText {
   nap: string;
   /** The kettle in a hotel room (the drink it makes, its name, the prompt, the toast once made) and the window's prompt. */
   tea: { icon: 'tea' | 'coffee'; name: string; act: string; title: string; text: string; view: string };
-  /** One euro is 100 of the wallet's units; Tokyo shows them as yen. */
+  /** The wallet (in yen, see data/money.ts) in the city's own money. */
   money: (n: number) => string;
   currency: string;
-  /** The wallet a new traveller starts with, as the HUD shows it before the save loads. */
-  startPurse: string;
 }
 
 /** The first letter of a dish's name, for stamps in cities that write in Latin letters. */
@@ -89,7 +88,6 @@ const TOKYO: CityText = {
   tea: { icon: 'tea', view: 'Look out over the city', name: 'Kettle', act: 'Make a cup of green tea', title: 'Green tea', text: 'The kettle clicks off. A tea bag from the tray, hot water and a moment to yourself.' },
   money: (n) => `¥${n.toLocaleString('en-US')}`,
   currency: '¥',
-  startPurse: '3,000',
 };
 
 const AMALFI_TEXT: CityText = {
@@ -129,9 +127,8 @@ const AMALFI_TEXT: CityText = {
   meal: { serve: ['Ecco qua!', 'Here you go!', 'Prego!', 'Buon appetito!'], start: 'Buon appetito!', startDrink: 'Salute!', yum: ['Buonissimo!', 'Che bontà!', 'Mmm, delizioso!'], yumDrink: 'Ahh, che fresco!' },
   nap: 'Two hours later, fresh as a lemon.',
   tea: { icon: 'coffee', view: 'Look out over the coast', name: 'Moka pot', act: 'Make a little coffee', title: 'Caffè', text: 'The moka gurgles on the little stove. A spoon of sugar, the shutters open, the sea below.' },
-  money: (n) => `€${(n / 100).toFixed(2)}`,
+  money: (n) => `€${(n / YEN_PER_EURO).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
   currency: '€',
-  startPurse: '30.00',
 };
 
 const ISTANBUL_TEXT: CityText = {
@@ -172,10 +169,8 @@ const ISTANBUL_TEXT: CityText = {
   meal: { serve: ['Buyrun!', 'Here you go!', 'Afiyet olsun!', 'Sıcak sıcak, buyrun!'], start: 'Afiyet olsun!', startDrink: 'Şerefe!', yum: ['Çok güzel!', 'Nefis!', 'Mmm, harika!'], yumDrink: 'Ohh, oh!' },
   nap: 'Two hours later, rested like a ferry cat in the sun.',
   tea: { icon: 'tea', view: 'Look out over the city', name: 'Çaydanlık', act: 'Brew a glass of çay', title: 'Çay', text: 'The double kettle hisses. Strong tea from the top pot, hot water from the bottom, a tulip glass and two sugar cubes.' },
-  // one euro is about forty-five lira
-  money: (n) => `₺${Math.max(1, Math.round(n * 0.45)).toLocaleString('en-US')}`,
+  money: (n) => `₺${Math.round(n / YEN_PER_LIRA).toLocaleString('en-US')}`,
   currency: '₺',
-  startPurse: '1,350',
 };
 
 export const TEXT: CityText = perCity({ tokyo: TOKYO, amalfi: AMALFI_TEXT, istanbul: ISTANBUL_TEXT });

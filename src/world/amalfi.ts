@@ -9,7 +9,7 @@ import { STALL } from '../data/stalls';
 import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
-import { amalfiPlan, K, col, layerOf, hillY, headlandY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
+import { amalfiPlan, K, col, layerOf, hillY, headlandY, isFoot, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, PORTAL_Y, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan, type PathSeg } from './amalfiPlan';
 import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
 
 /**
@@ -393,10 +393,10 @@ function grottaDoor(c: AC, open: boolean): Prop {
   return p;
 }
 
-function wallLantern(c: AC): Prop {
+function wallLantern(c: AC, allDay = false): Prop {
   const p = new Prop(3, 6, 4);
   p.box(1, 3, 0, 1, 3, 2, c.iron);
-  p.box(0, 0, 1, 2, 2, 3, c.lampGlow);
+  p.box(0, 0, 1, 2, 2, 3, allDay ? c.lampGlowAlways : c.lampGlow);
   p.box(0, 3, 1, 2, 3, 3, c.iron);
   p.box(1, 4, 2, 1, 4, 2, c.iron);
   return p;
@@ -532,10 +532,11 @@ export function buildAmalfi(win?: Window): BuildResult {
   covered(b, c, plan);
   for (const lt of plan.lots) house(b, c, plan, lt);
   duomo(b, c);
-  cloister(b, c);
+  cloister(b, c, plan);
   gate(b, c);
   molo(b, c);
   carvePassages(b, c, plan);
+  passages(b, c, plan);
   piazza(b, c);
   shore(b, c, plan);
   gardens(b, c, plan, inWin);
@@ -588,6 +589,7 @@ export function buildAmalfi(win?: Window): BuildResult {
     occluders: b.occluders,
     wires: b.wires,
     halls: b.halls,
+    warm: passageWarmth(plan),
   };
   for (const id of anchors.idlers) id.pos[1] = 0;
   // a southern town at night is lit warm and generous: lamp light reaches further over the pale stone than in Tokyo
@@ -625,7 +627,7 @@ function grottaDoorway(b: Builder, c: AC): void {
       const dx = Math.abs(x - (x0 + 6.5)), r = 9 + hash3(x >> 1, y >> 1, 5) * 3;
       return dx + Math.max(0, y - Y - 10) * 0.6 < r ? (hash3(x, y, z) < 0.5 ? c.tufa : c.tufaDark) : g.get(x, y, z);
     });
-    g.box(x0, Y, z0, x0 + 13, Y + 21, z0 + 1, 0);
+    g.box(x0 + 2, Y, z0, x0 + 11, Y + 14, z0 + 1, 0); // (under the cloister's roof)
   }
   b.place(grottaDoor(c, false), DOOR_X, DUOMO_Y, DOOR_Z + 0.125, 0, 'door-closed');
   b.place(grottaDoor(c, true), DOOR_X, DUOMO_Y, DOOR_Z + 0.125, 0, 'door-open');
@@ -671,7 +673,7 @@ function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: n
       const y0 = Math.max(0, ((w - 4) & ~7) - 8);
       const mx = x * V, mz = z * V;
       // natural cliff (the headland and the sea cliffs) or a built wall in town?
-      const wild = kd === K.Rock && (mz < -44 || w > layerOf(29));
+      const wild = kd === K.Rock && (mz < -44 || w > layerOf(29) || isFoot(mx, mz));
       const white = !wild && (hash3(x >> 4, 3, z >> 4) < 0.45) && w < layerOf(26);
       g.box(x, y0, z, x, w - 1, z, (xx, y, zz) => {
         const d = w - 1 - y;
@@ -743,6 +745,10 @@ function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: n
     }
 }
 
+/** Past an open end of a tunnel or a covered passage (tr is the position along it, 0..1 between its ends). */
+const beyondPortal = (s: PathSeg, tr: number) =>
+  (tr < 0 && (s.kind === K.Tunnel || !!s.portal?.[0])) || (tr > 1 && (s.kind === K.Tunnel || !!s.portal?.[1]));
+
 /** Covered passages and the road tunnel: a vault over each, with the hill or a house on top. */
 function covered(b: Builder, c: AC, plan: Plan): void {
   const g = b.grid;
@@ -762,8 +768,9 @@ function covered(b: Builder, c: AC, plan: Plan): void {
         const tr = ((px - ax) * dx + (pz - az) * dz) / len2, t = Math.max(0, Math.min(1, tr));
         const d = Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
         if (d > r) continue;
-        // a tunnel stops dead at its portals: nothing of it stands out in front of the rock face
-        if (s.kind === K.Tunnel && (tr < 0 || tr > 1)) continue;
+        // a tunnel stops dead at its portals: nothing of it stands out in front of the rock face; nor does a
+        // covered passage where it opens onto a street
+        if (beyondPortal(s, tr)) continue;
         const floor = layerOf(ay + (by - ay) * t);
         const ci = col(x, z);
         const inside = d <= s.w / 2;
@@ -785,9 +792,9 @@ function covered(b: Builder, c: AC, plan: Plan): void {
           g.box(x, floor, z, x, top, z, (xx, y, zz) => (y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : y < floor + 2 ? c.plinth : s.kind === K.Tunnel && y > spring + 8 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, s.kind !== K.Tunnel)));
         }
       }
-    // lamps along the vault
+    // lamps along the tunnel's vault (a covered passage has lanterns on its walls, see passages())
     const len = Math.sqrt(len2);
-    for (let t = 2; t < len; t += s.kind === K.Tunnel ? 7 : 5) {
+    for (let t = 2; s.kind === K.Tunnel && t < len; t += 7) {
       const f = t / len;
       b.lamp(ax + dx * f, ay + (by - ay) * f + s.roof - 1.4, az + dz * f, s.kind === K.Tunnel ? [1, 0.78, 0.5] : WARM, s.kind === K.Tunnel ? 7 : 4.5, 0.8);
     }
@@ -810,7 +817,7 @@ function carvePassages(b: Builder, c: AC, plan: Plan): void {
         const tr = ((px - ax) * dx + (pz - az) * dz) / len2, t = Math.max(0, Math.min(1, tr));
         const d = Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
         if (d > r) continue;
-        if (s.kind === K.Tunnel && (tr < 0 || tr > 1)) continue; // (the portal's face, as in covered())
+        if (beyondPortal(s, tr)) continue; // (the portal's face, as in covered())
         const floor = layerOf(ay + (by - ay) * t);
         const spring = floor + Math.round((s.roof - 1.2) / V);
         const crown = spring + Math.round(Math.sqrt(Math.max(0, 1 - (d / r) ** 2)) * 1.2 / V);
@@ -861,6 +868,13 @@ function room(b: Builder, c: AC, lt: LotPlan): void {
   if (hash3(x0, base, z1) < 0.7) b.lamp((x0 + x1 + 1) / 2 * V, (base - G) * V + 2.2, (z0 + z1 + 1) / 2 * V, WARM, 3.2, 0.6);
 }
 
+/** Whether a lot stands over a covered passage or the road tunnel. */
+function overPassage(plan: Plan, lt: LotPlan): boolean {
+  for (let z = lt.z0; z <= lt.z1; z++)
+    for (let x = lt.x0; x <= lt.x1; x++) { const k = plan.kind[col(x, z)]; if (k === K.Covered || k === K.Tunnel) return true; }
+  return false;
+}
+
 /** One Amalfi house: stucco cube on its terrace, shuttered windows, balconies, and a vault, dome or terrace on top. */
 function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   const g = b.grid;
@@ -877,7 +891,9 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   g.box(x0, base, z0, x1, top - 1, z1, (_x, y) => (y < base + 2 ? c.plinth : wall));
   if (lt.hotel) hotelHouse(b, c, plan, lt);
   else if (lt.food) eatery(b, c, lt);
-  else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14) room(b, c, lt);
+  // (a house built over a covered passage keeps its ground floor solid: the passage is carved through it, and a
+  // hollow room there would open onto the vault, tiles, table and all)
+  else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14 && !overPassage(plan, lt)) room(b, c, lt);
   // a cornice under the roof, flush; the finish below picks out the rest
   g.box(x0, top - 1, z0, x1, top - 1, z1, trim);
   // what stands outside a facade cell: the ground level and whether a neighbour's wall is there
@@ -1395,38 +1411,398 @@ function duomoDress(g: SparseGrid, c: AC, d: { Y: number; H: number; X0: number;
   }
 }
 
-/** The Cloister of Paradise: white interlaced arches round a garden of palms. */
-function cloister(b: Builder, c: AC): void {
+/**
+ * The Cloister of Paradise, as the real one beside the cathedral: a square garden of palms round an old well-head,
+ * walked round under a tiled lean-to roof on slender white columns whose pointed arches cross one another, the
+ * Arab-Norman interlace. Roman sarcophagi and faded frescoes line the walks. It lies at the cathedral's level, so the
+ * hill stands high on three sides: those walls are finished as the town's houses (plaster, windows, shutters,
+ * balconies, bougainvillea), with a balustrade along the lane at the top, never left as bare cut rock.
+ * Voxel frame: the court X0..X1 x Z0..Z1 inside its walls; the arcades are 2 voxels thick (twin columns) at
+ * AX0/AX1/AZ0/AZ1, 35 voxels (seven bays) apart, so a middle arch on every side lines up with the garden's paths.
+ */
+const CL = (() => {
+  const X0 = -46 / V, X1 = -32 / V - 1, Z0 = 29 / V, Z1 = 43 / V - 1;
+  const AX0 = X0 + 10, AX1 = X1 - 10, AZ0 = Z0 + 12, AZ1 = Z1 - 8;
+  // the bell tower's foot stands in the court's south-east: the south walk runs along its face
+  const TX0 = -40 / V, TX1 = -40 / V + 21, TZ1 = 25 / V + 21;
+  return { X0, X1, Z0, Z1, AX0, AX1, AZ0, AZ1, TX0, TX1, TZ1, cx: (AX0 + AX1 + 1) / 2, cz: (AZ0 + AZ1 + 1) / 2 };
+})();
+const inTower = (x: number, z: number) => x >= CL.TX0 && x <= CL.TX1 && z <= CL.TZ1;
+
+/** Interlaced arcade, one side: what stands at u (0..35 along it) and layer dy over the floor, or 0 for open air. */
+function arcadeCell(c: AC, u: number, dy: number, open: boolean): number {
+  const L = 35, SPRING = 10, H = 5;
+  if (dy > 16) return 0;
+  if (u === 0 || u === L) return dy === 16 ? c.sill : dy < 2 || dy === SPRING ? c.marbleGrey : c.white; // corner piers
+  if (dy === 16) return c.sill; // the cornice under the roof's eaves
+  if (dy < 2 && !open) return dy === 1 ? c.marble : c.marbleGrey; // the low wall the columns stand on
+  if (dy < SPRING && u % 5 === 0) return dy === SPRING - 1 ? c.stripeTufa : dy < 2 ? c.marbleGrey : c.marble; // twin columns, capital
+  if (dy < SPRING) return 0;
+  // every arch spans two bays, so each springs from one column, crosses its neighbour's and lands on the next
+  let lo = 99, hi = -1;
+  let on = false;
+  const at = (s: number, uu: number) => SPRING + H * Math.sqrt(Math.max(0, 1 - Math.min(1, Math.abs(uu - s - 5) / 5)));
+  for (let s = (Math.floor(u / 5) - 2) * 5; s <= u; s += 5) {
+    if (u > s + 10) continue;
+    const y = Math.round(at(s, u));
+    lo = Math.min(lo, y); hi = Math.max(hi, y);
+    // the band covers the whole rise of the curve across the voxel, so it never breaks into loose steps
+    const a = at(s, u - 0.5), b = at(s, u + 0.5);
+    if (dy >= Math.round(Math.min(a, b)) && dy <= Math.round(Math.max(a, b))) on = true;
+  }
+  if (dy >= hi) return dy === hi ? c.white : c.whiteWarm;
+  return on ? c.white : 0;
+}
+
+function cloister(b: Builder, c: AC, plan: Plan): void {
   const g = b.grid;
   const Y = layerOf(DUOMO_Y);
-  const X0 = -46 / V, X1 = -32 / V - 1, Z0 = 29 / V, Z1 = 43 / V - 1;
-  b.occlude(X0 - 2, Z0 - 2, X1 + 2, Z1 + 2, DUOMO_Y + 6, DUOMO_Y + 0.95, 'landmark');
+  const { X0, X1, Z0, Z1, AX0, AX1, AZ0, AZ1, cx, cz } = CL;
+  const GX0 = AX0 + 2, GX1 = AX1 - 2, GZ0 = AZ0 + 2, GZ1 = AZ1 - 2;
+  const m = (v: number) => v * V;
+  b.occlude(X0 - 2, Z0 - 2, X1 + 2, Z1 + 2, DUOMO_Y + 5.5, DUOMO_Y + 0.95, 'landmark');
   b.occluders[b.occluders.length - 1].floor = DUOMO_Y;
-  if (!g.touches(X0 - 3, Z0 - 3, X1 + 3, Z1 + 3)) return;
-  // outer walls (with the door from the atrium side), the arcade and its roof
-  g.box(X0 - 2, Y, Z0 - 2, X1 + 2, Y + 18, Z1 + 2, (x, y, z) => (x < X0 || x > X1 || z < Z0 || z > Z1 ? (y > Y + 16 ? c.roofTile : c.white) : 0));
-  g.box(X1 + 1, Y, Z0 + 2, X1 + 2, Y + 11, Z0 + 10, 0); // doorway towards the atrium passage
-  for (let ring = 0; ring < 2; ring++) {
-    const ax0 = X0 + 8, ax1 = X1 - 8, az0 = Z0 + 8, az1 = Z1 - 8;
-    void ring;
-    g.box(X0, Y + 14, Z0, X1, Y + 15, Z1, (x, _y, z) => (x >= ax0 && x <= ax1 && z >= az0 && z <= az1 ? 0 : c.roofTile));
-    // twin columns and interlaced arches along the four sides of the garden
-    for (let x = ax0; x <= ax1; x++) for (const z of [az0, az1]) {
-      const ph = (x - ax0) % 4;
-      g.box(x, Y, z, x, Y + 13, z, (_x, y) => (y > Y + 10 ? c.white : ph === 0 ? c.marble : y > Y + 8 + (ph === 2 ? 0 : 1) ? c.white : 0));
+  // the walks: soft light under the roof (taller than a room, so always drawn), a lamp along each
+  for (const bx of [[X0, Z0, AX0 + 1, Z1], [AX1 - 1, Z0, X1, Z1], [X0, Z0, X1, AZ0 + 1], [X0, AZ1 - 1, X1, Z1]]) b.indoor.push([bx[0], Y, bx[1], bx[2], Y + 16, bx[3]]);
+  for (const [x, z] of [[X0 + 5, cz], [X1 - 5, cz], [cx, Z0 + 6], [cx, Z1 - 4]]) b.lamp(m(x), DUOMO_Y + 2.6, m(z), WARM, 6, 0.55);
+  b.lamp(m(cx), DUOMO_Y + 2.2, m(cz), WARM, 6, 0.4);
+  // the garden: beds behind low box hedges, gravel paths crossing at the well (nobody walks on the beds)
+  const beds: [number, number, number, number][] = [[GX0, GZ0, cx - 3, cz - 3], [cx + 2, GZ0, GX1, cz - 3], [GX0, cz + 2, cx - 3, GZ1], [cx + 2, cz + 2, GX1, GZ1]];
+  // (inset a little: the hedges are only ankle high, and the walkers' line to the garden runs along a path's edge)
+  for (const [x0, z0, x1, z1] of beds) b.block(m(x0) + 0.3, m(z0) + 0.3, m(x1 + 1) - 0.3, m(z1 + 1) - 0.3);
+  b.block(m(cx - 3), m(cz - 3), m(cx + 3), m(cz + 3));
+  // arcades: walls of open arches, not walked through but at the middle arch of each side
+  const sides: { at: (u: number, t: number) => [number, number] }[] = [
+    { at: (u, t) => [AX0 + u, AZ0 + t] }, { at: (u, t) => [AX0 + u, AZ1 - t] },
+    { at: (u, t) => [AX0 + t, AZ0 + u] }, { at: (u, t) => [AX1 - t, AZ0 + u] },
+  ];
+  for (const sd of sides)
+    for (const [u0, u1] of [[0, 15], [20, 35]]) {
+      const [ax, az] = sd.at(u0, 0), [bx, bz] = sd.at(u1, 1);
+      b.block(m(Math.min(ax, bx)), m(Math.min(az, bz)), m(Math.max(ax, bx) + 1), m(Math.max(az, bz) + 1));
     }
-    for (let z = az0; z <= az1; z++) for (const x of [ax0, ax1]) {
-      const ph = (z - az0) % 4;
-      g.box(x, Y, z, x, Y + 13, z, (_x, y) => (y > Y + 10 ? c.white : ph === 0 ? c.marble : y > Y + 8 + (ph === 2 ? 0 : 1) ? c.white : 0));
-    }
-    // the garden
-    g.box(ax0 + 1, Y - 1, az0 + 1, ax1 - 1, Y - 1, az1 - 1, (x, y, z) => (hash3(x, y, z) < 0.7 ? c.grass : c.herb));
-    break;
+  // sarcophagi along the walks (u along the wall, the wall's inner face, the way into the walk)
+  const sarc: [number, number, number, number][] = [[X0, 134, 1, 0], [X0, 152, 1, 0], [X1, 150, -1, 0], [-180, Z1, 0, -1], [-139, Z1, 0, -1], [-181, Z0, 0, 1]];
+  for (const [x, z, ix, iz] of sarc) {
+    const [x0, z0, x1, z1] = ix ? [Math.min(x, x + ix * 2), z, Math.max(x, x + ix * 2), z + 7] : [x, Math.min(z, z + iz * 2), x + 7, Math.max(z, z + iz * 2)];
+    b.block(m(x0), m(z0), m(x1 + 1), m(z1 + 1));
   }
-  b.place(palmTree(c, 31), (X0 + X1) / 2 * V, DUOMO_Y, (Z0 + Z1) / 2 * V);
-  b.place(potLemon(c, 12), (X0 + 9) * V, DUOMO_Y, (Z0 + 9) * V);
-  b.place(potLemon(c, 13), (X1 - 9) * V, DUOMO_Y, (Z1 - 9) * V);
-  b.lamp((X0 + X1) / 2 * V, DUOMO_Y + 2.5, (Z0 + Z1) / 2 * V, WARM, 7, 0.5);
+  if (g.touches(X0 - 3, Z0 - 3, X1 + 3, Z1 + 3)) {
+    // the outer walls up to the roof (the hill and the tower stand behind them); the door from the atrium passage
+    g.box(X0 - 2, Y, Z0 - 2, X1 + 2, Y + 21, Z1 + 2, (x, y, z) => {
+      if (x >= X0 && x <= X1 && z >= Z0 && z <= Z1) return g.get(x, y, z);
+      if (inTower(x, z)) return g.get(x, y, z);
+      return y < Y + 2 ? c.plinth : c.white;
+    });
+    const DZ0 = Z0 + 1, DZ1 = Z0 + 8;
+    g.box(X1 + 1, Y, DZ0, X1 + 2, Y + 11, DZ1, (_x, y, z) => {
+      const e = Math.min(z - DZ0, DZ1 - z);
+      return y > Y + 7 + Math.min(3, e) ? (((z + y) >> 1) & 1 ? c.stripeDark : c.marble) : 0;
+    });
+    // the court: open to the sky over the garden, the walks under the roof
+    for (let z = Z0; z <= Z1; z++)
+      for (let x = X0; x <= X1; x++) {
+        if (inTower(x, z)) continue;
+        const dist = Math.max(GX0 - x, x - GX1, GZ0 - z, z - GZ1);
+        // floor: cotto tiles in the walks; gravel paths, box hedges and flower beds in the garden
+        let floor: number;
+        if (dist > 0) floor = ((x + z) & 1) ? c.cotto : c.cottoB;
+        else {
+          const well = Math.hypot(x + 0.5 - cx, z + 0.5 - cz);
+          const path = Math.abs(x + 0.5 - cx) < 2.1 || Math.abs(z + 0.5 - cz) < 2.1 || well < 4.6;
+          floor = well < 1.6 ? c.wet : path ? (hash3(x, 3, z) < 0.5 ? c.slab : c.pebbleB) : hash3(x, 9, z) < 0.7 ? c.grass : c.herb;
+          if (!path && well >= 1.6) {
+            const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => {
+              const nx = x + dx, nz = z + dz;
+              return nx < GX0 || nx > GX1 || nz < GZ0 || nz > GZ1 || Math.abs(nx + 0.5 - cx) < 2.1 || Math.abs(nz + 0.5 - cz) < 2.1 || Math.hypot(nx + 0.5 - cx, nz + 0.5 - cz) < 4.6;
+            });
+            const n = hash3(x, Y, z);
+            g.set(x, Y, z, edge ? (n < 0.5 ? c.leafDark : c.leaf) : n < 0.05 ? c.geranium : n < 0.08 ? c.bougainB : n < 0.1 ? c.white : 0);
+          }
+        }
+        g.set(x, Y - 1, z, floor);
+        if (dist <= 0) continue;
+        // the lean-to roof over the walks: tiles on rafters, climbing from the eaves to the wall
+        const yr = Y + 17 + (dist >> 2);
+        for (let y = Y; y < yr - 1; y++) g.set(x, y, z, 0);
+        g.set(x, yr - 1, z, dist < 3 ? g.get(x, yr - 1, z) : (x + z) % 3 === 0 ? c.pole : c.deckWood);
+        g.set(x, yr, z, (x + z) & 1 ? c.roofTile : c.roofTileB);
+        for (let y = yr + 1; y <= Y + 21; y++) g.set(x, y, z, 0);
+      }
+    // the well-head: a ring of marble, an iron arch and its pulley
+    for (let z = Math.floor(cz - 3); z <= cz + 3; z++)
+      for (let x = Math.floor(cx - 3); x <= cx + 3; x++) {
+        const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz);
+        if (d >= 1.6 && d < 2.7) g.box(x, Y, z, x, Y + 3, z, (_x, y) => (y === Y + 3 ? c.marbleGrey : c.marble));
+      }
+    const wx0 = Math.floor(cx - 2.5), wx1 = Math.ceil(cx + 1.5), wz = Math.floor(cz);
+    g.box(wx0, Y + 4, wz, wx0, Y + 11, wz, c.iron); g.box(wx1, Y + 4, wz, wx1, Y + 11, wz, c.iron);
+    g.box(wx0, Y + 12, wz, wx1, Y + 12, wz, c.iron);
+    g.set(Math.floor(cx), Y + 11, wz, c.door);
+    g.box(Math.floor(cx), Y + 4, wz, Math.floor(cx), Y + 10, wz, c.rope);
+    // the four arcades
+    sides.forEach((sd, i) => {
+      for (let u = 0; u <= 35; u++) {
+        const open = u > 15 && u < 20;
+        for (let t = 0; t < 2; t++) {
+          const [x, z] = sd.at(u, t);
+          for (let dy = 0; dy <= 16; dy++) { const v = arcadeCell(c, u, dy, open); if (v || dy < 16) g.set(x, Y + dy, z, v); }
+        }
+      }
+      void i;
+    });
+    // sarcophagi, fluted (strigilated) fronts and lids, and over each a faded fresco: a saint in a painted arch
+    for (const [x, z, ix, iz] of sarc) {
+      const along = ix !== 0; // the sarcophagus runs along z on the west and east walls
+      for (let k = 0; k < 8; k++)
+        for (let d = 0; d < 3; d++) {
+          const vx = along ? x + ix * d : x + k, vz = along ? z + k : z + iz * d;
+          g.box(vx, Y, vz, vx, Y + 3, vz, (_x, y) => (y === Y + 3 ? (k === 0 || k === 7 ? c.marbleGrey : c.marble) : d === 2 && k > 0 && k < 7 ? (k & 1 ? c.marble : c.marbleGrey) : c.marbleGrey));
+        }
+      for (let k = -1; k <= 8; k++)
+        for (let y = Y + 5; y <= Y + 15; y++) {
+          const wx = along ? x - ix : x + k, wz = along ? z + k : z - iz;
+          const e = Math.min(k + 1, 8 - k), top = Y + 13 + Math.min(2, e);
+          if (y > top) continue;
+          const frame = k === -1 || k === 8 || y === Y + 5 || y === top;
+          const fig = Math.abs(k - 3.5) < 1.1 && y >= Y + 7 && y <= Y + 11;
+          const head = Math.abs(k - 3.5) < 0.6 && y === Y + 12;
+          const halo = Math.abs(k - 3.5) < 1.6 && y === Y + 13;
+          const n = hash3(wx, y, wz);
+          g.set(wx, y, wz, frame ? c.stripeTufa : n < 0.14 ? c.plasterOld : fig ? (y > Y + 9 ? c.rose : c.mosaicBlue) : head ? c.peach : halo ? c.mosaicGold : y < Y + 8 ? c.ochre : c.sky);
+        }
+    }
+    // the hill above, finished as the town: plaster fronts with windows, shutters and balconies, a cornice and a
+    // balustrade along the top (the lane there looks down into the garden), bougainvillea down the sunny walls
+    cloisterFronts(b, c, plan, Y);
+  }
+  // palms in two beds, lemon trees and oleander in pots in the others
+  b.place(palmTree(c, 31), m(GX0 + 6), DUOMO_Y, m(GZ1 - 6));
+  b.place(palmTree(c, 47), m(GX1 - 6), DUOMO_Y, m(GZ0 + 6));
+  b.place(potLemon(c, 12), m(GX1 - 6), DUOMO_Y, m(GZ1 - 6));
+  b.place(potLemon(c, 13), m(GX0 + 6), DUOMO_Y, m(GZ0 + 6));
+  b.place(oleander(c, 5), m(GX1 - 2.5), DUOMO_Y, m(GZ1 - 2.5));
+  b.place(oleander(c, 9), m(GX0 + 2.5), DUOMO_Y, m(GZ0 + 2.5));
+  // lanterns on the walls of the walks
+  for (const [x, z, turn] of [[X0 + 1, cz - 6, 1], [X0 + 1, cz + 6, 1], [X1, cz + 4, 3], [cx - 9, Z1, 2], [cx + 9, Z1, 2]] as const)
+    b.place(wallLantern(c), m(x), DUOMO_Y + 2.1, m(z), turn);
+}
+
+/** The walls of the hill round the cloister, above its roofs, finished as house fronts (see cloister()). */
+function cloisterFronts(b: Builder, c: AC, plan: Plan, Y: number): void {
+  const g = b.grid;
+  const { X0, X1, Z0, Z1 } = CL;
+  const pal = PASTELS(c);
+  // each side: the wall's face voxels (u along it), the step into the court, a seed
+  const sides: { n: number; at: (u: number) => [number, number]; dx: number; dz: number; seed: number }[] = [
+    { n: Z1 - Z0 + 5, at: (u) => [X0 - 1, Z0 - 2 + u], dx: 1, dz: 0, seed: 1 },
+    { n: Z1 - Z0 + 5, at: (u) => [X1 + 1, Z1 + 2 - u], dx: -1, dz: 0, seed: 2 },
+    { n: X1 - X0 + 5, at: (u) => [X1 + 2 - u, Z1 + 1], dx: 0, dz: -1, seed: 3 },
+    { n: X1 - X0 + 5, at: (u) => [X0 - 2 + u, Z0 - 1], dx: 0, dz: 1, seed: 4 },
+  ];
+  for (const sd of sides) {
+    for (let u = 0; u < sd.n; u++) {
+      const [x, z] = sd.at(u);
+      if (inTower(x, z) || !g.touches(x, z, x, z)) continue;
+      const ci = col(x, z), lid = plan.lot[ci];
+      if (lid) continue; // a house of its own stands there
+      const T = plan.walk[ci];
+      if (T <= Y + 24) continue;
+      // fronts of 3-5 m, each its own colour, edged with a quoin
+      const hs = Math.floor((u + sd.seed * 5) / 16), uu = (u + sd.seed * 5) % 16;
+      const wall = pal[Math.floor(hash3(hs, sd.seed, 21) * pal.length)];
+      const shutter = [c.shutterGreen, c.shutterDeep, c.shutterBrown, c.shutterBlue][Math.floor(hash3(hs, sd.seed, 22) * 4)];
+      const fx = x + sd.dx, fz = z + sd.dz; // the air in front
+      const bay = uu >= 3 && uu <= 12 ? (uu - 3) % 5 : -1; // two windows a front, 3 wide (bay 1..3)
+      for (let y = Y + 22; y < T; y++) {
+        let v = uu === 0 ? c.sill : wall;
+        if (y >= T - 2) v = y === T - 1 ? c.sill : c.whiteWarm; // cornice
+        else if (y < Y + 24) v = c.plinth; // flashing over the roof
+        const fl = Math.floor((y - Y) / 12), yb = Y + fl * 12, sy0 = yb + 3, sy1 = yb + 8;
+        const win = fl >= 2 && sy1 <= T - 3 && bay >= 1 && bay <= 3 && y >= sy0 && y <= sy1;
+        if (win) v = hash3(x + z, yb, hs) < 0.3 ? c.glassLit : c.glass;
+        g.set(x, y, z, v);
+        if (fl < 2 || sy1 > T - 3 || bay < 0) continue;
+        if (g.get(fx, y, fz)) continue;
+        const balcony = hash3(hs * 7 + (uu > 7 ? 1 : 0), yb, sd.seed) < 0.3 && fl >= 3;
+        // shutters folded back beside the window, a sill under it; now and then a little balcony with geraniums
+        if ((bay === 0 || bay === 4) && y >= sy0 && y <= sy1 && !balcony) g.set(fx, y, fz, shutter);
+        if (bay >= 1 && bay <= 3 && y === sy0 - 1) g.set(fx, y, fz, c.sill);
+        if (balcony && y >= sy0 && y <= sy0 + 2) g.set(fx, y, fz, y === sy0 + 2 ? c.iron : bay === 2 ? (hash3(fx, y, fz) < 0.5 ? c.geranium : c.leaf) : bay % 2 ? c.iron : 0);
+      }
+      // a plastered parapet along the top where the hill's edge is open or a lane runs by it
+      const k = plan.kind[ci];
+      if (k === K.Rock || isPath(k)) {
+        g.box(x, T, z, x, T + 3, z, (_x, y) => (y === T + 3 ? c.stepEdge : c.whiteWarm));
+        if (isPath(k)) b.block(x * V, z * V, (x + 1) * V, (z + 1) * V);
+      }
+      // bougainvillea pouring over the edge of some fronts
+      if (hash3(hs, sd.seed, 23) < 0.4 && uu > 1 && uu < 14) {
+        const len = 8 + Math.floor(hash3(x, sd.seed, z) * 22);
+        for (let y = T - 1; y > Math.max(Y + 23, T - 1 - len); y--) if (!g.get(fx, y, fz) && hash3(fx, y, fz) < 0.75) g.set(fx, y, fz, hash3(fx, y + 1, fz) < 0.6 ? c.bougain : c.leaf);
+      }
+    }
+  }
+}
+
+/**
+ * Under the covered passages the daylight is warm and the lanterns burn all day (the renderer's three warm zones):
+ * the Ruga's two straight runs as one, its slanting last run, and the way from the atrium to the cloister.
+ */
+function passageWarmth(plan: Plan): [number, number, number, number, number][] {
+  const box = (s: PathSeg): [number, number, number, number, number] => {
+    const [ax, ay, az] = s.a, [bx, by, bz] = s.b, len = Math.hypot(bx - ax, bz - az);
+    // (out to the face of the walls, and the shops let into them)
+    const h = s.w / 2 + 0.6, ex = h * Math.abs(bz - az) / len, ez = h * Math.abs(bx - ax) / len;
+    return [Math.min(ax, bx) - ex, Math.min(az, bz) - ez, Math.max(ax, bx) + ex, Math.max(az, bz) + ez, Math.max(ay, by) + s.roof! + 0.3];
+  };
+  const join = (p: number[], q: number[]): [number, number, number, number, number] => [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[2], q[2]), Math.max(p[3], q[3]), Math.max(p[4], q[4])];
+  const ruga = plan.segs.filter((s) => s.kind === K.Covered && s.roof && Math.max(s.a[2], s.b[2]) < 10).map(box);
+  const other = plan.segs.filter((s) => s.kind === K.Covered && s.roof && Math.max(s.a[2], s.b[2]) >= 10).map(box);
+  return [ruga.slice(0, -1).reduce(join), ruga[ruga.length - 1], ...other].slice(0, 3);
+}
+
+/** What a little shop in the Ruga's wall sells: wares on its counter (dy over the counter) and on its back wall. */
+function shopWare(c: AC, kind: number, a: number, dy: number, back: boolean, seed: number): number {
+  const n = hash3(a, dy, seed);
+  switch (kind) {
+    case 0: // Vietri ceramics: plates hung on the wall, stacked on the counter
+      if (back) return (a + dy) % 2 === 0 ? [c.majolicaBlue, c.majolicaYellow, c.majolicaGreen, c.majolicaWhite][(a * 3 + dy + seed) % 4] : 0;
+      return dy < 2 ? (n < 0.5 ? c.majolicaWhite : c.majolicaBlue) : 0;
+    case 1: // lemons and limoncello: a heap of fruit, rows of bottles on the shelves
+      if (back) return dy % 3 === 0 ? c.deckWood : a % 2 === 0 ? (dy % 3 === 2 ? c.cotto : c.lemon) : 0;
+      return dy === 0 ? c.lemon : dy === 1 && n < 0.6 ? c.lemonDeep : 0;
+    case 2: // Amalfi's handmade paper: cream sheets pegged up, notebooks bound in leather
+      if (back) return dy % 4 === 3 ? c.iron : a % 3 !== 2 ? c.cream : 0;
+      return dy === 0 ? (a % 2 ? c.cream : c.shutterBrown) : dy === 1 && a % 3 === 0 ? c.door : 0;
+    case 3: // linen: shirts and dresses hanging, folded cloth on the counter
+      if (back) return dy > 1 && a % 2 === 0 ? [c.white, c.sky, c.rose, c.sage, c.lemonWall][(a + seed) % 5] : 0;
+      return dy === 0 ? [c.white, c.sky, c.sage][(a + seed) % 3] : 0;
+    default: // the grocer: strings of peppers and garlic, pasta, jars of colatura, tomatoes on the counter
+      if (back) return dy % 4 === 0 ? c.deckWood : a % 2 === 0 ? (a % 4 === 0 ? c.geranium : c.majolicaWhite) : dy % 4 === 1 ? c.yellow : 0;
+      return dy === 0 ? (n < 0.5 ? c.hullRed : c.geranium) : dy === 1 && a % 2 ? c.glass : 0;
+  }
+}
+
+/**
+ * The covered passages seen from inside: a whitewashed vault on stone arches every three metres, lanterns on the
+ * walls, the soft light of the street at either end and a striped portal round each open end with a majolica
+ * plaque over it. Along the Ruga dei Mercanti little shops are let into both walls between the arches, lit from
+ * within, their wares on the counters. Decided from the plan alone, so every worker builds the same passages.
+ */
+function passages(b: Builder, c: AC, plan: Plan): void {
+  const g = b.grid;
+  let shopNo = 0;
+  for (const s of plan.segs) {
+    if (s.kind !== K.Covered || !s.roof) continue;
+    const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
+    const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, nx = -uz, nz = ux;
+    const r = s.w / 2, R = r + 0.75;
+    const ruga = Math.max(az, bz) < 10; // (the other runs from the atrium to the cloister)
+    const floorAt = (u: number) => layerOf(ay + (by - ay) * Math.max(0, Math.min(1, u / len)));
+    const spring = (f: number) => f + Math.round((s.roof! - 1.2) / V);
+    // soft daylight under the vault, in boxes taller than a room so what is inside is always drawn
+    for (let u = 0.5; u < len; u += 1) {
+      const px = ax + ux * u, pz = az + uz * u, f = floorAt(u);
+      b.indoor.push([Math.floor((px - 0.9) / V), f, Math.floor((pz - 0.9) / V), Math.floor((px + 0.9) / V), f + 14, Math.floor((pz + 0.9) / V)]);
+    }
+    // the bays between the arches; in the Ruga a shop in the wall of most of them, a lantern by every other arch
+    const bays = Math.max(1, Math.round(len / 3)), bayLen = len / bays;
+    const shops: { u: number; side: number; deep: boolean; kind: number; seed: number }[] = [];
+    for (let i = 0; i < bays; i++) {
+      const u = (i + 0.5) * bayLen;
+      if (u < 1.6 || u > len - 1.6) continue;
+      for (const side of [1, -1]) {
+        if (!ruga || hash3(i, side + 3, Math.round(ax)) < 0.25) continue;
+        const f = floorAt(u);
+        // deep enough to step up to its counter where hill or a solid house stands behind the wall
+        let deep = true;
+        for (const du of [-0.8, 0, 0.8]) for (const dv of [R + 0.2, R + 0.7]) {
+          const qx = ax + ux * (u + du) + nx * side * dv, qz = az + uz * (u + du) + nz * side * dv;
+          const ci = col(Math.floor(qx / V), Math.floor(qz / V)), id = plan.lot[ci], k = plan.kind[ci];
+          const lt = id ? plan.lots[id - 1] : null;
+          const ok = lt ? overPassage(plan, lt) && lt.base <= f && lt.top >= f + 12 : (k === K.Rock || k === K.Church) && plan.walk[ci] >= f + 12;
+          if (!ok) deep = false;
+        }
+        const seed = shopNo++;
+        shops.push({ u, side, deep, kind: Math.floor(hash3(seed, 5, 77) * 5), seed });
+        b.lamp(ax + ux * u + nx * side * (r + 0.4), (f - G) * V + 1.9, az + uz * u + nz * side * (r + 0.4), WARM, 2.6, 0.5);
+        if (deep) {
+          const qx = ax + ux * u + nx * side * (r + 0.7), qz = az + uz * u + nz * side * (r + 0.7);
+          b.indoor.push([Math.floor((qx - 0.9) / V), f, Math.floor((qz - 0.9) / V), Math.floor((qx + 0.9) / V), f + 12, Math.floor((qz + 0.9) / V)]);
+        }
+      }
+    }
+    for (let i = 1; i < bays; i += 2) {
+      const u = i * bayLen, f = floorAt(u), side = (i >> 1) % 2 ? 1 : -1;
+      const x = ax + ux * u + nx * side * (r - 0.25), z = az + uz * u + nz * side * (r - 0.25);
+      b.place(wallLantern(c, true), x, (f - G) * V + 1.75, z, faceTurn(-nx * side, -nz * side));
+      b.lamp(x, (f - G) * V + 2.0, z, WARM, 5, 0.75);
+    }
+    const x0 = Math.floor((Math.min(ax, bx) - R - 1.5) / V), x1 = Math.ceil((Math.max(ax, bx) + R + 1.5) / V);
+    const z0 = Math.floor((Math.min(az, bz) - R - 1.5) / V), z1 = Math.ceil((Math.max(az, bz) + R + 1.5) / V);
+    if (!g.touches(x0, z0, x1, z1)) continue;
+    for (let z = z0; z <= z1; z++)
+      for (let x = x0; x <= x1; x++) {
+        const px = (x + 0.5) * V, pz = (z + 0.5) * V;
+        const u = (px - ax) * ux + (pz - az) * uz, v = (px - ax) * nx + (pz - az) * nz, d = Math.abs(v);
+        if (u < -0.3 || u > len + 0.3 || d > R + 1.5) continue;
+        const f = floorAt(u), sp = spring(f);
+        const crown = d <= r ? sp + Math.round(Math.sqrt(Math.max(0, 1 - (d / r) ** 2)) * 1.2 / V) : sp;
+        // an arch of the vault: a band of stone across the vault and down the walls (paint only, nothing juts)
+        const rib = Math.abs(u - Math.round(u / bayLen) * bayLen) < 0.13 && u > 0.2 && u < len - 0.2;
+        if (d <= r) {
+          if (g.get(x, crown, z)) g.set(x, crown, z, rib ? c.stripeTufa : c.whiteWarm);
+        } else if (d <= r + 0.26 && rib) {
+          for (let y = f; y <= sp; y++) if (g.get(x, y, z)) g.set(x, y, z, y < f + 2 ? c.marbleGrey : c.stripeTufa);
+        }
+        // the portals: striped jambs and voussoirs round the open end, plaster above with the street's plaque
+        for (const [end, atA] of [[0, true], [len, false]] as const) {
+          if (!s.portal?.[atA ? 0 : 1]) continue;
+          const e = atA ? u : len - u;
+          if (e < 0 || e >= 0.26 || d > R) continue;
+          const pf = floorAt(end), psp = spring(pf);
+          for (let y = pf; y <= psp + 11; y++) {
+            if (!g.get(x, y, z)) continue;
+            const cr = d <= r ? psp + Math.round(Math.sqrt(Math.max(0, 1 - (d / r) ** 2)) * 1.2 / V) : psp;
+            const ring = d > r ? y <= psp + 1 : y <= cr + 1;
+            const stripe = d > r ? (y >> 1) & 1 : Math.floor((v + r) / 0.5) & 1;
+            const plaque = d < 0.6 && y >= psp + 8 && y <= psp + 10;
+            g.set(x, y, z, ring && y >= pf ? (y < pf + 2 ? c.marbleGrey : stripe ? c.stripeDark : c.marble)
+              : plaque ? (d < 0.35 && y === psp + 9 ? (ruga ? c.majolicaYellow : c.majolicaGreen) : c.majolicaBlue) : y === psp + 11 ? c.sill : c.whiteWarm);
+          }
+        }
+        // the shops
+        for (const sh of shops) {
+          const du = u - sh.u, sv = v * sh.side;
+          if (Math.abs(du) > 1.0 || sv <= r || sv > r + (sh.deep ? 1.5 : 0.75)) continue;
+          const sf = floorAt(sh.u), dep = sh.deep ? 1.25 : 0.5;
+          const top = sf + 7 + Math.round(2 * Math.sqrt(Math.max(0, 1 - (du / 0.8) ** 2)));
+          const a = Math.round((du + 1) / V);
+          for (let y = sf - 1; y <= sf + 10; y++) {
+            const solid = g.get(x, y, z) !== 0;
+            if (Math.abs(du) > 0.76 || sv > r + dep) {
+              // the shop's own walls, back and frame, only where there is already masonry to dress
+              if (!solid || y < sf) continue;
+              const frame = sv <= r + 0.26 && Math.abs(du) <= 1.0 && y <= top + 1;
+              if (frame) g.set(x, y, z, y === top + 1 || Math.abs(du) > 0.76 ? c.door : g.get(x, y, z));
+              else if (sv > r + dep && sv <= r + dep + 0.26 && Math.abs(du) <= 0.76 && y < top) {
+                const w = shopWare(c, sh.kind, a, y - sf - 1, true, sh.seed);
+                g.set(x, y, z, y >= top - 2 ? c.shopLit : w || c.whiteWarm);
+              } else if (y <= top) g.set(x, y, z, c.plasterOld);
+              continue;
+            }
+            // inside: the floor, the counter at the front, wares on it, air above; a sign board over the door
+            if (y === sf - 1) { if (solid || sh.deep) g.set(x, y, z, (x + z) & 1 ? c.cotto : c.cottoB); continue; }
+            if (y > top) { if (solid && sv <= r + 0.26 && y <= top + 2) g.set(x, y, z, y === top + 1 ? c.door : [c.majolicaBlue, c.lemon, c.hullGreen, c.umbrellaA, c.shutterBlue][sh.kind]); continue; }
+            const front = sv <= r + 0.26;
+            if (front && y < sf + 4) g.set(x, y, z, y === sf + 3 ? c.deckWood : c.door);
+            else if (front && y < sf + 6) g.set(x, y, z, shopWare(c, sh.kind, a, y - sf - 4, false, sh.seed));
+            else g.set(x, y, z, 0);
+          }
+        }
+      }
+  }
 }
 
 /**
@@ -1743,7 +2119,7 @@ function shore(b: Builder, c: AC, plan: Plan): void {
       const d = Math.abs((x + 0.5) * V - (ROAD_X0 + ROAD_X1) / 2);
       const crown = Y + 14 + Math.round(Math.sqrt(Math.max(0, 1 - (d / 4.2) ** 2)) * 8);
       // the headwall fills the cut in the rock face up to its brow, a stone cornice along the top
-      const T = layerOf(12);
+      const T = layerOf(PORTAL_Y);
       g.box(x, d < 4.2 ? crown : Y, tz, x, T - 2, tz + 1, (xx, y, zz) => (y < crown + 2 ? c.stripeTufa : masonry(c, xx, y, zz, false)));
       g.box(x, T - 1, tz, x, T, tz + 2, c.marbleGrey);
       // the arch's ring of voussoirs stands proud of the wall
@@ -1762,7 +2138,7 @@ function fireflySpots(plan: Plan): [number, number, number][] {
   for (let z = VZ0 + 8; z < VZ0 + SZ - 8; z += 12)
     for (let x = VX0 + 8; x < VX0 + SX - 8; x += 12) {
       const ci = col(x, z), mx = x * V, mz = z * V;
-      if (plan.kind[ci] !== K.Rock || mx > ROAD_X0 || mz < -44) continue;
+      if (plan.kind[ci] !== K.Rock || mx > ROAD_X0 || mz < -44 || isFoot(mx, mz)) continue;
       if (hash3(Math.floor(mx / 11), 17, Math.floor(mz / 11)) >= 0.62 || hash3(x, 41, z) > 0.19) continue;
       out.push([mx, (plan.walk[ci] - G) * V + 3.0, mz]); // just above the leaf roof at 2.5 m, where they can be seen
     }
@@ -1776,7 +2152,7 @@ function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) =>
   /** A terrace column with the same level two cells all round (from the plan alone, so every strip agrees). */
   const flatAt = (x: number, z: number) => {
     const ci = col(x, z);
-    if (plan.kind[ci] !== K.Rock || x * V > ROAD_X0 || z * V < -44) return false;
+    if (plan.kind[ci] !== K.Rock || x * V > ROAD_X0 || z * V < -44 || isFoot(x * V, z * V)) return false;
     const w = plan.walk[ci];
     for (const [dx, dz] of RING) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== K.Rock || plan.walk[nc] !== w) return false; }
     return true;
@@ -1854,7 +2230,7 @@ function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) =>
     for (let dz = -8; dz <= 8 && flat; dz += 4) for (let dx = -8; dx <= 8 && flat; dx += 4) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== K.Rock || plan.walk[nc] !== plan.walk[ci]) flat = false; }
     if (!flat) continue;
     const y = (plan.walk[ci] - G) * V;
-    if (x * V > ROAD_X0) continue;
+    if (x * V > ROAD_X0 || isFoot(x * V, z * V)) continue;
     if (kind < 0.45) b.place(lemonTree(c, seed, kind < 0.1), x * V, y, z * V);
     else if (kind < 0.8) b.place(oliveTree(c, seed), x * V, y, z * V);
     else if (kind < 0.88) b.place(palmTree(c, seed), x * V, y, z * V);

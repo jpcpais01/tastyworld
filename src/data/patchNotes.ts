@@ -8,6 +8,102 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.8',
+    date: '2026-10-31',
+    title: 'Lived-in house fronts',
+    items: [
+      'Amalfi\'s houses are finished like the real coast: the glass now sits back in the thickness of the wall inside a stucco frame, green and blue louvred shutters stand open beside it, and upstairs windows carry a little cornice and a stone sill. Fronts have string courses at each floor, painted corner pilasters, and a cornice with dentils under the roof.',
+      'The plaster has aged: damp creeping up from the paving or a painted dado along the street, rain streaks from sills and gutters, and patches where it has fallen away to show the tufa stone beneath. Front doors stand in grey stone frames with a fanlight, a brass knocker and a majolica house number. Ground-floor windows have iron grilles.',
+      'Amalfi shops have their names on majolica tile panels over their arches. Air conditioners hang on side walls, terraces have parapets with stone or terracotta coping and a spout, tiled roofs have proper eaves, and TV aerials stand on some roofs.',
+      'Istanbul\'s plaster and brick blocks have recessed upstairs windows, damp and rain streaks, plaster flaking off the brick, zinc downpipes, the odd satellite dish, and roller-shutter housings over the shops.',
+      'In Tokyo, upstairs windows have slim rain hoods, older houses have the boxes their night shutters slide into, walls carry grime runs under sills, and bare concrete shows its grid of form-tie holes.',
+    ],
+  },
+  {
+    version: '0.17.7',
+    date: '2026-10-31',
+    title: 'Pick your pace',
+    items: [
+      'Shift no longer has to be held to run. Each press now changes how fast you walk: slow, normal, fast, and round to slow again. Slow is a gentle stroll for taking in the street, fast is a run.',
+      'A new pace button in the bottom right corner shows the pace you are on with one, two or three arrows. Tap or click it to change pace, which also works on phones. Double-tapping or dragging the joystick far out still breaks into a run there.',
+      'Your pace is remembered for your next visit.',
+    ],
+  },
+  {
+    version: '0.17.6',
+    date: '2026-10-31',
+    title: 'The cloister and the Ruga dei Mercanti',
+    items: [
+      'The Cloister of Paradise beside Amalfi\'s cathedral is rebuilt as a real cloister. Slender twin columns carry white pointed arches that cross one another, the Arab-Norman interlace, under a tiled roof round a garden of palms, lemon trees, oleander and box hedges, with an old well-head where the paths meet. Roman sarcophagi and faded frescoes of saints line the walks.',
+      'The hillside round it is no longer bare cut rock: it rises as house fronts with windows, shutters, balconies and bougainvillea, and a parapet runs along the lane at the top, where you can look down into the garden. The bell tower\'s foot is whole again.',
+      'The Ruga dei Mercanti, the covered street behind the cathedral, climbs gently instead of going up a long stair and down again, and no longer runs through someone\'s living room. Its whitewashed vault rests on stone arches, lanterns burn on its walls day and night, and little shops are let into both walls: Vietri ceramics, lemons and limoncello, Amalfi paper, linen and a grocer.',
+      'Both covered ways open under striped stone portals with a majolica plaque over the arch.',
+    ],
+  },
+  {
+    version: '0.17.5',
+    date: '2026-10-31',
+    title: 'Paving that holds up from afar',
+    items: [
+      'Paving, tiles, lawns and roofs no longer turn to bare earth in the distance. The simplified far-away version of each street now keeps the colour you actually see on top, instead of the soil or filler underneath, in Tokyo, Amalfi and Istanbul alike.',
+      'The sea bed far out in Amalfi and Istanbul no longer has gaps in it.',
+    ],
+  },
+  {
+    version: '0.17.4',
+    date: '2026-10-31',
+    title: 'Every step you can climb',
+    items: [
+      'Stairs no longer start on top of a wall. Where a flight met a square or a street below it (the steps up from Piazza dei Dogi, the lanes off Via Lorenzo, the Grand Bazaar\'s gates) it now comes all the way down to the paving.',
+      'Amalfi\'s garden terraces and Istanbul\'s raised yards have their own little flights of steps from the lane beside them, cut into the terrace or built up against the wall, so you can walk up onto ground you can see.',
+      'The ground in front of the Grand Bazaar\'s walls is no longer a ledge you can\'t climb: steps lead up to it along the street.',
+      'On Tokyo\'s Inari Hill the treetops and bushes no longer count as ground.',
+    ],
+  },
+  {
+    version: '0.17.3',
+    date: '2026-10-31',
+    title: 'Finer, friendlier people',
+    items: [
+      'Everyone up close is now built from voxels half the size: you, the sellers and the people around you. Softer rounded heads, shoulders, hands and shoes.',
+      'Faces have shiny eyes, soft brows, little smiles and rosy cheeks. Ears, bangs and hair strands, tied ponytails and buns.',
+      'Clothes got the small stuff: belts and buckles, cuffs and hems, jacket zips and pockets, suit ties and pocket squares, cardigan buttons, pleated skirts, yukata flowers, apron pockets, backpack straps, shoe soles and laces, and a pompom on every beanie.',
+      'People further off keep their simpler look, and the detailed bodies are built in the background, so busy streets stay smooth.',
+    ],
+  },
+  {
+    version: '0.17.2',
+    date: '2026-10-31',
+    title: 'Christ in glory over the Duomo altar',
+    items: [
+      'The painting over Amalfi Duomo\'s high altar is new: Christ in glory, standing on the clouds in a blaze of gold, his right hand raised in blessing, the orb of the world in his left, with angels kneeling at his feet.',
+      'It is painted in voxels twice as fine as the other canvases, so his face, hands and halo read clearly from the nave.',
+      'The altar candles now keep it softly lit after dark, so it no longer sinks into the blue night shadows of the apse.',
+    ],
+  },
+  {
+    version: '0.17.1',
+    date: '2026-10-31',
+    title: 'Amalfi\'s cliffs come down to the road',
+    items: [
+      'At both ends of Amalfi\'s seafront the hillside no longer stands over the road as a flat wall. Beside the tunnel towards Atrani the slope now comes down to the kerb in ledges of limestone with grass and scrub, the same rock as the headland across the road, so the road plainly cuts through one cliff.',
+      'The tunnel\'s portal is lower, its brow just over the arch, and the rock shoulders up to it on both sides.',
+      'Past the harbour, where the coast road leaves town towards Positano, the mountain slopes down to the road instead of ending in a sheer cut, and the road runs on in line with the seafront.',
+      'Houses on the slope above the road reach down to the rock instead of standing on bare walls.',
+    ],
+  },
+  {
+    version: '0.17.0',
+    date: '2026-10-31',
+    title: 'Real prices everywhere',
+    items: [
+      'Every price in the game now matches what things really cost in late 2026: street food, restaurants, cafés, shops, hotel rooms, vending machines and gachapon. A takoyaki is ¥700 and a bowl of ramen ¥1,100, a sfogliatella €3 and spaghetti alle vongole €24, a simit ₺20 and a balık ekmek ₺220.',
+      'Hotels cost what they should: ¥6,500 to ¥38,000 a night in Tokyo, €130 to €650 on the Amalfi Coast and ₺1,600 to ₺9,800 in Istanbul.',
+      'New travellers set off with ¥150,000 (about €830), enough for a week of eating well and sleeping somewhere nice. Mission rewards and cooking tips grew to match, and finishing a city\'s missions goes a long way toward the next trip.',
+      'Your wallet keeps one balance across the world at real exchange rates (€1 is ¥180, or ₺60). Wallets from earlier versions have been scaled up to the new prices, and never start below ¥150,000.',
+    ],
+  },
+  {
     version: '0.16.56',
     date: '2026-10-31',
     title: 'Landings without the loading screen',

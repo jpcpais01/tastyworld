@@ -341,9 +341,11 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
   // the paintings: pixel art on fine voxels laid over their canvases (see world/paintings.ts)
   {
     const pc = paintColors(b), F = 0.0625;
-    // the altarpiece on the apse wall, facing down the nave (+x)
+    // the altarpiece on the apse wall, facing down the nave (+x): Christ in glory, at twice the others' density and
+    // faintly lit from within, as the altar candles keep it after dark
     const z0 = Math.floor(cz) - 6, z1 = Math.ceil(cz) + 5, y0 = Y + 10, y1 = Y + 34;
-    b.place(toProp(altarpiece(pc, (z1 - z0 + 1) * 2, (y1 - y0 + 1) * 2), 'x', true), m(IX0 + 1) + F, yM(y0), m((z0 + z1 + 1) / 2));
+    b.place(toProp(altarpiece(paintColors(b, 0.06), (z1 - z0 + 1) * 4, (y1 - y0 + 1) * 4), 'x', true, false, F), m(IX0 + 1) + F / 2, yM(y0), m((z0 + z1 + 1) / 2));
+    b.lamp(m(IX0 + 6), floorY + 5.2, m(cz), WARM, 7, 0.55);
     // apostles over the arcades, facing into the nave from both sides
     piers.forEach((px, i) => {
       if (px === lastPier) return;

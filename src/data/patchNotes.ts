@@ -8,6 +8,28 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.45',
+    date: '2026-10-31',
+    title: 'Arrivals dressed for the city',
+    items: [
+      'Landing in Tokyo, you now step into the streets through an indigo noren curtain with a cherry blossom crest. Paper lanterns swing in front of it, petals blow past, and the curtain parts as you walk through. After dark the lanterns glow.',
+      'Landing in Amalfi, lemon boughs and bougainvillea sweep in on the sea mist, then brush aside to show the town.',
+      'Landing in Istanbul, a wall of blue and white İznik tiles turns over, tile by tile from the middle out, and the gulls fly out past you into the city.',
+      'Cities still to come keep the clouds.',
+    ],
+  },
+  {
+    version: '0.16.44',
+    date: '2026-10-31',
+    title: 'End your trip',
+    items: [
+      'A new plane button at the end of the top bar ends your trip. It opens a trip summary on a Tasty Air pass: time spent, plates eaten, photos taken, money spent, your passport page for the city and a stub stamped with everything you tasted, new stamps marked.',
+      'Fly home: the globe opens on the city you are leaving, the plane flies you home, and you land back at the home menu, ready for the next trip.',
+      'Somewhere new: the globe opens with flights from where you are. Pick a city and fly straight there.',
+      'Changed your mind? Keep exploring closes the pass and nothing ends. Your passport, wallet and wardrobe are saved and travel with you, and on a co-op trip your friends can stay on and keep exploring.',
+    ],
+  },
+  {
     version: '0.16.43',
     date: '2026-10-31',
     title: 'Cathedral and mosque walls',

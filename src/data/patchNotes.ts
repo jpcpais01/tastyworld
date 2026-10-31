@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.4',
+    date: '2026-10-31',
+    title: 'Eminönü\'s waterfront, round the point',
+    items: [
+      'Istanbul\'s quay no longer ends in a sharp square corner by the New Mosque. The promenade now reaches a few metres further into the water and swings round the point in short stretches of stone, stepping out here and tucking into a little bay there, like a quay rebuilt piece by piece.',
+      'Two sets of granite steps lead down into the water, one on the Golden Horn and one in the Bosphorus bay, with rowing boats tied up at the bottom and a lifebuoy at the top.',
+      'Real landing stages: the Bosphorus ferry now docks at a floating pontoon at the end of a stone jetty, reached through the terminal and down a gangway. On the Horn side a second pontoon with a canopy and a bench serves a Bosphorus tour boat with a striped awning over its top deck.',
+      'Big paving flags of mixed stone along every quay, iron bollards where the balık ekmek boats tie up, and lamps, benches facing the water and plane trees in round planters all the way round the point.',
+    ],
+  },
+  {
     version: '0.17.3',
     date: '2026-10-31',
     title: 'Finer, friendlier people',

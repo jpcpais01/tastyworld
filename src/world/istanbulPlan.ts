@@ -14,6 +14,10 @@ import { hash3, rng } from './grid';
 /** What the surface of a column is. */
 export const enum K {
   Ground, Sea, Quay, Square, Street, Lane, Stair, Steps, Covered, Pier, Bridge, Lot, Mosque, Court, Park, Terrace, Tram,
+  /** Steps down into the water from the quay. */
+  Landing,
+  /** A floating landing stage and the gangway down to it. */
+  Pontoon,
 }
 
 export interface PathSeg {
@@ -79,9 +83,96 @@ export const STATION = [15, -58, 23, -36] as const;
 const smooth = (e0: number, e1: number, x: number) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
 const dome = (x: number, z: number, cx: number, cz: number, h: number, r: number) => h * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (r * r));
 
+/** Metres from the two straight shore lines of the old plan (what the hills are shaped against). */
+const lineDist = (x: number, z: number) => Math.min(HORN_Z - z, BOS_X - x);
+
+/**
+ * Eminönü's waterfront, west to south: where the Horn and the Bosphorus meet the quay is no square corner but a
+ * promenade built out a few metres into the water and faced in facets of stone, the way a real quay is rebuilt
+ * stretch by stretch. From the Galata Bridge the fish boats' basin runs straight to the promenade, which steps
+ * out at the landing stairs, swings round the point in short facets, dips back into a little bay with its own
+ * stairs on the Bosphorus side, runs past the ferry jetty and folds back into the long Sirkeci quay. The ends
+ * coincide with the old straight lines, so everything west of the bridge and south of Sirkeci is as it was.
+ */
+export const COAST: [number, number][] = [
+  [-40, 44], [-12, 44], [11, 44],
+  [12.4, 46.5], [20.5, 46.5],
+  [21.4, 48], [27, 48.6], [31.6, 47.3], [34.6, 44.6], [36.3, 41], [36.7, 35.5],
+  [36, 26], [34.2, 25], [33.8, 14],
+  [34.8, 12.6], [34.4, 4], [33.6, -7], [31.9, -10.8], [30, -14], [30, -40],
+];
+/** Where the shore is the outline above, and not the old straight lines (they agree along its edges). */
+const COAST_BOX = [-20, -22] as const;
+
+function coastDist(x: number, z: number): number {
+  let d2 = Infinity, inside = false;
+  const n = COAST.length;
+  for (let i = 0; i < n; i++) {
+    const [ax, az] = COAST[i], [bx, bz] = i + 1 < n ? COAST[i + 1] : [-40, -40];
+    if (i + 1 < n) {
+      const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+      const ex = ax + dx * t - x, ez = az + dz * t - z;
+      d2 = Math.min(d2, ex * ex + ez * ez);
+    }
+    if ((az > z) !== (bz > z) && x < ax + ((z - az) / (bz - az)) * (bx - ax)) inside = !inside;
+  }
+  // the closing edges back round the land (-40,-40) and up to (-40, 44)
+  if ((-40 > z) !== (44 > z) && x < -40) inside = !inside;
+  return inside ? Math.sqrt(d2) : -Math.sqrt(d2);
+}
+
 /** Metres from the nearest water's edge (negative over the water). */
 export function shoreDist(x: number, z: number): number {
-  return Math.min(HORN_Z - z, BOS_X - x);
+  return x > COAST_BOX[0] && z > COAST_BOX[1] ? coastDist(x, z) : lineDist(x, z);
+}
+
+/** The voxel layer of the sea bed: shelving off from the quay walls into the deep channel. */
+export const seaBed = (x: number, z: number) => Math.max(1, layerOf(-2.5 + Math.max(-6, shoreDist(x, z) * 0.18)));
+
+/** The deck of the floating landing stages (m), a hand's breadth over half a metre above the water. */
+export const PONTOON_Y = 0.25;
+export type Rect = [number, number, number, number];
+/**
+ * The landing stages: a steel pontoon riding on the water, the gangway that slopes down to it from the quay (or
+ * the ferry jetty) and the side the boats lie along. One for the Bosphorus tour boats on the Horn side of the point,
+ * one for the city-line ferry beside the mosque.
+ */
+export const PONTOONS: { deck: Rect; gang: Rect; dir: 'n' | 'e'; board: Rect }[] = [
+  { deck: [18, 50.5, 31, 53], gang: [23, 48, 25.25, 50.5], dir: 'n', board: [19, 52.5, 30, 53] },
+  { deck: [38, -9, 40.5, 5], gang: [36, -3.25, 38, -0.75], dir: 'e', board: [40, -7.5, 40.5, 3.5] },
+];
+/** The ferry jetty out to the Bosphorus pontoon, stone on piles, its terminal at the root. */
+export const JETTY: Rect = [32, -5.5, 36, 1.5];
+/** Stairs down into the water (the side they go down towards): on the Horn promenade and in the Bosphorus bay. */
+export const LANDINGS: { rect: Rect; dir: 'n' | 'e' }[] = [
+  { rect: [14, 45, 19.5, 46.5], dir: 'n' },
+  { rect: [32.3, 15, 33.8, 23.5], dir: 'e' },
+];
+/** The stairs' cheek walls: half a metre of quay at each end of a landing, walled where it meets the steps. */
+export const LANDING_CHEEK = 0.5;
+const inRect = (r: Rect, x: number, z: number) => x >= r[0] && x < r[2] && z >= r[1] && z < r[3];
+/** The landing stairs at (x, z): the step's layer (QUAY, then down a step every half metre), or -1. */
+export function landingStep(x: number, z: number): { layer: number; cheek: boolean; dir: 'n' | 'e' } | null {
+  for (const l of LANDINGS) {
+    if (!inRect(l.rect, x, z)) continue;
+    const [x0, z0, x1, z1] = l.rect;
+    const along = l.dir === 'n' ? Math.min(x - x0, x1 - x) : Math.min(z - z0, z1 - z);
+    if (along < LANDING_CHEEK) return { layer: layerOf(QUAY_Y), cheek: true, dir: l.dir };
+    const i = Math.floor((l.dir === 'n' ? z - z0 : x - x0) / 0.5);
+    return { layer: layerOf(QUAY_Y) - [2, 4, 7][Math.min(2, i)], cheek: false, dir: l.dir };
+  }
+  return null;
+}
+/** The pontoon or gangway at (x, z), and the deck's layer there (the gangway sloping from the quay down to it). */
+export function pontoonAt(x: number, z: number): { layer: number; deck: boolean } | null {
+  for (const p of PONTOONS) {
+    if (inRect(p.deck, x, z)) return { layer: layerOf(PONTOON_Y), deck: true };
+    if (inRect(p.gang, x, z)) {
+      const [x0, z0, x1, z1] = p.gang, t = p.dir === 'n' ? (z - z0) / (z1 - z0) : (x - x0) / (x1 - x0);
+      return { layer: layerOf(QUAY_Y + (PONTOON_Y - QUAY_Y) * t), deck: false };
+    }
+  }
+  return null;
 }
 
 /** Natural ground (m) before anything is built: the flat waterfront, then the hills of the old city. */
@@ -91,7 +182,7 @@ export function hillY(x: number, z: number): number {
   // a smooth maximum, so the hills run into one another without creases
   const k = 2.2;
   const hill = k * Math.log(Math.exp(h1 / k) + Math.exp(h2 / k) + Math.exp(h3 / k)) - k * Math.log(3);
-  const mask = smooth(5, 44, shoreDist(x, z));
+  const mask = smooth(5, 44, lineDist(x, z));
   const roll = (Math.sin(x * 0.07 + z * 0.03) + Math.sin(z * 0.09 - x * 0.05)) * 0.35 * mask;
   return QUAY_Y + Math.max(0, hill * mask + roll);
 }
@@ -137,7 +228,7 @@ export function beyond(x: number, z: number): boolean {
 
 interface N { x: number; z: number; y?: number }
 
-function network(): { nodes: Record<string, N>; edges: [string, string, number, K, number?, PathSeg['bazaar']?][] } {
+function network(): { nodes: Record<string, N>; edges: [string, string, number, K, number?, PathSeg['bazaar']?][]; links: [string, string][] } {
   const Q = QUAY_Y;
   const n: Record<string, N> = {
     // the Golden Horn quay, from the far west to Eminönü, and the Bosphorus quay south past Sirkeci
@@ -146,7 +237,7 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     b1: { x: 26, z: 14, y: Q }, b2: { x: 26, z: -2, y: Q }, b3: { x: 26, z: -16, y: Q }, b4: { x: 26, z: -46, y: Q }, b5: { x: 26, z: -80, y: Q }, b6: { x: 26, z: -110, y: Q },
     // the Galata Bridge across the Horn, and the ferry piers
     gb0: { x: -18, z: 46, y: 1.5 }, gb1: { x: -18, z: 63, y: 1.5 },
-    fp0: { x: 32, z: -2, y: Q }, fp1: { x: 41, z: -2, y: Q }, fq0: { x: 32, z: -46, y: Q }, fq1: { x: 41, z: -46, y: Q },
+    fp0: { x: 32, z: -2, y: Q }, fp1: { x: 39.2, z: -2, y: PONTOON_Y }, fq0: { x: 32, z: -46, y: Q }, fq1: { x: 41, z: -46, y: Q },
     fh0: { x: -52, z: 46, y: Q }, fh1: { x: -52, z: 55, y: Q },
     // Eminönü square, the New Mosque's courtyard up its steps
     e0: { x: 20, z: 34, y: Q }, e1: { x: 6, z: 36, y: Q }, e2: { x: -8, z: 34, y: Q }, e3: { x: 20, z: 12, y: Q }, e4: { x: 20, z: -2, y: Q },
@@ -211,7 +302,17 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     ['l3', 'd1', 3, K.Stair], ['l4', 'd2', 3, K.Stair], ['d0', 'l0', 3.4, K.Lane], ['c0', 'd0', 3.4, K.Lane],
     ['u1', 'v1', 3.4, K.Lane], ['v1', 'c1', 3.4, K.Lane], ['v1', 'c2', 3, K.Lane],
   ];
-  return { nodes: n, edges: e.filter(([a, b]) => n[a] && n[b]) };
+  // the promenade round the point and out onto the landing stages: walked by the crowd, laid by the waterfront
+  // pass (they follow the outline, not a straight strip)
+  Object.assign(n, {
+    pr0: { x: 16, z: 44.2 }, pr1: { x: 24, z: 46.6 }, hp: { x: 20, z: 51.8 }, pr2: { x: 33.4, z: 41.2 },
+    pr3: { x: 33, z: 30 }, pr4: { x: 31.4, z: 19 }, pr5: { x: 32, z: 8 },
+  });
+  const links: [string, string][] = [
+    ['q7', 'pr0'], ['pr0', 'pr1'], ['q8', 'pr1'], ['pr1', 'hp'], ['pr1', 'pr2'], ['pr2', 'pr3'], ['pr3', 'pr4'], ['pr4', 'b1'],
+    ['pr4', 'pr5'], ['pr5', 'fp0'],
+  ];
+  return { nodes: n, edges: e.filter(([a, b]) => n[a] && n[b]), links };
 }
 
 // ------------------------------------------------------------------------------------------- plan
@@ -231,19 +332,21 @@ export function istanbulPlan(): Plan {
   for (let z = VZ0; z < VZ0 + SZ; z++)
     for (let x = VX0; x < VX0 + SX; x++) {
       const mx = (x + 0.5) * V, mz = (z + 0.5) * V, c = col(x, z);
-      const s = shoreDist(mx, mz);
-      if (s < 0) {
-        walk[c] = Math.max(1, layerOf(-2.5 + Math.max(-6, s * 0.18)));
+      // (the old straight shore here: the waterfront pass builds Eminönü's out after the lots are placed, so the
+      // town's houses fall exactly where they always have)
+      if (lineDist(mx, mz) < 0) {
+        walk[c] = seaBed(mx, mz);
         kind[c] = K.Sea;
       } else {
         walk[c] = Math.min(250, layerOf(hillY(mx, mz)));
         kind[c] = K.Ground;
       }
     }
-  const { nodes, edges } = network();
+  const { nodes, edges: paved, links } = network();
   const ids = Object.keys(nodes);
   const ny = (id: string) => nodes[id].y ?? Math.round(hillY(nodes[id].x, nodes[id].z) * 4) / 4;
-  const segs: PathSeg[] = edges.map(([a, b, w, k, roof, bz]) => ({
+  const edges: [string, string][] = [...paved.map(([a, b]) => [a, b] as [string, string]), ...links];
+  const segs: PathSeg[] = paved.map(([a, b, w, k, roof, bz]) => ({
     a: [nodes[a].x, ny(a), nodes[a].z], b: [nodes[b].x, ny(b), nodes[b].z], w, kind: k, roof, bazaar: bz,
   }));
   for (const s of segs) paintSeg(s, walk, kind, best);
@@ -277,6 +380,7 @@ export function istanbulPlan(): Plan {
       if ((k === K.Lane || k === K.Stair || k === K.Street) && beyond((x + 0.5) * V, (z + 0.5) * V)) { kind[c] = K.Ground; walk[c] = Math.min(250, layerOf(hillY((x + 0.5) * V, (z + 0.5) * V))); }
     }
   const lots = placeLots(walk, kind, lot, segs);
+  waterfront(walk, kind, lot);
   // the crowd's walking graph stops at the edge: a path running out of the town ends at its last walkable point
   const nodeList: [number, number][] = ids.map((id) => [nodes[id].x, nodes[id].z]);
   const index = new Map(ids.map((id, i) => [id, i]));
@@ -301,6 +405,38 @@ export function istanbulPlan(): Plan {
   const used = [...new Set(edgeList.flat())].sort((p, q) => p - q), remap = new Map(used.map((o, i) => [o, i]));
   cached = { walk, kind, lot, lots, segs, nodes: used.map((i) => nodeList[i]), edges: edgeList.map(([i, j]) => [remap.get(i)!, remap.get(j)!]) };
   return cached;
+}
+
+/**
+ * Eminönü's waterfront, after the square and the quays are laid: the ground out to the new shore (see COAST) is
+ * quay, a band of quay flags follows the water's edge round the point and the square's paving runs out to it, so
+ * no trace of the old straight edge is left; then the landing stairs, the ferry jetty and the landing stages.
+ */
+function waterfront(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array): void {
+  const Q = layerOf(QUAY_Y);
+  const squareZone = (x: number, z: number) => (x >= -12 && z >= 30) || (x >= 18 && z >= -4);
+  for (let z = Math.floor(-16 / V); z < VZ0 + SZ; z++)
+    for (let x = Math.floor(-12 / V); x < VX0 + SX; x++) {
+      const mx = (x + 0.5) * V, mz = (z + 0.5) * V, c = col(x, z), k = kind[c];
+      if (lot[c]) continue;
+      if (shoreDist(mx, mz) < 0) {
+        // the old ferry pier gives way to the jetty and its landing stage, laid below
+        if (k === K.Pier && mx > 30 && Math.abs(mz + 2) < 4) { kind[c] = K.Sea; walk[c] = seaBed(mx, mz); }
+        continue;
+      }
+      const fresh = k === K.Sea || (k === K.Ground && (lineDist(mx, mz) < 1 || (walk[c] === Q && squareZone(mx, mz))));
+      if (!fresh && k !== K.Quay && k !== K.Square) continue;
+      if (!fresh && walk[c] !== Q) continue;
+      walk[c] = Q;
+      kind[c] = shoreDist(mx, mz) < 2.4 ? K.Quay : squareZone(mx, mz) ? K.Square : K.Quay;
+    }
+  const paint = (r: Rect, f: (mx: number, mz: number, c: number) => void) => {
+    for (let z = Math.round(r[1] / V); z < Math.round(r[3] / V); z++)
+      for (let x = Math.round(r[0] / V); x < Math.round(r[2] / V); x++) if (inMap(x, z)) f((x + 0.5) * V, (z + 0.5) * V, col(x, z));
+  };
+  paint(JETTY, (_x, _z, c) => { kind[c] = K.Pier; walk[c] = Q; });
+  for (const l of LANDINGS) paint(l.rect, (mx, mz, c) => { const s = landingStep(mx, mz)!; walk[c] = s.layer; kind[c] = s.cheek ? K.Quay : K.Landing; });
+  for (const p of PONTOONS) for (const r of [p.gang, p.deck]) paint(r, (mx, mz, c) => { walk[c] = pontoonAt(mx, mz)!.layer; kind[c] = K.Pontoon; });
 }
 
 function rect(x0: number, z0: number, x1: number, z1: number, y: number, k: K, walk: Uint8Array, kind: Uint8Array, best: Float32Array): void {
@@ -335,7 +471,7 @@ function paintSeg(s: PathSeg, walk: Uint8Array, kind: Uint8Array, best: Float32A
     }
 }
 
-const PATHY = new Set<number>([K.Quay, K.Square, K.Street, K.Lane, K.Stair, K.Steps, K.Covered, K.Pier, K.Bridge, K.Court, K.Terrace, K.Tram]);
+const PATHY = new Set<number>([K.Quay, K.Square, K.Street, K.Lane, K.Stair, K.Steps, K.Covered, K.Pier, K.Bridge, K.Court, K.Terrace, K.Tram, K.Landing, K.Pontoon]);
 export const isPath = (k: number) => PATHY.has(k);
 
 /**
@@ -427,7 +563,7 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
     for (let gx = VX0 + 6; gx < VX0 + SX - 10; gx += 5) {
       const c = col(gx, gz);
       if (kind[c] !== K.Ground || lot[c]) continue;
-      if (shoreDist(gx * V, gz * V) < 3) continue;
+      if (lineDist(gx * V, gz * V) < 3) continue;
       const w = 18 + Math.floor(r() * 18), d = 18 + Math.floor(r() * 16);
       tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground);
     }
@@ -442,7 +578,7 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
     for (let gx = VX0 + 4; gx < VX0 + SX - 20 && infill < 60; gx += 4) {
       const c = col(gx, gz);
       if (kind[c] !== K.Ground || lot[c] || beyond((gx + 8) * V, (gz + 8) * V) || r() < 0.3) continue;
-      if (shoreDist(gx * V, gz * V) < 10 || inGrand(gx, gz)) continue;
+      if (lineDist(gx * V, gz * V) < 10 || inGrand(gx, gz)) continue;
       const w = 16 + Math.floor(r() * 12), d = 16 + Math.floor(r() * 12);
       if (tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground)) infill++;
     }
@@ -451,7 +587,7 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
     for (let gx = VX0 + 4; gx < VX0 + SX - 16 && infill < 110; gx += 3) {
       const c = col(gx, gz);
       if (kind[c] !== K.Ground || lot[c] || beyond((gx + 6) * V, (gz + 6) * V) || r() < 0.2) continue;
-      if (shoreDist(gx * V, gz * V) < 10 || inGrand(gx, gz)) continue;
+      if (lineDist(gx * V, gz * V) < 10 || inGrand(gx, gz)) continue;
       const w = 14 + Math.floor(r() * 6), d = 14 + Math.floor(r() * 6);
       if (tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground)) infill++;
     }

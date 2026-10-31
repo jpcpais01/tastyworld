@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.38',
+    date: '2026-10-31',
+    title: 'Rooftops to the horizon',
+    items: [
+      'The far city around Istanbul now carries the same stepped red tile roofs as the houses you walk past, so the old town rolls on past the edge of the map as one sea of rooftops instead of flat blocks.',
+    ],
+  },
+  {
     version: '0.16.37',
     date: '2026-10-31',
     title: 'A built-up old city',

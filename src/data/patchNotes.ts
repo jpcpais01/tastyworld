@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.2',
+    date: '2026-10-31',
+    title: 'Christ in glory over the Duomo altar',
+    items: [
+      'The painting over Amalfi Duomo\'s high altar is new: Christ in glory, standing on the clouds in a blaze of gold, his right hand raised in blessing, the orb of the world in his left, with angels kneeling at his feet.',
+      'It is painted in voxels twice as fine as the other canvases, so his face, hands and halo read clearly from the nave.',
+      'The altar candles now keep it softly lit after dark, so it no longer sinks into the blue night shadows of the apse.',
+    ],
+  },
+  {
     version: '0.17.1',
     date: '2026-10-31',
     title: 'Amalfi\'s cliffs come down to the road',

@@ -5,7 +5,7 @@ import type { Anchors, StallAnchor } from '../world/tokyo';
 import type { RoomAnchor, RoomKind } from '../world/interiors';
 import { randomLook, type Look } from '../world/characters';
 import { rng } from '../world/grid';
-import { crowdSpots, laneFor, streetAt, Spot } from '../world/crowdspots';
+import { crowdSpots, laneFor, streetAt, Spot, type CrowdSpots } from '../world/crowdspots';
 import { zoneAt } from '../world/layout';
 import { CROWD_CHAT, CROWD_GREET, CROWD_STARTLE, CROWD_ENVY } from '../data/dialogue';
 
@@ -123,7 +123,7 @@ export interface CrowdMaker {
   boat(seed: number): Actor;
 }
 
-export interface CrowdSize { walkers: number; joggers: number; dogs: number; cyclists: number; couriers: number; boats: number; exercise: number }
+export interface CrowdSize { walkers: number; joggers: number; dogs: number; cyclists: number; couriers: number; boats: number; exercise: number; bathers?: number }
 
 const PERSONA_PACE: Record<Persona, number> = { commuter: 1.35, local: 1.05, tourist: 0.9, student: 1.2, elder: 0.72, jogger: 2.5, dogwalker: 0.85, cyclist: 3.9, courier: 4.9 };
 const SNACK_ROOMS: RoomKind[] = ['bakery', 'cafe', 'konbini'];
@@ -232,6 +232,7 @@ export class Crowd {
   private pl: CrowdPlayer = { x: 0, z: 0, speed: 0, running: false, eating: false, facing: 0 };
   private boats: Boats | SeaBoats | null = null;
   private exercise: Exercise | null = null;
+  private beach: Beach | null = null;
 
   constructor(private nav: Nav, private a: Anchors, private hooks: CrowdHooks, private make?: CrowdMaker) {
     this.nodes = a.graph.nodes;
@@ -293,6 +294,7 @@ export class Crowd {
     if (make) {
       this.boats = sp.sea ? new SeaBoats(sp.sea, make) : new Boats(sp.boats, make);
       this.exercise = new Exercise(sp.exercise, make, (x, z) => this.free(x, z, 0.3), (x, z) => this.nav.heightAt(x, z));
+      if (sp.beach) this.beach = new Beach(sp.beach, (x, z) => this.nav.heightAt(x, z));
     }
   }
 
@@ -345,6 +347,7 @@ export class Crowd {
     }
     this.boats?.populate(size.boats, (s) => mk.person(lookFor(s, null)));
     this.exercise?.populate(size.exercise, (s) => mk.person(lookFor(s, 'elder')));
+    this.beach?.populate(size.bathers ?? 0, (l) => mk.person(l));
   }
 
   /** Adds a pedestrian (or a pair walking together when `mateOf` is given). */
@@ -398,6 +401,7 @@ export class Crowd {
     }
     if (this.boats) yield* this.boats.visible(this.pl, this.viewR);
     if (this.exercise) yield* this.exercise.visible(this.pl, this.viewR);
+    if (this.beach) yield* this.beach.visible(this.pl, this.viewR);
   }
 
   private release(w: Walker): void {
@@ -465,6 +469,7 @@ export class Crowd {
     this.overhear(dt, pl);
     this.boats?.update(dt, hour);
     this.exercise?.update(dt, hour);
+    this.beach?.update(dt, hour);
   }
 
   /**
@@ -1538,6 +1543,90 @@ class SeaBoats {
       if (!on) continue;
       yield b.hull;
       yield* b.riders;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Bathers: lying in the sun on the lido beds and the towels, sitting up to look at the sea, swimming off the shore
+
+interface Bather { a: Actor; x: number; z: number; y: number; face: number; mode: 'lie' | 'sit' | 'swim'; from: number; to: number; ph: number }
+
+/** Swimwear: trunks or a costume in a bright colour, bare feet, sunglasses and a straw hat for some on the sand. */
+function batherLook(seed: number, swim: boolean): Look {
+  const r = rng(seed + 57);
+  const l: Look = { ...randomLook(seed) };
+  const suit = [0xd9534a, 0x2f6fae, 0xf2c74a, 0x4f9a6b, 0xf08ac0, 0x2f2f35, 0xe8743a][Math.floor(r() * 7)];
+  const bare = r() < 0.5;
+  Object.assign(l, {
+    topStyle: 'tee', top: bare ? l.skin : suit, accent: bare ? l.skin : suit, bottom: suit, shorts: true, skirt: false, shoes: l.skin,
+    backpack: undefined, charm: false, glasses: !swim && r() < 0.5, hat: !swim && r() < 0.25 ? 'straw' : 'none', hatColor: 0xe8d8a8,
+  });
+  return l;
+}
+
+class Beach {
+  private list: Bather[] = [];
+  private hour = 12;
+  private time = 0;
+  constructor(private o: NonNullable<CrowdSpots['beach']>, private ground: (x: number, z: number) => number) {}
+
+  populate(n: number, person: (look: Look) => Actor): void {
+    const r = rng(4711);
+    const swimmers = Math.min(this.o.swim.length, Math.round(n * 0.25));
+    // a fixed shuffle of the beds, so the same ones are taken every visit
+    const beds = this.o.beds.map((b) => ({ b, k: r() })).sort((p, q) => p.k - q.k).map((e) => e.b);
+    for (let i = 0; i < Math.min(n, swimmers + beds.length); i++) {
+      const swim = i < swimmers;
+      const a = person(batherLook(9500 + i * 7, swim));
+      a.noBlob = true;
+      const from = 8.3 + r() * 2.5, to = 16.5 + r() * 2.5, ph = r() * 10;
+      if (swim) {
+        const [x, z] = this.o.swim[i];
+        this.list.push({ a, x, z, y: this.o.seaY - 1.42, face: 0, mode: 'swim', from, to, ph });
+        continue;
+      }
+      const b = beds[i - swimmers];
+      const sand = this.ground(b.at[0], b.at[1]);
+      // on a lido bed some sit up facing the sea; on a towel everyone lies down
+      if (b.top > 0.2 && r() < 0.3) {
+        this.list.push({ a, x: b.x, z: b.z, y: sand + b.top - SIT_DROP, face: Math.PI / 2, mode: 'sit', from, to, ph });
+        continue;
+      }
+      // lying on the back, feet at the foot end: the body is pitched over the feet, so the root goes there
+      const hx = Math.sin(b.face), hz = Math.cos(b.face);
+      a.root.rotation.order = 'YXZ';
+      a.root.rotation.x = -Math.PI / 2;
+      this.list.push({ a, x: b.x - hx * 0.85, z: b.z - hz * 0.85, y: sand + b.top + 0.14, face: b.face + Math.PI, mode: 'lie', from, to, ph });
+    }
+  }
+
+  update(dt: number, hour: number): void {
+    this.time += dt;
+    this.hour = hour;
+    for (const b of this.list) {
+      const a = b.a;
+      if (b.mode === 'swim') {
+        // breaststroke in a slow loop round their spot, the head bobbing at the surface
+        const t = this.time * 0.12 + b.ph;
+        const x = b.x + Math.sin(t) * 1.3, z = b.z + Math.sin(t * 2) * 0.9;
+        a.position.set(x, b.y + Math.sin(this.time * 1.8 + b.ph) * 0.05, z);
+        a.facing = a.targetFacing = Math.atan2(Math.cos(t) * 1.3, Math.cos(t * 2) * 1.8);
+        a.anim = 'idle';
+        continue;
+      }
+      a.position.set(b.x, b.y, b.z);
+      a.facing = a.targetFacing = b.face;
+      a.anim = b.mode === 'sit' ? 'sit' : 'idle';
+      a.headYawTarget = b.mode === 'sit' ? Math.sin(this.time * 0.1 + b.ph) * 0.6 : 0;
+    }
+  }
+
+  *visible(pl: CrowdPlayer, viewR: number): Generator<Actor> {
+    for (const b of this.list) {
+      const on = within(this.hour, b.from, b.to) && Math.hypot(b.x - pl.x, b.z - pl.z) < viewR;
+      show(b.a, on);
+      if (on) yield b.a;
     }
   }
 }

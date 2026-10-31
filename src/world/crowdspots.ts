@@ -4,6 +4,7 @@
 import { STREETS } from './city';
 import { V } from './layout';
 import { AMALFI } from './cityId';
+import { LIDOS, lidoUmbrellas, freeBeachTowels } from './amalfiPlan';
 
 type V2 = [number, number];
 /** A place to stand and the direction to face while there. */
@@ -72,6 +73,11 @@ export interface CrowdSpots {
   boats: { cx: number; cz: number; rx: number; rz: number; y: number; dock: V2 };
   /** Boats out at sea instead (Amalfi's gozzi): each runs its own ring of the bay from early morning to dusk. */
   sea?: { cx: number; cz: number; rx: number; rz: number; y: number };
+  /**
+   * A beach: sunbeds and towels to lie on (the middle, `face` the way the head points, `top` the height of what
+   * you lie on above the sand, `at` a free spot beside it to read the sand's height) and water to swim in.
+   */
+  beach?: { beds: (Spot & { top: number; at: V2 })[]; swim: V2[]; seaY: number };
 }
 
 /** Amalfi: friends meet at the fountain in the piazza and joggers run the seafront and back. */
@@ -84,6 +90,13 @@ function amalfiSpots(): CrowdSpots {
   const jog: V2[] = [];
   for (let z = -44; z <= 74; z += 6) jog.push([33.4, z]);
   for (let z = 74; z >= -44; z -= 6) jog.push([34.3, z]);
+  // the lidos' sunbeds lie head to +z; the towels on the free beach either way along their length
+  const beds: (Spot & { top: number; at: V2 })[] = [];
+  for (const l of LIDOS) for (const [x, z] of lidoUmbrellas(l)) beds.push({ x: x + 1, z: z + 0.4, face: 0, top: 0.375, at: [x + 1, z + 2.2] });
+  freeBeachTowels().forEach((t, i) => beds.push({ x: t.x, z: t.z, face: (t.alongX ? Math.PI / 2 : 0) + (i % 2 ? Math.PI : 0), top: 0.125, at: [t.x, t.z] }));
+  // swimmers off the lidos, the shore runs along x = 50.25
+  const swim: V2[] = [];
+  for (let z = -27; z <= 28; z += 4.5) swim.push([52 + ((z * 7.3) % 3 + 3) % 3, z]);
   return {
     pray: [], purify: [], gates: [], meet,
     sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
@@ -91,6 +104,7 @@ function amalfiSpots(): CrowdSpots {
     boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
     // the bay between the beach and the pier, kept clear of the swimmers and the moorings
     sea: { cx: 66, cz: -14, rx: 5, rz: 30, y: -0.55 },
+    beach: { beds, swim, seaY: -0.55 },
   };
 }
 

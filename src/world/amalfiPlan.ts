@@ -64,6 +64,36 @@ export const ROAD_X0 = 27, ROAD_X1 = 35;
 /** The headland the road tunnels through starts here (z). */
 export const TUNNEL_Z = -52;
 
+/**
+ * The beach, shared by the builder and the crowd: three lidos, each with rows of umbrellas (a sunbed beside each)
+ * and a line of cabins against the sea wall, and the free beach at the tunnel end with its towels.
+ */
+export const LIDOS: { z0: number; z1: number; rows: number[] }[] = [
+  { z0: -29, z1: -13, rows: [39, 42, 45] },
+  { z0: -7, z1: 6, rows: [43, 46] },
+  { z0: 12.5, z1: 30, rows: [44.5, 47.2] },
+];
+
+/** Umbrella spots of a lido (the sunbed's middle is 1 m to +x and 0.4 m to +z of each, head end to +z). */
+export function lidoUmbrellas(l: (typeof LIDOS)[number]): [number, number][] {
+  const out: [number, number][] = [];
+  for (let z = l.z0; z <= l.z1; z += 3.4)
+    for (const x of l.rows) if (Math.hypot(x - 45, z - 21) >= 2.8) out.push([x, z]); // not over Ciro and his tower
+  return out;
+}
+
+/** The towels on the free beach: middle, whether laid along x, and whether an umbrella stands beside it. */
+export function freeBeachTowels(): { x: number; z: number; alongX: boolean; umbrella: boolean }[] {
+  const r = rng(77);
+  const out: { x: number; z: number; alongX: boolean; umbrella: boolean }[] = [];
+  for (let i = 0; i < 16; i++) {
+    const x = 38 + r() * 9, z = -48 + r() * 17;
+    const alongX = r() >= 0.5;
+    out.push({ x, z, alongX, umbrella: r() < 0.35 });
+  }
+  return out;
+}
+
 const smooth = (e0: number, e1: number, x: number) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
 
 /** Valley axis (z) at inland x. */

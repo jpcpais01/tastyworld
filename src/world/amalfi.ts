@@ -5,7 +5,7 @@ import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, Sta
 import { Prop, rotateProp, bench, cafeTable, scooter, stool, bush, grassTuft } from './props';
 import { buildFood } from './food';
 import { SWAY } from './sway';
-import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, type Plan } from './amalfiPlan';
+import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, type Plan } from './amalfiPlan';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -1094,35 +1094,27 @@ function shore(b: Builder, c: AC, plan: Plan): void {
   const sand = (x: number, z: number) => (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
   // the beach is let out to lidos, each with its own umbrellas and a row of changing cabins against the sea
   // wall; a stretch at the tunnel end is the free beach, towels and odd umbrellas brought from home
-  const lidos: { z0: number; z1: number; pair: [number, number]; rows: number[] }[] = [
-    { z0: -29, z1: -13, pair: [c.umbrellaC, c.umbrellaB], rows: [39, 42, 45] },
-    { z0: -7, z1: 6, pair: [c.umbrellaA, c.umbrellaB], rows: [43, 46] },
-    { z0: 12.5, z1: 30, pair: [c.umbrellaE, c.umbrellaB], rows: [44.5, 47.2] },
-  ];
+  const pairs: [number, number][] = [[c.umbrellaC, c.umbrellaB], [c.umbrellaA, c.umbrellaB], [c.umbrellaE, c.umbrellaB]];
   let s = 0;
-  for (const l of lidos) {
-    for (let z = l.z0; z <= l.z1; z += 3.4)
-      for (const x of l.rows) {
-        if (Math.hypot(x - 45, z - 21) < 2.8) continue; // Ciro and his tower
-        const y = sand(x, z);
-        b.place(umbrella(c, s, l.pair), x, y, z);
-        b.place(sunbed(c), x + 1, sand(x + 1, z + 0.4), z + 0.4);
-        b.block(x + 0.6, z - 0.6, x + 1.8, z + 1.4);
-        s++;
-      }
+  LIDOS.forEach((l, li) => {
+    const pair = pairs[li];
+    for (const [x, z] of lidoUmbrellas(l)) {
+      b.place(umbrella(c, s, pair), x, sand(x, z), z);
+      b.place(sunbed(c), x + 1, sand(x + 1, z + 0.4), z + 0.4);
+      b.block(x + 0.6, z - 0.6, x + 1.8, z + 1.4);
+      s++;
+    }
     for (let z = l.z0; z <= l.z1 - 1; z += 1.6) {
       if (Math.abs(z - 9) < 3) continue;
-      b.place(cabin(c, l.pair[0], s++), 35.9, 1.55, z, 3);
+      b.place(cabin(c, pair[0], s++), 35.9, 1.55, z, 3);
     }
     b.block(35.2, l.z0 - 0.9, 36.8, l.z1 - 0.2);
-  }
+  });
   // the free beach
-  const r = rng(77);
-  for (let i = 0; i < 16; i++) {
-    const x = 38 + r() * 9, z = -48 + r() * 17;
-    b.place(towel(c, i), x, sand(x, z), z, r() < 0.5 ? 0 : 1);
-    if (r() < 0.35) b.place(umbrella(c, i), x + 0.9, sand(x + 0.9, z), z);
-  }
+  freeBeachTowels().forEach((t, i) => {
+    b.place(towel(c, i), t.x, sand(t.x, t.z), t.z, t.alongX ? 1 : 0);
+    if (t.umbrella) b.place(umbrella(c, i), t.x + 0.9, sand(t.x + 0.9, t.z), t.z);
+  });
   for (let i = 0; i < 3; i++) b.place(kayak(c, i), 48.5 + i * 0.2, -0.3, -44 + i * 2.6, 0);
   // the lifeguard's tower beside Ciro
   b.place(lifeguardTower(c), 45.8, sand(45.8, 22.4), 22.4);

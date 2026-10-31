@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.7',
+    date: '2026-10-31',
+    title: 'Rooms behind the walls',
+    items: [
+      'When an Amalfi house is cut away to show you behind it, it now opens like a dollhouse onto its ground-floor room: a floor of Vietri majolica tiles in yellow, blue, green and white, a wooden table with a cloth runner, a dresser and a potted plant, instead of a flat slab of stone.',
+      'After dark most of those rooms have a lamp on.',
+    ],
+  },
+  {
     version: '0.15.6',
     date: '2026-10-31',
     title: 'Washing day',

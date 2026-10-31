@@ -41,6 +41,12 @@ export interface LotPlan {
   seed: number;
   /** Lots along the piazza and the main street have shops downstairs. */
   shop: boolean;
+  /** A restaurant downstairs (its stall id): a walkable room on the level of the path, its door open. */
+  food?: string;
+  /** A hotel (its id): a lobby downstairs on the level of the path and guest rooms on the floors above. */
+  hotel?: string;
+  /** Guest floors above the lobby. */
+  guestFloors?: number;
 }
 
 export interface Plan {
@@ -137,6 +143,38 @@ export function shoreY(x: number, z: number): number {
   if (x < 37) return 1.55;
   return Math.max(bed, 1.55 - (x - 37) * 0.16);
 }
+
+/**
+ * The town's restaurants, cafés and bakeries (stall ids). Each is a house whose ground floor is a walkable room on
+ * the level of the path in front: `near` is a point just off that path where the middle of its front should be,
+ * `w` its frontage and `dep` its depth (m). The plan finds the closest street, lane or square edge and stands the
+ * house a step back from it, with a strip of paving to its door.
+ */
+export const FOOD_PLACES: { id: string; near: [number, number]; w: number; dep: number }[] = [
+  { id: 'duomo', near: [6, -7.5], w: 7, dep: 6.5 },
+  { id: 'gemma', near: [12.75, 31.5], w: 6, dep: 4.75 },
+  { id: 'saraceno', near: [20.5, 31.5], w: 7.5, dep: 5.5 },
+  { id: 'forno', near: [-12.5, -8.8], w: 7, dep: 7 },
+  { id: 'cantina', near: [-29, -9.5], w: 6.5, dep: 6.5 },
+  { id: 'ruocco', near: [-45, -10], w: 6.5, dep: 6 },
+  { id: 'andrea', near: [26, 62], w: 6.5, dep: 6.5 },
+  { id: 'dolceria', near: [19, -7.5], w: 6, dep: 5.5 },
+  { id: 'chiostro', near: [-72, -4], w: 7, dep: 6 },
+  { id: 'colatura', near: [26, 50], w: 7, dep: 7 },
+  { id: 'masseria', near: [-83.5, -3.5], w: 6.5, dep: 6 },
+  { id: 'terrazza', near: [5, -40], w: 8, dep: 7 },
+];
+
+/**
+ * The four hotels, placed the same way: a lobby on the path, `rooms` guest floors above it (one room per floor),
+ * each with its windows on the sea side wherever the house has one.
+ */
+export const HOTEL_PLACES: { id: string; near: [number, number]; w: number; dep: number; rooms: number }[] = [
+  { id: 'marina', near: [26, 74], w: 7, dep: 6.5, rooms: 3 },
+  { id: 'limoni', near: [2, -26], w: 6.5, dep: 6, rooms: 2 },
+  { id: 'palazzo', near: [-22, -12], w: 7, dep: 6.5, rooms: 3 },
+  { id: 'gabbiano', near: [5, 42], w: 6.5, dep: 6, rooms: 2 },
+];
 
 // ------------------------------------------------------------------------------------------- path network
 
@@ -343,6 +381,9 @@ function paintSeg(s: PathSeg, walk: Uint8Array, kind: Uint8Array, best: Float32A
     }
 }
 
+/** Restaurants that found no room where they were asked for (the checks report them). */
+export const FOOD_MISSED: string[] = [];
+
 const PATHY = new Set<number>([K.Road, K.Walk, K.Piazza, K.Street, K.Stair, K.Lane, K.Tunnel, K.Covered, K.Pier, K.Steps, K.Quay, K.Sand]);
 export const isPath = (k: number) => PATHY.has(k);
 
@@ -403,6 +444,66 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
       t += w + (r() < 0.2 ? 1.5 + r() * 2 : 0.25);
     }
   };
+  // the restaurants first, so the town builds round them
+  const edges: { a: [number, number]; b: [number, number]; half: number; k: K; y: number | null }[] = [
+    ...segs.filter((sg) => sg.kind === K.Street || sg.kind === K.Lane).map((sg) => ({ a: [sg.a[0], sg.a[2]] as [number, number], b: [sg.b[0], sg.b[2]] as [number, number], half: sg.w / 2, k: sg.kind, y: null })),
+    { a: [-3, -6], b: [BELV_X1 - 1, -6], half: 0, k: K.Piazza, y: PIAZZA_Y }, { a: [-3, 30], b: [BELV_X1 - 1, 30], half: 0, k: K.Piazza, y: PIAZZA_Y },
+    { a: [-67, -15], b: [-53, -15], half: 0, k: K.Piazza, y: floorY(-60) }, { a: [-67, -1], b: [-53, -1], half: 0, k: K.Piazza, y: floorY(-60) },
+    // the harbour front: the quay's margin beside the road is paved up to the road's level in front of the door
+    { a: [ROAD_X0 + 1.25, 36], b: [ROAD_X0 + 1.25, 80], half: 1.25, k: K.Walk, y: ROAD_Y },
+  ];
+  for (const fp of [...FOOD_PLACES, ...HOTEL_PLACES.map((h) => ({ ...h, hotel: true }))] as ((typeof FOOD_PLACES)[number] & { hotel?: boolean; rooms?: number })[]) {
+    let best = edges[0], bd = 1e9, bt = 0;
+    for (const e of edges) {
+      const dx = e.b[0] - e.a[0], dz = e.b[1] - e.a[1], l2 = dx * dx + dz * dz;
+      const t = Math.max(0, Math.min(1, ((fp.near[0] - e.a[0]) * dx + (fp.near[1] - e.a[1]) * dz) / l2));
+      const d = Math.hypot(fp.near[0] - e.a[0] - dx * t, fp.near[1] - e.a[1] - dz * t) - e.half;
+      if (d < bd) { bd = d; best = e; bt = t; }
+    }
+    const e = best, cx = e.a[0] + (e.b[0] - e.a[0]) * bt, cz = e.a[1] + (e.b[1] - e.a[1]) * bt;
+    const alongX = Math.abs(e.b[0] - e.a[0]) >= Math.abs(e.b[1] - e.a[1]);
+    // the path's own level in front of the door (a square's edge: its own height)
+    const pc = col(Math.floor((alongX ? fp.near[0] : cx) / V), Math.floor((alongX ? cz : fp.near[1]) / V));
+    const pathLayer = e.y !== null ? layerOf(e.y) : walk[pc];
+    const off = e.half + 0.5, sgn = alongX ? Math.sign(fp.near[1] - cz) : Math.sign(fp.near[0] - cx);
+    // where a street runs at a slant the front stands clear of it along the whole frontage
+    const across = (u: number) => {
+      const du = alongX ? e.b[0] - e.a[0] : e.b[1] - e.a[1];
+      const t = Math.max(0, Math.min(1, (u - (alongX ? e.a[0] : e.a[1])) / (du || 1)));
+      return alongX ? e.a[1] + (e.b[1] - e.a[1]) * t : e.a[0] + (e.b[0] - e.a[0]) * t;
+    };
+    const u0 = (alongX ? fp.near[0] : fp.near[1]) - fp.w / 2, u1 = u0 + fp.w;
+    const reach = sgn > 0 ? Math.max(across(u0), across(u1), alongX ? cz : cx) : Math.min(across(u0), across(u1), alongX ? cz : cx);
+    let x0: number, z0: number, x1: number, z1: number, side: LotPlan['side'];
+    if (alongX) {
+      x0 = u0; x1 = u1;
+      if (sgn > 0) { z0 = reach + off; z1 = z0 + fp.dep; side = 'n'; } else { z1 = reach - off; z0 = z1 - fp.dep; side = 's'; }
+    } else {
+      z0 = u0; z1 = u1;
+      if (sgn > 0) { x0 = reach + off; x1 = x0 + fp.dep; side = 'w'; } else { x1 = reach - off; x0 = x1 - fp.dep; side = 'e'; }
+    }
+    const vx0 = Math.round(x0 / V), vz0 = Math.round(z0 / V), vx1 = Math.round(x1 / V) - 1, vz1 = Math.round(z1 / V) - 1;
+    // the strip between the path and the front is paved on the path's level, the full width of the house
+    const ap: number[] = [];
+    if (alongX) for (let x = vx0; x <= vx1; x++) {
+      const zc = Math.round(across((x + 0.5) * V) / V);
+      if (side === 'n') for (let z = zc; z < vz0; z++) ap.push(col(x, z)); else for (let z = vz1 + 1; z <= zc; z++) ap.push(col(x, z));
+    } else for (let z = vz0; z <= vz1; z++) {
+      const xc = Math.round(across((z + 0.5) * V) / V);
+      if (side === 'w') for (let x = xc; x < vx0; x++) ap.push(col(x, z)); else for (let x = vx1 + 1; x <= xc; x++) ap.push(col(x, z));
+    }
+    let why = '';
+    for (let z = vz0 - 1; z <= vz1 + 1 && !why; z++) for (let x = vx0 - 1; x <= vx1 + 1; x++) { const c = col(x, z); if (lot[c] || (kind[c] !== K.Rock && !ap.includes(c))) { why = `${fp.id}: kind ${kind[c]} at ${(x * V).toFixed(1)},${(z * V).toFixed(1)}`; break; } }
+    if (why) { FOOD_MISSED.push(why); continue; }
+    for (const c of ap) if (kind[c] === K.Rock || kind[c] === K.Quay || kind[c] === K.Shingle) { kind[c] = e.k; walk[c] = pathLayer; }
+    let hi = 0;
+    for (let z = vz0; z <= vz1; z++) for (let x = vx0; x <= vx1; x++) hi = Math.max(hi, walk[col(x, z)]);
+    const base = pathLayer - 1;
+    const id = lots.length + 1;
+    const top = Math.min(214, Math.max(hi + 10, base + 4 + (1 + (fp.rooms ?? 2)) * 12));
+    lots.push({ id, x0: vx0, z0: vz0, x1: vx1, z1: vz1, base, top, side, door: pathLayer, seed: Math.floor(r() * 1e6), shop: true, ...(fp.hotel ? { hotel: fp.id, guestFloors: fp.rooms } : { food: fp.id }) });
+    for (let z = vz0; z <= vz1; z++) for (let x = vx0; x <= vx1; x++) { const c = col(x, z); lot[c] = id; kind[c] = K.Lot; walk[c] = base; }
+  }
   for (const s of segs) if (s.kind === K.Lane || s.kind === K.Street || s.kind === K.Stair) front(s.a[0], s.a[2], s.b[0], s.b[2], s.w / 2, s.kind, s.a[1], s.b[1]);
   // round the piazza and Piazza dei Dogi
   front(-3, -6, BELV_X1 - 1, -6, 0, K.Piazza, PIAZZA_Y, PIAZZA_Y);

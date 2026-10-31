@@ -159,7 +159,6 @@ export const FLAGS: Record<string, string> = {
   seoul: flag('<rect width="30" height="20" fill="#fff"/><path d="M10 10a5 5 0 0 1 10 0 2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 0-5 0Z" fill="#cd2e3a"/><path d="M10 10a5 5 0 0 0 10 0 2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 0-5 0Z" fill="#0047a0"/><path d="M4 5.5l2.5-2.5M5 6.5l2.5-2.5M22.5 4l2.5 2.5M23.5 3l2.5 2.5M4 14.5 6.5 17M23.5 17l2.5-2.5M22.5 16l2.5-2.5" stroke="#111" stroke-width="1.1"/>'),
   bangkok: flag(stripes('h', ['#a51931', '#f4f5f8', '#2d2a4a', '#f4f5f8', '#a51931'], [1, 1, 2, 1, 1])),
   istanbul: flag('<rect width="30" height="20" fill="#e30a17"/><circle cx="11.5" cy="10" r="5" fill="#fff"/><circle cx="12.8" cy="10" r="4" fill="#e30a17"/><path d="m18.6 10 -2.6.9 1.6-2.2v2.7l-1.6-2.2Z" fill="#fff"/>'),
-  naples: flag(stripes('v', ['#009246', '#fff', '#ce2b37'])),
   amalfi: flag(stripes('v', ['#009246', '#fff', '#ce2b37'])),
   lisbon: flag(stripes('v', ['#006600', '#ff0000'], [2, 3]) + '<circle cx="12" cy="10" r="3.6" fill="#ffcc00"/><circle cx="12" cy="10" r="2" fill="#ff0000" stroke="#fff" stroke-width=".7"/>'),
   mexico: flag(stripes('v', ['#006847', '#fff', '#ce1126']) + '<circle cx="15" cy="10" r="2.4" fill="none" stroke="#8c5a2b" stroke-width="1.2"/>'),

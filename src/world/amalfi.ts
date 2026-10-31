@@ -1123,11 +1123,11 @@ function duomo(b: Builder, c: AC): void {
     g.set(Math.floor(cx), Y + TH + 23, Math.floor(cz), c.iron);
     g.box(Math.floor(cx), Y + TH + 24, Math.floor(cz), Math.floor(cx), Y + TH + 27, Math.floor(cz), c.iron);
   }
-  // the steps get lamps either side, all the way up
-  // (on the outermost tread, between the people sitting along the edges)
-  for (const x of [-5.6, -10.8, -15.7]) {
-    const y = PIAZZA_Y + (DUOMO_Y - PIAZZA_Y) * ((-4.5 - x) / 15.5);
-    for (const z of [9.3, 18.7]) { b.place(lampPost(c), x, layerY(y), z); b.lamp(x, y + 3.4, z, WARM, 5, 0.7); }
+  // one pair of lamps near the top of the steps, framing the portico; the rest of the flight stays clear,
+  // lit from below by the piazza's lamps and the cathedral's floodlights
+  {
+    const x = -15.7, y = PIAZZA_Y + (DUOMO_Y - PIAZZA_Y) * ((-4.5 - x) / 15.5);
+    for (const z of [9.3, 18.7]) { b.place(lampPost(c), x, layerY(y), z); b.lamp(x, y + 3.4, z, WARM, 7, 0.8); }
   }
 }
 

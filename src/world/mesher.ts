@@ -40,6 +40,10 @@ export interface MeshData {
   sway: Uint16Array;
   vertexCount: number;
   bounds: [number, number, number, number, number, number];
+  /** Set when the indices end with the contents of ground-floor rooms (see splitInner): how many come before them. */
+  shell?: number;
+  /** Bounds of those room contents. */
+  innerBounds?: [number, number, number, number, number, number];
 }
 
 /** Per-vertex lighting callback: p in world metres + normal; fills out[0]=sun,out[1]=sky,out[2..4]=lamp rgb. */
@@ -359,4 +363,38 @@ export function mergeMeshes(list: MeshData[]): MeshData | null {
     oi += m.indices.length;
   }
   return { positions, attrs, indices, sway, vertexCount: nv, bounds };
+}
+
+/**
+ * Moves the faces that lie inside any of `boxes` (x0, y0, z0, x1, y1, z1 in metres) to the end of the index
+ * list and records where they start, so they can be drawn on their own. A face counts as inside when its
+ * centre is strictly within a box, which leaves out the faces on the box's own planes: a room's walls,
+ * floor and ceiling stay with the rest.
+ */
+export function splitInner(md: MeshData, boxes: number[][]): MeshData {
+  const { positions: p, indices } = md, n = indices.length;
+  if (!boxes.length) return md;
+  const out = new Uint32Array(n), inner: number[] = [];
+  const ib: MeshData['bounds'] = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+  const e = 0.01;
+  let o = 0;
+  // faces are quads: six indices over four consecutive vertices
+  for (let i = 0; i < n; i += 6) {
+    let v = indices[i];
+    for (let k = 1; k < 6; k++) v = Math.min(v, indices[i + k]);
+    const cx = (p[v * 3] + p[v * 3 + 3] + p[v * 3 + 6] + p[v * 3 + 9]) / 4;
+    const cy = (p[v * 3 + 1] + p[v * 3 + 4] + p[v * 3 + 7] + p[v * 3 + 10]) / 4;
+    const cz = (p[v * 3 + 2] + p[v * 3 + 5] + p[v * 3 + 8] + p[v * 3 + 11]) / 4;
+    const hit = boxes.some((b) => cx > b[0] + e && cx < b[3] - e && cy > b[1] + e && cy < b[4] - e && cz > b[2] + e && cz < b[5] - e);
+    if (!hit) { out.set(indices.subarray(i, i + 6), o); o += 6; continue; }
+    inner.push(i);
+    for (let c = 0; c < 4; c++) for (let k = 0; k < 3; k++) {
+      ib[k] = Math.min(ib[k], p[(v + c) * 3 + k]);
+      ib[k + 3] = Math.max(ib[k + 3], p[(v + c) * 3 + k]);
+    }
+  }
+  if (!inner.length) return md;
+  const shell = o;
+  for (const i of inner) { out.set(indices.subarray(i, i + 6), o); o += 6; }
+  return { ...md, indices: out, shell, innerBounds: ib };
 }

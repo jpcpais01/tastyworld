@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.13',
+    date: '2026-10-31',
+    title: 'Lighter rooms behind the shopfronts',
+    items: [
+      'In first person, the furniture and goods inside ground-floor shops and homes are only drawn within about 20 m of you. Further away the rooms keep their walls, floors and ceilings, and their contents fade in smoothly as you come closer.',
+      'In the iso view, rooms stay furnished as far as the street crowd is shown, so everything on screen looks the same as before.',
+      'That saves the graphics card roughly 6% of the city\'s triangles in first person. The upper floors were never hollow, so they never cost anything.',
+    ],
+  },
+  {
     version: '0.10.12',
     date: '2026-10-31',
     title: 'See where every millisecond goes',

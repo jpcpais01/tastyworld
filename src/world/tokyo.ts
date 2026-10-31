@@ -13,6 +13,7 @@ import {
 } from './props';
 import { buildFood, FoodId } from './food';
 import { buildCity } from './city';
+import { tokyoBeyond, beyondCell } from './tokyoEdge';
 import { SwayBody, SWAY, swayKey } from './sway';
 import { wrapLot, dressBlock } from './facades';
 import { noteFront } from './dressing';
@@ -1756,6 +1757,15 @@ export function buildTokyo(win?: Window): BuildResult {
     wires: b.wires,
   };
 
+  // nothing to sit on, sleep on or buy from behind the town's edge
+  {
+    const inside = (x: number, z: number) => !tokyoBeyond(x, z);
+    anchors.benches = anchors.benches.filter(([x, z]) => inside(x, z));
+    anchors.stools = anchors.stools.filter(([x, z]) => inside(x, z));
+    anchors.cats = anchors.cats.filter(([x, , z]) => inside(x, z));
+    anchors.vending = anchors.vending.filter(([x, , z]) => inside(x, z));
+  }
+
   // join the city's street graph onto the old district's (negative indices name old nodes)
   {
     const base = anchors.graph.nodes.length;
@@ -1773,7 +1783,7 @@ export function buildTokyo(win?: Window): BuildResult {
   const s0 = b.sway.length;
   const interior = buildInterior(b, anchors);
   for (let i = s0; i < b.sway.length; i++) b.sway[i].amp *= INDOOR_SWAY;
-  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells };
+  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells, navTop: (x, z) => (beyondCell(x, z) ? 0 : G + 8) };
 }
 
 /** Indoors there is only a draught. */

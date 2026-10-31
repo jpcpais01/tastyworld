@@ -9,6 +9,7 @@ import { G, V, VX0, VZ0, SX, SZ, HILL } from './layout';
 import { SWAY } from './sway';
 import { dress, noteFront, noteGarden, noteTree } from './dressing';
 import { wrapLot } from './facades';
+import { tokyoEdge } from './tokyoEdge';
 import { Builder, Lot, building, tiledRoof, sakuraTree, bridge, boat, surface, RED, WARM, WHITEWARM, COOL, Ground, Style, Side, BuildingOpts, hotelize } from './tokyo';
 import {
   glyph, lantern, streetLamp, bench, vendingMachine, bicycle, stoneLantern, plantPot, postBox, boardSign, noren, nobori,
@@ -1229,6 +1230,7 @@ export function buildCity(b: Builder): CityResult {
   furnish(b);
   const res = graph();
   dress(b, res);
+  tokyoEdge(b);
   return res;
 }
 

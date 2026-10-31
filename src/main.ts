@@ -410,7 +410,12 @@ class Game {
       this.r.camera.updateProjectionMatrix();
     } else {
       // Tokyo Tower closes the view up the north-south avenue, 150 m past the north edge of the map
-      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]], 300, [77, WZ0 - 150]);
+      // the ring road round the map is kept open only where a street carries on; elsewhere houses close it, and
+      // the hill, the shrine wood and the park run on as trees (see world/tokyoEdge.ts for the town's side)
+      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [[-1e4, 39.5, 1e4, 53], [-1e4, -28.5, 1e4, -17.5], [71.5, -1e4, 82.5, 1e4]], 300, [77, WZ0 - 150], {
+        open: [[-1e4, -28.5, 1e4, -17.5], [-1e4, 37.5, 1e4, 56], [-1e4, 55.5, 1e4, 65], [WX1 - 1, 8.5, 1e4, 16.5], [-10.5, WZ1 - 1, 0.5, 1e4], [71.5, -1e4, 82.5, 1e4]],
+        green: [[-1e4, -46, WX0 + 1, -28.5], [-1e4, 65, WX0 + 1, 1e4], [-1e4, WZ1 - 1, -10.5, 1e4], [0.5, WZ1 - 1, 20, 1e4], [52, WZ1 - 1, 71.5, 1e4], [82.5, WZ1 - 1, 1e4, 1e4], [WX1 - 1, 65, 1e4, 1e4]],
+      });
       this.worldGroup.add(far.ground, far.city);
       // the iso camera sits 120 m back: let it see the tower's full height over the rooftops
       this.r.camera.far = 900;

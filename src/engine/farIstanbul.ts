@@ -74,7 +74,7 @@ type Box = [number, number, number, number, number, number, number, number, numb
 
 const PASTEL = ['#efe2cc', '#f1d9a8', '#e9c3a0', '#dcc7b0', '#f3ece0', '#e3b8a0', '#d9cfc0', '#f0e6c8', '#c9b49a', '#e8d2c0', '#d3c4b6', '#f4efe6'];
 
-export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE.Mesh; houses: THREE.Mesh } {
+export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE.Mesh; houses: THREE.Mesh; ferries: THREE.Group; update: (dt: number) => void } {
   const [x0, z0, x1, z1] = rect;
   const outside = (x: number, z: number) => Math.max(x0 - x, x - x1, z0 - z, z - z1, 0);
   // where the far ground meets the map it has the map's own height, so the seam is a step at most
@@ -433,6 +433,57 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
   houses.frustumCulled = false;
   houses.renderOrder = 10;
 
+  // ferries crossing the Bosphorus to Asia and back all day: a handful of boxes each, moved by one uniform
+  const hm = houses.material as THREE.ShaderMaterial;
+  const ferryVert = hm.vertexShader
+    .replace('in vec4 aBox;', 'uniform vec2 uOff; in vec4 aBox;')
+    .replace('vec3 p = vec3(aBox.x + vLocal.x, y0 + vLocal.y, aBox.y + vLocal.z);', 'vec3 p = vec3(aBox.x + uOff.x + vLocal.x, y0 + vLocal.y, aBox.y + uOff.y + vLocal.z);')
+    .replace('squash(aBox.xy)', 'squash(aBox.xy + uOff)');
+  const fp: number[] = [];
+  const fbox = (x: number, z: number, w: number, d: number, y: number, h: number, kind: number, hex: string) => { col.set(hex); fp.push(x, z, w, d, y, h, 0.5, kind, col.r, col.g, col.b, 0); };
+  // a Şehir Hatları vapur, 34 m: black hull, white bulwark and saloons, a yellow funnel with a black top, a wheelhouse at each end
+  fbox(0, 0, 30, 8.4, -1.2, 2.4, 8, '#26282e');
+  for (const e of [-1, 1]) { fbox(e * 16, 0, 3, 6.2, -1.2, 2.4, 8, '#26282e'); fbox(e * 17.6, 0, 1.4, 3.4, -1.0, 2.2, 8, '#26282e'); }
+  fbox(0, 0, 33, 8.6, 1.2, 0.8, 8, '#f0ede6');
+  fbox(0, 0, 27, 7.4, 2.0, 4.6, 6, '#f2efe8');
+  fbox(0, 0, 21, 6.6, 6.6, 0.4, 8, '#d6d2ca');
+  for (const e of [-1, 1]) fbox(e * 9.5, 0, 3, 5, 7.0, 2.0, 6, '#f2efe8');
+  fbox(0, 0, 2.6, 2.2, 7.0, 3.6, 8, '#e9b830');
+  fbox(0, 0, 2.7, 2.3, 10.6, 0.8, 8, '#1e1e20');
+  const fg = new THREE.InstancedBufferGeometry();
+  fg.index = unit.index;
+  fg.setAttribute('position', unit.attributes.position);
+  fg.setAttribute('normal', unit.attributes.normal);
+  const fib = new THREE.InstancedInterleavedBuffer(new Float32Array(fp), 12);
+  fg.setAttribute('aBox', new THREE.InterleavedBufferAttribute(fib, 4, 0));
+  fg.setAttribute('aPart', new THREE.InterleavedBufferAttribute(fib, 4, 4));
+  fg.setAttribute('aCol', new THREE.InterleavedBufferAttribute(fib, 3, 8));
+  fg.instanceCount = fp.length / 12;
+  const ferries = new THREE.Group();
+  // two lines, each its own lane across the strait; they turn round just off the European piers and dwell at the Asian ones
+  const routes = [{ z: -26, x0: 108, x1: eastShore(-26) - 24, t: 0 }, { z: -84, x0: 108, x1: eastShore(-84) - 24, t: 70 }];
+  const boats = routes.map((r) => {
+    const off = { value: new THREE.Vector2(r.x0, r.z) };
+    const m = new THREE.Mesh(fg, new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, uniforms: { ...u, uOff: off }, vertexShader: ferryVert, fragmentShader: hm.fragmentShader }));
+    m.frustumCulled = false;
+    m.renderOrder = 10;
+    ferries.add(m);
+    return { r, off };
+  });
+  const DWELL_EU = 6, DWELL_AS = 30, CROSS = 75;
+  const cycle = 2 * CROSS + DWELL_EU + DWELL_AS;
+  const update = (dt: number) => {
+    for (const b of boats) {
+      b.r.t = (b.r.t + dt) % cycle;
+      let t = b.r.t, k: number;
+      if (t < DWELL_EU) k = 0;
+      else if ((t -= DWELL_EU) < CROSS) k = smooth(0, 1, t / CROSS);
+      else if ((t -= CROSS) < DWELL_AS) k = 1;
+      else k = 1 - smooth(0, 1, (t - DWELL_AS) / CROSS);
+      b.off.value.set(b.r.x0 + (b.r.x1 - b.r.x0) * k, b.r.z);
+    }
+  };
+
   // the sea floor everywhere the ground mesh doesn't reach, deep enough that the water reads as open sea
   const R = 6000;
   const sea = new THREE.BufferGeometry();
@@ -453,5 +504,5 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
   floor.frustumCulled = false;
   floor.renderOrder = 11;
   ground.add(floor);
-  return { ground, houses };
+  return { ground, houses, ferries, update };
 }

@@ -32,6 +32,7 @@ const check = (what: string, x: number, z: number, tol = 0.8) => {
 for (const s of a.stalls) { check(`stall ${s.id}`, s.stand[0], s.stand[1]); console.log('stall', s.id, 'y', nav.heightAt(s.stand[0], s.stand[1]).toFixed(2), 'vendor y', nav.heightAt(s.vendor[0], s.vendor[1]).toFixed(2)); }
 for (const i of a.idlers) check(`idler ${i.id}`, i.pos[0], i.pos[2]);
 for (const c of a.cats) check('cat', c[0], c[2]);
+for (const e of a.extras ?? []) check('angler', e.pos[0], e.pos[2]);
 a.manekis.forEach((m, i) => {
   const near = [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]].some(([dx, dz]) => nav.walkable(m[0] + dx, m[2] + dz) && reach(m[0] + dx, m[2] + dz));
   if (!near) { bad++; console.log('UNREACHABLE nazar', i, m); } else console.log('nazar', i, 'ok at y', nav.heightAt(m[0], m[2]).toFixed(2));

@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.1',
+    date: '2026-10-31',
+    title: 'Ferries and anglers',
+    items: [
+      'Big white ferries now cross the Bosphorus to Asia and back all day, yellow funnels and all. They wait at the Asian piers and turn round just off Eminönü, and their saloon windows light up at night.',
+      'Anglers stand at their rods all along both rails of the Galata Bridge, looking out over the Golden Horn, and now and then one checks a phone.',
+      'Istanbul has twice as many street cats, curled up on the quays by the fish boats, in the bazaars and on the Süleymaniye terrace.',
+      'People in Istanbul dress for the city: headscarves in soft prints and plain colours, long skirts, fewer shorts and plenty of fine moustaches.',
+      'The fishing boats on the strait now keep to the water just off the piers, clear of the ferry lanes.',
+    ],
+  },
+  {
     version: '0.16.0',
     date: '2026-10-31',
     title: 'Istanbul',

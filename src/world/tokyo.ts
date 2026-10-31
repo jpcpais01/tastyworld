@@ -75,6 +75,8 @@ export interface Anchors {
   /** Steps people sit on (x, z and the angle a sitter faces): they sit on the step itself, feet on the ones below. */
   stepSeats?: [number, number, number][];
   cats: [number, number, number][];
+  /** People who keep to one spot all day (Istanbul's anglers on the bridge): where, facing which way, their look. */
+  extras?: { pos: [number, number, number]; face: number; seed: number }[];
   emitters: Emitter[];
   /** Where fireflies dance on summer nights (metres); left out, they keep to Tokyo's park. */
   fireflies?: [number, number, number][];

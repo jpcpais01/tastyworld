@@ -129,8 +129,8 @@ function istanbulSpots(): CrowdSpots {
     sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
     windows: [], jog, exercise: [],
     boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
-    // the strait east of the ferry piers, clear of the moored ferries
-    sea: { cx: 76, cz: -34, rx: 16, rz: 44, y: -0.55 },
+    // the strait just off the ferry piers, inside the lanes the big ferries cross by
+    sea: { cx: 74, cz: -33.5, rx: 8, rz: 16, y: -0.55 },
   };
 }
 

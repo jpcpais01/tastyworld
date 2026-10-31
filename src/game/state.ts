@@ -13,6 +13,8 @@ export interface Settings {
   timeOfDay: number | null;
   /** View distance 0..1 (see viewMetres); null follows the graphics quality. */
   viewDist: number | null;
+  /** Very far view distance: pins it to VERY_FAR metres, over the slider (which keeps its own value for when it goes off). */
+  veryFar: boolean;
   /** First-person field of view, degrees. */
   fov: number;
   /** Performance overlay (frame rate, timings, draw calls). */
@@ -22,6 +24,10 @@ export interface Settings {
 /** View distance setting (0..1) to metres. */
 export const viewMetres = (v: number) => Math.round(60 + v * 240);
 /** The view distance each graphics quality starts at. */
+/** The very far view distance (metres), past the slider's top end. */
+export const VERY_FAR = 600;
+/** The view distance (metres) the settings ask for. */
+export const viewSetting = (st: Settings, tier: Quality) => (st.veryFar ? VERY_FAR : viewMetres(st.viewDist ?? VIEW_DEFAULT[tier]));
 export const VIEW_DEFAULT: Record<Quality, number> = { low: 0.3, medium: 0.45, high: 0.65 };
 
 export interface SaveState {
@@ -87,7 +93,7 @@ const KEY = 'tastyworld.save.v1';
 export function defaultState(): SaveState {
   return {
     v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [], stays: [], hotel: null,
-    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, fov: 72, perf: false }, profile: { name: '', color: 0xe9573f }, playTime: 0, photos: 0,
+    settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, veryFar: false, fov: 72, perf: false }, profile: { name: '', color: 0xe9573f }, playTime: 0, photos: 0,
   };
 }
 

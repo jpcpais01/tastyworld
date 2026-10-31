@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.51',
+    date: '2026-10-31',
+    title: 'Very far view',
+    items: [
+      'New Very far switch next to the View distance slider in Settings. Tap the little 600 m pill to see right across the whole city from first person, double the slider\'s longest reach. Tap it again and your slider setting comes back.',
+      'With Very far on, the overhead view can also pull back a little further. The distant streets are drawn in lighter detail so the game stays smooth.',
+    ],
+  },
+  {
     version: '0.16.50',
     date: '2026-10-31',
     title: 'Smooth arrivals from the first landing',

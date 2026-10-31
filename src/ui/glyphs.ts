@@ -29,6 +29,7 @@ export const G = {
   music: svg('<path d="M9 18V5.5l11-2V16"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>'),
   wind: svg('<path d="M3 9h10.5a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 13h15a3 3 0 1 1-3 3"/><path d="M3 17h7"/>'),
   speaker: svg('<path d="M4 9.5h4L13 5v14l-5-4.5H4v-5Z"/><path d="M16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11"/>'),
+  horizon: svg('<path d="M2.5 19h19"/><path d="m3.5 19 5.5-8 3.5 4.5 2.5-3 5.5 6.5"/><path d="M14.5 5.5h6M17 8.5h4"/>'),
   eye: svg('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/>'),
   clock: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
   monitor: svg('<rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M8.5 20.5h7M12 16.5v4"/>'),

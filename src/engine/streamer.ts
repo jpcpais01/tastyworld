@@ -100,7 +100,8 @@ export interface StreamView {
 /** Level-of-detail rings for a view distance (metres): full detail inside `full`, half inside `half`, quarter out to `far`. */
 export function lodRings(dist: number): { full: number; half: number; far: number } {
   const full = Math.min(80, Math.max(46, dist * 0.4));
-  return { full, half: Math.max(full + 20, dist * 0.68), far: dist + CHUNK * V };
+  // half detail stops growing at 240 m: past that (very far view) the extra reach is all quarter resolution
+  return { full, half: Math.max(full + 20, Math.min(dist * 0.68, 240)), far: dist + CHUNK * V };
 }
 
 /**

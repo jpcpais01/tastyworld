@@ -12,7 +12,7 @@ import {
   billboard, antenna, planterBox, cafeTable,
 } from './props';
 import { buildFood, FoodId } from './food';
-import { buildCity } from './city';
+import { buildCity, hillAt } from './city';
 import { tokyoBeyond, beyondCell } from './tokyoEdge';
 import { SwayBody, SWAY, swayKey } from './sway';
 import { wrapLot, dressBlock } from './facades';
@@ -1783,7 +1783,12 @@ export function buildTokyo(win?: Window): BuildResult {
   const s0 = b.sway.length;
   const interior = buildInterior(b, anchors);
   for (let i = s0; i < b.sway.length; i++) b.sway[i].amp *= INDOOR_SWAY;
-  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells, navTop: (x, z) => (beyondCell(x, z) ? 0 : G + 8) };
+  return { grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells, navTop: (x, z) => {
+    // on the Inari hill the ground follows the slope: looked for a metre over it, so no treetop or bush is ground
+    if (beyondCell(x, z)) return 0;
+    const h = hillAt(x, z);
+    return h > 0 ? G + h + 4 : G + 8;
+  } };
 }
 
 /** Indoors there is only a draught. */

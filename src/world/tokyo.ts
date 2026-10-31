@@ -53,6 +53,8 @@ export interface Occluder {
   kind: 'building' | 'landmark' | 'tree';
   /** Occluders sharing a group always lower together. */
   group?: number;
+  /** Height of its ground floor (metres) where the street is not at 0, on a hillside. */
+  floor?: number;
 }
 
 export interface Anchors {
@@ -100,6 +102,10 @@ export interface BuildResult {
   sway: SwayBody[];
   /** Street grid voxels (see swayKey) that belong to a sway body, e.g. sakura canopies. */
   swayCells: Map<number, number>;
+  /** Hillside cities: the voxel layer each column's walk-map scan starts from (just above its highest floor). */
+  navTop?: (x: number, z: number) => number;
+  /** Hillside cities: the layer of the terrain's surface in each column, which is never a mass to cut away. */
+  groundAt?: (x: number, z: number) => number;
 }
 
 export type Side = 's' | 'n' | 'e' | 'w';

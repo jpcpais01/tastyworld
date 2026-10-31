@@ -25,7 +25,7 @@ export interface GridRect { ox: number; oz: number; sx: number; sz: number }
  * count as solid below the run's top). `walk` (nav standing layer, 255 = blocked) keeps walkable ground such
  * as the Inari hill from being taken for a building-sized mass.
  */
-export interface Field { height: Uint8Array; solid: Uint32Array; walk?: Uint8Array }
+export interface Field { height: Uint8Array; solid: Uint32Array; walk?: Uint8Array; ground?: Uint8Array }
 /**
  * Per column: occluder id (index + 1, 0 = nobody) and 255 on a building's shell. Where a building's side rises
  * above a lower neighbour (or a boundary wall), whatever hangs off it up there (sills, pipes, eaves) sits in the
@@ -68,7 +68,9 @@ export function buildOwners(world: Occluder[], inside: Occluder[], wr: GridRect,
 function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: boolean, cap: number): Owned {
   const n = g.sx * g.sz;
   const id = new Uint16Array(n), shell = new Uint8Array(n), solid = new Uint8Array(n);
-  const tall = (c: number) => f.height[c] >= MASS_H && (!f.walk || f.walk[c] === 255);
+  // on a hillside the hill itself is never a mass: only what stands on it counts
+  const gr = f.ground;
+  const tall = (c: number) => f.height[c] - (gr ? gr[c] : 0) >= MASS_H && (!f.walk || f.walk[c] === 255);
   const span = (o: Occluder) => {
     const [x0, z0, x1, z1] = o.rect;
     return [
@@ -112,7 +114,8 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
           const kk = k + dk, jj = j + dj;
           if (kk < 0 || jj < 0 || kk >= g.sx || jj >= g.sz) continue;
           const cc = jj * g.sx + kk;
-          if (!seen[cc] && !id[cc] && tall(cc)) { seen[cc] = 1; comp.push(cc); }
+          // on a hillside a mass never spans terraces, or its cut would shave the upper ones down to the lowest
+          if (!seen[cc] && !id[cc] && tall(cc) && (!gr || Math.abs(gr[cc] - gr[c]) <= 2)) { seen[cc] = 1; comp.push(cc); }
         }
       }
       if (comp.length < MASS_MIN) continue;
@@ -125,13 +128,15 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
       }
       for (const cells of tiles.values()) {
         if (occ.length >= cap) { skipped++; continue; }
-        let k0 = g.sx, j0 = g.sz, k1 = -1, j1 = -1;
+        let k0 = g.sx, j0 = g.sz, k1 = -1, j1 = -1, base = 255;
         for (const c of cells) {
           const k = c % g.sx, j = (c - k) / g.sx;
           k0 = Math.min(k0, k); k1 = Math.max(k1, k); j0 = Math.min(j0, j); j1 = Math.max(j1, j);
           id[c] = occ.length + 1; shell[c] = 255; solid[c] = 1;
+          if (gr) base = Math.min(base, gr[c]);
         }
-        occ.push({ rect: [g.ox + k0 * V, g.oz + j0 * V, g.ox + (k1 + 1) * V, g.oz + (j1 + 1) * V], top: 8, low: 0.95, kind: 'landmark' });
+        const fl = gr ? base * V : 0;
+        occ.push({ rect: [g.ox + k0 * V, g.oz + j0 * V, g.ox + (k1 + 1) * V, g.oz + (j1 + 1) * V], top: 8 + fl, low: 0.95 + fl, kind: 'landmark', floor: fl });
       }
     }
     if (skipped) console.warn(`cutaway: ${skipped} solid masses left without an id`);
@@ -156,7 +161,7 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
     front = next;
   }
   // and further out, but only over columns with something up in the air and open ground below it
-  const overhead = (c: number) => f.height[c] < MASS_H && (f.solid[c * 2] >>> MASS_H !== 0 || f.solid[c * 2 + 1] !== 0);
+  const overhead = (c: number) => !(gr && gr[c]) && f.height[c] < MASS_H && (f.solid[c * 2] >>> MASS_H !== 0 || f.solid[c * 2 + 1] !== 0);
   front = front.filter(overhead);
   for (let step = 0; step < REACH && front.length; step++) {
     const next: number[] = [];

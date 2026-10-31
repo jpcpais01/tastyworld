@@ -72,6 +72,6 @@ console.log('doing', doings);
 console.log('goals', goals);
 console.log('trips', places, 'most out at once', maxOut, 'bodies', fakes.length);
 console.log('bubbles', bubbles, 'served', served);
-const ok = nan === 0 && maxStill < 20 && blockedT / outT < 0.004 && (doings.browse ?? 0) > 0 && (doings.sit ?? 0) > 0 && (doings.chat ?? 0) > 0 && (doings['seq:pray'] ?? 0) > 0 && maxOut > 100;
+const ok = nan === 0 && maxStill < 20 && blockedT / outT < 0.004 && (doings.browse ?? 0) > 0 && (doings.sit ?? 0) > 0 && (doings.chat ?? 0) > 0 && ((doings['seq:pray'] ?? 0) > 0 || process.env.CITY === 'amalfi') && maxOut > 100;
 console.log(ok ? 'crowd OK' : 'CROWD PROBLEMS');
 if (!ok) process.exit(1);

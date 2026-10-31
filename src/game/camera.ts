@@ -192,7 +192,8 @@ export class IsoCamera {
 
   /** Screen pixel -> point on the walkable surface (marches the view ray over the heightfield). */
   /** `top` is the highest floor worth looking for (metres): the street's 12 m, or a room upstairs. */
-  pick(px: number, py: number, nav: Nav, extraHeights?: (x: number, z: number) => number | null, top = 12): THREE.Vector3 | null {
+  /** `bottom` is the lowest (a hillside town looks for ground well above and below the traveller). */
+  pick(px: number, py: number, nav: Nav, extraHeights?: (x: number, z: number) => number | null, top = 12, bottom = -3): THREE.Vector3 | null {
     const ndc = new THREE.Vector3((px / window.innerWidth) * 2 - 1, -(py / window.innerHeight) * 2 + 1, -1);
     if (this.fp) return this.pickFirstPerson(ndc, nav, extraHeights);
     const origin = ndc.clone().unproject(this.cam);
@@ -201,14 +202,15 @@ export class IsoCamera {
     const t0 = (origin.y - top) / -dir.y;
     const p = origin.clone().addScaledVector(dir, Math.max(0, t0));
     const step = 0.08;
-    for (let i = 0; i < 600; i++) {
+    const steps = Math.min(4000, Math.max(600, Math.ceil((top - bottom) / Math.max(0.05, -dir.y) / step)));
+    for (let i = 0; i < steps; i++) {
       const floor = extraHeights?.(p.x, p.z) ?? (nav.walkable(p.x, p.z) ? nav.heightAt(p.x, p.z) : null);
       if (floor !== null && p.y <= floor + 0.02) return new THREE.Vector3(p.x, floor, p.z);
-      if (p.y < -3) break;
+      if (p.y < bottom) break;
       p.addScaledVector(dir, step);
     }
-    // fall back to the street plane
-    const tp = (origin.y - 0) / -dir.y;
+    // fall back to the street plane (on a hillside: the level you stand on)
+    const tp = (origin.y - (bottom <= -3 ? 0 : (top + bottom) / 2)) / -dir.y;
     return origin.clone().addScaledVector(dir, tp);
   }
 

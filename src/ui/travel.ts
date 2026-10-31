@@ -2,6 +2,9 @@ import type { SaveState } from '../game/state';
 import type { Audio } from '../game/audio';
 import type { Coop, Peer, Profile } from '../net/coop';
 import { DESTINATIONS, DEST, Destination, homeCity, Home } from '../data/destinations';
+import { TEXT } from '../data/cityText';
+import { saveNow } from '../game/state';
+import { CITY, isCity, goToCity, takeResume } from '../world/cityId';
 import { DISHES } from '../data/dishes';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { WorldMap } from './worldmap';
@@ -102,7 +105,7 @@ export class Travel {
     const hasSave = got > 0 || this.s.playTime > 30;
     t.innerHTML = `
       <div class="title-top">
-        <h1 class="title-logo">Tasty<span class="w2">World</span><span class="title-sticker">東京 · 屋台</span></h1>
+        <h1 class="title-logo">Tasty<span class="w2">World</span><span class="title-sticker">${esc(TEXT.sticker)}</span></h1>
         <div class="title-tag">${hasSave ? `Welcome back, traveller · ${got} / ${DISHES.length} stamps` : 'Travel the world through its street food'}</div>
       </div>
       <div class="title-card">
@@ -130,6 +133,20 @@ export class Travel {
     $('t-coop').onclick = go(() => this.openMap('coop'));
     $('t-join').onclick = go(() => this.join());
     $('t-notes').onclick = go(() => this.hooks.notes());
+    // after flying in from another city: carry on with what was started there
+    const resume = takeResume();
+    if (resume && 'host' in resume && DEST[resume.host]) {
+      const d = DEST[resume.host];
+      this.openMap('coop', (trip) => void this.hostPass(trip, d));
+      return;
+    }
+    if (resume && 'board' in resume && DEST[resume.board]) {
+      // the flight already landed on the page before: straight into the streets
+      t.classList.add('hidden');
+      this.hooks.board(DEST[resume.board], null);
+      return;
+    }
+    if (resume && 'ticket' in resume) { this.join(resume.ticket); return; }
     // a shared link carries the ticket: go straight to check-in
     const params = new URLSearchParams(location.search);
     const code = params.get('ticket');
@@ -146,7 +163,7 @@ export class Travel {
     const trip = h('div', `trip ${mode}`);
     const map = new WorldMap(trip);
     this.map = map;
-    const here = mode === 'view' ? DEST[this.hooks.coop()?.dest ?? 'tokyo'] ?? DEST.tokyo : null;
+    const here = mode === 'view' ? DEST[this.hooks.coop()?.dest ?? CITY] ?? DEST[CITY] : null;
     const label = mode === 'solo' ? 'Solo trip' : mode === 'coop' ? 'Co-op trip' : 'World map';
     const top = h('div', 'trip-top', `
       <button class="round-btn" data-a="back" aria-label="${mode === 'view' ? 'Close map' : 'Back to the menu'}">${mode === 'view' ? G.close : G.back}</button>
@@ -154,7 +171,7 @@ export class Travel {
       <div class="trip-from">${G.home}<span>Flying from <b>${esc(this.home.city)}</b></span></div>`);
     const sheet = h('div', 'trip-sheet');
     trip.append(top, sheet);
-    let sel: Destination = here ?? DEST.tokyo;
+    let sel: Destination = here ?? DEST[CITY] ?? DEST.tokyo;
 
     // pins
     const pins = new Map<string, HTMLElement>();
@@ -206,7 +223,7 @@ export class Travel {
         const b = h('button', 'btn btn-hero', `${G.clock}Coming soon`);
         b.setAttribute('disabled', '');
         cta.appendChild(b);
-        cta.appendChild(h('p', 'cta-note', `The ${esc(d.city)} street food guide is still simmering. Tokyo is open now!`));
+        cta.appendChild(h('p', 'cta-note', `The ${esc(d.city)} street food guide is still simmering. ${DESTINATIONS.filter((o) => o.open).map((o) => esc(o.city)).join(' and ')} ${DESTINATIONS.filter((o) => o.open).length > 1 ? 'are' : 'is'} open now!`));
       } else if (mode === 'view') {
         const b = h('button', 'btn btn-hero', `${G.arrow}Back to ${esc(d.city)}`);
         b.onclick = () => { this.audio.play('click'); this.hooks.close(); };
@@ -220,6 +237,8 @@ export class Travel {
         b.onclick = () => {
           this.audio.play('click');
           if (mode === 'solo') void this.fly(trip, d, null);
+          // a trip to another city starts from a page that has built that city: go there first, then print the ticket
+          else if (d.id !== CITY && isCity(d.id)) { this.hooks.save(); saveNow(this.s); goToCity(d.id, { host: d.id }); }
           else void this.hostPass(trip, d);
         };
         cta.appendChild(b);
@@ -397,6 +416,13 @@ export class Travel {
         this.audio.play('fail');
         go.innerHTML = `${G.ticket}Try again`;
         status.textContent = 'Nobody is on that trip right now. Check the code, and make sure your friend still has the game open.';
+        return;
+      }
+      if (coop.dest !== CITY && isCity(coop.dest)) {
+        // the friend is in another city: reload into it and check in again from there
+        coop.leave();
+        saveNow(this.s);
+        goToCity(coop.dest, { ticket: input.value });
         return;
       }
       wrap.remove();

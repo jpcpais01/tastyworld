@@ -1,4 +1,5 @@
 import type { FoodId } from '../world/food';
+import { AMALFI } from '../world/cityId';
 
 export interface Dish {
   id: FoodId;
@@ -17,7 +18,7 @@ export interface Dish {
   flavor: { sweet: number; savory: number; umami: number; crunch: number };
 }
 
-export const DISHES: Dish[] = [
+const TOKYO_DISHES: Dish[] = [
   {
     id: 'takoyaki', name: 'Takoyaki', jp: 'たこ焼き', romaji: 'tako-yaki', stall: 'hachi', price: 600, dessert: false,
     tagline: 'Molten octopus dumplings, flipped by hand.',
@@ -181,4 +182,137 @@ export const DISHES: Dish[] = [
 ];
 
 
-export const DISH = Object.fromEntries(DISHES.map((d) => [d.id, d])) as Record<FoodId, Dish>;
+/** `jp` holds the dish's Italian name, `romaji` how to say it. */
+const AMALFI_DISHES: Dish[] = [
+  {
+    id: 'sfogliatella', name: 'Sfogliatella Riccia', jp: 'sfogliatella', romaji: 'sfo-lya-TEL-la', stall: 'pansa', price: 450, dessert: true,
+    tagline: 'A crackling shell of a hundred pastry layers, filled with warm ricotta.',
+    origin: 'Conca dei Marini, 1600s',
+    history: 'Nuns at the convent of Santa Rosa, a few bays west of Amalfi, turned leftover semolina and ricotta into a pastry shaped like a monk\'s hood. In 1818 a Neapolitan pastry cook got hold of the recipe and the sfogliatella conquered the whole coast.',
+    ingredients: ['Paper-thin pastry, stretched and rolled', 'Lard', 'Ricotta and semolina', 'Candied orange peel', 'Cinnamon and icing sugar'],
+    culture: 'The dough is stretched until you can read through it, rolled into a long log and sliced, and every slice is pushed into a cone by thumb. The ridges are its signature: riccia means curly.',
+    tip: 'Bite it over a napkin. The shell shatters, and the crumbs are half the fun.',
+    flavor: { sweet: 4, savory: 1, umami: 0, crunch: 5 },
+  },
+  {
+    id: 'delizia', name: 'Delizia al Limone', jp: 'delizia al limone', romaji: 'de-LEE-tsya al lee-MO-ne', stall: 'pansa', price: 600, dessert: true,
+    tagline: 'A dome of sponge soaked in limoncello under a cloak of lemon cream.',
+    origin: 'Sorrento coast, 1978',
+    history: 'Pastry chef Carmine Marzuillo created it for a cooking contest, using the fat, fragrant sfusato lemons of the Amalfi Coast. It became the coast\'s best loved cake in a single generation.',
+    ingredients: ['Light sponge', 'Lemon custard with cream', 'Limoncello syrup', 'Amalfi lemon zest'],
+    culture: 'Every pastry shop on the coast makes its own and will swear theirs is the original. Locals eat it in the afternoon with a coffee, standing at the bar.',
+    tip: 'Cut from the top down so every spoonful has sponge, cream and glaze.',
+    flavor: { sweet: 4, savory: 0, umami: 0, crunch: 0 },
+  },
+  {
+    id: 'cuoppo', name: 'Cuoppo di Mare', jp: "cuoppo d'Amalfi", romaji: 'KWOP-po di MA-re', stall: 'cuoppo', price: 800, dessert: false,
+    tagline: 'A paper cone of squid rings, prawns and anchovies, fried that minute.',
+    origin: 'Naples and its coast, 1800s',
+    history: 'Fry shops along the Bay of Naples sold the morning\'s smallest fish in rolled cones of rough paper, the cheapest hot meal for porters and fishermen. Amalfi\'s harbour still fries whatever the boats bring in.',
+    ingredients: ['Calamari rings', 'Prawns', 'Fresh anchovies', 'Semolina flour', 'Sea salt and a wedge of lemon'],
+    culture: 'You order it by weight, eat it walking along the harbour wall and squeeze the lemon over the top. Nobody shares the crispiest pieces.',
+    tip: 'Eat from the top before the bottom of the cone softens.',
+    flavor: { sweet: 0, savory: 4, umami: 4, crunch: 5 },
+  },
+  {
+    id: 'frittatina', name: 'Frittatina di Pasta', jp: 'frittatina', romaji: 'frit-ta-TEE-na', stall: 'cuoppo', price: 450, dessert: false,
+    tagline: 'Bucatini, peas and béchamel, breaded and fried into a golden disc.',
+    origin: 'Naples, 20th century',
+    history: 'Born as a way to use up yesterday\'s pasta, the frittatina became a fixture of every friggitoria on the coast. It is sold hot, wrapped in a napkin, next to the croquettes.',
+    ingredients: ['Bucatini', 'Béchamel', 'Peas and ham', 'Breadcrumb and batter', 'Black pepper'],
+    culture: 'It is street food in the truest sense: eaten standing, often as a snack between the beach and lunch.',
+    tip: 'Let it rest a minute. The middle stays creamy and very hot.',
+    flavor: { sweet: 1, savory: 4, umami: 3, crunch: 3 },
+  },
+  {
+    id: 'portafoglio', name: 'Pizza a Portafoglio', jp: 'pizza a portafoglio', romaji: 'por-ta-FO-lyo', stall: 'portafoglio', price: 500, dessert: false,
+    tagline: 'A small margherita folded in four, to eat walking.',
+    origin: 'Naples, 1700s',
+    history: 'Before there were pizzerias with tables, pizza was street food sold from stalls and folded like a wallet so you could carry it. The tradition never left the coast\'s back streets.',
+    ingredients: ['Slow-risen dough', 'San Marzano tomato', 'Fior di latte mozzarella', 'Basil', 'Olive oil'],
+    culture: 'Folded twice, with the open end up, it keeps its sauce in. Locals hold it in a sheet of paper and eat it while they walk.',
+    tip: 'Start at the folded corner and work up. Keep the open edge up or the tomato escapes.',
+    flavor: { sweet: 1, savory: 4, umami: 4, crunch: 2 },
+  },
+  {
+    id: 'montanara', name: 'Montanara', jp: 'pizza montanara', romaji: 'mon-ta-NA-ra', stall: 'portafoglio', price: 450, dessert: false,
+    tagline: 'A little pizza fried until it puffs, then baked with tomato and cheese.',
+    origin: 'Campania, 1800s',
+    history: 'Families without a wood oven fried their pizza dough at home. The puffy, golden result was so good it became a classic of its own, finished with tomato and grated cheese.',
+    ingredients: ['Pizza dough', 'Tomato sauce', 'Grated cheese', 'Basil', 'Oil for frying'],
+    culture: 'Fried pizza was the pizza of the poor, cooked on the stove and sold from doorways. Today it is a beloved snack.',
+    tip: 'Fold it gently in half. The pillowy dough cushions the hot sauce.',
+    flavor: { sweet: 1, savory: 4, umami: 3, crunch: 3 },
+  },
+  {
+    id: 'gelato', name: 'Gelato Limone e Pistacchio', jp: 'gelato', romaji: 'je-LA-to', stall: 'gelato', price: 400, dessert: true,
+    tagline: 'Two scoops in a waffle cone: tart Amalfi lemon and roasted pistachio.',
+    origin: 'Italy, 1600s',
+    history: 'Ice from the mountains was once carried down to the coast in straw and stored in pits for summer sorbets. Gelato grew from those, and the coast\'s lemons made its sorbetto famous.',
+    ingredients: ['Sfusato Amalfitano lemons', 'Sicilian pistachios', 'Milk and cream', 'Sugar'],
+    culture: 'An evening stroll, the passeggiata, often ends with a gelato on the sea wall. Ordering two flavours that clash is quietly frowned on.',
+    tip: 'Lick around the edges of the cone first. The sun is quicker than you.',
+    flavor: { sweet: 4, savory: 0, umami: 0, crunch: 1 },
+  },
+  {
+    id: 'granita', name: 'Granita al Limone', jp: 'granita al limone', romaji: 'gra-NEE-ta', stall: 'gelato', price: 350, dessert: true,
+    tagline: 'Lemon ice scraped into flakes: the coast\'s answer to August.',
+    origin: 'Sicily and the south, 1500s',
+    history: 'Snow collected on the mountains was flavoured with fruit juices. Granita is its descendant, coarser and brighter than sorbet.',
+    ingredients: ['Amalfi lemon juice', 'Zest', 'Sugar', 'Water'],
+    culture: 'Kiosks on the coast scrape it to order. It cools you down better than anything at three in the afternoon.',
+    tip: 'Eat it slowly. Brain freeze is real.',
+    flavor: { sweet: 3, savory: 0, umami: 0, crunch: 2 },
+  },
+  {
+    id: 'limoncello', name: 'Limoncello', jp: 'limoncello', romaji: 'lee-mon-CHEL-lo', stall: 'limonaia', price: 500, dessert: true,
+    tagline: 'Ice-cold lemon liqueur, poured from a bottle kept in the freezer.',
+    origin: 'Amalfi Coast, early 1900s',
+    history: 'Families on the coast steeped lemon peel in alcohol and sugar long before anyone sold it. Every grove still makes its own, and every family thinks theirs is the best.',
+    ingredients: ['Peel of sfusato lemons', 'Pure alcohol', 'Sugar', 'Water'],
+    culture: 'Served frozen in little glasses after dinner, as a digestivo. Here it is offered with a smile at the lemon terraces.',
+    tip: 'Sip it, don\'t shoot it. It is stronger than it tastes.',
+    flavor: { sweet: 4, savory: 0, umami: 0, crunch: 0 },
+  },
+  {
+    id: 'caprese', name: 'Torta Caprese', jp: 'torta caprese', romaji: 'TOR-ta ka-PRE-ze', stall: 'limonaia', price: 550, dessert: true,
+    tagline: 'A dense, flourless cake of chocolate and almonds, dusted white.',
+    origin: 'Capri, 1920s',
+    history: 'Legend says a baker on Capri forgot the flour in an almond cake for three American gangsters. It came out of the oven crisp outside and fudgy inside, and the mistake became a classic.',
+    ingredients: ['Dark chocolate', 'Ground almonds', 'Butter', 'Eggs', 'Icing sugar'],
+    culture: 'The lemon version, caprese al limone, uses white chocolate. Both are served in thick wedges with a spoon of cream.',
+    tip: 'The crackly top is the best part. Take it with the first forkful.',
+    flavor: { sweet: 4, savory: 0, umami: 1, crunch: 1 },
+  },
+  {
+    id: 'scialatielli', name: 'Scialatielli ai Frutti di Mare', jp: 'scialatielli', romaji: 'sha-la-TYEL-lee', stall: 'grotta', price: 1800, dessert: false,
+    tagline: 'Fresh ribbon pasta of the coast, tossed with clams, mussels and tomatoes.',
+    origin: 'Amalfi, 1967',
+    history: 'Chef Enrico Cosentino of Amalfi created these short, thick ribbons with milk, basil and cheese in the dough, and won a prize with them in 1978. They are now made all along the coast.',
+    ingredients: ['Scialatielli: flour, milk, egg, basil, pecorino', 'Clams and mussels', 'Cherry tomatoes', 'Garlic, parsley, olive oil', 'A splash of white wine'],
+    culture: 'The pasta is cut by hand and is never perfectly even. That\'s the point: it holds the sauce.',
+    tip: 'Use the shells as a little spoon for the juices.',
+    flavor: { sweet: 1, savory: 4, umami: 5, crunch: 1 },
+  },
+  {
+    id: 'totani', name: 'Totani e Patate', jp: 'totani e patate', romaji: 'TO-ta-nee e pa-TA-te', stall: 'grotta', price: 1400, dessert: false,
+    tagline: 'Squid and potatoes slowly stewed with tomato: the fishermen\'s Sunday lunch.',
+    origin: 'Amalfi and Praiano, traditional',
+    history: 'The totano, a flying squid of the gulf, was the poor relation of the calamaro. Cooked with potatoes until both melt together, it became the most loved dish of the coast\'s fishing families.',
+    ingredients: ['Totani squid', 'Potatoes', 'Cherry tomatoes', 'Garlic and chilli', 'Parsley and olive oil'],
+    culture: 'Each family has its version. Some add the potatoes in rings, some in chunks, all argue about it.',
+    tip: 'Mop up the sauce with a piece of bread. Nobody will judge you.',
+    flavor: { sweet: 1, savory: 4, umami: 5, crunch: 0 },
+  },
+];
+
+/** The menu of the city on this trip. */
+export const DISHES: Dish[] = AMALFI ? AMALFI_DISHES : TOKYO_DISHES;
+/** Every dish of every city, for stamps collected elsewhere. */
+export const ALL_DISHES: Dish[] = [...TOKYO_DISHES, ...AMALFI_DISHES];
+/** The menus of the other cities, for the passport's "stamped elsewhere" pages. */
+export const OTHER_MENUS: { name: string; flag: string; dishes: Dish[] }[] = AMALFI
+  ? [{ name: 'Tokyo', flag: '', dishes: TOKYO_DISHES }]
+  : [{ name: 'Amalfi', flag: 'it', dishes: AMALFI_DISHES }];
+
+export const DISH = Object.fromEntries(ALL_DISHES.map((d) => [d.id, d])) as Record<FoodId, Dish>;

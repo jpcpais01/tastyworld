@@ -1145,3 +1145,8 @@ body.photo-mode #hud, body.photo-mode #labels, body.photo-mode #prompt { display
 .pv-del { margin-left: auto; }
 .pv-del.sure { background: var(--tomato-soft); color: var(--tomato-deep); }
 @media (max-width: 560px) { .pv-pic { margin: 0 14px; } .pv-pic img { max-height: 58vh; } .pv-foot { padding: 14px 14px 18px; } }
+.pp-flag.it { background: linear-gradient(90deg, #009246 0 33.3%, #fff 33.3% 66.6%, #ce2b37 66.6%); }
+.pp-flag.it i { display: none; }
+.pp-other { margin-top: 22px; padding-top: 16px; border-top: 2px dashed var(--line); }
+.stamps.small { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+.stamps.small .slot .sn { font-size: 11px; }

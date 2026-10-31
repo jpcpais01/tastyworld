@@ -180,6 +180,12 @@ export class SunShadows {
   /**
    * Fit, redraw if needed and copy. `strength` fades the map in with the sun (0 skips everything).
    */
+  /**
+   * Height (m) the band of receivers is measured from: the street in a flat city, the level you are on in a
+   * hillside one (kept in whole steps so climbing a stair doesn't refit the map every frame).
+   */
+  focusY = 0;
+
   update(gl: THREE.WebGLRenderer, scene: THREE.Scene, view: THREE.Camera, firstPerson: boolean, sun: THREE.Vector3, strength: number): void {
     const u = this.uniforms.uShadow.value;
     if (strength <= 0.001 || !this.rtStatic || !this.rtMap) { u.x = 0; return; }
@@ -196,13 +202,13 @@ export class SunShadows {
     if (firstPerson) {
       const e = view.position;
       for (let i = 0; i < 8; i++)
-        add(this.v.set(e.x + (i & 1 ? FP_R : -FP_R), i & 2 ? Y_HI : Y_LO, e.z + (i & 4 ? FP_R : -FP_R)));
+        add(this.v.set(e.x + (i & 1 ? FP_R : -FP_R), this.focusY + (i & 2 ? Y_HI : Y_LO), e.z + (i & 4 ? FP_R : -FP_R)));
     } else {
       view.getWorldDirection(this.d);
       if (Math.abs(this.d.y) < 0.05) { u.x = 0; return; }
       for (let i = 0; i < 8; i++) {
         this.o.set(i & 1 ? 1 : -1, i & 2 ? 1 : -1, -1).unproject(view);
-        const y = i & 4 ? Y_HI : Y_LO;
+        const y = this.focusY + (i & 4 ? Y_HI : Y_LO);
         add(this.v.copy(this.o).addScaledVector(this.d, (y - this.o.y) / this.d.y));
       }
     }

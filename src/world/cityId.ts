@@ -1,0 +1,54 @@
+/** The cities a trip can land in. Each page load builds exactly one of them. */
+export type CityId = 'tokyo' | 'amalfi';
+export const CITIES: readonly CityId[] = ['tokyo', 'amalfi'];
+export const CITY_KEY = 'tastyworld.city';
+
+const known = (v: unknown): CityId | null => (CITIES as readonly unknown[]).includes(v) ? v as CityId : null;
+
+/**
+ * Picked once, when this module is first evaluated, so every constant that depends on it (world size, palettes,
+ * menus) can stay a plain const. The page reads ?city= or the last city visited; a world worker is told by its
+ * name ('city:amalfi'); scripts read the CITY environment variable.
+ */
+export const CITY: CityId = (() => {
+  const g = globalThis as unknown as { document?: unknown; name?: string; location?: { search: string }; localStorage?: Storage; process?: { env: Record<string, string | undefined> } };
+  if (g.process?.env) return known(g.process.env.CITY) ?? 'tokyo';
+  if (!g.document) return known(g.name?.startsWith('city:') ? g.name.slice(5) : null) ?? 'tokyo';
+  try {
+    const q = known(new URLSearchParams(g.location?.search ?? '').get('city'));
+    if (q) return q;
+    return known(g.localStorage?.getItem(CITY_KEY)) ?? 'tokyo';
+  } catch {
+    return 'tokyo';
+  }
+})();
+
+export const AMALFI = CITY === 'amalfi';
+
+export const isCity = (id: string): id is CityId => known(id) !== null;
+
+/** What to pick up after the page reloads into another city: board straight away, host a co-op trip, or join one. */
+export type Resume = { board: CityId } | { host: CityId } | { ticket: string };
+const RESUME_KEY = 'tastyworld.resume';
+
+/** Reload the page into another city (the caller saves first), carrying on with `then` once it has loaded. */
+export function goToCity(id: CityId, then: Resume): void {
+  try {
+    localStorage.setItem(CITY_KEY, id);
+    sessionStorage.setItem(RESUME_KEY, JSON.stringify(then));
+  } catch { /* storage blocked: ?city= still works */ }
+  const q = new URLSearchParams(location.search);
+  q.set('city', id);
+  location.replace(`${location.pathname}?${q}${location.hash}`);
+}
+
+/** The step carried over from the page that sent us here, read once. */
+export function takeResume(): Resume | null {
+  try {
+    const raw = sessionStorage.getItem(RESUME_KEY);
+    sessionStorage.removeItem(RESUME_KEY);
+    return raw ? JSON.parse(raw) as Resume : null;
+  } catch {
+    return null;
+  }
+}

@@ -1,3 +1,5 @@
+import { TEXT } from '../data/cityText';
+import { AMALFI } from '../world/cityId';
 import type { NavData } from '../world/bake';
 import type { Occluder, StallAnchor } from '../world/tokyo';
 import { V, G as STREET, WX0, WZ0, WX1, WZ1, WORLD_W, WORLD_D, ZONES, zoneAt } from '../world/layout';
@@ -64,6 +66,8 @@ const C = {
   tomato: '#e9573f', tomatoDeep: '#b93d27', sun: '#f4b63f', sunDeep: '#c88a14', vermilion: '#d65a3c', indigo: '#283a6e',
 };
 const ROOFS = ['#8f9dab', '#7f8d9d', '#c98468', '#99a6b0', '#d6ae76', '#a3b294', '#8a96a6', '#cf9a7e', '#b39a86', '#8f9dab'];
+// Amalfi from above: whitewashed and pastel vaults and terraces
+const PASTEL = ['#efe6d6', '#f1d9a8', '#eec2a6', '#e8c6c9', '#f3e8c4', '#dfd3c0', '#f0dcb8', '#e6b9a0'];
 const TOWERS = ['#8d95aa', '#9aa3a8', '#7f8aa0', '#a49aa8'];
 const GREENS = ['#8db67a', '#7eab6c', '#9cc283', '#86b07e'];
 const SAKURA = ['#f1b6c4', '#eeaabb', '#f5c3cf'];
@@ -82,7 +86,7 @@ const GLYPH: Record<Glyph, string> = {
   lantern: 'M12 2.5v2 M9 4.5h6 M7.5 8.2c0-2.1 2-3.7 4.5-3.7s4.5 1.6 4.5 3.7v5.6c0 2.1-2 3.7-4.5 3.7s-4.5-1.6-4.5-3.7V8.2Z M7.6 11h8.8 M9 19.5h6',
 };
 const ZONE_ICON: Record<string, Glyph> = { station: 'train', midori: 'torii', inari: 'torii', park: 'tree', ginza: 'bag', plaza: 'temple', gado: 'lantern' };
-const DISTRICTS = new Set(['plaza', 'ekimae', 'station', 'midori', 'gado', 'park', 'inari', 'ginza', 'yanaka', 'canal']);
+const DISTRICTS = new Set(['marina', 'molo', 'ponente', 'mulini', 'limoni', 'plaza', 'ekimae', 'station', 'midori', 'gado', 'park', 'inari', 'ginza', 'yanaka', 'canal']);
 const EXTRA_PLACES: { name: string; jp: string; at: [number, number]; icon: Glyph }[] = [
   { name: 'Sento', jp: '銭湯', at: [-23.1, 8.6], icon: 'bath' },
 ];
@@ -110,7 +114,7 @@ function paintBase(w: MapWorld): { canvas: HTMLCanvasElement; step: (ms: number)
   const parks = ZONES.filter((zn) => PARKS.has(zn.id)).map((zn) => zn.rect);
   const cellAt = (cx: number, cz: number) => (cx < 0 || cz < 0 || cx >= sx || cz >= sz ? 255 : nh[cz * sx + cx]);
   const shoreAt = (cx: number, cz: number) => shore[clamp(cz, 0, sz - 1) * sx + clamp(cx, 0, sx - 1)];
-  const lvl = (h: number) => (h === 255 ? -1 : Math.floor(Math.max(0, h - STREET) / 4));
+  const lvl = (h: number) => (h === 255 ? -1 : Math.floor(Math.max(0, h - STREET) / (AMALFI ? 12 : 4)));
   let row = 0;
   const band = (y0: number) => {
     for (let py = y0; py < y0 + BAND && py < H; py++) {
@@ -141,7 +145,7 @@ function paintBase(w: MapWorld): { canvas: HTMLCanvasElement; step: (ms: number)
           const base = h === 255 ? C.block : C.street;
           r = base[0]; g = base[1]; b = base[2];
           if (h !== 255 && h > STREET + 1) {
-            const k = smooth(1, 26, h - STREET) * 0.85 + 0.15;
+            const k = smooth(1, AMALFI ? 170 : 26, h - STREET) * 0.85 + 0.15;
             r += (C.hill[0] - r) * k; g += (C.hill[1] - g) * k; b += (C.hill[2] - b) * k;
           }
           for (const [x0, z0, x1, z1] of parks) {
@@ -189,8 +193,9 @@ function roofsOf(w: MapWorld): { roofs: Roof[]; trees: Tree[] } {
       trees.push({ x: cx, z: cz, r: Math.max(0.8, Math.max(x1 - x0, z1 - z0) * 0.34), fill: list[Math.floor(h * list.length)] });
       continue;
     }
-    let style: Roof['style'] = o.top >= 13 ? 'flat' : 'hip';
-    let fill = o.top >= 13 ? TOWERS[Math.floor(h * TOWERS.length)] : ROOFS[Math.floor(h * ROOFS.length)];
+    const tall = o.top - (o.floor ?? 0) >= 13 && !AMALFI;
+    let style: Roof['style'] = tall || AMALFI ? 'flat' : 'hip';
+    let fill = tall ? TOWERS[Math.floor(h * TOWERS.length)] : AMALFI ? PASTEL[Math.floor(h * PASTEL.length)] : ROOFS[Math.floor(h * ROOFS.length)];
     if (o.kind === 'landmark') {
       if (zone === 'gado' && x1 - x0 > 40) { style = 'rail'; fill = '#d9ccb4'; }
       else if (zone === 'station') { style = 'station'; fill = '#6f929a'; }
@@ -208,12 +213,12 @@ function roofsOf(w: MapWorld): { roofs: Roof[]; trees: Tree[] } {
 function labelsOf(): Label[] {
   const out: Label[] = [];
   for (const zn of ZONES) {
-    if (zn.id === 'kakurega') continue;
+    if (zn.id === 'kakurega' || zn.id === 'grotta') continue;
     const [x0, z0, x1, z1] = zn.rect;
     const district = DISTRICTS.has(zn.id);
     out.push({ name: zn.name, jp: zn.jp, x: (x0 + x1) / 2, z: (z0 + z1) / 2, district, vertical: !district && z1 - z0 > (x1 - x0) * 1.8, icon: ZONE_ICON[zn.id], zone: zn.id });
   }
-  for (const p of EXTRA_PLACES) out.push({ name: p.name, jp: p.jp, x: p.at[0], z: p.at[1], district: false, vertical: false, icon: p.icon });
+  if (!AMALFI) for (const p of EXTRA_PLACES) out.push({ name: p.name, jp: p.jp, x: p.at[0], z: p.at[1], district: false, vertical: false, icon: p.icon });
   // districts claim their space before the streets
   return out.sort((a, b) => Number(b.district) - Number(a.district));
 }
@@ -290,7 +295,7 @@ export class CityMap {
       <div class="cm-sheet">
         <canvas class="cm-view" aria-label="Map of the city"></canvas>
         <div class="cm-folds" aria-hidden="true"></div>
-        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>Hikari-machi <span class="jp">光町</span></h2><small>Tokyo · 東京</small></div>
+        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>${TEXT.district[0]} <span class="jp">${TEXT.district[1]}</span></h2><small>${AMALFI ? 'Costiera Amalfitana · Italy' : 'Tokyo · 東京'}</small></div>
         <button class="cm-btn cm-close" data-a="close" aria-label="Fold the map away">${G.close}</button>
         <div class="cm-tools">
           <button class="cm-btn" data-a="in" aria-label="Zoom in">${G.plus}</button>

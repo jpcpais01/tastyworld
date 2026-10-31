@@ -418,6 +418,13 @@ export function landmarkGeometry(id: string): THREE.BufferGeometry | null {
       b(0.05, 1.05, 0, 0.12, 0.08, 0.12, 0xe6e2dc);
       b(0.18, 1.25, 0.05, 0.09, 0.07, 0.09, 0xf2efea);
       break;
+    case 'amalfi': // pastel houses stacked up a green cliff, the cathedral's striped tower at the foot
+      b(-0.1, 0.35, -0.2, 0.6, 0.35, 0.35, 0x6f8f4e);
+      b(-0.2, 0.85, -0.35, 0.45, 0.2, 0.22, 0x7f9a5c);
+      for (const [x, y, z, c] of [[0.35, 0.12, 0.25, 0xf3e3b5], [0.05, 0.12, 0.3, 0xf2c6a8], [-0.25, 0.12, 0.28, 0xf6efe3], [0.2, 0.42, 0.05, 0xe8b9c2], [-0.1, 0.42, 0.08, 0xf3d27a], [-0.35, 0.72, -0.1, 0xf6efe3], [0.05, 0.72, -0.12, 0xf2c6a8]] as const) b(x, y, z, 0.12, 0.12, 0.1, c, LIT);
+      b(0.5, 0.45, 0.35, 0.06, 0.45, 0.06, 0xe6c86a);
+      b(0.5, 0.95, 0.35, 0.035, 0.06, 0.035, 0x5d9a6a, 600);
+      break;
     case 'lisbon': // the Belém tower
       b(0, 0.3, 0, 0.32, 0.3, 0.32, 0xeee4cf, LIT);
       b(0, 0.85, 0, 0.2, 0.3, 0.2, 0xeee4cf, LIT);

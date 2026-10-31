@@ -228,7 +228,7 @@ export class Cutaway {
         // upstairs the near walls drop to waist height on that floor, and everything under its ceiling stays
         const up = st.f * c;
         const low = o.top + (Math.min(o.top, o.low + up) - o.top) * e;
-        const roomH = o.top + (Math.min(o.top, Math.max(o.low, ROOM_TOP) + (st.f > 0 ? st.f - 0.5 : 0) * c) - o.top) * e;
+        const roomH = o.top + (Math.min(o.top, Math.max(o.low, ROOM_TOP + (o.floor ?? 0)) + (st.f > 0 ? st.f - 0.5 : 0) * c) - o.top) * e;
         f = low;
         b = low + (roomH - low) * c;
         n = b;

@@ -118,8 +118,8 @@ export type Side = 's' | 'n' | 'e' | 'w';
 const TURNS: Record<Side, number> = { s: 0, e: 1, n: 2, w: 3 };
 
 function worldColors(pal: Palette) {
-  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean } = {}) => pal.add(hex, { vary, ...o });
-  const F = { leaf: true };
+  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => pal.add(hex, { vary, ...o });
+  const F = { leaf: true }, GL = { glass: true };
   return {
     earth: a(0x6b5644, 0.1), bedrock: a(0x5b5550, 0.1),
     paveA: a(0xa59d92, 0.07), paveB: a(0x968e84, 0.07), paveC: a(0xb4ab9e, 0.06), grout: a(0x6f6962, 0.05),
@@ -136,8 +136,8 @@ function worldColors(pal: Palette) {
     concreteWall: a(0xb7b3aa, 0.06), slate: a(0x6b7280, 0.05), olive: a(0x8f9a6a, 0.05), mustard: a(0xd9b25a, 0.05),
     trim: a(0xf2ede3, 0.03), trimDark: a(0x4b4440, 0.04),
     wood: a(0x8b5a3c, 0.08), woodDark: a(0x4f3424, 0.07), woodMid: a(0x6e4630, 0.08), hinoki: a(0xdcc092, 0.05), cedar: a(0x3a2c26, 0.06),
-    glass: a(0x58738c, 0.05), glassDark: a(0x3e5466, 0.05), glassLit: a(0x6f8aa3, 0.05, { emit: 0.85, night: true }),
-    shopGlow: a(0xffd7a0, 0.04, { emit: 0.5 }), konbiniGlass: a(0xe6f6ff, 0.02, { emit: 0.85 }),
+    glass: a(0x58738c, 0.05, GL), glassDark: a(0x3e5466, 0.05, GL), glassLit: a(0x6f8aa3, 0.05, { emit: 0.85, night: true, glass: true }),
+    shopGlow: a(0xffd7a0, 0.04, { emit: 0.5 }), konbiniGlass: a(0xe6f6ff, 0.02, { emit: 0.85, glass: true }),
     shutterA: a(0xa9adb0, 0.02), shutterB: a(0x8e9295, 0.02),
     roofTile: a(0x434a58, 0.05), roofTileB: a(0x3a404c, 0.05), roofRidge: a(0x2c313b, 0.04), roofGreen: a(0x5f8f7f, 0.06), roofGreenB: a(0x527f70, 0.06),
     roofFlat: a(0x9e9a92, 0.06), parapet: a(0xb9b5ac, 0.05), tank: a(0xdfe2e0, 0.03), tankLeg: a(0x6a6d70, 0.04),
@@ -163,7 +163,7 @@ function worldColors(pal: Palette) {
     neonPink: a(0xff5fb4, 0.03, { emit: 0.95 }), neonCyan: a(0x5ff0ff, 0.03, { emit: 0.95 }), neonViolet: a(0xa47bff, 0.03, { emit: 0.95 }),
     neonYellow: a(0xffdc5a, 0.03, { emit: 0.95 }), neonGreen: a(0x7dffa8, 0.03, { emit: 0.95 }), neonOrange: a(0xff9a4a, 0.03, { emit: 0.95 }),
     screenDark: a(0x1c2238, 0.04), screenA: a(0x4f7dff, 0.06, { emit: 0.85 }), screenB: a(0xff7ac2, 0.06, { emit: 0.85 }), screenC: a(0xfff1c2, 0.04, { emit: 0.9 }),
-    glassBlue: a(0x5f87a8, 0.04), glassTeal: a(0x4d8a92, 0.04), glassNight: a(0x8fb4d6, 0.05, { emit: 0.7, night: true }),
+    glassBlue: a(0x5f87a8, 0.04, GL), glassTeal: a(0x4d8a92, 0.04, GL), glassNight: a(0x8fb4d6, 0.05, { emit: 0.7, night: true, glass: true }),
     steel: a(0x7d8389, 0.04), steelDark: a(0x50565c, 0.04), rail: a(0x8a8580, 0.05), ballast: a(0x6d675f, 0.12), sleeper: a(0x5a4636, 0.06),
     lineYellow: a(0xe8c547, 0.03), roadRed: a(0x8a4c45, 0.05),
     pine: a(0x2f5b3c, 0.12, F), pineB: a(0x3c6e46, 0.12, F), maple: a(0xd65a3a, 0.12, F), mapleB: a(0xe9853f, 0.12, F), keyaki: a(0x5d9a48, 0.14, F), keyakiB: a(0x7bb55a, 0.12, F),

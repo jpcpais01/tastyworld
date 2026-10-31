@@ -8,7 +8,14 @@ export interface PalOpts {
   vary?: number;
   /** Foliage: lit softly by the bake only, never speckled by the real-time shadow map. */
   leaf?: boolean;
+  /** Glass: shaded by VOXEL_FRAG as a pane that mirrors the sky, glints in the sun and shows a dim room behind it. */
+  glass?: boolean;
 }
+
+/** The vary nibble the mesher packs for glass (15, i.e. vary 0.30): no real jitter goes that high, so the shader
+ *  reads it as the glass flag and gives the pane its own small jitter. Keeps the vertex format as it is. */
+export const GLASS_VARY = 0.3;
+const MAX_VARY = 0.28;
 
 export class Palette {
   r: number[] = [0];
@@ -21,7 +28,7 @@ export class Palette {
   private keys = new Map<string, number>();
 
   add(hex: number, o: PalOpts = {}): number {
-    const vary = o.vary ?? 0.06;
+    const vary = o.glass ? GLASS_VARY : Math.min(MAX_VARY, o.vary ?? 0.06);
     const key = `${hex}|${o.emit ?? 0}|${o.night ? 1 : 0}|${vary}|${o.leaf ? 1 : 0}`;
     const hit = this.keys.get(key);
     if (hit !== undefined) return hit;

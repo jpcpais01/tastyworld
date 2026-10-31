@@ -477,6 +477,9 @@ void main() {
   h = (h ^ (h >> 13u)) * 1274126177u;
   h ^= h >> 16u;
   float rnd = float(h & 65535u) / 65535.0;
+  // glass carries vary 0.30 (GLASS_VARY in world/palette.ts), a jitter nothing else uses
+  bool glass = vVary > 0.29;
+  if (glass) vVary = 0.02;
   vec3 albedo = srgb2lin(vColor.rgb) * (1.0 + (rnd - 0.5) * 2.0 * vVary);
 
 #ifdef CHARACTER
@@ -517,6 +520,32 @@ void main() {
   vec3 ambient = hemi * ao * (0.25 + 0.75 * sky);
   vec3 lamp = lampL * uLamp * (0.45 + 0.55 * ao);
   vec3 col = albedo * (direct + ambient + lamp);
+#ifndef CHARACTER
+  if (glass) {
+    // Glass: the pane mirrors the sky (or the dim street where the bake sees little sky), catches the sun, and
+    // lets a little of a darker room through. All arithmetic plus the one noise fetch the clouds already use.
+    vec3 V = isOrthographic ? -vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]) : normalize(vWorld - cameraPosition);
+    // panes are never quite coplanar: each ~0.75 m tile leans a hair, so a wall of glass breaks its reflection up
+    vec3 th = fract(sin(vec3(dot(floor(vCell * 1.33), vec3(12.9898, 78.233, 37.719)))) * vec3(43758.5453, 22578.1459, 19642.3490));
+    vec3 gn = normalize(n + (th - 0.5) * 0.1 * (1.0 - abs(n)));
+    vec3 R = reflect(V, gn);
+    float fres = 0.04 + 0.96 * pow(1.0 - max(dot(-V, gn), 0.0), 5.0);
+    float refl = 0.32 + 0.68 * fres; // stronger than physical: from the iso angle true glass mirrors only a few percent
+    // clouds in the reflection slide at half the camera's pace, so the glass seems to hold depth as you walk
+    vec2 cp = (vWorld.xz + vWorld.y * vec2(0.6, -0.8)) * 0.06 - cameraPosition.xz * 0.03 + R.xz * 1.5 / (abs(R.y) + 0.3)
+            + vec2(uTime * 0.012, uTime * 0.006);
+    float cl = vnoiseT(cp);
+    vec3 skyR = mix(uFogColor, uSkyColor * 1.15, smoothstep(-0.05, 0.6, R.y));
+    skyR = mix(skyR, uFogColor * 1.1 + uSunColor * 0.2, smoothstep(0.5, 0.8, cl) * 0.55 * smoothstep(0.0, 0.25, R.y));
+    vec3 street = (uGroundColor * 0.55 + uSkyColor * 0.2) * (0.6 + 0.6 * cl);
+    vec3 env = mix(street, skyR, smoothstep(-0.12, 0.1, R.y + (cl - 0.5) * 0.25));
+    env *= 0.3 + 0.7 * sky; // deep in a lane a pane mirrors walls, not sky
+    float sp = max(dot(R, uSunDir), 0.0);
+    vec3 glint = uSunColor * (pow(sp, 400.0) * 5.0 + pow(sp, 24.0) * 0.3) * sun * cloud;
+    vec3 behind = albedo * (ambient * 0.45 + direct * 0.15 + lamp);
+    col = behind * (1.0 - refl) + env * refl + glint;
+  }
+#endif
 
   // emission
   float code = vColor.a * 255.0;

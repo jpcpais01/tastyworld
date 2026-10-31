@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.46',
+    version: '0.16.47',
     date: '2026-10-31',
     title: 'Istanbul\'s streets, house by house',
     items: [
@@ -18,6 +18,19 @@ export const PATCH_NOTES: PatchNote[] = [
       'The wooden houses come in more colours, some with upright boards and battens, corner posts and lattice screens on the upper windows.',
       'Doors come in more colours, some with a fanlight. Shopfronts and restaurant fronts have their own frame colours and glazing, and their signs come in four styles: a painted band, a gilt-framed board, letters painted on the wall, or lit letters.',
       'A few fronts, about one in fifteen, have a panel of İznik tiles over the door or a tiled frieze under the cornice, in tulip, saz leaf, çintamani or turquoise designs.',
+    ],
+  },
+  {
+    version: '0.16.46',
+    date: '2026-10-31',
+    title: 'Galata across the water',
+    items: [
+      'The far shore of the Golden Horn has been rebuilt. Karaköy, Galata and Beyoğlu now climb the hill in rows of houses, each row a step above the last, with lanes, stone retaining walls under ivy, and cypresses and plane trees between the roofs. The bare grey cliff is gone.',
+      'The houses are a real mix: old wooden houses with bay windows under tiled roofs, stone and stucco apartment blocks with cornices, iron balconies, shop awnings, slate mansards and little corner domes, and newer flats with long balconies and a top floor set back. Windows have frames and shutters and show the sky by day.',
+      'At night the whole hillside lights up window by window, with the shops along the quay glowing and the odd blue of a television.',
+      'The Galata Tower is round now, in stone with narrow windows, a balcony ring, an arcaded top storey and its tall pointed cap. It is floodlit at night.',
+      'The waterfront has ferry piers with clock turrets, a ferry tied up at Karaköy, quay lamps, fishing boats, the Galataport terminal along the Bosphorus and three more mosques, plus the square minaret of the Arab Mosque.',
+      'Across the Bosphorus, Üsküdar and Kadıköy climb their hill the same way, with piers where the ferries tie up, Haydarpaşa station and the Selimiye barracks. Levent\'s towers stand on the far horizon.',
     ],
   },
   {

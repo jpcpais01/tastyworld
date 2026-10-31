@@ -554,6 +554,7 @@ export function buildIstanbul(win?: Window): BuildResult {
   waterfront(ctx);
   bridge(ctx);
   square(ctx);
+  teaGarden(ctx);
   tramLine(ctx);
   greenery(ctx);
   streetLife(ctx);
@@ -584,7 +585,7 @@ export function buildIstanbul(win?: Window): BuildResult {
     benches: b.benches,
     stools: b.stools,
     cats: CATS,
-    extras: anglers(),
+    extras: [...anglers(), ...teaGardenFolk()],
     emitters: b.emitters,
     // no fireflies over the Golden Horn's busy quays
     fireflies: [],
@@ -1825,32 +1826,86 @@ function bridge(ctx: Ctx): void {
     for (const x of [-22.2, -13.8]) { b.place(lampPost(c), x, 1.5, z); b.lamp(x, 5.3, z, WARM, 7, 0.8); }
   }
   // fishing rods leaning out over the rail, a bucket by each fisherman's spot
-  for (const { x, z, side, tone } of rodSpots()) {
+  for (const { x, y, z, side, tone } of rodSpots()) {
     const rod = new Prop(2, 26, 2, 0.125);
     for (let i = 0; i < 26; i++) rod.set(i < 13 ? 0 : 1, i, 0, i > 22 ? c.hullRed : c.iron);
-    b.place(rod, x + side * 0.15, 1.5, z, side < 0 ? 3 : 1);
+    b.place(rod, x + side * 0.15, y, z, side < 0 ? 3 : 1);
     const bucket = new Prop(3, 3, 3, 0.125);
     bucket.box(0, 0, 0, 2, 2, 2, [c.hullBlue, c.hullRed, c.white][tone]);
     bucket.set(1, 2, 1, c.marbleGrey);
-    b.place(bucket, x - side * 0.5, 1.5, z + 0.4);
+    b.place(bucket, x - side * 0.5, y, z + 0.4);
   }
 }
 
-/** The Galata Bridge's rods along both rails: the rail it leans over (-1 west, +1 east), the bucket's colour. */
-function rodSpots(): { x: number; z: number; side: number; tone: number; angler: boolean }[] {
-  const r = rng(53), out: { x: number; z: number; side: number; tone: number; angler: boolean }[] = [];
+type RodSpot = { x: number; y: number; z: number; side: number; tone: number; angler: boolean };
+
+/**
+ * The rods along the Galata Bridge's rails and the Bosphorus quay's edge: the side it leans over (-1 west, +1
+ * east), the bucket's colour, and whether its angler is standing at it. The quay's spots keep clear of the lamps
+ * and benches (a lamp every nine metres, a bench four and a half past it) and of the ferry piers.
+ */
+function rodSpots(): RodSpot[] {
+  const r = rng(53), out: RodSpot[] = [];
   for (let z = HORN_Z + 3.5; z < 63; z += 1.7) for (const side of [-1, 1]) {
     if (r() < 0.35) continue;
-    out.push({ x: side < 0 ? -21.9 : -14.1, z, side, tone: Math.floor(r() * 3), angler: r() < 0.6 });
+    out.push({ x: side < 0 ? -21.9 : -14.1, y: 1.5, z, side, tone: Math.floor(r() * 3), angler: r() < 0.6 });
+  }
+  const q = rng(57);
+  for (let z0 = -106; z0 < 36; z0 += 9) for (const dz of [2.2, 7.0]) {
+    const z = z0 + dz;
+    if (Math.abs(z + 2) < 7 || Math.abs(z + 46) < 7 || z > 34 || q() < 0.35) continue;
+    out.push({ x: BOS_X - 0.6, y: QUAY_Y, z, side: 1, tone: Math.floor(q() * 3), angler: q() < 0.7 });
   }
   return out;
 }
 
-/** The anglers standing at their rods, looking out over the Horn. */
+/** The anglers standing at their rods, looking out over the Horn and the Bosphorus. */
 function anglers(): { pos: [number, number, number]; face: number; seed: number }[] {
   return rodSpots().filter((s) => s.angler && Math.abs(s.z - 58) > 1.5).map((s, i) => ({
-    pos: [s.x - s.side * 0.8, 1.5, s.z - 0.3] as [number, number, number], face: s.side < 0 ? -Math.PI / 2 : Math.PI / 2, seed: 7100 + i * 7,
+    pos: [s.x - s.side * 0.8, s.y, s.z - 0.3] as [number, number, number], face: s.side < 0 ? -Math.PI / 2 : Math.PI / 2, seed: 7100 + i * 7,
   }));
+}
+
+/** The tea garden on the Bosphorus shore, between the tram avenue and the quay (metres). */
+const TEA_GARDEN = [17.4, -108, 22.4, -86] as const;
+
+/**
+ * The çay bahçesi: two plane trees over rows of little tables, low stools either side of each, a counter with
+ * the samovar at the top of the garden and its çaycı behind it, lamps at both ends.
+ */
+function teaGarden(ctx: Ctx): void {
+  const { b, c, plan } = ctx;
+  const g = b.grid;
+  const [x0, z0, x1, z1] = TEA_GARDEN;
+  const gy = (x: number, z: number) => (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
+  const xm = (x0 + x1) / 2;
+  for (const z of [z0 + 5, z1 - 6]) { b.place(planeTree(c, Math.round(-z * 7), true), xm, gy(xm, z), z); b.block(xm - 0.5, z - 0.5, xm + 0.5, z + 0.5); }
+  let i = 0;
+  for (let z = z0 + 2.5; z < z1 - 3; z += 2.6) for (const x of [x0 + 1.2, x1 - 1.2]) {
+    const y = gy(x, z);
+    b.place(teaTable(c, 300 + i), x, y, z);
+    b.block(x - 0.35, z - 0.35, x + 0.35, z + 0.35);
+    for (const s of [-1, 1]) b.place(tabure(c, i % 3 === 0 ? c.carpetRed : c.woodBare), x, y, z + s * 0.6);
+    i++;
+  }
+  // the counter with the samovar and a rack of tulip glasses
+  const cz = z1 - 1.2, Y = plan.walk[col(Math.floor(xm / V), Math.floor(cz / V))];
+  const X0 = Math.round((xm - 1) / V), X1 = Math.round((xm + 1) / V) - 1, Z0 = Math.round((cz - 0.25) / V), Z1 = Math.round((cz + 0.25) / V) - 1;
+  if (g.touches(X0, Z0, X1, Z1)) {
+    g.box(X0, Y, Z0, X1, Y + 3, Z1, c.woodDark);
+    g.box(X0, Y + 4, Z0, X1, Y + 4, Z1, c.marble);
+    for (let x = X0; x <= X1; x += 2) g.set(x, Y + 5, Z0, c.tea);
+  }
+  b.place(samovar(c), xm + 0.6, (Y + 5 - G) * V, cz);
+  b.block(xm - 1, cz - 0.3, xm + 1, cz + 0.3);
+  b.lamp(xm, (Y - G) * V + 2.4, cz, WARM, 5, 0.8);
+  for (const z of [z0 + 0.6, z1 - 3]) { b.place(lampPost(c), x0 + 0.3, gy(x0 + 0.3, z), z); b.lamp(x0 + 0.3, gy(x0 + 0.3, z) + 3.8, z, WARM, 7, 0.8); b.block(x0 + 0.1, z - 0.2, x0 + 0.5, z + 0.2); }
+}
+
+/** The çaycı behind his counter at the top of the tea garden, looking down the rows. */
+function teaGardenFolk(): { pos: [number, number, number]; face: number; seed: number }[] {
+  const [x0, , x1, z1] = TEA_GARDEN;
+  return [{ pos: [(x0 + x1) / 2, QUAY_Y, z1 - 0.5], face: Math.PI, seed: 7311 }];
 }
 
 /** Eminönü square: pigeons' seed sellers, the shoeshine man, benches, lamps, the simit trays. */
@@ -1905,6 +1960,7 @@ function greenery(ctx: Ctx): void {
     const kind = r(), seed = Math.floor(r() * 1e5);
     const ci = col(x, z);
     if (plan.kind[ci] !== K.Ground && plan.kind[ci] !== K.Park) continue;
+    if (x * V > TEA_GARDEN[0] - 1 && x * V < TEA_GARDEN[2] + 1 && z * V > TEA_GARDEN[1] - 1 && z * V < TEA_GARDEN[3] + 1) continue;
     // a clear patch of ground round it
     let ok = true;
     for (let dz = -6; dz <= 6 && ok; dz += 3) for (let dx = -6; dx <= 6 && ok; dx += 3) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== plan.kind[ci] || Math.abs(plan.walk[nc] - plan.walk[ci]) > 2) ok = false; }

@@ -45,25 +45,26 @@ interface Fade {
   mOut: THREE.ShaderMaterial;
 }
 
-const toEye = new THREE.Vector3();
 /** Faces of a swaying prop can turn this far (m) past their resting plane. */
 const SWAY_SLACK = 0.3;
+const ALL = 63, WITH_SEAMS = 127;
 
 /**
  * Before each draw of a chunk: submit only the run of its faces (laid out by direction, see orderFaces) whose
  * directions can face this camera. The GPU would discard the rest anyway, but only after transforming them.
- * The sun's shadow passes (which don't draw layer 0) and two-sided materials get every face.
+ * The sun's shadow passes (which don't draw layer 0) get every direction, and the two-sided cutaway material
+ * gets the seam faces too (inside a lowered building they stand in for missing walls).
  */
 function facingRange(this: THREE.Mesh, _r: THREE.WebGLRenderer, _s: THREE.Scene, camera: THREE.Camera, geometry: THREE.BufferGeometry): void {
   const segs = geometry.userData.segs as Uint32Array;
-  let mask = 63;
-  // (the cutaway material draws back faces too: inside a lowered building they stand in for missing walls)
-  if (camera.layers.isEnabled(0) && (this.material as THREE.Material).side !== THREE.DoubleSide) {
+  let mask = ALL;
+  if ((this.material as THREE.Material).side === THREE.DoubleSide) mask = WITH_SEAMS;
+  else if (camera.layers.isEnabled(0)) {
     if ((camera as THREE.OrthographicCamera).isOrthographicCamera) {
-      // every face has the same view direction: one side of each axis (the other is edge-on or turned away)
-      camera.getWorldDirection(toEye).negate();
-      const e = 0.02;
-      mask = (toEye.x > -e ? 1 : 0) | (toEye.x < e ? 2 : 0) | (toEye.y > -e ? 4 : 0) | (toEye.y < e ? 8 : 0) | (toEye.z > -e ? 16 : 0) | (toEye.z < e ? 32 : 0);
+      // every face has the same view direction (the camera's +Z, already up to date for this render): one
+      // side of each axis, the other being edge-on or turned away
+      const m = camera.matrixWorld.elements, x = m[8], y = m[9], z = m[10], e = 0.02;
+      mask = (x > -e ? 1 : 0) | (x < e ? 2 : 0) | (y > -e ? 4 : 0) | (y < e ? 8 : 0) | (z > -e ? 16 : 0) | (z < e ? 32 : 0);
     } else {
       // a +X face can only be seen from beyond its plane, and the chunk's +X planes are all past its min x
       const p = camera.position, b = geometry.boundingBox!, k = SWAY_SLACK;

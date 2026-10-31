@@ -97,6 +97,12 @@ class Buf {
 const tmp = new Float32Array(5);
 const SEAM_MIN = 16; // grid layer: street level (12) plus 1 m
 const q = (val: number, m: number) => Math.min(63, Math.round(val * m));
+/** Channel c of four corners' light (stride 5), quantised, when they are at most one step apart; else -1. */
+const flat = (L: Float32Array, c: number, m: number): number => {
+  const a = q(L[c], m), b = q(L[c + 5], m), d = q(L[c + 10], m), e = q(L[c + 15], m);
+  if (Math.max(a, b, d, e) - Math.min(a, b, d, e) > 1) return -1;
+  return q((L[c] + L[c + 5] + L[c + 10] + L[c + 15]) / 4, m);
+};
 
 // Scratch buffers shared by all mesh calls (slices are at most 300 x 300).
 const MAXS = 320 * 320;
@@ -273,15 +279,14 @@ export function meshGrid(o: MeshOpts): MeshData {
           }
           const part = parts ? parts[vi] : -1;
           const sw = sway ? sway(vi) : 0;
-          // uniform test on quantised values
+          // uniform test on quantised values: a face whose corners are at most one step apart (1/63 of full sun or
+          // sky, under the per-voxel colour jitter) takes their mean and counts as flat
           // character parts merge too, but only within one part (each part moves on its own)
           let uniform = greedy && cAo[0] === cAo[1] && cAo[1] === cAo[2] && cAo[2] === cAo[3];
           let qs = 0, qk = 0, qr = 0, qg = 0, qb = 0;
           if (uniform) {
-            qs = q(cL[0], 63); qk = q(cL[1], 63); qr = q(cL[2], 31.875); qg = q(cL[3], 31.875); qb = q(cL[4], 31.875);
-            for (let k = 1; k < 4 && uniform; k++) {
-              if (q(cL[k * 5], 63) !== qs || q(cL[k * 5 + 1], 63) !== qk || q(cL[k * 5 + 2], 31.875) !== qr || q(cL[k * 5 + 3], 31.875) !== qg || q(cL[k * 5 + 4], 31.875) !== qb) uniform = false;
-            }
+            qs = flat(cL, 0, 63); qk = flat(cL, 1, 63); qr = flat(cL, 2, 31.875); qg = flat(cL, 3, 31.875); qb = flat(cL, 4, 31.875);
+            uniform = qs >= 0 && qk >= 0 && qr >= 0 && qg >= 0 && qb >= 0;
           }
           if (!uniform) {
             emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
@@ -402,15 +407,17 @@ export function splitInner(md: MeshData, boxes: number[][]): MeshData {
 }
 
 /**
- * The face directions (FACE_N order) in the order orderFaces lays them out. Some appear twice so that every
- * set a camera can need is one contiguous run: all six (the first six), and +Y with one X and one Z side
- * (any iso view, and most distant chunks in first person). See FACE_WINDOW.
+ * The face directions (FACE_N order, and 6 for seam faces) in the order orderFaces lays them out. Seam
+ * faces only show through the cutaway, so they come first, outside every run but the cutaway's. Some
+ * directions appear twice so that every set a camera can need is one contiguous run: all six (the shadow
+ * passes, and first person up close), and +Y with one X and one Z side (any iso view, and most distant
+ * chunks in first person). See FACE_WINDOW.
  */
-export const FACE_SEGMENTS = [3, 0, 4, 2, 1, 5, 2, 0];
+export const FACE_SEGMENTS = [6, 3, 0, 4, 2, 1, 5, 2, 0];
 
-/** For each 6-bit set of face directions, the shortest run of FACE_SEGMENTS [first, last] that holds them all. */
-export const FACE_WINDOW: [number, number][] = Array.from({ length: 64 }, (_, mask) => {
-  let best: [number, number] = [0, 5];
+/** For each 7-bit set of face directions, the shortest run of FACE_SEGMENTS [first, last] that holds them all. */
+export const FACE_WINDOW: [number, number][] = Array.from({ length: 128 }, (_, mask) => {
+  let best: [number, number] = [0, FACE_SEGMENTS.length - 1];
   for (let a = 0; a < FACE_SEGMENTS.length; a++)
     for (let b = a; b < FACE_SEGMENTS.length; b++) {
       let have = 0;
@@ -422,12 +429,21 @@ export const FACE_WINDOW: [number, number][] = Array.from({ length: 64 }, (_, ma
 
 /**
  * Lays the faces before `md.shell` (all of them when it is unset) out by direction in FACE_SEGMENTS order,
- * so a draw can submit only the faces that can face the camera. The room contents after `shell` keep their place.
+ * so a draw can submit only the faces that can face the camera. Within a direction the faces go front to
+ * back as seen from any camera that can see them (a +X face further along +X is nearer), so the depth
+ * test throws away more of what lies behind before shading it. The room contents after `shell` keep their place.
  */
 export function orderFaces(md: MeshData): MeshData {
-  const { indices, attrs } = md, end = md.shell ?? indices.length;
-  const byFace: number[][] = [[], [], [], [], [], []];
-  for (let i = 0; i < end; i += 6) byFace[attrs[indices[i] * STRIDE] & 7].push(i);
+  const { indices, attrs, positions } = md, end = md.shell ?? indices.length;
+  const byFace: number[][] = [[], [], [], [], [], [], []];
+  for (let i = 0; i < end; i += 6) {
+    const p = attrs[indices[i] * STRIDE];
+    byFace[p & 128 ? 6 : p & 7].push(i);
+  }
+  for (let f = 0; f < 6; f++) {
+    const axis = f >> 1, sign = f & 1 ? 1 : -1;
+    byFace[f].sort((a, b) => (positions[indices[a] * 3 + axis] - positions[indices[b] * 3 + axis]) * sign);
+  }
   let n = indices.length - end;
   for (const f of FACE_SEGMENTS) n += byFace[f].length * 6;
   const out = new Uint32Array(n), segs = new Uint32Array(FACE_SEGMENTS.length + 1);

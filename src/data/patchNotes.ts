@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.15',
+    date: '2026-10-31',
+    title: 'Less work behind the walls',
+    items: [
+      'Hidden faces between buildings that share a wall are no longer sent to the graphics card. They only appear when the cutaway opens a building.',
+      'Each part of the city is now drawn from the front to the back, so the graphics card skips more of what\'s hidden behind walls and roofs before shading it.',
+      'Patches of wall and ground with nearly identical lighting merge into bigger pieces, so the city has about 6% fewer triangles and looks the same.',
+      'Less work on the processor for each part of the city drawn.',
+    ],
+  },
+  {
     version: '0.10.14',
     date: '2026-10-31',
     title: 'Smoother when zoomed out',

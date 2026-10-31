@@ -43,6 +43,13 @@ export const G = {
   wave: svg('<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11.5V5a1.5 1.5 0 0 1 3 0v6.5M14 11.5V6.5a1.5 1.5 0 0 1 3 0v7.5a6.5 6.5 0 0 1-11.6 4L3 14.6a1.5 1.5 0 0 1 2.3-1.9L8 15"/>'),
   home: svg('<path d="M4 10.5 12 4l8 6.5V20H4v-9.5Z"/><path d="M10 20v-5.5h4V20"/>'),
   exit: svg('<path d="M14 4.5h4.5A1.5 1.5 0 0 1 20 6v12a1.5 1.5 0 0 1-1.5 1.5H14"/><path d="M10 8l-4 4 4 4M6 12h10"/>'),
+  camera: svg('<path d="M3.5 8.5A1.5 1.5 0 0 1 5 7h2.6l1.5-2.3h5.8L16.4 7H19a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5v-9Z"/><circle cx="12" cy="12.8" r="3.4"/>'),
+  image: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.5" r="1.8"/><path d="m4 17.5 5-5 4 4 2.5-2.5 4.5 4.5"/>'),
+  grid: svg('<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/>'),
+  person: svg('<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/>'),
+  focus: svg('<path d="M3.5 5.5h17M3.5 18.5h17" stroke-dasharray="1.5 3.5"/><path d="M3.5 12h17"/><circle cx="12" cy="12" r="2.4"/>'),
+  caption: svg('<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 15.5h17M7 17.8h5"/><path d="m6.5 12 3.5-3.5 3 3 2-2 2.5 2.5"/>'),
+  download: svg('<path d="M12 3.5V15M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19.5h14"/>'),
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
 };
 

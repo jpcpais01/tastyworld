@@ -1,3 +1,4 @@
+import { paintColors, picture, hangIn } from './paintings';
 import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
@@ -2112,12 +2113,8 @@ function guestDressing(ctx: Ctx, f: Frame, L: number, A0: number, A1: number, D0
   // the wardrobe, by the door if there is depth for it behind the bed
   if (D1 - 3 > bedD + 9) f.box(g, A1 - 1, L, D1 - 3, A1, L + 8, D1, (_a, yy, d) => (yy === L + 8 ? c.cornice : (yy === L + 4 && (d === D1 - 2 || d === D1 - 1)) ? c.brass : c.woodDark));
   // the picture: a ferry on blue water under a pale sky, gold-framed, on the side wall above the kilim
-  const pa = backed(ctx, f, A0 - 1, L + 8, D0 + 6) ? A0 - 1 : A0; // on the wall where it is hidden outside, else hung proud
-  f.box(g, pa, L + 5, D0 + 4, pa, L + 8, D0 + 9, (_a, yy, d) => {
-    if (yy === L + 5 || yy === L + 8 || d === D0 + 4 || d === D0 + 9) return c.gilt;
-    if (yy === L + 6) return d === D0 + 6 + (seed & 1) ? c.hullWhite : c.iznikBlue;
-    return d === D0 + 6 + (seed & 1) ? c.hullDark : c.powder;
-  });
+  // (in fine voxels laid on the wall, like every painting in the game, so nothing of it shows outside)
+  hangIn(b, picture(paintColors(b), 'bosphorus', 12, 8, seed), (a, d) => f.m(a, d), A0 - 0.5, D0 + 6.5, 1, 0, (L + 5 - G) * V);
   hangingLantern(ctx, f, Math.round((A0 + A1) / 2) - 3, Math.round((D0 + D1) / 2) - 3, L);
 }
 
@@ -2214,12 +2211,12 @@ function leadDome(g: SparseGrid, c: IC2, cx: number, cz: number, y: number, r: n
 }
 
 /** A minaret: a slender fluted shaft, one or two balconies, and a pointed lead cap with its crescent finial. */
-function minaret(ctx: Ctx, cxM: number, czM: number, yM: number, h: number, balconies: number): void {
+function minaret(ctx: Ctx, cxM: number, czM: number, yM: number, h: number, balconies: number, follow?: number): void {
   const { b, c } = ctx;
   const g = b.grid;
   const cx = cxM / V, cz = czM / V, Y = layerOf(yM);
   b.occlude(Math.floor(cx - 4), Math.floor(cz - 4), Math.ceil(cx + 4), Math.ceil(cz + 4), yM + h * V + 4, yM + 0.95, 'landmark');
-  b.occluders[b.occluders.length - 1].floor = yM;
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: yM, follow });
   if (!g.touches(cx - 6, cz - 6, cx + 6, cz + 6)) return;
   const shaftR = 3.2;
   for (let y = 0; y < h; y++) {
@@ -2262,7 +2259,7 @@ function minaret(ctx: Ctx, cxM: number, czM: number, yM: number, h: number, balc
  * A mosque: the square prayer hall under a great dome on four half-domes, corner turrets, windows in rows and
  * the courtyard in front with its arcade of little domes and the fountain in the middle.
  */
-function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, number, number, number], court: readonly [number, number, number, number] | null, y: number, domeR: number, wallH: number): void {
+function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, number, number, number], court: readonly [number, number, number, number] | null, y: number, domeR: number, wallH: number): number {
   const { b, c } = ctx;
   const g = b.grid;
   const X0 = Math.round(hall[0] / V), Z0 = Math.round(hall[1] / V), X1 = Math.round(hall[2] / V) - 1, Z1 = Math.round(hall[3] / V) - 1;
@@ -2272,7 +2269,8 @@ function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, num
   const R = Math.round(domeR / V);
   // the prayer hall is walked into through its great door like a shop: the cutaway opens it 6 m over the carpet
   b.occlude(X0, Z0, X1, Z1, y + wallH + domeR + 6, y + 0.95, 'landmark');
-  Object.assign(b.occluders[b.occluders.length - 1], { floor: y, room: HALL_ROOM, walls: mosqueWalls(H) });
+  const hallOcc = b.occluders.length - 1;
+  Object.assign(b.occluders[hallOcc], { floor: y, room: HALL_ROOM, walls: mosqueWalls(H) });
   // the walls: grey stone in courses, two rows of arched windows, a band of cornice
   // bays of three metres from each corner: under each a grilled window in a marble frame with a red and white
   // relieving arch, above it a pair of tall lights in coloured glass, an oculus higher still; pilasters between
@@ -2365,19 +2363,20 @@ function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, num
     stone: c.lime, lead: c.lead,
   });
   else b.block(hall[0], hall[1], hall[2], hall[3]);
+  if (doorZ === Z1) b.occluders[hallOcc].air = b.halls[b.halls.length - 1].rect;
   // floodlights from below, the way Istanbul lights its mosques at night
   b.lamp(hall[0] - 2, y + 2, (hall[1] + hall[3]) / 2, [1, 0.9, 0.75], 14, 0.7);
   b.lamp(hall[2] + 2, y + 2, (hall[1] + hall[3]) / 2, [1, 0.9, 0.75], 14, 0.7);
   b.lamp((hall[0] + hall[2]) / 2, y + wallH + domeR, (hall[1] + hall[3]) / 2, [1, 0.88, 0.7], 16, 0.6);
-  if (!court) return;
+  if (!court) return hallOcc;
   // the courtyard: an arcade of little domes on marble columns round three sides, the fountain in the middle
   const CX0 = Math.round(court[0] / V), CZ0 = Math.round(court[1] / V), CX1 = Math.round(court[2] / V) - 1, CZ1 = Math.round(court[3] / V) - 1;
   const AD = 14;
   b.occlude(CX0, CZ0, CX1, CZ1, y + 7, y + 0.95, 'landmark');
-  b.occluders[b.occluders.length - 1].floor = y;
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: y, follow: hallOcc });
   const fx = (CX0 + CX1 + 1) / 2, fz = (CZ0 + CZ1 + 1) / 2;
   b.block((fx - 6) * V, (fz - 6) * V, (fx + 6) * V, (fz + 6) * V);
-  if (!g.touches(CX0 - 2, CZ0 - 2, CX1 + 2, CZ1 + 2)) return;
+  if (!g.touches(CX0 - 2, CZ0 - 2, CX1 + 2, CZ1 + 2)) return hallOcc;
   // the bays of the arcade run from the corners, the last one on each side taking up whatever is left; walls,
   // columns, arches and domes all keep to them
   const bays = (lo: number, hi: number) => { const out: number[] = []; for (let v = lo; v + AD <= hi + 1; v += AD) out.push(v); if (out.length && out[out.length - 1] + AD <= hi) out.push(hi + 1 - AD); return out; };
@@ -2479,12 +2478,13 @@ function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, num
     else if (yy >= 17 && d <= 3.5 - (yy - 17) * 0.6) g.set(x, Y + yy, z, c.lead);
   }
   b.lamp(fx * V, y + 3, fz * V, WARM, 7, 0.7);
+  return hallOcc;
 }
 
 function yeniCami(ctx: Ctx): void {
-  mosque(ctx, 'yeni', true, YENI.hall, YENI.court, YENI_Y, 6.5, 9);
-  minaret(ctx, YENI.court[0] - 0.6, YENI.hall[3] + 0.6, YENI_Y, 104, 2);
-  minaret(ctx, YENI.court[2] + 0.6, YENI.hall[3] + 0.6, YENI_Y, 104, 2);
+  const yeni = mosque(ctx, 'yeni', true, YENI.hall, YENI.court, YENI_Y, 6.5, 9);
+  minaret(ctx, YENI.court[0] - 0.6, YENI.hall[3] + 0.6, YENI_Y, 104, 2, yeni);
+  minaret(ctx, YENI.court[2] + 0.6, YENI.hall[3] + 0.6, YENI_Y, 104, 2, yeni);
   // the plinth's stone faces down to the square, and its steps
   const { b, c } = ctx;
   const g = b.grid;
@@ -2504,8 +2504,8 @@ const HAZIRE_TREES: [number, number][] = [[-143.5, -32.1], [-131, -30.3], [-125.
 function suleymaniye(ctx: Ctx): void {
   const { b, c, plan } = ctx;
   const g = b.grid;
-  mosque(ctx, 'suleymaniye', false, SULEY.hall, SULEY.court, HILLTOP_Y, 8.5, 11);
-  for (const [x, z, h] of [[-147, -5, 124], [-127, -5, 124], [-147, 11, 100], [-127, 11, 100]] as const) minaret(ctx, x, z, HILLTOP_Y, h, h > 110 ? 2 : 1);
+  const suley = mosque(ctx, 'suleymaniye', false, SULEY.hall, SULEY.court, HILLTOP_Y, 8.5, 11);
+  for (const [x, z, h] of [[-147, -5, 124], [-127, -5, 124], [-147, 11, 100], [-127, 11, 100]] as const) minaret(ctx, x, z, HILLTOP_Y, h, h > 110 ? 2 : 1, suley);
   // the precinct wall with its windows, gates on the east and to the terrace
   const [px0, pz0, px1, pz1] = SULEY.precinct;
   const X0 = Math.round(px0 / V), Z0 = Math.round(pz0 / V), X1 = Math.round(px1 / V) - 1, Z1 = Math.round(pz1 / V) - 1;

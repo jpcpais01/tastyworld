@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.17.11',
+    version: '0.17.12',
     date: '2026-10-31',
     title: 'More steps up the terraces',
     items: [
@@ -16,6 +16,18 @@ export const PATCH_NOTES: PatchNote[] = [
       'Terraces whose wall runs on the slant, or that are too narrow to cut steps into, get a flight built up against the wall instead, with a small landing at the top.',
       'Steps cut into a terrace that climbs away from its edge now go all the way up to its ground, and no flight cuts a terrace in two any more.',
       'In the Ruga dei Mercanti the walls reach down to the gardens beside it, so a shop let into the wall no longer opens a hole down to the terrace below.',
+    ],
+  },
+  {
+    version: '0.17.11',
+    date: '2026-10-31',
+    title: 'Every painting at one grain, and great halls that open side by side',
+    items: [
+      'Every painting in the game is now drawn at the same fine grain as the Duomo\'s canvases. Christ in glory over the high altar is repainted from scratch at that grain, with his blessing hand, the orb, the halo and the clouds at his feet.',
+      'New paintings at that grain: saints frescoed round the Duomo crypt, evangelists in gilt medallions over the nave arches, the Madonna and Child in the wayside shrines, the Amalfi coast and lemon still lifes in the hotels, a ferry on the Bosphorus in Istanbul\'s guest rooms, Mount Fuji and a flowering plum on the hanging scrolls of Tokyo, and wave and Fuji prints in its shops.',
+      'Pictures now hang on the wall instead of being painted into it, so none of them shows through on a building\'s outside any more, and the prints that used to hide behind shop shelves now go only where the wall is bare.',
+      'Inside the Duomo and the mosques, each side of the building now drops or stands as one piece. The Duomo\'s striped front and its portico no longer fall in separate strips, and when you turn the view past a corner the two sides ease over in a moment instead of snapping.',
+      'The Duomo\'s bell tower, and the mosques\' minarets and courtyards, fall with the side of the hall they stand on. On the far side they stay whole.',
     ],
   },
   {

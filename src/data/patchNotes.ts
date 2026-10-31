@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.13',
+    date: '2026-10-31',
+    title: 'Hop down',
+    items: [
+      'In Amalfi you can now hop down off terrace edges and low walls up to about 4 m: walk off the edge and you drop to the lane below, landing with a thump.',
+      'Tap-to-walk routes use those drops too when they save you a long way round by the stairs.',
+      'Drops only ever land where you can walk back into town, so you can never get stuck in a garden.',
+    ],
+  },
+  {
     version: '0.15.12',
     date: '2026-10-31',
     title: 'Glass',

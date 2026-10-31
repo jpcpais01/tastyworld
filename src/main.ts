@@ -17,7 +17,7 @@ import { bikeModel, scooterModel, swanBoatModel, gozzoModel } from './world/vehi
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
-import { Nav } from './game/nav';
+import { Nav, PLAYER_REACH } from './game/nav';
 import { PathService } from './game/paths';
 import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
@@ -176,6 +176,8 @@ class Game {
   private pathRun = false;
   private lastTap = { t: 0, x: 0, y: 0 };
   private slideSide = 1;
+  /** Vertical speed while dropping off a ledge (m/s, negative is down). */
+  private fallV = 0;
   private eatT = 0;
   /** The dish being served and eaten right now, and who is serving at the counter we last spoke at. */
   private meal: Meal | null = null;
@@ -1936,7 +1938,7 @@ class Game {
     }
     if (!best) return;
     const p = this.player.position;
-    const path = this.nav.findPath(p.x, p.z, best.stand[0], best.stand[1]);
+    const path = this.nav.findPath(p.x, p.z, best.stand[0], best.stand[1], PLAYER_REACH);
     if (path) { this.path = path; this.pending = best; this.audio.play('click'); }
   }
 
@@ -1960,7 +1962,7 @@ class Game {
     const p = this.player.position;
     if (best) {
       if (Math.hypot(best.x - p.x, best.z - p.z) < best.r) { this.near = best; this.interact(); return; }
-      const path = this.nav.findPath(p.x, p.z, best.stand[0], best.stand[1]);
+      const path = this.nav.findPath(p.x, p.z, best.stand[0], best.stand[1], PLAYER_REACH);
       if (path) { this.path = path; this.pending = best; this.audio.play('click'); }
       return;
     }
@@ -1969,7 +1971,7 @@ class Game {
       ? this.cam.pick(x, y, this.nav, undefined, Math.min(50, py0 + 24), Math.max(-3, py0 - 24))
       : this.cam.pick(x, y, this.nav, undefined, this.upstairs ? this.upstairs.room.y + 3 : 12);
     if (!hit) return;
-    const path = this.nav.findPath(p.x, p.z, hit.x, hit.z);
+    const path = this.nav.findPath(p.x, p.z, hit.x, hit.z, PLAYER_REACH);
     this.pending = null;
     if (path) this.path = path;
   }
@@ -2033,7 +2035,7 @@ class Game {
         if (this.cam.fp) this.cam.turnToward(pl.targetFacing, dt);
       } else {
         // free movement slides along walls and nudges round corners, chairs and tree trunks
-        const m = this.nav.slide(p.x, p.z, dx, dz, step, from, this.slideSide);
+        const m = this.nav.slide(p.x, p.z, dx, dz, step, from, this.slideSide, PLAYER_REACH);
         if (m) {
           const mx = m.x - p.x, mz = m.z - p.z;
           p.x = m.x; p.z = m.z;
@@ -2045,7 +2047,17 @@ class Game {
     }
     if (!this.path.length) this.pathRun = false;
     if (this.windowView && speed > 0) { this.windowView = false; this.setFirstPerson(false, true); }
-    p.y += (this.nav.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 14);
+    // off a ledge the player falls under gravity and lands with a step; otherwise the feet ease onto the floor
+    const floor = this.nav.heightAt(p.x, p.z);
+    if (this.fallV < 0 || p.y > floor + 0.35) {
+      this.fallV -= 24 * dt;
+      p.y += this.fallV * dt;
+      if (p.y <= floor) {
+        p.y = floor;
+        if (this.fallV < -3) this.audio.step(p.x, p.z, true);
+        this.fallV = 0;
+      }
+    } else p.y += (floor - p.y) * Math.min(1, dt * 14);
     pl.speed = speed;
     if (this.meal && speed > 0) this.endMeal();
     if (this.eatT > 0) { this.eatT -= dt; if (speed > 0) this.eatT = 0; }

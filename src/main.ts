@@ -23,7 +23,7 @@ import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { CharacterBatch } from './game/charbatch';
 import { IsoCamera } from './game/camera';
-import { Particles, Blobs, Koi } from './game/fx';
+import { Particles, Blobs, Koi, SkylightBeams } from './game/fx';
 import { Birds, type Threat } from './game/birds';
 import { Cutaway } from './game/cutaway';
 import { solidBase } from './world/owners';
@@ -211,6 +211,7 @@ class Game {
   private koi: Koi | null = null;
   private birds!: Birds;
   private particles!: Particles;
+  private beams!: SkylightBeams;
   private interactables: Interactable[] = [];
   private near: Interactable | null = null;
   private notified = new Set<string>();
@@ -477,6 +478,8 @@ class Game {
     this.blobs = new Blobs(this.r.scene, 160);
     if (a.koiArea) this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, a.petals);
+    this.beams = new SkylightBeams(this.r, a.shafts ?? []);
+    (a.warm ?? []).slice(0, 3).forEach(([x0, z0, x1, z1, top], i) => { this.r.shared.uWarm.value[i].set(x0, z0, x1, z1); this.r.shared.uWarmTop.value.setComponent(i, top); });
     this.beacon = new Beacon(this.r.scene);
     this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand, hotels: a.hotels }, {
       player: () => {
@@ -2456,6 +2459,7 @@ class Game {
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi?.update(sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
+    this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);
     this.perf.lap('effects');
     this.updateGuide(dt);
     // paint the pocket map a sliver at a time once the trip is under way, so opening it is instant

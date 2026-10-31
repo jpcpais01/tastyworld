@@ -201,3 +201,108 @@ export class Koi {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
+
+/**
+ * Light shafts down from the bazaars' skylights and dome oculi: soft beams leaning away from the sun, dust
+ * drifting in them, gone at night and when the sun is low. Every beam in one instanced draw of four sides each,
+ * into the half-resolution particle buffer, faded where the scene stands in front of it.
+ */
+export class SkylightBeams {
+  readonly mesh: THREE.Mesh;
+  private mat: THREE.ShaderMaterial;
+
+  constructor(r: Renderer, list: [number, number, number, number, number, number][]) {
+    const geo = new THREE.InstancedBufferGeometry();
+    // four sides of a unit box (x and z in -0.5..0.5, y 0 at the top, 1 at the floor), u across each side
+    const pos: number[] = [], uv: number[] = [], idx: number[] = [];
+    const sides: [number, number, number, number][] = [[-0.5, -0.5, 0.5, -0.5], [0.5, -0.5, 0.5, 0.5], [0.5, 0.5, -0.5, 0.5], [-0.5, 0.5, -0.5, -0.5]];
+    for (const [ax, az, bx, bz] of sides) {
+      const o = pos.length / 3;
+      pos.push(ax, 0, az, bx, 0, bz, bx, 1, bz, ax, 1, az);
+      uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+      idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2));
+    geo.setIndex(idx);
+    const top = new Float32Array(list.length * 4), size = new Float32Array(list.length * 3);
+    list.forEach(([x, y, z, sx, sz, fy], i) => { top.set([x, y, z, i * 7.31], i * 4); size.set([sx, sz, Math.max(0.5, y - fy)], i * 3); });
+    geo.setAttribute('aTop', new THREE.InstancedBufferAttribute(top, 4));
+    geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(size, 3));
+    geo.instanceCount = list.length;
+    this.mat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      vertexShader: /* glsl */ `
+        in vec4 aTop;
+        in vec3 aSize;
+        uniform vec3 uSunDir;
+        out vec2 vUv;
+        out float vSeed;
+        out vec4 vClip;
+        void main() {
+          float t = position.y;
+          // the beam leans away from the sun, and spreads a little on its way down
+          vec2 lean = -uSunDir.xz / max(uSunDir.y, 0.4);
+          vec3 p = aTop.xyz + vec3(position.x * aSize.x * (1.0 + t * 0.35), -t * aSize.z, position.z * aSize.y * (1.0 + t * 0.35));
+          p.xz += lean * t * aSize.z;
+          vUv = uv;
+          vSeed = aTop.w;
+          vClip = projectionMatrix * viewMatrix * vec4(p, 1.0);
+          gl_Position = vClip;
+        }`,
+      fragmentShader: /* glsl */ `
+        precision highp float;
+        uniform sampler2D tDepth;
+        uniform vec3 uClip;
+        uniform vec3 uColor;
+        uniform float uStrength;
+        uniform float uTime;
+        in vec2 vUv;
+        in float vSeed;
+        in vec4 vClip;
+        layout(location = 0) out vec4 outColor;
+        float linZ(float d, vec3 clip) { return clip.z > 0.5 ? clip.x * clip.y / (clip.y - d * (clip.y - clip.x)) : clip.x + d * (clip.y - clip.x); }
+        void main() {
+          float across = sin(3.14159 * vUv.x);
+          across *= across;
+          float t = vUv.y;
+          float a = across * smoothstep(0.0, 0.06, t) * (1.0 - t * 0.5) * (1.0 - smoothstep(0.82, 1.0, t));
+          // motes of dust turning slowly in the light
+          a *= 0.8 + 0.2 * sin(t * 37.0 + uTime * 0.6 + vSeed) * sin(vUv.x * 13.0 - uTime * 0.4 + vSeed * 3.0);
+          vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5;
+          float lz = linZ(vClip.z / vClip.w * 0.5 + 0.5, uClip);
+          a *= clamp((linZ(texture(tDepth, suv).r, uClip) - lz) * 1.5, 0.0, 1.0);
+          if (uClip.z > 0.5) a *= smoothstep(0.4, 1.6, lz);
+          a *= uStrength;
+          outColor = vec4(uColor * a, 0.0);
+        }`,
+      uniforms: {
+        uSunDir: r.shared.uSunDir,
+        uTime: r.shared.uTime,
+        uColor: { value: new THREE.Color(1, 0.86, 0.62) },
+        uStrength: { value: 0 },
+        tDepth: r.particleDepth,
+        uClip: r.clip,
+      },
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.CustomBlending,
+      blendSrc: THREE.OneFactor,
+      blendDst: THREE.OneMinusSrcAlphaFactor,
+    });
+    this.mesh = new THREE.Mesh(geo, this.mat);
+    this.mesh.frustumCulled = false;
+    this.mesh.visible = list.length > 0;
+    r.particleScene.add(this.mesh);
+  }
+
+  /** The beams follow the sun: strongest at midday, gone below about fifteen degrees and at night. */
+  update(sunDir: THREE.Vector3, sunColor: THREE.Color, night: number): void {
+    const s = THREE.MathUtils.smoothstep(sunDir.y, 0.22, 0.55) * (1 - night);
+    this.mat.uniforms.uStrength.value = s * 0.22;
+    this.mat.uniforms.uColor.value.copy(sunColor).multiplyScalar(0.9).lerp(new THREE.Color(1, 0.84, 0.6), 0.35);
+    this.mesh.visible = s > 0.01 && (this.mesh.geometry as THREE.InstancedBufferGeometry).instanceCount > 0;
+  }
+}

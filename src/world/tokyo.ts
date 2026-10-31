@@ -103,6 +103,10 @@ export interface Anchors {
   occluders: Occluder[];
   /** Overhead wires birds can sit on: end x, z, other end x, z, height of the top of the wire at its ends, sag (m). */
   wires: [number, number, number, number, number, number][];
+  /** Skylights the sun shines down through (bazaar halls): top centre x, y, z, the opening's size x, z and the floor y (m). */
+  shafts?: [number, number, number, number, number, number][];
+  /** Covered markets lit warm all day: x0, z0, x1, z1 and the roof's height (m); at most three. */
+  warm?: [number, number, number, number, number][];
   /** The great halls one walks into: a cathedral's nave, a mosque's prayer hall (see world/sacred.ts). */
   halls?: HallAnchor[];
 }
@@ -210,6 +214,7 @@ export class Builder {
   occluders: Occluder[] = [];
   benches: [number, number, number, number?][] = [];
   wires: Anchors['wires'] = [];
+  shafts: [number, number, number, number, number, number][] = [];
   /** True when there is open air at a point (metres). */
   clear(x: number, y: number, z: number): boolean {
     return this.grid.get(Math.floor(x / V), Math.floor(y / V) + G, Math.floor(z / V)) === 0;

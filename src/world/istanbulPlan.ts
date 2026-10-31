@@ -71,6 +71,8 @@ export const YENI = { hall: [-4, 2, 16, 18] as const, court: [-2, 18, 14, 30] as
 export const SULEY = { precinct: [-158, -34, -114, 12] as const, hall: [-150, -26, -124, -4] as const, court: [-146, -4, -128, 10] as const, terrace: [-158, 12, -112, 22] as const };
 export const GRAND = [-152, -100, -102, -42] as const;
 export const SPICE_Y = 1.0;
+/** The bazaar halls' height to the crown of the vault (m): the Grand Bazaar's painted halls, the Spice Bazaar's. */
+export const HALL_G = 6.5, HALL_S = 7;
 /** Sirkeci's station between the avenue and the quay. */
 export const STATION = [15, -58, 23, -36] as const;
 
@@ -187,18 +189,18 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     ['b2', 'fp0', 4, K.Quay], ['fp0', 'fp1', 6, K.Pier], ['b4', 'fq0', 4, K.Quay], ['fq0', 'fq1', 6, K.Pier], ['q4', 'fh0', 4, K.Quay], ['fh0', 'fh1', 6, K.Pier],
     ['q8', 'e0', 4, K.Square], ['e0', 'e1', 4, K.Square], ['e1', 'e2', 4, K.Square], ['e0', 'e3', 4, K.Square], ['e3', 'e4', 4, K.Square], ['e1', 'q7', 4, K.Square], ['e2', 'q6', 4, K.Square],
     ['e1', 'y0', 4, K.Square], ['y0', 'y1', 6, K.Steps], ['y1', 'y2', 4, K.Court], ['e3', 'b1', 4, K.Square], ['e4', 'b2', 4, K.Square],
-    ['e2', 's0', 4, K.Square], ['s0', 's1', 4, K.Street], ['s1', 's2', 4.5, K.Covered, 5.5, 'spice'], ['s2', 's3', 4.5, K.Covered, 5.5, 'spice'], ['s3', 's7', 4, K.Street], ['s3', 's6', 4, K.Street], ['s6', 'q4', 4, K.Quay],
-    ['s1', 's4', 4.5, K.Covered, 5.5, 'spice'], ['s4', 's5', 4.5, K.Covered, 5.5, 'spice'], ['s5', 'h2', 4, K.Street],
+    ['e2', 's0', 4, K.Square], ['s0', 's1', 4, K.Street], ['s1', 's2', 4.5, K.Covered, HALL_S, 'spice'], ['s2', 's3', 4.5, K.Covered, HALL_S, 'spice'], ['s3', 's7', 4, K.Street], ['s3', 's6', 4, K.Street], ['s6', 'q4', 4, K.Quay],
+    ['s1', 's4', 4.5, K.Covered, HALL_S, 'spice'], ['s4', 's5', 4.5, K.Covered, HALL_S, 'spice'], ['s5', 'h2', 4, K.Street],
     ['b3', 'h0', 6, K.Street], ['h0', 'h1', 6, K.Street], ['h1', 'h2', 6, K.Street], ['h2', 'h3', 6, K.Street], ['e4', 't0', 6, K.Square],
     ['t0', 't1', 9, K.Tram], ['t1', 't2', 9, K.Tram], ['t2', 't3', 9, K.Tram], ['t3', 't4', 9, K.Tram], ['h1', 't1', 6, K.Street],
     ['b4', 't2', 6, K.Street], ['t2', 'c0', 5, K.Street], ['c0', 'c1', 5, K.Street], ['c1', 'c2', 5, K.Street], ['c2', 'u3', 4, K.Lane],
     ['b5', 't3', 6, K.Street], ['t3', 'd0', 5, K.Street], ['d0', 'd1', 4.5, K.Lane], ['d1', 'd2', 4.5, K.Lane], ['d2', 'd3', 4.5, K.Lane], ['d3', 'gc', 4, K.Lane],
     ['h3', 'u1', 6, K.Street], ['u1', 'u2', 6, K.Street], ['u2', 'u3', 6, K.Street], ['u3', 'ga', 5, K.Street], ['ga', 'gb', 5, K.Street], ['gb', 'gc', 5, K.Street],
     ['u3', 'gn1', 5, K.Street], ['gn1', 'gn2', 5, K.Street],
-    ['ga', 'i0', 4, K.Stair], ['i0', 'i1', 4, K.Covered, 5, 'grand'], ['i1', 'i2', 4, K.Covered, 5, 'grand'], ['i2', 'i3', 4, K.Covered, 5, 'grand'],
-    ['gb', 'j0', 4, K.Stair], ['j0', 'j1', 4, K.Covered, 5, 'grand'], ['j1', 'j2', 4, K.Covered, 5, 'grand'], ['j2', 'j3', 4, K.Covered, 5, 'grand'],
-    ['gn1', 'k1', 4, K.Street], ['k1', 'i1', 4, K.Covered, 5, 'grand'], ['i1', 'j1', 4, K.Covered, 5, 'grand'], ['j1', 'k3', 4, K.Covered, 5, 'grand'],
-    ['gn2', 'k2', 4, K.Street], ['k2', 'i2', 4, K.Covered, 5, 'grand'], ['i2', 'j2', 4, K.Covered, 5, 'grand'], ['j2', 'k4', 4, K.Covered, 5, 'grand'],
+    ['ga', 'i0', 4, K.Stair], ['i0', 'i1', 4, K.Covered, HALL_G, 'grand'], ['i1', 'i2', 4, K.Covered, HALL_G, 'grand'], ['i2', 'i3', 4, K.Covered, HALL_G, 'grand'],
+    ['gb', 'j0', 4, K.Stair], ['j0', 'j1', 4, K.Covered, HALL_G, 'grand'], ['j1', 'j2', 4, K.Covered, HALL_G, 'grand'], ['j2', 'j3', 4, K.Covered, HALL_G, 'grand'],
+    ['gn1', 'k1', 4, K.Street], ['k1', 'i1', 4, K.Covered, HALL_G, 'grand'], ['i1', 'j1', 4, K.Covered, HALL_G, 'grand'], ['j1', 'k3', 4, K.Covered, HALL_G, 'grand'],
+    ['gn2', 'k2', 4, K.Street], ['k2', 'i2', 4, K.Covered, HALL_G, 'grand'], ['i2', 'j2', 4, K.Covered, HALL_G, 'grand'], ['j2', 'k4', 4, K.Covered, HALL_G, 'grand'],
     ['gn1', 'm0', 5, K.Street], ['m0', 'm1', 5, K.Street], ['m1', 'm2', 4, K.Court], ['m1', 'm4', 5, K.Street], ['m4', 'm5', 6, K.Terrace], ['m5', 'm6', 6, K.Terrace], ['m5', 'm3', 4, K.Court],
     ['m4', 'w0', 3, K.Stair], ['w0', 'w1', 3, K.Stair], ['w1', 'q2', 3, K.Lane], ['w0', 'n4', 3, K.Stair],
     ['s4', 'n0', 3, K.Lane], ['n0', 'n1', 3.4, K.Lane], ['n1', 'n2', 3.4, K.Lane], ['n2', 'n3', 3.4, K.Lane], ['n3', 'n4', 3.4, K.Lane],
@@ -345,14 +347,15 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
   const lots: LotPlan[] = [];
   const r = rng(1453);
   const under = (k: number) => k === K.Covered;
+  const inHall = new Map<number, [number, number, number][]>();
   const tryLot = (x0: number, z0: number, x1: number, z1: number, side: LotPlan['side'] | null, frontLayer: number, use: LotUse, on: K): boolean => {
     if (!inMap(x0 - 1, z0 - 1) || !inMap(x1 + 1, z1 + 1) || x1 - x0 < 14 || z1 - z0 < 14) return false;
-    let lo = 255, hi = 0;
+    let lo = 255, hi = 0, onHall = false;
     for (let z = z0 - 1; z <= z1 + 1; z++)
       for (let x = x0 - 1; x <= x1 + 1; x++) {
         const c = col(x, z), k = kind[c];
         if (lot[c]) return false;
-        if (use === 'bazaar' && under(k)) continue;
+        if (use === 'bazaar' && under(k)) { if (x >= x0 && x <= x1 && z >= z0 && z <= z1) onHall = true; continue; }
         if (k !== K.Ground) return false;
         if (x >= x0 && x <= x1 && z >= z0 && z <= z1) { lo = Math.min(lo, walk[c]); hi = Math.max(hi, walk[c]); }
       }
@@ -365,6 +368,9 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
     if (x1 * V > T[0] - 4 && x0 * V < T[2] + 4 && z0 * V >= T[3] - 2 && z0 * V < HORN_Z) top = Math.min(top, Math.max(hi + 10, layerOf(HILLTOP_Y - 3.5)));
     const id = lots.length + 1;
     lots.push({ id, x0, z0, x1, z1, base, top, side: side ?? 's', door: side ? frontLayer : -1, seed: Math.floor(r() * 1e6), use, on });
+    // a shop that landed in a hall (where a cross hall meets a long one) keeps its place while the rest of the
+    // city is laid out, so every later lot comes out as it always has, and is taken away at the end
+    if (onHall) { const saved: [number, number, number][] = []; for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const c = col(x, z); saved.push([c, kind[c], walk[c]]); } inHall.set(id, saved); }
     for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const c = col(x, z); lot[c] = id; kind[c] = K.Lot; walk[c] = base; }
     return true;
   };
@@ -413,7 +419,7 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
         if (!inMap(x, z)) break;
         const c = col(x, z);
         if (kind[c] !== K.Ground) break;
-        kind[c] = l.on === K.Covered ? K.Street : l.on; walk[c] = l.door;
+        kind[c] = l.on; walk[c] = l.door; // under a hall the apron is the hall's own floor
       }
   }
   // back lots on the slope between the streets
@@ -425,6 +431,8 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
       const w = 18 + Math.floor(r() * 18), d = 18 + Math.floor(r() * 16);
       tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground);
     }
+  // the bazaar halls lined wall to wall before the yards fill up
+  bazaarInfill(walk, kind, lot, segs, lots);
   // the old city is built up: the bigger yards left between the houses get a house of their own (a few stay open,
   // and the ground round the mosques and the waterfront is kept clear for the views)
   let infill = 0;
@@ -455,7 +463,68 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
       const w = 14 + Math.floor(r() * 14), d = 14 + Math.floor(r() * 14);
       tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, 'house', K.Ground);
     }
-  return lots;
+  // the shops standing in the halls go, the hall floor comes back, and the lots are numbered afresh
+  for (const saved of inHall.values()) for (const [c, k, w] of saved) { kind[c] = k; walk[c] = w; lot[c] = 0; }
+  const kept = lots.filter((l) => !inHall.has(l.id));
+  const renum = new Map(kept.map((l, i) => [l.id, i + 1]));
+  for (let i = 0; i < lot.length; i++) if (lot[i]) lot[i] = renum.get(lot[i]) ?? 0;
+  kept.forEach((l, i) => { l.id = i + 1; });
+  return kept;
+}
+
+/**
+ * The bazaar halls lined wall to wall: the first pass leaves every other shop out (each lot wants a free ring
+ * round it), so the gaps get their shops here, side by side, with their own draws so the rest of the city keeps
+ * its lots.
+ */
+function bazaarInfill(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: PathSeg[], lots: LotPlan[]): void {
+  const r = rng(1461);
+  const free = (x: number, z: number) => inMap(x, z) && !lot[col(x, z)] && kind[col(x, z)] === K.Ground && !beyond((x + 0.5) * V, (z + 0.5) * V);
+  for (const s of segs) {
+    if (s.kind !== K.Covered) continue;
+    const alongX = Math.abs(s.b[0] - s.a[0]) >= Math.abs(s.b[2] - s.a[2]);
+    const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
+    const off = s.w / 2 + 0.5;
+    const u0 = Math.round(Math.min(alongX ? ax : az, alongX ? bx : bz) / V), u1 = Math.round(Math.max(alongX ? ax : az, alongX ? bx : bz) / V) - 1;
+    for (const sd of [1, -1] as const) {
+      // voxel of the front row, and the cell (u, k rows back) in world voxels
+      const axis = alongX ? az : ax;
+      const front = sd > 0 ? Math.round((axis + off) / V) : Math.round((axis - off) / V) - 1;
+      const cell = (u: number, k: number): [number, number] => (alongX ? [u, front + sd * k] : [front + sd * k, u]);
+      const colFree = (u: number) => { for (let k = 0; k < 15; k++) { const [x, z] = cell(u, k); if (!free(x, z)) return false; } return true; };
+      for (let u = u0; u <= u1; ) {
+        if (!colFree(u)) { u++; continue; }
+        let e = u;
+        while (e + 1 <= u1 && colFree(e + 1)) e++;
+        const L = e - u + 1;
+        if (L >= 15) {
+          const n = Math.max(1, Math.round(L / 18));
+          for (let i = 0; i < n; i++) {
+            const a0 = u + Math.floor((i * L) / n), a1 = u + Math.floor(((i + 1) * L) / n) - 1;
+            const want = 16 + Math.floor(r() * 6), seed = Math.floor(r() * 1e6);
+            let dep = 15;
+            while (dep < want) { let ok = true; for (let a = a0; a <= a1 && ok; a++) { const [x, z] = cell(a, dep); ok = free(x, z); } if (!ok) break; dep++; }
+            const [px, pz] = cell(a0, 0), [qx, qz] = cell(a1, dep - 1);
+            const t = Math.max(0, Math.min(1, (((a0 + a1 + 1) / 2) * V - (alongX ? ax : az)) / ((alongX ? bx - ax : bz - az) || 1)));
+            const base = layerOf(Math.round((ay + (by - ay) * t) * 4) / 4);
+            const id = lots.length + 1;
+            const side: LotPlan['side'] = alongX ? (sd > 0 ? 'n' : 's') : (sd > 0 ? 'w' : 'e');
+            const lp: LotPlan = { id, x0: Math.min(px, qx), z0: Math.min(pz, qz), x1: Math.max(px, qx), z1: Math.max(pz, qz), base, top: base + 18, side, door: base, seed, use: 'bazaar', on: K.Covered };
+            lots.push(lp);
+            for (let z = lp.z0; z <= lp.z1; z++) for (let x = lp.x0; x <= lp.x1; x++) { const c = col(x, z); lot[c] = id; kind[c] = K.Lot; walk[c] = base; }
+            // the strip between the shop and the hall is the hall's floor
+            for (let a = a0; a <= a1; a++)
+              for (let k = 1; k <= 4; k++) {
+                const [x, z] = cell(a, -k);
+                if (!inMap(x, z) || kind[col(x, z)] !== K.Ground || lot[col(x, z)]) break;
+                kind[col(x, z)] = K.Covered; walk[col(x, z)] = base;
+              }
+          }
+        }
+        u = e + 1;
+      }
+    }
+  }
 }
 
 /** Deterministic pick from the plan alone (every worker agrees). */

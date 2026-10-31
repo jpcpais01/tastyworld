@@ -1,4 +1,4 @@
-import { AMALFI, ISTANBUL } from './cityId';
+import { AMALFI, ISTANBUL, perCity } from './cityId';
 import { Grid, rng } from './grid';
 import { Palette } from './palette';
 
@@ -52,6 +52,8 @@ export interface Look {
   backpack?: number;
   glasses?: boolean;
   charm?: boolean;
+  /** A simit seller's tray of rings balanced on the head. */
+  tray?: boolean;
   /** A full moustache, Istanbul's classic. */
   moustache?: boolean;
 }
@@ -67,9 +69,9 @@ export function randomLook(seed: number): Look {
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
   const hairStyles: Look['hairStyle'][] = ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald'];
   // a summer coast dresses lighter than a Tokyo street: tees and linen, shorts, straw hats and sunglasses
-  const topStyles: Look['topStyle'][] = ISTANBUL ? ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'] : AMALFI ? ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'] : ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'];
+  const topStyles: Look['topStyle'][] = perCity({ tokyo: ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'], amalfi: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], istanbul: ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'] });
   const topStyle = pick(topStyles);
-  const hats: Look['hat'][] = ISTANBUL ? ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'] : AMALFI ? ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'] : ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'];
+  const hats: Look['hat'][] = perCity({ tokyo: ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'], amalfi: ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'], istanbul: ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'] });
   const look: Look = {
     skin: pick(SKINS), hair: pick(HAIRS), hairStyle: pick(hairStyles), top: pick(TOPS), topStyle,
     accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.25, shoes: pick(SHOES), shorts: r() < (AMALFI ? 0.4 : 0.12),
@@ -230,6 +232,17 @@ export function buildPerson(look: Look): CharModel {
       break;
     case 'chef': box(2, 21, 1, 7, 24, 6, white, PART.head); box(1, 23, 0, 8, 24, 7, white, PART.head); break;
     case 'headband': { const hb = C(look.hatColor ?? 0xf2efe7); box(2, 20, 1, 7, 20, 6, hb, PART.head); box(1, 20, 1, 1, 20, 6, hb, PART.head); box(8, 20, 1, 8, 20, 6, hb, PART.head); set(4, 20, 0, hb, PART.head); set(4, 19, 0, hb, PART.head); set(5, 18, 0, hb, PART.head); break; }
+  }
+  if (look.tray) {
+    // a round wooden tray on a cloth pad, stacked with sesame rings
+    const wood = C(0x8a5a36, 0.05), simit = C(0xb5652e, 0.08), sesame = C(0xe2c78e, 0.06);
+    box(1, 23, 0, 8, 23, 7, wood, PART.head); box(0, 23, 1, 9, 23, 6, wood, PART.head);
+    for (let z = 0; z < 8; z++) for (let x = 0; x < 10; x++) {
+      if ((x === 0 || x === 9) && (z === 0 || z === 7)) continue;
+      const ring = (x + z * 3) % 4;
+      if (ring === 0) continue; // the holes of the rings
+      set(x, 24, z, ring === 2 ? sesame : simit, PART.head);
+    }
   }
   if (look.backpack !== undefined) {
     const bp = C(look.backpack);

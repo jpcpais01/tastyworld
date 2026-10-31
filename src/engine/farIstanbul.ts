@@ -29,15 +29,17 @@ const fbm = (x: number, z: number) => vnoise(x, z) * 0.5 + vnoise(x * 2.1 + 5, z
 const dome = (x: number, z: number, cx: number, cz: number, h: number, r: number) => h * Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (r * r));
 
 /** The European shore of the Bosphorus (x) at z: Karaköy and Tophane north of the Horn, Sarayburnu and the Marmara south. */
-const westShore = (z: number) => (z > 64 ? 30 + (z - 64) * 0.9 : z < -112 ? 30 + (-112 - z) * 0.28 + 30 * smooth(-112, -260, z) : 30);
+const westShore = (z: number) => (z > HORN_N ? 30 + (z - HORN_N) * 0.9 : z < -112 ? 30 + (-112 - z) * 0.28 + 30 * smooth(-112, -260, z) : 30);
 /** The Asian shore across the strait, opening out into the Sea of Marmara to the south. */
 const eastShore = (z: number) => 430 + 40 * Math.sin(z * 0.004) + Math.max(0, -380 - z) * 1.6;
-/** The Golden Horn's far bank: Karaköy, then Kasımpaşa as the Horn bends north-west. */
-const hornNorth = (x: number) => 64 + Math.max(0, -420 - x) * 0.35;
+/** Where the Golden Horn's far bank meets the Bosphorus: Karaköy, 190 m across the water from Eminönü. */
+const HORN_N = 234;
+/** The Golden Horn's far bank: Karaköy, then Kasımpaşa as the Horn narrows and bends north-west. */
+const hornNorth = (x: number) => HORN_N - Math.max(0, -100 - x) * 0.12 + Math.max(0, -420 - x) * 0.45;
 
 /** Metres of water (positive) or land (negative) at a spot, roughly: positive inside the water. */
 function wet(x: number, z: number): number {
-  const horn = x < westShore(Math.min(z, 64)) + 2 ? Math.min(z - 44, hornNorth(x) - z) : -1e3;
+  const horn = x < 34 ? Math.min(z - 44, hornNorth(x) - z) : -1e3;
   const strait = Math.min(x - westShore(z), eastShore(z) - x);
   // the Maiden's Tower stands on its own rock in the strait
   const rock = 7 - Math.hypot(x - 175, z + 150);
@@ -52,7 +54,7 @@ export function farHeight(x: number, z: number): number {
   // the old city's hills, Galata and Beyoğlu across the Horn, the Asian hills, Çamlıca high above them
   const hills = Math.max(
     dome(x, z, -140, -8, 14, 70), dome(x, z, -40, -300, 26, 120), dome(x, z, -320, -110, 34, 140), dome(x, z, -470, 30, 40, 150),
-    dome(x, z, 30, -200, 22, 60), dome(x, z, -30, 190, 34, 110), dome(x, z, -160, 330, 52, 190), dome(x, z, 120, 340, 40, 160),
+    dome(x, z, 30, -200, 22, 60), dome(x, z, -30, 330, 34, 110), dome(x, z, -160, 330, 52, 190), dome(x, z, 120, 340, 40, 160),
     dome(x, z, 560, 110, 44, 160), dome(x, z, 820, 380, 150, 220), dome(x, z, 600, -260, 30, 160),
   );
   const h = 1.2 + hills * smooth(0, 40, d) + (fbm(x * 0.012, z * 0.012) - 0.5) * 6 * smooth(10, 80, d);
@@ -285,15 +287,35 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
     const tile = rnd() < 0.35 ? 1 : 0;
     box(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + tall, tile, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
   }
+  // the shores you look at from the map get the city packed tight: Karaköy and Beyoğlu climbing the hill across the
+  // Horn, Üsküdar and Kadıköy across the strait; the houses step up the slopes shoulder to shoulder, never bare hill
+  const pack = (ax: number, bx: number, az: number, bz: number, tries: number, lo0: number, hi0: number) => {
+    for (let i = 0; i < tries; i++) {
+      const x = ax + rnd() * (bx - ax), z = az + rnd() * (bz - az);
+      if (outside(x, z) < 5) continue;
+      const w = 5 + rnd() * 7, dd = 5 + rnd() * 7;
+      if (wet(x, z) > -w * 0.5 || parkAt(x, z)) continue;
+      const hs4 = [H(x - w / 2, z - dd / 2), H(x + w / 2, z - dd / 2), H(x - w / 2, z + dd / 2), H(x + w / 2, z + dd / 2)];
+      const lo = Math.min(...hs4), hi = Math.max(...hs4);
+      if (lo < 0.8 || hi - lo > 10) continue;
+      box(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + lo0 + rnd() * (hi0 - lo0), rnd() < 0.45 ? 1 : 0, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
+    }
+  };
+  pack(-320, 140, HORN_N - 6, 520, 1500, 7, 17);
+  pack(400, 640, -420, 240, 900, 6, 15);
   // the landmarks, readable from the quays: Galata's tower on its hill across the Horn
   {
-    const x = -25, z = 175, y = H(x, z) - 0.5;
+    const x = -25, z = 300, y = H(x, z) - 0.5;
     box(x, z, 9, 9, y, 30, 7, '#a89a86', 0.3);
     box(x, z, 10, 10, y + 30, 1, 7, '#b8ab96', 0.4);
     box(x, z, 9, 9, y + 31, 4, 7, '#a89a86', 0.7); // the gallery
     for (let t = 0; t < 7; t++) box(x, z, 9 - t * 1.25, 9 - t * 1.25, y + 35 + t * 1.3, 1.35, 2, '#6f7f8f');
     box(x, z, 0.3, 0.3, y + 44, 1.5, 4, '#c9a24a');
   }
+  // the Galata Bridge carries on across the Horn to Karaköy: the deck on its piers, lamps along both rails
+  box(-18, (64 + HORN_N) / 2 + 2, 9, HORN_N - 60, 0.5, 1.0, 8, '#8c9096');
+  for (let z = 70; z < HORN_N; z += 12) box(-18, z, 6, 2.5, -4, 4.5, 8, '#9a958c');
+  for (let z = 68; z < HORN_N + 2; z += 8) for (const x of [-22.2, -13.8]) box(x, z, 0.25, 0.25, 1.5, 3.8, 7, '#3c3d40');
   // Hagia Sophia's rose walls and great shallow dome, the Blue Mosque's cascade of domes and six minarets
   {
     const x = 35, z = -300, y = H(x, z) - 0.5;
@@ -325,7 +347,7 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
   mosque(-310, -100, 1.5, 4);
   mosque(-470, -40, 1.7, 2);
   mosque(-430, 70, 1.3, 2);
-  mosque(-230, 150, 1.0, 2); // Kasımpaşa across the Horn
+  mosque(-230, 290, 1.0, 2); // Kasımpaşa across the Horn
   for (let k = 0; k <= 22; k++) {
     const x = -380 + k * 7, z = -170 + k * 1.2, g = H(x, z);
     box(x, z, 2.4, 3.4, g - 1, Math.max(4, 18 - (g - 20) * 0.7), 3, '#b9a98e', 0.1);

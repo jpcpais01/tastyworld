@@ -1,6 +1,6 @@
 import type { Look } from '../world/characters';
 import type { IconName } from '../ui/emblems';
-import { ISTANBUL } from '../world/cityId';
+import { perCity } from '../world/cityId';
 
 /**
  * The seven places to stay. Each one is a real building in the city (picked by the corner of its lot), with a
@@ -11,7 +11,7 @@ import { ISTANBUL } from '../world/cityId';
 
 export type RoomType = 'single' | 'twin' | 'double' | 'king' | 'tatami';
 /** Furnishing and colours of the rooms and the lobby. */
-export type HotelTheme = 'inn' | 'ryokan' | 'business' | 'boutique' | 'guesthouse' | 'park' | 'sky';
+export type HotelTheme = 'inn' | 'ryokan' | 'business' | 'boutique' | 'guesthouse' | 'park' | 'sky' | 'pensione' | 'locanda' | 'palazzo' | 'marina';
 
 export interface HotelRoomSpec {
   /** Floor above the lobby (1..4). In Japan the lobby is the first floor, so floor 1 holds room 201. */
@@ -36,6 +36,8 @@ export interface HotelInfo {
   keeper: string;
   keeperLook: Partial<Look>;
   lines: string[];
+  /** Guests go up by the stairs rather than a lift. */
+  stairs?: boolean;
 }
 
 const DESK: Partial<Look> = { topStyle: 'suit', top: 0x2b3a62, accent: 0xf2efe7, bottom: 0x2b3a62, hat: 'none', backpack: undefined };
@@ -282,9 +284,64 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
   },
 ];
 
+/** Amalfi's four: houses of the town (placed by the plan, see amalfiPlan's HOTEL_PLACES), stairs instead of lifts. */
+const AMALFI_HOTELS: HotelInfo[] = [
+  {
+    id: 'marina', name: 'Albergo Marina Grande', jp: 'Albergo', street: 'The Harbour', theme: 'marina', stairs: true,
+    blurb: 'A tall old harbour house against the cliff, blue shutters and every window full of boats and sea.',
+    lot: [0, 0], style: 'modern', floors: 4,
+    rooms: [{ floor: 1, type: 'double', price: 2200 }, { floor: 2, type: 'twin', price: 2400 }, { floor: 3, type: 'king', price: 4200 }],
+    keeper: 'Signor Vincenzo', keeperLook: { topStyle: 'suit', top: 0x2b4c86, accent: 0xf4f1ea, bottom: 0x2b3a62, hat: 'none', hair: 0xb9b6b0, glasses: true, backpack: undefined },
+    lines: [
+      'Benvenuti! My grandfather was a fisherman, and he built this house so he could see his boat from his bed.',
+      'From the top room you watch the ferries come in from Positano. At night the fishing lamps go out on the water.',
+      'Breakfast? Go to the Bar del Duomo, ask Enzo for a cornetto, and tell him Vincenzo sent you.',
+    ],
+  },
+  {
+    id: 'limoni', name: 'Locanda dei Limoni', jp: 'Locanda', street: 'Salita dei Mulini', theme: 'locanda', stairs: true,
+    blurb: 'A little inn up the steps among the lemon gardens. Majolica floors, lace curtains, the smell of blossom.',
+    lot: [0, 0], style: 'modern', floors: 3,
+    rooms: [{ floor: 1, type: 'double', price: 1800 }, { floor: 2, type: 'king', price: 3200 }],
+    keeper: 'Signora Teresa', keeperLook: { topStyle: 'cardigan', top: 0xe9c23a, accent: 0xf4f1ea, bottom: 0x2f2f35, hat: 'none', hairStyle: 'bun', hair: 0x6b6b70, backpack: undefined },
+    lines: [
+      'You found us! Most people give up on the steps. The ones who keep climbing get the best sleep in Amalfi.',
+      'In spring the whole house smells of lemon blossom. In summer, of lemons. In winter, of my limoncello.',
+      'The room at the top looks right over the domes to the sea. Leave the shutters open and the sun will wake you.',
+    ],
+  },
+  {
+    id: 'palazzo', name: 'Palazzo Ruggiero', jp: 'Palazzo', street: "Via Lorenzo d'Amalfi", theme: 'palazzo', stairs: true,
+    blurb: 'A merchant\'s palace from the days of the maritime republic: painted ceilings, a marble stair, silk on the walls.',
+    lot: [0, 0], style: 'modern', floors: 5,
+    rooms: [{ floor: 1, type: 'single', price: 2000 }, { floor: 2, type: 'double', price: 2800 }, { floor: 3, type: 'king', price: 4800 }],
+    keeper: 'Dottoressa Ruggiero', keeperLook: { topStyle: 'suit', top: 0x6a1e2a, accent: 0xe9c23a, bottom: 0x2f2f35, hat: 'none', hairStyle: 'bob', hair: 0x2a1d17, backpack: undefined },
+    lines: [
+      'Welcome to the Palazzo. My family traded silk and pepper with Constantinople when Amalfi ruled the sea.',
+      'Mind the marble stair, it has been polished by eight hundred years of feet.',
+      'The king room has the painted ceiling. Lie on the bed and count the cherubs. There are thirty-one.',
+    ],
+  },
+  {
+    id: 'gabbiano', name: 'Pensione Il Gabbiano', jp: 'Pensione', street: 'Vicoli di Ponente', theme: 'pensione', stairs: true,
+    blurb: 'A friendly family pensione high in the lanes, with a view straight over the piazza to the sea.',
+    lot: [0, 0], style: 'modern', floors: 3,
+    rooms: [{ floor: 1, type: 'twin', price: 1600 }, { floor: 2, type: 'king', price: 3000 }],
+    keeper: 'Peppino', keeperLook: { topStyle: 'tee', top: 0xf4f1ea, accent: 0x2f63a8, bottom: 0x2b3a62, hat: 'none', hairStyle: 'short', hair: 0x2a1d17, backpack: undefined },
+    lines: [
+      'Ciao! It is called the Seagull because one of them sits on the roof every morning and shouts at my mother.',
+      'From upstairs you can see the whole piazza, the Duomo steps and all the way out past the Molo.',
+      'Hungry? Nonna Gemma is right below on the piazza. Tell her you are staying with us, she will give you extra.',
+    ],
+  },
+];
+
 /** The hotels of the city on this trip. */
-export const HOTELS: HotelInfo[] = ISTANBUL ? ISTANBUL_HOTELS : TOKYO_HOTELS;
+export const HOTELS: HotelInfo[] = perCity({ tokyo: TOKYO_HOTELS, amalfi: AMALFI_HOTELS, istanbul: ISTANBUL_HOTELS });
 export { ISTANBUL_HOTELS };
+
+/** Whether guests climb the stairs to their rooms (a ryokan, every house on the coast) rather than take a lift. */
+export const byStairs = (h: HotelInfo): boolean => !!h.stairs || h.theme === 'ryokan';
 
 export const HOTEL: Record<string, HotelInfo> = Object.fromEntries(HOTELS.map((h) => [h.id, h]));
 
@@ -308,10 +365,18 @@ const ISTANBUL_ROOM_TYPE: typeof TOKYO_ROOM_TYPE = {
   king: { name: 'King room', jp: 'Süit', text: 'The best room in the house: a huge bed, a sofa and the widest view of the water.', icon: 'crown' },
   tatami: { name: 'Tatami room', jp: 'Tatami', text: '', icon: 'futon' },
 };
-export const ROOM_TYPE = ISTANBUL ? ISTANBUL_ROOM_TYPE : TOKYO_ROOM_TYPE;
+const AMALFI_ROOM_TYPE: typeof TOKYO_ROOM_TYPE = {
+  single: { name: 'Single room', jp: 'camera singola', text: 'A small white room with an iron bed, a writing desk and the shutters open on the town.', icon: 'bed' },
+  twin: { name: 'Twin room', jp: 'camera doppia', text: 'Two iron beds on a majolica floor, and a window full of rooftops and sea.', icon: 'bed' },
+  double: { name: 'Double room', jp: 'camera matrimoniale', text: 'A big bed under a painted headboard, an armchair by the French window, a moka on the side.', icon: 'bed' },
+  king: { name: 'Suite', jp: 'suite', text: 'The best room in the house: the widest bed, a sofa and the whole coast through the windows.', icon: 'crown' },
+  tatami: { name: 'Tatami room', jp: 'tatami', text: '', icon: 'futon' },
+};
+export const ROOM_TYPE = perCity({ tokyo: TOKYO_ROOM_TYPE, amalfi: AMALFI_ROOM_TYPE, istanbul: ISTANBUL_ROOM_TYPE });
 
-/** Room number as the door says it: floor 1 above the lobby is the 2nd floor in Japan (room 201), the 1st in Turkey (101). */
-export const roomNo = (floor: number) => `${ISTANBUL ? floor : floor + 1}01`;
+/** Room number as the door says it: floor 1 above the lobby is the 2nd floor in Japan (room 201), the 1st in Turkey and Italy (101). */
+const FIRST_FLOOR = perCity({ tokyo: 2, amalfi: 1, istanbul: 1 });
+export const roomNo = (floor: number) => `${floor + FIRST_FLOOR - 1}01`;
 
 /** Guests waiting in the lobbies have travel stories to tell. */
 const TOKYO_HOTEL_GUEST_LINES: string[] = [
@@ -323,6 +388,15 @@ const TOKYO_HOTEL_GUEST_LINES: string[] = [
   'Leave the curtains open. Waking up to the city is the best alarm clock.',
 ];
 
+const AMALFI_HOTEL_GUEST_LINES: string[] = [
+  'I asked for a sea view. The owner laughed and said every room in Amalfi has a sea view. He was right.',
+  'Two hundred steps to my room. Two hundred! But the lemon garden at the top made me forget all of them.',
+  'Leave the shutters open tonight. The fishing boats go out with their lamps and the whole bay twinkles.',
+  'Four hotels in town, and I want to sleep in all of them. Tomorrow, the Palazzo.',
+  'The signora brought me a limoncello at midnight. I did not ask. I did not refuse.',
+  'Breakfast on the terrace, the bells of the Duomo, a cornetto. I am never going home.',
+];
+
 const ISTANBUL_HOTEL_GUEST_LINES: string[] = [
   'I took the room over the water. The ferries hoot all night and I loved every one.',
   'Twelve hotels in this little corner of town! I am trying a new one every night.',
@@ -331,4 +405,4 @@ const ISTANBUL_HOTEL_GUEST_LINES: string[] = [
   'From the top floor you can see two continents. I waved at Asia.',
   'The breakfast here is a whole table. I have stopped eating lunch.',
 ];
-export const HOTEL_GUEST_LINES: string[] = ISTANBUL ? ISTANBUL_HOTEL_GUEST_LINES : TOKYO_HOTEL_GUEST_LINES;
+export const HOTEL_GUEST_LINES: string[] = perCity({ tokyo: TOKYO_HOTEL_GUEST_LINES, amalfi: AMALFI_HOTEL_GUEST_LINES, istanbul: ISTANBUL_HOTEL_GUEST_LINES });

@@ -23,7 +23,7 @@ export class Particles {
   private seeds: Float32Array;
   private geo: THREE.InstancedBufferGeometry;
 
-  constructor(r: Renderer, emitters: Emitter[], sparkles: [number, number, number][], fireflies?: [number, number, number][], petals = true) {
+  constructor(r: Renderer, emitters: Emitter[], sparkles: [number, number, number][], fireflies: [number, number, number][], petals?: [number, number, number, number]) {
     const list: { o: [number, number, number]; s: [number, number, number, number] }[] = [];
     const rnd = rng(7);
     for (const e of emitters) {
@@ -31,9 +31,11 @@ export class Particles {
       const kind = KIND[e.kind];
       for (let i = 0; i < n; i++) list.push({ o: [e.pos[0] + (rnd() - 0.5) * 0.4, e.pos[1], e.pos[2] + (rnd() - 0.5) * 0.4], s: [i / n + rnd() * 0.05, 0.8 + rnd() * 0.5 * e.rate, e.kind === 'smoke' ? 0.32 : 0.26, kind] });
     }
-    if (petals) for (let i = 0; i < 520; i++) list.push({ o: [rnd() * 72, rnd() * 7, 36 + rnd() * 18], s: [rnd(), 0.6 + rnd() * 0.8, 0.07, KIND.petal] });
-    if (fireflies) for (const f of fireflies) list.push({ o: [f[0] + (rnd() - 0.5) * 2, f[1] + rnd() * 1.2, f[2] + (rnd() - 0.5) * 2], s: [rnd(), 0.5 + rnd(), 0.09, KIND.firefly] });
-    else for (let i = 0; i < 46; i++) list.push({ o: [rnd() * 70 + 1, 0.6 + rnd() * 1.2, 41 + rnd() * 13], s: [rnd(), 0.5 + rnd(), 0.09, KIND.firefly] });
+    if (petals) {
+      const [x0, z0, x1, z1] = petals;
+      for (let i = 0; i < 520; i++) list.push({ o: [x0 + rnd() * (x1 - x0), rnd() * 7, z0 + rnd() * (z1 - z0)], s: [rnd(), 0.6 + rnd() * 0.8, 0.07, KIND.petal] });
+    }
+    for (const f of fireflies) list.push({ o: [f[0] + (rnd() - 0.5) * 2, f[1] + rnd() * 1.2, f[2] + (rnd() - 0.5) * 2], s: [rnd(), 0.5 + rnd(), 0.09, KIND.firefly] });
     this.sparkleStart = list.length;
     for (const sp of sparkles) for (let i = 0; i < 6; i++) list.push({ o: [sp[0] + (rnd() - 0.5) * 0.5, sp[1] + 0.2 + rnd() * 0.6, sp[2] + (rnd() - 0.5) * 0.5], s: [rnd(), 0.8 + rnd(), 0.07, KIND.sparkle] });
     // steam over food being eaten and a sparkle of delight, moved around by the meal (see game/meal.ts)

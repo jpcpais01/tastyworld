@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { TEXT } from '../data/cityText';
 import { Actor, geometryFrom } from './actors';
 import { PART_COUNT } from '../world/characters';
 import { meshGrid } from '../world/mesher';
@@ -433,7 +434,7 @@ export class Meal {
         this.reachFor(this.objWorld(this.tmp2), 0.6 * u);
         if (this.phaseT > 0.2 && this.phaseT - dt <= 0.2) {
           const q = v.position;
-          this.host.bubble('meal-vendor', pick(['Hai, dōzo!', 'Here you go!', 'Hai, omachi dō sama!', 'Enjoy it while it\'s hot!']), [q.x, q.y + 2.15, q.z], 1.8);
+          this.host.bubble('meal-vendor', pick(TEXT.meal.serve), [q.x, q.y + 2.15, q.z], 1.8);
         }
         if (this.phaseT > 0.85) {
           this.passFrom.copy(this.main().mesh.matrix);
@@ -466,7 +467,7 @@ export class Meal {
         this.holdPose();
         if (this.phaseT - dt <= 0.05 && this.phaseT > 0.05) {
           const p = pl.position;
-          this.host.bubble('meal-me', this.kit.drink ? 'Kanpai!' : 'Itadakimasu!', [p.x, p.y + 2.1, p.z], 1.4);
+          this.host.bubble('meal-me', this.kit.drink ? TEXT.meal.startDrink : TEXT.meal.start, [p.x, p.y + 2.1, p.z], 1.4);
         }
         if (this.phaseT > 1.0) { this.next('eat'); this.nextBeat(); }
         break;
@@ -485,7 +486,7 @@ export class Meal {
           this.yumT = 1;
           const p = pl.position;
           this.host.audio.play('yum');
-          this.host.bubble('meal-me', this.kit.drink ? 'Ahh~ ♪' : pick(['Oishii~!', 'Umai!', 'Mmm, oishii!']), [p.x, p.y + 2.1, p.z], 1.6);
+          this.host.bubble('meal-me', this.kit.drink ? TEXT.meal.yumDrink : pick(TEXT.meal.yum), [p.x, p.y + 2.1, p.z], 1.6);
         }
         if (t > 1.45) {
           this.release();

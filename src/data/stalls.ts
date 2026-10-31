@@ -1,7 +1,7 @@
 import type { IconName } from '../ui/emblems';
 import type { FoodId } from '../world/food';
 import type { Look } from '../world/characters';
-import { AMALFI, ISTANBUL } from '../world/cityId';
+import { perCity } from '../world/cityId';
 
 export type StepKind = 'pick' | 'mix' | 'heat' | 'chop' | 'order' | 'flip';
 
@@ -241,6 +241,174 @@ const AMALFI_STALLS: StallInfo[] = [
       ],
     },
   },
+  // ------------------------------------------------------------------ the sit-down places in the town's houses
+  {
+    id: 'duomo', name: 'Bar del Duomo', jp: 'Bar', street: 'Piazza Duomo', vendor: 'Enzo', restaurant: true,
+    vendorLook: { skin: 0xd8a07a, hair: 0x6b6b70, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'vest', accent: 0x1d1a1c, bottom: 0x1d1a1c, shoes: 0x2a2a2e },
+    greeting: ['Un caffè? Standing at the bar it costs half. Sitting, you pay for the view of the Duomo.', 'Sugar first, then stir, then drink it in two sips. Brava!'],
+    dishes: ['espresso', 'cornetto'],
+    recipe: {
+      dish: 'espresso',
+      steps: [
+        { kind: 'pick', title: 'Into the portafilter', hint: 'Only what makes an espresso.', items: [I('Ground coffee', 'coffee'), I('Hot water', 'drop')], decoys: [I('Milk', 'milk'), I('Honey', 'honey'), I('Cocoa', 'chocolate')] },
+        { kind: 'mix', title: 'Tamp it down', hint: 'Press and twist until the coffee is level.', rounds: 3 },
+        { kind: 'heat', title: 'Pull the shot', hint: 'Stop when the crema turns the colour of a hazelnut.', rounds: 1, speed: 1.6, label: 'Crema' },
+      ],
+    },
+  },
+  {
+    id: 'gemma', name: 'Trattoria da Gemma', jp: 'Trattoria', street: 'Piazza Duomo', vendor: 'Nonna Gemma', restaurant: true,
+    vendorLook: { skin: 0xe8b894, hair: 0xd8d4cc, hairStyle: 'bun', top: 0x2f2f35, topStyle: 'cardigan', accent: 0xf4f1ea, bottom: 0x2f2f35, shoes: 0x2a2a2e },
+    greeting: ['Sit, sit, you are too thin. The ndunderi are older than the cathedral, you know.', 'My parmigiana rests a whole day before I serve it. Patience is the secret ingredient.'],
+    dishes: ['ndunderi', 'parmigiana'],
+    recipe: {
+      dish: 'ndunderi',
+      steps: [
+        { kind: 'pick', title: 'The dough', hint: 'Ndunderi are made with ricotta, not potato.', items: [I('Ricotta', 'cheese'), I('Flour', 'flour'), I('Egg yolk', 'egg'), I('Grated cheese', 'sprinkle')], decoys: [I('Potato', 'mixbowl'), I('Sugar', 'sugar'), I('Soy sauce', 'soy')] },
+        { kind: 'chop', title: 'Cut the dumplings', hint: 'Roll a rope and cut thumb-sized pieces.', rounds: 5, speed: 1.1 },
+        { kind: 'heat', title: 'Boil until they float', hint: 'Lift them out the moment they come up.', rounds: 2, speed: 1.3, label: 'Floating' },
+      ],
+    },
+  },
+  {
+    id: 'saraceno', name: 'Il Saraceno', jp: 'Ristorante', street: 'Piazza Duomo', vendor: 'Chef Antonio', restaurant: true,
+    vendorLook: { skin: 0xc98f6a, hair: 0x1d1a1c, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'jacket', accent: 0x2f63a8, bottom: 0x2f2f35, shoes: 0x2a2a2e, hat: 'chef', hatColor: 0xf4f1ea },
+    greeting: ['The Saracens raided this coast a thousand years ago. Now we just steal your heart. With clams.', 'Acquapazza, crazy water. The fishermen cooked their catch in seawater, right on the boats.'],
+    dishes: ['vongole', 'acquapazza'],
+    recipe: {
+      dish: 'vongole',
+      steps: [
+        { kind: 'pick', title: 'Into the pan', hint: 'White, not red: no tomato for these clams.', items: [I('Clams', 'shrimp'), I('Garlic', 'garlic'), I('Olive oil', 'drop'), I('Chilli', 'chili'), I('Parsley', 'leek')], decoys: [I('Tomato', 'tomato'), I('Cream', 'milk'), I('Cheese', 'cheese')] },
+        { kind: 'heat', title: 'Open the clams', hint: 'Lid on, a splash of wine, and stop when they open.', rounds: 2, speed: 1.4, label: 'Open' },
+        { kind: 'mix', title: 'Toss the spaghetti', hint: 'Flip and toss until the sauce goes creamy.', rounds: 5 },
+      ],
+    },
+  },
+  {
+    id: 'forno', name: 'Antica Pizzeria del Forno', jp: 'Pizzeria', street: "Via Lorenzo d'Amalfi", vendor: 'Ciro', restaurant: true,
+    vendorLook: { skin: 0xe0ac86, hair: 0x2a1d17, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'tee', accent: 0x3f8a32, bottom: 0x2f2f35, shoes: 0x2a2a2e, hat: 'cap', hatColor: 0xf4f1ea },
+    greeting: ['The oven was built by my great-grandfather with stones from Vesuvius. Four hundred and eighty degrees, every day.', 'Margherita: red tomato, white mozzarella, green basil. The flag on a plate.'],
+    dishes: ['margherita', 'calzone'],
+    recipe: {
+      dish: 'margherita',
+      steps: [
+        { kind: 'mix', title: 'Stretch the dough', hint: 'Push the air to the rim with your fingertips.', rounds: 5 },
+        { kind: 'order', title: 'Dress the pizza', hint: 'Tomato, fior di latte, basil, then a thread of oil.', items: [I('Tomato', 'tomato'), I('Fior di latte', 'cheese'), I('Basil', 'leek'), I('Olive oil', 'drop')] },
+        { kind: 'heat', title: 'Turn it in the oven', hint: 'Sixty seconds. Turn it when the rim blisters.', rounds: 2, speed: 1.8, label: 'Leopard' },
+      ],
+    },
+  },
+  {
+    id: 'cantina', name: 'Enoteca La Cantina', jp: 'Enoteca', street: "Via Lorenzo d'Amalfi", vendor: 'Marisa', restaurant: true,
+    vendorLook: { skin: 0xf0c8a4, hair: 0x6a2a1a, hairStyle: 'long', top: 0x6a1e2a, topStyle: 'apron', accent: 0xf4f1ea, bottom: 0x2f2f35, shoes: 0x6b4630 },
+    greeting: ['A glass of Furore white with that? The vines grow on cliffs so steep they pick the grapes on ropes.', 'Mozzarella in carrozza: it rides in a carriage of bread. Mind the strings, they go everywhere.'],
+    dishes: ['bruschetta', 'carrozza'],
+    recipe: {
+      dish: 'carrozza',
+      steps: [
+        { kind: 'order', title: 'Build the carriage', hint: 'Bread, mozzarella, bread. Then dip in milk, flour and egg.', items: [I('Bread', 'toast'), I('Mozzarella', 'cheese'), I('Milk', 'milk'), I('Flour', 'flour'), I('Egg', 'egg')] },
+        { kind: 'flip', title: 'Fry the carriages', hint: 'Tap each one when it turns gold. Not pale, not burnt!', rounds: 4 },
+      ],
+    },
+  },
+  {
+    id: 'ruocco', name: 'Panificio Ruocco', jp: 'Panificio', street: "Via Lorenzo d'Amalfi", vendor: 'Raffaele', restaurant: true,
+    vendorLook: { skin: 0xe8b894, hair: 0x3b2a20, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'apron', accent: 0xd9c08a, bottom: 0x5a4a3a, shoes: 0x2a2a2e, hat: 'cap', hatColor: 0xf4f1ea },
+    greeting: ['We light the oven at three in the morning. The whole street wakes up to the smell.', 'Taralli with lard and black pepper, the way the Neapolitans eat them by the sea with a cold beer.'],
+    dishes: ['panuozzo', 'taralli'],
+    recipe: {
+      dish: 'taralli',
+      steps: [
+        { kind: 'pick', title: 'The dough', hint: 'Taralli sugna e pepe.', items: [I('Flour', 'flour'), I('Lard', 'paste'), I('Black pepper', 'sprinkle'), I('Almonds', 'bean')], decoys: [I('Sugar', 'sugar'), I('Chocolate', 'chocolate'), I('Milk', 'milk')] },
+        { kind: 'order', title: 'Twist the rings', hint: 'Roll, twist two strands, close the ring, press in an almond.', items: [I('Roll a rope', 'mixbowl'), I('Twist two', 'flour'), I('Close the ring', 'chime'), I('Add an almond', 'bean')] },
+        { kind: 'heat', title: 'Bake slowly', hint: 'Dry and golden, not dark.', rounds: 2, speed: 1.0, label: 'Golden' },
+      ],
+    },
+  },
+  {
+    id: 'andrea', name: "Rosticceria Sant'Andrea", jp: 'Rosticceria', street: 'The Harbour', vendor: 'Pasquale', restaurant: true,
+    vendorLook: { skin: 0xc98f6a, hair: 0x1d1a1c, hairStyle: 'spiky', top: 0xc8321e, topStyle: 'tee', accent: 0xf4f1ea, bottom: 0x2b3a62, shoes: 0xf2efe7 },
+    greeting: ['Hot from the fryer! The ferry leaves in ten minutes, you have time for two.', 'Arancino or crocchè? Wrong question. Both.'],
+    dishes: ['arancino', 'crocche'],
+    recipe: {
+      dish: 'arancino',
+      steps: [
+        { kind: 'pick', title: 'The filling', hint: 'Rice outside, ragù inside.', items: [I('Saffron rice', 'rice'), I('Ragù', 'sauce'), I('Peas', 'bean'), I('Mozzarella', 'cheese')], decoys: [I('Chocolate', 'chocolate'), I('Banana', 'banana'), I('Soy sauce', 'soy')] },
+        { kind: 'order', title: 'Shape and coat', hint: 'Shape the pear, then flour, egg and crumbs.', items: [I('Shape it', 'rice'), I('Flour', 'flour'), I('Egg', 'egg'), I('Breadcrumbs', 'crumbs')] },
+        { kind: 'heat', title: 'Fry until golden', hint: 'Deep gold all over, hot right through.', rounds: 2, speed: 1.4, label: 'Golden' },
+      ],
+    },
+  },
+  {
+    id: 'dolceria', name: 'Dolceria del Duomo', jp: 'Dolceria', street: 'Piazza Duomo', vendor: 'Signora Anna', restaurant: true,
+    vendorLook: { skin: 0xf6d2b4, hair: 0x8a5a36, hairStyle: 'bob', top: 0xf4c8d0, topStyle: 'apron', accent: 0xf4f1ea, bottom: 0x2b3a62, shoes: 0xf2efe7 },
+    greeting: ['A babà! Soaked in rum until it sighs when you press it.', 'The zeppole are for San Giuseppe, but here we make them every day. Every day is a feast day.'],
+    dishes: ['baba', 'zeppola'],
+    recipe: {
+      dish: 'baba',
+      steps: [
+        { kind: 'mix', title: 'Beat the dough', hint: 'Slap and stretch until it pulls away from the bowl.', rounds: 7 },
+        { kind: 'heat', title: 'Bake the mushrooms', hint: 'Tall and golden, with a dome on top.', rounds: 2, speed: 1.2, label: 'Risen' },
+        { kind: 'pick', title: 'The syrup', hint: 'What does a babà drink?', items: [I('Sugar', 'sugar'), I('Water', 'drop'), I('Rum', 'sake'), I('Lemon peel', 'sprinkle')], decoys: [I('Soy sauce', 'soy'), I('Garlic', 'garlic'), I('Tomato', 'tomato')] },
+      ],
+    },
+  },
+  {
+    id: 'colatura', name: 'Osteria della Colatura', jp: 'Osteria', street: 'The Harbour', vendor: 'Rosa', restaurant: true,
+    vendorLook: { skin: 0xd8a07a, hair: 0x2a1d17, hairStyle: 'ponytail', top: 0x2b4c86, topStyle: 'apron', accent: 0xf4f1ea, bottom: 0x2f2f35, shoes: 0x2a2a2e },
+    greeting: ['Smell this: colatura from Cetara. The anchovies sat under salt in a chestnut barrel for a whole year.', 'Polpo con le patate. The octopus cooks in its own water, never add any. That is the rule.'],
+    dishes: ['alici', 'polpo'],
+    recipe: {
+      dish: 'alici',
+      steps: [
+        { kind: 'pick', title: 'The sauce', hint: 'Off the heat, just a few drops of the good stuff.', items: [I('Colatura', 'drop'), I('Garlic', 'garlic'), I('Parsley', 'leek'), I('Chilli', 'chili'), I('Toasted crumbs', 'crumbs')], decoys: [I('Cream', 'milk'), I('Sugar', 'sugar'), I('Cheese', 'cheese')] },
+        { kind: 'heat', title: 'Cook the spaghetti', hint: 'Pull it out a minute early, al dente.', rounds: 1, speed: 1.5, label: 'Al dente' },
+        { kind: 'mix', title: 'Toss it all', hint: 'Toss with the oil and colatura until glossy.', rounds: 4 },
+      ],
+    },
+  },
+  {
+    id: 'masseria', name: 'La Masseria', jp: 'Masseria', street: "Via Lorenzo d'Amalfi", vendor: 'Zio Tonino', restaurant: true,
+    vendorLook: { skin: 0xc98f6a, hair: 0xb9b6b0, hairStyle: 'short', top: 0x6b5a3a, topStyle: 'vest', accent: 0xf2d98c, bottom: 0x3a3a40, shoes: 0x6b4630, hat: 'straw', hatColor: 0xd9c08a },
+    greeting: ['Up here we cook like the farms on the hills. Wood fire, slow pots, big plates.', 'The meatballs simmer in the Sunday ragù from eight in the morning. The whole house smells of it.'],
+    dishes: ['sorrentina', 'polpette'],
+    recipe: {
+      dish: 'polpette',
+      steps: [
+        { kind: 'pick', title: 'Mix the meatballs', hint: 'Soft bread is what keeps them tender.', items: [I('Minced beef', 'pork'), I('Soaked bread', 'toast'), I('Egg', 'egg'), I('Pecorino', 'cheese'), I('Garlic', 'garlic')], decoys: [I('Chocolate', 'chocolate'), I('Sugar', 'sugar'), I('Banana', 'banana')] },
+        { kind: 'mix', title: 'Roll them', hint: 'Wet your hands and roll them round.', rounds: 5 },
+        { kind: 'heat', title: 'Simmer in ragù', hint: 'Gently. A blip, not a boil.', rounds: 2, speed: 0.9, label: 'Blip' },
+      ],
+    },
+  },
+  {
+    id: 'chiostro', name: 'Caffè dei Dogi', jp: 'Caffè', street: 'Piazza dei Dogi', vendor: 'Lucia', restaurant: true,
+    vendorLook: { skin: 0xf0c8a4, hair: 0x1d1a1c, hairStyle: 'long', top: 0x3f6e4a, topStyle: 'cardigan', accent: 0xf4f1ea, bottom: 0x2f2f35, shoes: 0x2a2a2e },
+    greeting: ['Aubergine with chocolate. Yes, really. The monks of the coast invented it and nobody has stopped since.', 'A slice of pastiera? It is Easter somewhere.'],
+    dishes: ['melanzane', 'pastiera'],
+    recipe: {
+      dish: 'melanzane',
+      steps: [
+        { kind: 'chop', title: 'Slice the aubergines', hint: 'Long and thin, lengthways.', rounds: 4, speed: 1.0 },
+        { kind: 'flip', title: 'Fry the slices', hint: 'Tap each slice when it turns golden.', rounds: 6 },
+        { kind: 'order', title: 'Layer them', hint: 'Aubergine, ricotta, chocolate, candied citron.', items: [I('Aubergine', 'mixbowl'), I('Ricotta', 'cheese'), I('Chocolate', 'chocolate'), I('Candied citron', 'sprinkle')] },
+      ],
+    },
+  },
+  {
+    id: 'terrazza', name: 'Ristorante La Terrazza', jp: 'Ristorante', street: 'Salita dei Mulini', vendor: 'Chef Valentina', restaurant: true,
+    vendorLook: { skin: 0xe8b894, hair: 0x6a2a1a, hairStyle: 'bun', top: 0xf4f1ea, topStyle: 'jacket', accent: 0x1d1a1c, bottom: 0x1d1a1c, shoes: 0x2a2a2e, hat: 'chef', hatColor: 0xf4f1ea },
+    greeting: ['You climbed all those steps? Then you deserve the best table, the one by the window.', 'Lemon risotto: the lemons come from the terrace right below us. Look, you can see the tree.'],
+    dishes: ['risotto', 'ravioli'],
+    recipe: {
+      dish: 'risotto',
+      steps: [
+        { kind: 'heat', title: 'Toast the rice', hint: 'In butter, until the grains turn glassy.', rounds: 1, speed: 1.2, label: 'Glassy' },
+        { kind: 'mix', title: 'Ladle and stir', hint: 'A ladle of broth, stir, again and again.', rounds: 7 },
+        { kind: 'pick', title: 'Finish it', hint: 'Off the heat: the mantecatura.', items: [I('Lemon zest', 'sprinkle'), I('Lemon juice', 'drop'), I('Butter', 'milk'), I('Parmesan', 'cheese')], decoys: [I('Soy sauce', 'soy'), I('Chocolate', 'chocolate'), I('Red bean', 'bean')] },
+      ],
+    },
+  },
 ];
 
 /** Istanbul's vendors (`jp` holds the Turkish sign). */
@@ -356,5 +524,5 @@ const ISTANBUL_STALLS: StallInfo[] = [
   },
 ];
 
-export const STALLS: StallInfo[] = ISTANBUL ? ISTANBUL_STALLS : AMALFI ? AMALFI_STALLS : TOKYO_STALLS;
+export const STALLS: StallInfo[] = perCity({ tokyo: TOKYO_STALLS, amalfi: AMALFI_STALLS, istanbul: ISTANBUL_STALLS });
 export const STALL = Object.fromEntries(STALLS.map((s) => [s.id, s])) as Record<string, StallInfo>;

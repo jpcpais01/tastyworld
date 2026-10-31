@@ -3,7 +3,11 @@ import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
 import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, StallAnchor } from './tokyo';
 import { Prop, rotateProp, bench, cafeTable, scooter, stool, bush, grassTuft } from './props';
-import { buildFood } from './food';
+import { buildFood, type FoodId } from './food';
+import type { RoomAnchor, RoomNpc } from './interiors';
+import { STALL } from '../data/stalls';
+import { HOTEL } from '../data/hotels';
+import type { HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
 
@@ -478,6 +482,9 @@ export function buildAmalfi(win?: Window): BuildResult {
   shopfronts(b, c, plan);
   washingLines(b, c, plan);
   const stalls = foodStalls(b, c, plan);
+  const eats = eateryAnchors(plan);
+  stalls.push(...eats.stalls);
+  const inns = hotelAnchors(plan);
   // the three majolica lemons, on the ground where the plan says it is
   const groundY = (x: number, z: number) => (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
   const lemons = LEMON_SPOTS.map(([x, z]) => [x, groundY(x, z), z] as [number, number, number]);
@@ -510,12 +517,10 @@ export function buildAmalfi(win?: Window): BuildResult {
     emitters: b.emitters,
     // lucciole over the lemon pergolas on summer nights; no cherry blossom on this coast
     fireflies: fireflySpots(plan),
-    noPetals: true,
     vending: [],
     blockers: b.blockers,
-    koiArea: [9.2, 11.2, 10.8, 12.8],
-    rooms: [],
-    hotels: [],
+    rooms: [...eats.rooms, ...inns.rooms],
+    hotels: inns.hotels,
     darumas: [],
     secret: null,
     occluders: b.occluders,
@@ -529,7 +534,8 @@ export function buildAmalfi(win?: Window): BuildResult {
     grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells,
     // the standing layer is looked for just above the path: under an arch or a vault the roof is no floor;
     // houses are hollow on the ground floor: start their columns at the floor so nobody stands in the rooms
-    navTop: (x, z) => Math.min(g.sy - 8, plan.walk[col(x, z)] + (plan.lot[col(x, z)] ? 0 : 3)),
+    // (a restaurant's room is walkable: its floor is the standing layer)
+    navTop: (x, z) => { const id = plan.lot[col(x, z)]; return Math.min(g.sy - 8, plan.walk[col(x, z)] + (id ? (plan.lots[id - 1].food || plan.lots[id - 1].hotel ? 1 : 0) : 3)); },
     groundAt: (x, z) => {
       const ci = col(x, z);
       const kd = plan.kind[ci];
@@ -800,7 +806,9 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   const trim = r() < 0.6 ? c.white : c.sill;
   const roof = r();
   g.box(x0, base, z0, x1, top - 1, z1, (_x, y) => (y < base + 2 ? c.plinth : wall));
-  if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14) room(b, c, lt);
+  if (lt.hotel) hotelHouse(b, c, plan, lt);
+  else if (lt.food) eatery(b, c, lt);
+  else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14) room(b, c, lt);
   // corner quoins on taller houses, a cornice under the roof
   g.box(x0, top - 1, z0, x1, top - 1, z1, trim);
   // what stands outside a facade cell: the ground level and whether a neighbour's wall is there
@@ -818,6 +826,8 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
     { side: 'e', n: z1 - z0 + 1, at: (a) => [x1, z0 + a], out: (a) => [x1 + 1, z0 + a] },
   ];
   const floors = Math.floor((top - base) / 12);
+  // a hotel's guest rooms open their own French windows on the view
+  const view = lt.hotel ? viewSide(plan, lt) : null;
   for (const f of faces) {
     const front = f.side === lt.side;
     // window bays: 3 voxels of glass, 2 of wall and shutter either side
@@ -825,6 +835,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
     for (let a = 3; a + 4 < f.n; a += 7 + (lt.seed % 2)) bays.push(a);
     for (let fl = 0; fl < floors; fl++) {
       const yb = base + fl * 12;
+      if (view === f.side && fl >= 1 && fl <= (lt.guestFloors ?? 0)) continue;
       for (const a of bays) {
         const [ox, oz] = f.out(a + 1);
         const ground = outside(ox, oz);
@@ -855,7 +866,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
         }
       }
     }
-    if (!front) continue;
+    if (!front || lt.food || lt.hotel) continue;
     // the door, on the level of the path in front
     const dl = lt.door;
     if (dl >= base && dl <= top - 10) {
@@ -1532,6 +1543,8 @@ function shopfronts(b: Builder, c: AC, plan: Plan): void {
         while (d <= 1.75 && !plan.lot[col(Math.floor((ex + nx * side * d) / V), Math.floor((ez + nz * side * d) / V))]) d += 0.25;
         // no house close by: the goods stand against the street's own wall
         const front = d <= 1.75;
+        const lid = front ? plan.lot[col(Math.floor((ex + nx * side * d) / V), Math.floor((ez + nz * side * d) / V))] : 0;
+        if (lid && (plan.lots[lid - 1].food || plan.lots[lid - 1].hotel)) continue; // a restaurant's or a hotel's door, kept clear
         const back = front ? d - 0.4 : -0.4;
         const x = ex + nx * side * back, z = ez + nz * side * back;
         const fl = (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
@@ -1719,4 +1732,628 @@ function grotta(b: Builder, c: AC, anchors: Anchors): BuildResult['interior'] {
   anchors.chef = [ox + 6.5, 0, oz + 4.4];
   anchors.counterStand = [ox + 6.5, oz + 7.3];
   return { grid: g, props, lamps };
+}
+
+// ------------------------------------------------------------------------------------------- restaurants
+
+/**
+ * The layout of a restaurant's room, in its own coordinates: `a` runs along the front (0 .. W-1), `d` in from it
+ * (0 = the front wall .. D-1 = the back wall), whole cells. Worked out from the plan alone so every worker places
+ * the same seats, counter and cook, whatever strip it builds.
+ */
+function eateryLayout(lt: LotPlan) {
+  const along = lt.side === 'n' || lt.side === 's';
+  const W = along ? lt.x1 - lt.x0 + 1 : lt.z1 - lt.z0 + 1, D = along ? lt.z1 - lt.z0 + 1 : lt.x1 - lt.x0 + 1;
+  const mid = Math.floor(W / 2);
+  // the counter across the back, a gap at one end for the cook; the cook behind it, the customer in front
+  const ca0 = 2, ca1 = W - 6, cd0 = D - 6, cd1 = D - 5;
+  const tables: { a: number; d: number }[] = [];
+  for (let d = 3; d + 1 <= D - 10; d += 4) {
+    for (let a = 2; a + 2 <= mid - 4; a += 5) tables.push({ a, d });
+    for (let a = mid + 5; a + 2 <= W - 2; a += 5) tables.push({ a, d });
+  }
+  // continuous local coordinates (a cell's middle is +0.5) to world metres
+  const P = (a: number, d: number): [number, number] => {
+    const { x0, z0, x1, z1 } = lt;
+    switch (lt.side) {
+      case 'n': return [(x0 + a) * V, (z0 + d) * V];
+      case 's': return [(x1 + 1 - a) * V, (z1 + 1 - d) * V];
+      case 'w': return [(x0 + d) * V, (z1 + 1 - a) * V];
+      default: return [(x1 + 1 - d) * V, (z0 + a) * V];
+    }
+  };
+  // world directions of +a and of "out of the front"
+  const out: [number, number] = lt.side === 'n' ? [0, -1] : lt.side === 's' ? [0, 1] : lt.side === 'w' ? [-1, 0] : [1, 0];
+  const ax: [number, number] = lt.side === 'n' ? [1, 0] : lt.side === 's' ? [-1, 0] : lt.side === 'w' ? [0, -1] : [0, 1];
+  const vendor = { a: (ca0 + ca1 + 1) / 2, d: D - 2.5 }, stand = { a: (ca0 + ca1 + 1) / 2, d: D - 7.4 };
+  return { W, D, mid, ca0, ca1, cd0, cd1, tables, P, out, ax, vendor, stand, floorY: (lt.base + 1 - G) * V };
+}
+
+/** Which tables have someone eating at them: a seat each side, about half of them taken. */
+function eaterySeats(lt: LotPlan) {
+  const L = eateryLayout(lt);
+  const seats: { x: number; z: number; face: number; taken: boolean }[] = [];
+  L.tables.forEach((t, i) => {
+    for (const s of [-1, 1]) {
+      const [x, z] = L.P(s < 0 ? t.a - 0.5 : t.a + 2.5, t.d + 1);
+      const dir = s < 0 ? L.ax : [-L.ax[0], -L.ax[1]];
+      seats.push({ x, z, face: Math.atan2(dir[0], dir[1]), taken: hash3(lt.seed + i, s + 3, 17) < 0.4 });
+    }
+  });
+  return seats;
+}
+
+/** The stall anchors and walkable rooms of every restaurant (pure: every worker registers the same ones). */
+function eateryAnchors(plan: Plan): { stalls: StallAnchor[]; rooms: RoomAnchor[] } {
+  const stalls: StallAnchor[] = [], rooms: RoomAnchor[] = [];
+  for (const lt of plan.lots) {
+    if (!lt.food) continue;
+    const L = eateryLayout(lt);
+    const [vx, vz] = L.P(L.vendor.a, L.vendor.d), [sx, sz] = L.P(L.stand.a, L.stand.d);
+    const [lx, lz] = L.P(L.mid + 0.5, -0.6);
+    stalls.push({ id: lt.food, stand: [sx, sz], vendor: [vx, vz, Math.atan2(L.out[0], L.out[1])], label: [lx, L.floorY + 3.5, lz] });
+    const [ax0, az0] = L.P(1, 1), [ax1, az1] = L.P(L.W - 1, L.D - 1);
+    const [dx, dz] = L.P(L.mid + 0.5, 1.6);
+    const npcs: RoomNpc[] = eaterySeats(lt).filter((s) => s.taken).map((s, i) => ({ role: 'guest', pos: [s.x, L.floorY + 0.5, s.z], facing: s.face, sit: true, seed: lt.seed + i * 13 }));
+    rooms.push({
+      id: `eat-${lt.food}`, kind: 'cafe', nth: rooms.length, stall: lt.food,
+      rect: [Math.min(ax0, ax1), Math.min(az0, az1), Math.max(ax0, ax1), Math.max(az0, az1)],
+      door: [dx, dz], npcs, spots: [],
+    });
+  }
+  return { stalls, rooms };
+}
+
+/** A rush-seated wooden chair, its back to -z (faces +z before turning). */
+function chair(c: AC, wood: number): Prop {
+  const p = new Prop(3, 7, 3);
+  for (const [x, z] of [[0, 0], [2, 0], [0, 2], [2, 2]]) p.box(x, 0, z, x, 2, z, wood);
+  p.box(0, 3, 0, 2, 3, 2, c.rope);
+  p.box(0, 4, 0, 0, 6, 0, wood); p.box(2, 4, 0, 2, 6, 0, wood);
+  p.box(0, 5, 0, 2, 5, 0, wood); p.box(0, 6, 0, 2, 6, 0, wood);
+  return p;
+}
+
+/** A small square table under a cloth that hangs over its edges. */
+function eatTable(c: AC, cloth: number, cloth2: number, wood: number): Prop {
+  const p = new Prop(5, 6, 5);
+  p.box(2, 0, 2, 2, 4, 2, wood);
+  p.box(1, 0, 1, 3, 0, 3, wood);
+  p.box(0, 5, 0, 4, 5, 4, (x, _y, z) => ((x + z) % 2 ? cloth : cloth2));
+  for (const [x, z] of [[0, 0], [4, 0], [0, 4], [4, 4], [2, 0], [0, 2], [4, 2], [2, 4]]) p.set(x, 4, z, (x + z) % 2 ? cloth : cloth2);
+  p.set(2, 6, 2, c.white); // a little vase or a candle
+  return p;
+}
+
+const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank' | 'marble' | 'tile'; wall: keyof AC; wain: keyof AC; cloth: [keyof AC, keyof AC]; front: keyof AC; awning: [keyof AC, keyof AC] }> = {
+  duomo: { floor: 'check', wall: 'cream', wain: 'shutterGreen', cloth: ['white', 'white'], front: 'shutterGreen', awning: ['shutterGreen', 'white'] },
+  gemma: { floor: 'cotto', wall: 'whiteWarm', wain: 'terracotta', cloth: ['hullRed', 'white'], front: 'doorGreen', awning: ['hullRed', 'white'] },
+  saraceno: { floor: 'majolica', wall: 'white', wain: 'majolicaBlue', cloth: ['umbrellaC', 'white'], front: 'shutterBlue', awning: ['umbrellaC', 'white'] },
+  forno: { floor: 'cotto', wall: 'plasterOld', wain: 'tufa', cloth: ['hullRed', 'white'], front: 'door', awning: ['hullGreen', 'white'] },
+  cantina: { floor: 'plank', wall: 'tufa', wain: 'door', cloth: ['stripeDark', 'stripeDark'], front: 'door', awning: ['door', 'stripeTufa'] },
+  ruocco: { floor: 'tile', wall: 'cream', wain: 'ochre', cloth: ['cream', 'white'], front: 'shutterBrown', awning: ['ochre', 'white'] },
+  andrea: { floor: 'tile', wall: 'white', wain: 'majolicaYellow', cloth: ['majolicaYellow', 'white'], front: 'shutterGreen', awning: ['majolicaYellow', 'white'] },
+  dolceria: { floor: 'check', wall: 'pink', wain: 'white', cloth: ['pink', 'white'], front: 'rose', awning: ['bougainB', 'white'] },
+  colatura: { floor: 'plank', wall: 'whiteWarm', wain: 'shutterBlue', cloth: ['white', 'umbrellaC'], front: 'shutterBlue', awning: ['umbrellaC', 'umbrellaB'] },
+  masseria: { floor: 'cotto', wall: 'plasterOld', wain: 'shutterBrown', cloth: ['hullGreen', 'cream'], front: 'shutterBrown', awning: ['hullGreen', 'cream'] },
+  chiostro: { floor: 'marble', wall: 'whiteWarm', wain: 'stripeTufa', cloth: ['marble', 'marbleGrey'], front: 'shutterDeep', awning: ['majolicaGreen', 'majolicaYellow'] },
+  terrazza: { floor: 'marble', wall: 'white', wain: 'sky', cloth: ['white', 'white'], front: 'shutterBlue', awning: ['sky', 'white'] },
+};
+
+/**
+ * A restaurant's ground floor: a room on the level of the path, its door open, windows either side, a majolica
+ * sign and a striped awning outside; tiles, wainscot, a counter with the cook behind it, the dishes on show,
+ * tables with cloths and people eating; and in each one the things that make it what it is: the pizza oven,
+ * the fish on ice, the wine racks, the bread shelves, the pastry case, the fireplace.
+ */
+function eatery(b: Builder, c: AC, lt: LotPlan): void {
+  const g = b.grid;
+  const L = eateryLayout(lt);
+  const { W, D, mid, ca0, ca1, cd0, cd1 } = L;
+  const id = lt.food!;
+  const th = EAT_THEME[id];
+  const ic = b.ic;
+  const F = lt.base;
+  const at = (a: number, d: number): [number, number] => {
+    const { x0, z0, x1, z1 } = lt;
+    switch (lt.side) {
+      case 'n': return [x0 + a, z0 + d];
+      case 's': return [x1 - a, z1 - d];
+      case 'w': return [x0 + d, z1 - a];
+      default: return [x1 - d, z0 + a];
+    }
+  };
+  type Col = number | ((a: number, y: number, d: number) => number);
+  const box = (a0: number, y0: number, d0: number, a1: number, y1: number, d1: number, col: Col) => {
+    for (let d = Math.min(d0, d1); d <= Math.max(d0, d1); d++) for (let a = Math.min(a0, a1); a <= Math.max(a0, a1); a++) {
+      const [x, z] = at(a, d);
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) g.set(x, F + y, z, typeof col === 'number' ? col : col(a, y, d));
+    }
+  };
+  const put = (p: Prop, a: number, d: number, y: number, dir: [number, number]) => { const [x, z] = L.P(a, d); b.place(p, x, L.floorY - V + y, z, faceTurn(dir[0], dir[1])); };
+  const inward: [number, number] = [-L.out[0], -L.out[1]];
+  const lamp = (a: number, d: number, y: number, col: [number, number, number], r: number, i: number) => { const [x, z] = L.P(a, d); b.lamp(x, L.floorY + y, z, col, r, i); };
+  const wall = c[th.wall], wain = c[th.wain];
+  // ---- the room: air up to the ceiling slab 3 m over the floor, so the cutaway takes the ceiling off whole
+  box(1, 1, 1, W - 2, 11, D - 2, 0);
+  {
+    const [x0, z0] = at(1, 1), [x1, z1] = at(W - 2, D - 2);
+    b.indoor.push([Math.min(x0, x1), F + 1, Math.min(z0, z1), Math.max(x0, x1), F + 11, Math.max(z0, z1)]);
+  }
+  const floor = th.floor;
+  box(1, 0, 1, W - 2, 0, D - 2, (a, _y, d) => {
+    switch (floor) {
+      case 'cotto': return (a + d) % 2 ? c.cotto : c.cottoB;
+      case 'check': return (a + d) % 2 ? ic.checkB : ic.checkW;
+      case 'plank': return (a + (d >> 2)) % 3 === 0 ? ic.plankDark : (a % 2 ? ic.plank : ic.plankB);
+      case 'marble': return ((a >> 1) + (d >> 1)) % 2 ? ic.marbleW : ic.marbleG;
+      case 'tile': return (a + d) % 2 ? ic.tileW : ic.tileCream;
+      default: { const u = a & 3, v = d & 3; return (u === 1 || u === 2) && (v === 1 || v === 2) ? c.majolicaBlue : u === 0 && v === 0 ? c.majolicaYellow : c.majolicaWhite; }
+    }
+  });
+  // walls: wainscot to the waist, plaster above, a picture rail
+  // (repaints wall cells only, never fills an opening)
+  const solid = (a: number, y: number, d: number) => { const [x, z] = at(a, d); return g.get(x, F + y, z) !== 0; };
+  const walls = (fn: (a: number, y: number, d: number) => number) => {
+    const f = (a: number, y: number, d: number) => (solid(a, y, d) ? fn(a, y, d) : 0);
+    box(0, 1, 0, 0, 11, D - 1, f); box(W - 1, 1, 0, W - 1, 11, D - 1, f);
+    box(0, 1, D - 1, W - 1, 11, D - 1, f); box(0, 1, 0, W - 1, 11, 0, f);
+  };
+  walls((_a, y) => (y <= 3 ? wain : y === 4 || y === 9 ? c.sill : wall));
+  // ---- the front: the door, windows either side, a majolica sign, an awning, lanterns and plants
+  const front = c[th.front];
+  box(mid - 2, 1, 0, mid + 2, 9, 0, 0);
+  box(mid - 3, 1, 0, mid - 3, 10, 0, c.sill); box(mid + 3, 1, 0, mid + 3, 10, 0, c.sill);
+  box(mid - 3, 10, 0, mid + 3, 10, 0, c.stripeTufa);
+  for (const [w0, w1] of [[2, mid - 5], [mid + 5, W - 3]]) {
+    if (w1 - w0 < 2) continue;
+    box(w0, 2, 0, w1, 2, 0, c.sill);
+    box(w0, 3, 0, w1, 8, 0, (a, y) => (a === w0 || a === w1 || y === 8 ? front : y === 5 || (a - w0) % 4 === 0 ? front : c.glassLit));
+    box(w0, 9, 0, w1, 9, 0, c.sill);
+  }
+  // the sign over the door, out on the wall: a panel of majolica tiles
+  box(mid - 4, 11, -1, mid + 4, 12, -1, (a, y) => (a === mid - 4 || a === mid + 4 ? c.majolicaBlue : (a + y) % 3 === 0 ? c.majolicaYellow : c.majolicaWhite));
+  // a striped awning the width of the front
+  const [aw0, aw1] = [c[th.awning[0]], c[th.awning[1]]];
+  box(1, 10, -1, W - 2, 10, -1, (a) => ((a >> 1) % 2 ? aw0 : aw1));
+  box(1, 9, -2, W - 2, 9, -2, (a) => ((a >> 1) % 2 ? aw0 : aw1));
+  box(1, 8, -2, W - 2, 8, -2, (a) => (a % 2 ? aw0 : 0));
+  for (const s of [-1, 1]) {
+    put(wallLantern(c), mid + 0.5 + s * 4.5, 0.25, 2.4, L.out);
+    lamp(mid + 0.5 + s * 4.5, -0.3, 2.4, WARM, 4, 0.6);
+    put(s < 0 ? potLemon(c, lt.seed + 3) : geraniumPot(c, lt.seed + 4), mid + 0.5 + s * 3.9, -0.55, 0.25, L.out);
+  }
+  for (const s of [-1, 1]) { const [x, z] = L.P(mid + 0.5 + s * 3.9, -0.55); b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3); }
+  // ---- the counter, the dishes on it, the shelves behind and the cook's corner
+  const counterTop = id === 'cantina' || id === 'masseria' || id === 'colatura' ? c.door : c.marble;
+  box(ca0, 1, cd0, ca1, 3, cd1, (a, y) => (y === 1 ? c.plinth : id === 'dolceria' || id === 'andrea' || id === 'duomo' ? (y === 3 ? c.sill : ic.case) : (a % 3 === 0 ? c.sill : front)));
+  box(ca0, 4, cd0, ca1, 4, cd1, counterTop);
+  const dishes = STALL[id]?.dishes as FoodId[] | undefined;
+  if (dishes) dishes.forEach((f, i) => { const [x, z] = L.P(ca0 + 2.5 + i * 3.5, cd0 + 1); b.place(buildFood(f, b.pal), x, L.floorY + 1.0, z, faceTurn(L.out[0], L.out[1])); });
+  // shelves on the back wall
+  for (const y of [5, 7, 9]) box(2, y, D - 2, W - 3, y, D - 2, c.door);
+  const goods = [ic.bottleA, ic.bottleB, ic.bottleC, ic.bottleD, c.lemon, ic.bread, c.majolicaYellow];
+  box(2, 6, D - 2, W - 3, 6, D - 2, (a) => (hash3(a, 6, lt.seed) < 0.7 ? goods[Math.floor(hash3(a, 61, lt.seed) * goods.length)] : 0));
+  box(2, 8, D - 2, W - 3, 8, D - 2, (a) => (hash3(a, 8, lt.seed) < 0.6 ? goods[Math.floor(hash3(a, 81, lt.seed) * goods.length)] : 0));
+  // ---- tables, chairs, and the regulars at them
+  const cloth = c[th.cloth[0]], cloth2 = c[th.cloth[1]];
+  const wood = id === 'terrazza' || id === 'chiostro' ? c.iron : c.door;
+  for (const t of L.tables) {
+    put(eatTable(c, cloth, cloth2, wood), t.a + 1, t.d + 1, 0.25, L.out);
+    put(chair(c, wood), t.a - 0.5, t.d + 1, 0.25, L.ax);
+    put(chair(c, wood), t.a + 2.5, t.d + 1, 0.25, [-L.ax[0], -L.ax[1]]);
+    const [x0, z0] = L.P(t.a - 1, t.d), [x1, z1] = L.P(t.a + 3, t.d + 2);
+    b.block(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1));
+  }
+  // ---- what makes each place itself
+  switch (id) {
+    case 'duomo': {
+      // the espresso machine, cups stacked on top, the pastry case with cornetti
+      box(ca1 - 4, 5, cd0, ca1 - 1, 6, cd1, (_a, y) => (y === 6 ? ic.brass : ic.steel));
+      box(ca1 - 4, 7, cd0, ca1 - 1, 7, cd0, ic.cup);
+      box(ca0 + 1, 5, cd0, ca0 + 5, 5, cd1, (a) => (a % 2 ? ic.bread : ic.breadDark));
+      box(1, 1, D - 3, 1, 9, D - 2, c.shutterGreen);
+      break;
+    }
+    case 'gemma': case 'masseria': {
+      // garlic plaits and red peppers hanging from a beam, plates of majolica on the wall
+      box(1, 11, 4, W - 2, 11, 4, c.door);
+      for (let a = 3; a < W - 3; a += 3) box(a, 9, 4, a, 10, 4, (_a, y) => (a % 2 ? (y === 9 ? c.geranium : c.door) : c.white));
+      for (let d = 3; d < D - 7; d += 4) { box(0, 7, d, 0, 7, d, c.majolicaYellow); box(W - 1, 7, d, W - 1, 7, d, c.majolicaBlue); }
+      if (id === 'masseria') {
+        // the hearth on the side wall, a ham and braids of onions
+        box(W - 2, 1, 3, W - 2, 6, 7, c.tufaDark); box(W - 2, 1, 4, W - 2, 3, 6, ic.oven); box(W - 3, 1, 4, W - 3, 1, 6, c.tufaDark);
+        lamp(W - 3, 4.5, 1.2, [1, 0.55, 0.25], 4, 1.1);
+        box(4, 8, 6, 4, 10, 6, ic.velvet); box(W - 6, 8, 8, W - 6, 10, 8, c.ochre);
+        b.emitters.push({ kind: 'smoke', pos: [...((): [number, number, number] => { const [x, z] = L.P(W - 2.5, 5); return [x, L.floorY + 1.4, z]; })()], rate: 0.25 });
+      }
+      break;
+    }
+    case 'saraceno': case 'colatura': {
+      // the catch on ice along the counter, a net and floats on the wall
+      box(ca0 + 6, 5, cd0, ca1, 5, cd1, ic.ice);
+      for (let a = ca0 + 6; a < ca1; a += 2) box(a, 6, cd0, a, 6, cd0 + (a % 4 ? 1 : 0), [ic.fishA, ic.fishB, ic.fishC][a % 3]);
+      box(0, 4, 3, 0, 9, D - 8, (_a, y, d) => ((y + d) % 2 ? c.fishNet : 0) || wall);
+      for (let d = 4; d < D - 8; d += 3) box(0, 9, d, 0, 9, d, c.floatRed);
+      if (id === 'saraceno') box(W - 1, 4, 4, W - 1, 8, 9, (_a, y) => (y === 4 || y === 8 ? c.door : ic.tank));
+      else for (let d = 3; d < D - 8; d += 2) box(W - 2, 1, d, W - 2, 2, d, c.door); // the colatura kegs
+      break;
+    }
+    case 'forno': {
+      // the wood-fired oven in the corner behind the counter, glowing; logs stacked under it
+      const oa = W - 5, od = D - 5;
+      for (let y = 0; y < 7; y++) for (let d = od; d <= D - 2; d++) for (let a = oa; a <= W - 2; a++) {
+        const r = Math.hypot(a - (oa + 1.5), d - (od + 2), (y - 1) * 0.9);
+        if (y >= 3 && r > 2.8) continue;
+        box(a, 1 + y, d, a, 1 + y, d, y < 3 ? (a === oa && (d === od + 1 || d === od + 2) && y > 0 ? ic.oven : c.tufaDark) : c.tufa);
+      }
+      box(oa - 1, 1, od + 1, oa - 1, 2, od + 2, c.trunk);
+      lamp(oa, 2, od + 1.5, [1, 0.55, 0.25], 5, 1.2);
+      b.emitters.push({ kind: 'smoke', pos: [...((): [number, number, number] => { const [x, z] = L.P(oa + 1.5, od + 2); return [x, L.floorY + 2.6, z]; })()], rate: 0.3 });
+      box(ca0 + 1, 5, cd0, ca0 + 5, 5, cd1, ic.flour);
+      break;
+    }
+    case 'cantina': {
+      // wine racks up both side walls, two barrels by the door, salami from the beam
+      for (const a of [1, W - 2]) box(a, 1, 2, a, 9, D - 8, (_a, y, d) => (y % 3 === 0 ? c.door : (d + y) % 2 ? [ic.bottleA, ic.bottleB, ic.bottleD, c.hullRed][(d + y) % 4] : c.stripeDark));
+      for (const a of [2, W - 3]) { box(a, 1, 1, a, 3, 1, (_a, y) => (y === 2 ? c.iron : c.door)); }
+      for (let a = 4; a < W - 4; a += 3) box(a, 9, D - 9, a, 10, D - 9, ic.velvetDark);
+      break;
+    }
+    case 'ruocco': {
+      // loaves on the shelves, baskets on the counter, sacks of flour, the oven's mouth in the back wall
+      box(2, 5, D - 2, W - 3, 9, D - 2, (a, y) => (y % 2 ? c.door : hash3(a, y, 5) < 0.8 ? (a % 2 ? ic.bread : ic.breadDark) : 0));
+      box(ca0 + 1, 5, cd0, ca1 - 1, 5, cd1, (a) => (a % 3 === 0 ? c.rope : ic.bread));
+      for (let a = 2; a < 6; a++) box(a, 1, 2, a, 1 + (a % 2), 2, ic.flour);
+      box(W - 4, 1, D - 2, W - 2, 4, D - 2, ic.brick); box(W - 3, 2, D - 2, W - 3, 3, D - 2, ic.oven);
+      break;
+    }
+    case 'andrea': {
+      // white tiles all the way up, the hot case full of arancini and crocchè
+      walls((_a, y) => (y <= 8 ? ((y + _a) % 2 ? ic.tileW : c.white) : wall));
+      box(ca0, 5, cd0, ca1, 5, cd1, (a) => (a % 2 ? c.ochre : c.lemonDeep));
+      box(ca0, 6, cd0, ca1, 6, cd0, ic.case);
+      break;
+    }
+    case 'dolceria': {
+      // a glass case of pastries in every colour, a cake on a stand
+      box(ca0, 5, cd0, ca1, 5, cd1, (a, _y, d) => [c.pink, ic.coffee, c.cream, c.lemon, c.bougainB, ic.bread][(a + d * 2) % 6]);
+      box(ca0, 6, cd0, ca1, 6, cd0, ic.case);
+      box(ca1 + 2, 1, 2, ca1 + 2, 4, 2, c.marble); box(ca1 + 1, 5, 1, ca1 + 3, 6, 3, (_a, y) => (y === 6 ? c.pink : c.cream));
+      break;
+    }
+    case 'chiostro': {
+      // painted arches on the walls like the cloister's, lemon trees in pots, a case of books
+      walls((a, y, d) => {
+        const u = (a + d) % 8;
+        return y <= 3 ? wain : y >= 8 && (u === 0 || u === 7) ? c.stripeTufa : y > 8 && u > 1 && u < 6 ? c.stripeTufa : wall;
+      });
+      put(potLemon(c, lt.seed + 9), 2, 2, 0.25, inward);
+      put(potLemon(c, lt.seed + 10), W - 2, 2, 0.25, inward);
+      box(W - 2, 1, D - 9, W - 2, 8, D - 7, (_a, y, d) => (y % 3 === 0 ? c.door : [ic.bookA, ic.bookB, ic.bookC, ic.bookD][(d + y) % 4]));
+      break;
+    }
+    case 'terrazza': {
+      // tall windows down the side walls, candles on the tables, a chandelier
+      for (const a of [0, W - 1]) box(a, 3, 3, a, 9, D - 8, (_a, y, d) => (y === 3 || y === 9 || d % 4 === 0 ? c.white : c.glassLit));
+      box(mid, 10, (D >> 1) - 1, mid + 1, 11, (D >> 1), ic.brass);
+      box(mid - 1, 9, (D >> 1) - 2, mid + 2, 9, (D >> 1) + 1, (a, _y, d) => ((a + d) % 3 === 0 ? ic.shade : 0));
+      lamp(mid + 1, (D >> 1), 2.3, WARM, 6, 1.0);
+      break;
+    }
+  }
+  lamp(mid + 0.5, D * 0.4, 2.5, WARM, 6, 1.0);
+  lamp((ca0 + ca1) / 2, cd0 - 0.5, 2.5, WARM, 4.5, 0.8);
+}
+
+// ---------------------------------------------------------------------------------------------- hotels
+
+type Side = LotPlan['side'];
+type P2 = [number, number];
+
+/**
+ * A lot seen from one of its faces: `a` runs along that face (left to right seen from outside), `d` inwards from
+ * it, both in voxels from the lot's corner; `P` turns continuous (a, d) into world metres.
+ */
+function lotFrame(lt: LotPlan, side: Side) {
+  const along = side === 'n' || side === 's';
+  const W = along ? lt.x1 - lt.x0 + 1 : lt.z1 - lt.z0 + 1, D = along ? lt.z1 - lt.z0 + 1 : lt.x1 - lt.x0 + 1;
+  const { x0, z0, x1, z1 } = lt;
+  const at = (a: number, d: number): P2 => {
+    switch (side) {
+      case 'n': return [x0 + a, z0 + d];
+      case 's': return [x1 - a, z1 - d];
+      case 'w': return [x0 + d, z1 - a];
+      default: return [x1 - d, z0 + a];
+    }
+  };
+  const P = (a: number, d: number): P2 => {
+    switch (side) {
+      case 'n': return [(x0 + a) * V, (z0 + d) * V];
+      case 's': return [(x1 + 1 - a) * V, (z1 + 1 - d) * V];
+      case 'w': return [(x0 + d) * V, (z1 + 1 - a) * V];
+      default: return [(x1 + 1 - d) * V, (z0 + a) * V];
+    }
+  };
+  const out: P2 = side === 'n' ? [0, -1] : side === 's' ? [0, 1] : side === 'w' ? [-1, 0] : [1, 0];
+  const ax: P2 = side === 'n' ? [1, 0] : side === 's' ? [-1, 0] : side === 'w' ? [0, -1] : [0, 1];
+  return { W, D, at, P, out, ax };
+}
+type Frame = ReturnType<typeof lotFrame>;
+
+/**
+ * The face the guest rooms look out of: the sea side (east) when nothing stands in front of it above the first
+ * guest floor, otherwise the open face nearest to it. Read from the plan, so every worker agrees.
+ */
+function viewSide(plan: Plan, lt: LotPlan): Side {
+  const tall = (side: Side) => {
+    const f = lotFrame(lt, side);
+    let hi = 0;
+    for (let a = 2; a < f.W - 2; a += 2) for (const d of [-1, -3, -6]) {
+      const [x, z] = f.at(a, d);
+      if (x < VX0 || z < VZ0 || x >= VX0 + SX || z >= VZ0 + SZ) continue;
+      const ci = col(x, z), id = plan.lot[ci];
+      hi = Math.max(hi, id ? plan.lots[id - 1].top : plan.kind[ci] === K.Church ? 255 : plan.walk[ci]);
+    }
+    return hi;
+  };
+  const order: Side[] = ['e', lt.side, lt.side === 'n' || lt.side === 's' ? 'e' : 'n', 's', 'n', 'w'];
+  for (const s of order) if (tall(s) < lt.base + 12) return s;
+  return lt.side;
+}
+
+const HOTEL_THEME: Record<string, { floor: [keyof AC, keyof AC, keyof AC]; wall: keyof AC; wain: keyof AC; duvet: keyof AC; runner: keyof AC; wood: keyof AC; shutter: keyof AC; sign: keyof AC }> = {
+  marina: { floor: ['majolicaBlue', 'majolicaWhite', 'majolicaYellow'], wall: 'white', wain: 'majolicaBlue', duvet: 'white', runner: 'shutterBlue', wood: 'door', shutter: 'shutterBlue', sign: 'majolicaBlue' },
+  limoni: { floor: ['majolicaYellow', 'majolicaWhite', 'majolicaGreen'], wall: 'whiteWarm', wain: 'majolicaYellow', duvet: 'cream', runner: 'lemonDeep', wood: 'door', shutter: 'shutterGreen', sign: 'majolicaGreen' },
+  palazzo: { floor: ['marble', 'marbleGrey', 'stripeTufa'], wall: 'cream', wain: 'stripeDark', duvet: 'white', runner: 'hullRed', wood: 'stripeDark', shutter: 'shutterDeep', sign: 'stripeDark' },
+  gabbiano: { floor: ['majolicaGreen', 'majolicaWhite', 'majolicaBlue'], wall: 'white', wain: 'sky', duvet: 'white', runner: 'sky', wood: 'door', shutter: 'shutterGreen', sign: 'majolicaBlue' },
+};
+
+/** Where everything is in a hotel: the lobby on the street side, each guest room on its own floor facing the view. */
+function hotelLayout(plan: Plan, lt: LotPlan) {
+  const L = lotFrame(lt, lt.side);
+  const id = lt.hotel!;
+  const floorY = (lt.base + 1 - G) * V;
+  const mid = Math.floor(L.W / 2);
+  // the front desk across the back, the stairs up the right-hand wall (seen from the door)
+  const da0 = 3, da1 = L.W - 10, dd = L.D - 7;
+  const deskMid = (da0 + da1 + 1) / 2;
+  const st0 = L.D - 2 - 16; // first step
+  const lift = { stand: L.P(L.W - 3.5, st0 - 1.4), pick: L.P(L.W - 3.5, st0 + 1.5), facing: Math.atan2(-L.out[0], -L.out[1]) };
+  const view = viewSide(plan, lt);
+  const R = lotFrame(lt, view);
+  const rooms = Array.from({ length: lt.guestFloors ?? 2 }, (_, i) => {
+    const floor = i + 1, yb = lt.base + 12 * floor; // the floor slab; the air is yb+1 .. yb+10
+    return { floor, yb, layer: yb + 1 - G, y: (yb + 1 - G) * V };
+  });
+  return { L, R, id, floorY, mid, da0, da1, dd, deskMid, st0, lift, view, rooms };
+}
+
+/** Furniture positions of a guest room in its own frame R (window wall at d = 0, the door in the back wall). */
+function roomPlan(R: Frame, type: string) {
+  const W = R.W, D = R.D;
+  const beds: [number, number][] = type === 'king' ? [[8, 15]] : type === 'double' ? [[9, 14]] : type === 'twin' ? [[6, 9], [12, 15]] : [[10, 13]];
+  const wins: [number, number][] = W >= 26 ? [[Math.floor(W / 2) - 7, Math.floor(W / 2) - 3], [Math.floor(W / 2) + 2, Math.floor(W / 2) + 6]] : [[Math.floor(W / 2) - 6, Math.floor(W / 2) - 2], [Math.floor(W / 2) + 1, Math.floor(W / 2) + 5]];
+  const door = W - 7; // door cells door .. door+3 in the back wall
+  return { W, D, beds, wins, door };
+}
+
+const p3 = ([x, z]: P2, y: number): [number, number, number] => [x, y, z];
+
+/** The hotels' lobbies (rooms) and guest floors (pure: every worker registers the same ones). */
+function hotelAnchors(plan: Plan): { rooms: RoomAnchor[]; hotels: HotelAnchor[] } {
+  const rooms: RoomAnchor[] = [], hotels: HotelAnchor[] = [];
+  const ang = (from: P2, to: P2) => Math.atan2(to[0] - from[0], to[1] - from[1]);
+  for (const lt of plan.lots) {
+    if (!lt.hotel) continue;
+    const H = hotelLayout(plan, lt), L = H.L, info = HOTEL[lt.hotel];
+    if (!info) continue;
+    const [ax0, az0] = L.P(1, 1), [ax1, az1] = L.P(L.W - 1, L.D - 1);
+    const door = L.P(H.mid + 0.5, 1.6);
+    const [kx, kz] = L.P(H.deskMid, L.D - 3);
+    const inward = Math.atan2(-L.out[0], -L.out[1]), outward = Math.atan2(L.out[0], L.out[1]);
+    const npcs: RoomNpc[] = [
+      { role: 'keeper', pos: [kx, H.floorY, kz], facing: outward, sit: false, seed: lt.seed },
+      { role: 'guest', pos: [...((): [number, number, number] => { const [x, z] = L.P(1.9, 5.5); return [x, H.floorY + 0.5, z]; })()], facing: Math.atan2(L.ax[0], L.ax[1]), sit: true, seed: lt.seed + 7 },
+    ];
+    const [bx, bz] = L.P(H.deskMid, L.D - 6.5);
+    rooms.push({
+      id: `hotel-${lt.hotel}`, kind: 'hotel', nth: hotels.length, hotel: lt.hotel,
+      rect: [Math.min(ax0, ax1), Math.min(az0, az1), Math.max(ax0, ax1), Math.max(az0, az1)],
+      door, npcs, spots: [{ kind: 'buy', pos: [bx, 1.2, bz], stand: L.P(H.deskMid, L.D - 8.8) }],
+      lift: { stand: H.lift.stand, pick: [H.lift.pick[0], H.floorY + 1.4, H.lift.pick[1]], facing: inward }, // (lifts know their own floor)
+    });
+    const [fx0, fz0] = [lt.x0 * V, lt.z0 * V], [fx1, fz1] = [(lt.x1 + 1) * V, (lt.z1 + 1) * V];
+    const R = H.R;
+    hotels.push({
+      id: lt.hotel, lobby: `hotel-${lt.hotel}`, rect: [fx0, fz0, fx1, fz1], entrance: door,
+      rooms: H.rooms.map((f, i) => {
+        const spec = info.rooms[i] ?? info.rooms[info.rooms.length - 1];
+        const rp = roomPlan(R, spec.type);
+        const [rx0, rz0] = R.P(1, 1), [rx1, rz1] = R.P(R.W - 1, R.D - 1);
+        const [vx0, vz0] = R.at(1, 1), [vx1, vz1] = R.at(R.W - 2, R.D - 2);
+        const spawn = R.P(rp.door + 2, R.D - 2.6);
+        const vc = (rp.beds[0][0] + rp.beds[rp.beds.length - 1][1] + 1) / 2;
+        const bedStand = R.P(11.2, vc);
+        const [w0, w1] = rp.wins[0], wm = (w0 + w1 + 1) / 2;
+        const winStand = R.P(wm, 1.5);
+        const teaStand = R.P(R.W - 4.5, 9.4);
+        return {
+          id: `${lt.hotel}-${f.floor}`, hotel: lt.hotel!, floor: f.floor, type: spec.type, price: spec.price, y: f.y,
+          rect: [Math.min(rx0, rx1), Math.min(rz0, rz1), Math.max(rx0, rx1), Math.max(rz0, rz1)],
+          vox: [Math.min(vx0, vx1), Math.min(vz0, vz1), Math.max(vx0, vx1), Math.max(vz0, vz1)],
+          layer: f.layer,
+          spawn: [spawn[0], spawn[1], ang(spawn, R.P(rp.door + 2, 0))],
+          door: { stand: spawn, pick: p3(R.P(rp.door + 2, R.D - 1), f.y + 1.2) },
+          bed: { stand: bedStand, pick: p3(R.P(5, vc), f.y + 0.8), facing: ang(bedStand, R.P(5, vc)) },
+          window: { stand: winStand, pick: p3(R.P(wm, 0), f.y + 1.5), facing: ang(winStand, R.P(wm, -2)) },
+          tea: { stand: teaStand, pick: p3(R.P(R.W - 2.5, 5.5), f.y + 0.9), facing: ang(teaStand, R.P(R.W - 2.5, 5.5)) },
+        };
+      }),
+    });
+  }
+  return { rooms, hotels };
+}
+
+/** Box and set in a frame's (a, y, d) coordinates, y counted from layer F. */
+function frameOps(b: Builder, f: Frame, F: number) {
+  const g = b.grid;
+  type Col = number | ((a: number, y: number, d: number) => number);
+  const box = (a0: number, y0: number, d0: number, a1: number, y1: number, d1: number, col: Col) => {
+    for (let d = Math.min(d0, d1); d <= Math.max(d0, d1); d++) for (let a = Math.min(a0, a1); a <= Math.max(a0, a1); a++) {
+      const [x, z] = f.at(a, d);
+      for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) g.set(x, F + y, z, typeof col === 'number' ? col : col(a, y, d));
+    }
+  };
+  const get = (a: number, y: number, d: number) => { const [x, z] = f.at(a, d); return g.get(x, F + y, z); };
+  /** Repaint only what is already solid (never fills a door or a window). */
+  const paint = (a0: number, y0: number, d0: number, a1: number, y1: number, d1: number, col: (a: number, y: number, d: number) => number) =>
+    box(a0, y0, d0, a1, y1, d1, (a, y, d) => (get(a, y, d) ? col(a, y, d) : 0));
+  return { box, get, paint };
+}
+
+/** Vietri tiles: a motif every four voxels in the hotel's colourway. */
+const tiles = (c: AC, [m, k, f]: [keyof AC, keyof AC, keyof AC], marble: boolean) => (a: number, d: number) => {
+  if (marble) return ((a >> 1) + (d >> 1)) % 2 ? c[m] : (a + d) % 8 === 0 ? c[f] : c[k];
+  const u = a & 3, v = d & 3;
+  return (u === 1 || u === 2) && (v === 1 || v === 2) ? c[m] : u === 0 && v === 0 ? c[f] : c[k];
+};
+
+/** HOTEL in tiles, three by four each, as the lobby's sign. */
+const HOTEL_FONT = ['101111101101', '111101101111', '111010010010', '111110100111', '100100100111'];
+
+/**
+ * A hotel: the lobby on the level of the path (tiles, a front desk with the key board, a marble stair up the side
+ * wall, a sofa for guests waiting on friends), and one guest room on each floor above, its French windows
+ * opened on the view with the shutters folded back, an iron bed, a desk with a moka pot, a wardrobe, a rug.
+ */
+function hotelHouse(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
+  const H = hotelLayout(plan, lt), L = H.L, th = HOTEL_THEME[H.id];
+  const info = HOTEL[H.id];
+  if (!th || !info) return;
+  const ic = b.ic;
+  const F = lt.base;
+  const { box, paint, get } = frameOps(b, L, F);
+  const W = L.W, D = L.D, mid = H.mid;
+  const wain = c[th.wain], wood = c[th.wood];
+  const palazzo = H.id === 'palazzo';
+  const floorTile = tiles(c, th.floor, palazzo);
+  const lamp = (f: Frame, a: number, d: number, y: number, col: [number, number, number], r: number, i: number) => { const [x, z] = f.P(a, d); b.lamp(x, y, z, col, r, i); };
+  const put = (f: Frame, p: Prop, a: number, d: number, y: number, dir: P2) => { const [x, z] = f.P(a, d); b.place(p, x, y, z, faceTurn(dir[0], dir[1])); };
+
+  // ---- the lobby
+  box(1, 1, 1, W - 2, 11, D - 2, 0);
+  { const [x0, z0] = L.at(1, 1), [x1, z1] = L.at(W - 2, D - 2); b.indoor.push([Math.min(x0, x1), F + 1, Math.min(z0, z1), Math.max(x0, x1), F + 11, Math.max(z0, z1)]); }
+  box(1, 0, 1, W - 2, 0, D - 2, (a, _y, d) => floorTile(a, d));
+  const walls = (fn: (a: number, y: number, d: number) => number) => {
+    paint(0, 1, 0, 0, 11, D - 1, fn); paint(W - 1, 1, 0, W - 1, 11, D - 1, fn);
+    paint(0, 1, D - 1, W - 1, 11, D - 1, fn); paint(0, 1, 0, W - 1, 11, 0, fn);
+  };
+  // (the walls are the facade too: above the tiled dado the plaster stays the house's own colour)
+  walls((a, y, d) => (y <= 3 ? (palazzo ? c.stripeDark : (a + d + y) % 2 ? wain : c.majolicaWhite) : y === 4 || y === 11 ? c.sill : get(a, y, d)));
+  // the front: a tall door with a fanlight, windows either side, HOTEL in tiles over the door, two lanterns
+  box(mid - 2, 1, 0, mid + 2, 9, 0, 0);
+  box(mid - 3, 1, 0, mid - 3, 10, 0, c.marble); box(mid + 3, 1, 0, mid + 3, 10, 0, c.marble);
+  box(mid - 3, 10, 0, mid + 3, 10, 0, c.stripeTufa);
+  for (const [w0, w1] of [[2, mid - 5], [mid + 5, W - 3]]) {
+    if (w1 - w0 < 2) continue;
+    box(w0, 2, 0, w1, 2, 0, c.sill);
+    box(w0, 3, 0, w1, 8, 0, (a, y) => (a === w0 || a === w1 || y === 8 ? c[th.shutter] : y === 5 || (a - w0) % 3 === 0 ? c[th.shutter] : c.glassLit));
+    box(w0, 9, 0, w1, 9, 0, c.sill);
+  }
+  const la0 = mid - 9;
+  box(la0 - 1, 10, -1, la0 + 19, 15, -1, (a, y) => (a === la0 - 1 || a === la0 + 19 || y === 10 || y === 15 ? c.majolicaWhite : c[th.sign]));
+  HOTEL_FONT.forEach((gl, i) => { for (let row = 0; row < 4; row++) for (let cc = 0; cc < 3; cc++) if (gl[row * 3 + cc] === '1') box(la0 + i * 4 + cc, 14 - row, -1, la0 + i * 4 + cc, 14 - row, -1, c.majolicaYellow); });
+  for (const s of [-1, 1]) {
+    put(L, wallLantern(c), mid + 0.5 + s * 4.5, 0.25, H.floorY + 2.4, L.out);
+    lamp(L, mid + 0.5 + s * 4.5, -0.3, H.floorY + 2.4, WARM, 4, 0.6);
+    put(L, s < 0 ? potLemon(c, lt.seed + 3) : oleander(c, lt.seed + 4), mid + 0.5 + s * 3.9, -0.55, H.floorY, L.out);
+    const [x, z] = L.P(mid + 0.5 + s * 3.9, -0.55); b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3);
+  }
+  // the front desk, the key board behind it with a brass hook for each room, a bell, the register
+  box(H.da0, 1, H.dd, H.da1, 3, H.dd + 1, (a, y) => (y === 1 ? c.plinth : a % 3 === 0 ? c.sill : wood));
+  box(H.da0, 4, H.dd, H.da1, 4, H.dd + 1, c.marble);
+  box(H.da1 - 1, 5, H.dd, H.da1 - 1, 5, H.dd, ic.brass);
+  box(H.da0 + 1, 5, H.dd + 1, H.da0 + 2, 5, H.dd + 1, c.majolicaWhite);
+  box(H.da0 + 1, 5, D - 2, H.da1, 9, D - 2, (a, y) => (y === 5 || y === 9 || a === H.da0 + 1 || a === H.da1 ? wood : (a + y) % 2 ? (y === 7 && a % 4 === 0 ? ic.brass : c.door) : c[th.wall]));
+  // the stair up the right-hand wall: marble treads, an iron rail with a brass top
+  for (let s = 0; s < 8; s++) box(W - 5, 1, H.st0 + s * 2, W - 2, 1 + s, H.st0 + s * 2 + 1, (_a, y) => (y === 1 + s ? c.marble : c.marbleGrey));
+  for (let s = 0; s < 8; s++) { box(W - 6, 2 + s, H.st0 + s * 2, W - 6, 3 + s, H.st0 + s * 2 + 1, (_a, y, d) => (y === 3 + s ? ic.brass : d % 2 ? c.iron : 0)); }
+  box(W - 6, 1, H.st0, W - 6, 3, H.st0, c.iron);
+  // guests' corner by the front window: a sofa, a low table, a lemon tree in a pot, a rug down the middle
+  box(1, 1, 3, 2, 2, 8, ic.velvet); box(1, 3, 3, 1, 4, 8, ic.velvetDark);
+  box(4, 1, 4, 5, 2, 7, (_a, y) => (y === 2 ? c.marble : wood));
+  box(mid - 3, 0, 3, mid + 3, 0, H.dd - 2, (a, _y, d) => (a === mid - 3 || a === mid + 3 || d === 3 || d === H.dd - 2 ? c.majolicaYellow : palazzo ? ic.velvet : c[th.floor[0]]));
+  put(L, potLemon(c, lt.seed + 9), 2, D - 3, H.floorY, [-L.out[0], -L.out[1]]);
+  { const [x, z] = L.P(2, D - 3); b.block(x - 0.4, z - 0.4, x + 0.4, z + 0.4); }
+  // majolica plates on the left wall, a painting of the coast over the sofa
+  for (let d = 10; d < D - 8; d += 4) box(0, 7, d, 0, 8, d + 1, (_a, y, dd) => ((y + dd) % 2 ? c.majolicaYellow : c.majolicaBlue));
+  box(0, 6, 3, 0, 9, 8, (_a, y, d) => (y === 6 || y === 9 || d === 3 || d === 8 ? c.mosaicGold : y < 8 ? c.umbrellaC : c.sky));
+  // a chandelier in the palazzo, a ceiling lamp elsewhere
+  box(mid, 10, (D >> 1) - 1, mid + 1, 11, D >> 1, ic.brass);
+  if (palazzo) box(mid - 1, 9, (D >> 1) - 2, mid + 2, 9, (D >> 1) + 1, (a, _y, d) => ((a + d) % 3 === 0 ? ic.shade : 0));
+  lamp(L, mid + 1, D >> 1, H.floorY + 2.4, WARM, 7, 1.0);
+  lamp(L, H.deskMid, H.dd - 0.5, H.floorY + 2.4, WARM, 4.5, 0.8);
+
+  // ---- the guest rooms, one per floor, facing the view
+  const R = H.R;
+  H.rooms.forEach((f, i) => {
+    const spec = info.rooms[i] ?? info.rooms[info.rooms.length - 1];
+    const rp = roomPlan(R, spec.type);
+    const o = frameOps(b, R, f.yb);
+    const RW = R.W, RD = R.D;
+    const Y = f.y; // the room's floor in metres
+    o.box(1, 1, 1, RW - 2, 10, RD - 2, 0);
+    { const [x0, z0] = R.at(1, 1), [x1, z1] = R.at(RW - 2, RD - 2); b.indoor.push([Math.min(x0, x1), f.yb + 1, Math.min(z0, z1), Math.max(x0, x1), f.yb + 10, Math.max(z0, z1)]); }
+    o.box(1, 0, 1, RW - 2, 0, RD - 2, (a, _y, d) => floorTile(a + i, d));
+    // walls: a band of tiles at the skirting, plaster (silk in the palazzo), a beamed or painted ceiling
+    // (the walls are the facade too: the plaster stays the house's own colour, only the skirting and rails change)
+    const fin = (a: number, y: number, d: number) => (y <= 1 ? ((a + d) % 2 ? wain : c.majolicaWhite) : y === 2 || y === 10 ? (palazzo ? c.mosaicGold : c.sill) : o.get(a, y, d));
+    o.paint(0, 1, 0, 0, 10, RD - 1, fin); o.paint(RW - 1, 1, 0, RW - 1, 10, RD - 1, fin);
+    o.paint(0, 1, RD - 1, RW - 1, 10, RD - 1, fin); o.paint(0, 1, 0, RW - 1, 10, 0, fin);
+    o.box(1, 11, 1, RW - 2, 11, RD - 2, (a, _y, d) => (palazzo ? ((a + d) % 6 === 0 ? c.mosaicGold : (a * 3 + d) % 11 === 0 ? c.rose : c.sky) : a % 4 === 0 ? wood : c.roofWhite));
+    // the French windows onto the view, open; shutters folded back outside, a little iron balcony rail, curtains
+    for (const [w0, w1] of rp.wins) {
+      o.box(w0, 1, 0, w1, 8, 0, 0);
+      o.box(w0 - 1, 9, 0, w1 + 1, 9, 0, c.sill);
+      o.box(w0 - 1, 0, -1, w1 + 1, 0, -2, c.sill);
+      o.box(w0 - 1, 1, -2, w1 + 1, 3, -2, (a, y) => (y === 3 || a % 2 === 0 ? c.iron : 0));
+      o.box(w0 - 1, 1, -1, w0 - 1, 3, -1, c.iron); o.box(w1 + 1, 1, -1, w1 + 1, 3, -1, c.iron);
+      o.box(w0 - 2, 1, -1, w0 - 2, 8, -1, (_a, y) => (y % 2 ? c[th.shutter] : c.shutterDeep));
+      o.box(w1 + 2, 1, -1, w1 + 2, 8, -1, (_a, y) => (y % 2 ? c[th.shutter] : c.shutterDeep));
+      if (hash3(w0, f.yb, lt.seed) < 0.6) o.box(w0, 1, -1, w0, 1, -1, c.geranium);
+      o.box(w0 - 1, 1, 1, w0 - 1, 9, 1, c.white); o.box(w1 + 1, 1, 1, w1 + 1, 9, 1, c.white);
+    }
+    // the door back down to the lobby, in the back wall
+    o.box(rp.door, 1, RD - 1, rp.door + 3, 8, RD - 1, (a, y) => (y === 8 || a === rp.door || a === rp.door + 3 ? c.sill : a === rp.door + 2 && y === 4 ? ic.brass : wood));
+    // the bed against the left wall: iron frame and headboard (carved walnut in the palazzo), linen, a runner
+    for (const [v0, v1] of rp.beds) {
+      o.box(1, 1, v0, 9, 1, v1, (a, _y, v) => ((a === 1 || a === 9) && (v === v0 || v === v1) ? (palazzo ? wood : c.iron) : c.white));
+      o.box(1, 2, v0, 9, 2, v1, (a) => (a <= 3 ? c.white : a === 7 || a === 8 ? c[th.runner] : c[th.duvet]));
+      o.box(1, 3, v0, 2, 3, v1, c.white);
+      o.box(1, 1, v0, 1, 6, v1, (_a, y, v) => (palazzo ? (y === 6 || v === v0 || v === v1 ? c.mosaicGold : wood) : y === 6 || v === v0 || v === v1 || (v + y) % 2 === 0 ? c.iron : 0));
+    }
+    const [b0] = rp.beds[0], b1 = rp.beds[rp.beds.length - 1][1];
+    // a majolica plate or a gilt picture over the bed, little tables with lamps either side
+    o.box(0, 5, b0 + 1, 0, 8, b1 - 1, (_a, y, v) => (y === 5 || y === 8 || v === b0 + 1 || v === b1 - 1 ? (palazzo ? c.mosaicGold : c.majolicaYellow) : (v + y) % 3 ? c.sky : c.umbrellaC));
+    for (const v of [b0 - 2, b1 + 1]) {
+      o.box(1, 1, v, 2, 2, v + 1, wood); o.box(1, 3, v, 1, 3, v, c.iron); o.box(1, 4, v, 1, 4, v, ic.shade);
+      lamp(R, 1.5, v + 0.5, Y + 1.1, WARM, 2.6, 0.55);
+    }
+    // the writing desk on the right wall with the moka pot, two cups and a bowl of lemons; its chair
+    o.box(RW - 3, 1, 3, RW - 2, 2, 3, wood); o.box(RW - 3, 1, 7, RW - 2, 2, 7, wood);
+    o.box(RW - 3, 3, 3, RW - 2, 3, 7, palazzo ? c.marble : wood);
+    o.box(RW - 2, 4, 5, RW - 2, 5, 5, ic.steel); o.box(RW - 2, 6, 5, RW - 2, 6, 5, c.iron);
+    o.box(RW - 3, 4, 6, RW - 3, 4, 6, ic.cup); o.box(RW - 2, 4, 6, RW - 2, 4, 6, ic.cup);
+    o.box(RW - 2, 4, 3, RW - 2, 4, 4, c.lemon);
+    o.box(RW - 1, 5, 3, RW - 1, 8, 7, (_a, y, d) => (y === 5 || y === 8 || d === 3 || d === 7 ? wood : c.sky)); // a mirror
+    o.box(RW - 4, 1, 4, RW - 4, 2, 5, wood); o.box(RW - 5, 1, 4, RW - 5, 5, 5, (_a, y) => (y <= 2 ? c.rope : wood));
+    // the wardrobe by the door, an armchair in the window corner, a lemon tree, a rug
+    o.box(RW - 3, 1, RD - 9, RW - 2, 9, RD - 4, (_a, y, d) => (y === 1 || y === 9 || d === RD - 9 || d === RD - 4 ? wood : d === RD - 7 && y === 5 ? ic.brass : palazzo ? c.stripeDark : c.door));
+    if (spec.type !== 'single') { o.box(1, 1, 1, 2, 2, 2, ic.velvet); o.box(1, 3, 1, 1, 4, 2, ic.velvetDark); }
+    put(R, potLemon(c, lt.seed + 20 + i), RW - 2.5, 2, Y, [-R.out[0], -R.out[1]]);
+    { const [x, z] = R.P(RW - 2.5, 2); b.block(x - 0.4, z - 0.4, x + 0.4, z + 0.4); }
+    if (RW >= 24) o.box(12, 0, 4, RW - 7, 0, RD - 6, (a, _y, d) => (a === 12 || a === RW - 7 || d === 4 || d === RD - 6 ? c.majolicaYellow : (a + d) % 4 === 0 ? c[th.floor[0]] : c.cream));
+    lamp(R, RW / 2, RD / 2, Y + 2.3, WARM, 6.5, 0.9);
+  });
 }

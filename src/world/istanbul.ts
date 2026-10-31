@@ -10,7 +10,7 @@ import type { HotelAnchor, HotelRoomAnchor } from './hotels';
 import { ISTANBUL_HOTELS } from '../data/hotels';
 import {
   istanbulPlan, K, col, layerOf, inMap, hillY, isPath, shoreDist, type LotPlan, type Plan, type PathSeg,
-  QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, BAZAAR_Y, STATION,
+  QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, BAZAAR_Y, STATION, GRAND,
 } from './istanbulPlan';
 
 /**
@@ -564,10 +564,10 @@ export function buildIstanbul(win?: Window): BuildResult {
     cats: CATS,
     extras: anglers(),
     emitters: b.emitters,
-    noPetals: true,
+    // no fireflies over the Golden Horn's busy quays
+    fireflies: [],
     vending: [],
     blockers: b.blockers,
-    koiArea: [0, 0, 0, 0],
     rooms: b.rooms,
     hotels: b.hotels,
     darumas: [],
@@ -705,8 +705,23 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
           case K.Lot: case K.Mosque: return d === 0 ? c.slab : blockWall(c, xx, y, zz);
           case K.Park: return d === 0 ? (hash3(xx, 9, zz) < 0.6 ? c.grass : c.clover) : d === 1 ? c.soil : blockWall(c, xx, y, zz);
           default: {
-            // garden ground of the slopes: grass, worn earth, a stone path here and there
-            if (d === 0) { const n = hash3(xx, 9, zz); return n < 0.55 ? c.grass : n < 0.8 ? c.clover : n < 0.93 ? c.soil : c.grassDry; }
+            // the ground between the houses: cobbled yards worn to earth, weeds in the joints, and here and there a
+            // walled kitchen garden of grass and clover (in 2 m patches, so it reads as yards and gardens, not lawn)
+            // the Grand Bazaar's plateau is all stone: the courtyards of its hans between the halls
+            if (xx * V > GRAND[0] && xx * V < GRAND[2] && zz * V > GRAND[1] && zz * V < GRAND[3]) {
+              if (d === 0) return (xx % 8 === 0 || zz % 8 === 0) ? c.marbleGrey : hash3(xx >> 1, 7, zz >> 1) < 0.5 ? c.slab : c.sett;
+              return blockWall(c, xx, y, zz);
+            }
+            // along the water the quays are stone to the very edge, never a grass verge
+            if (w <= layerOf(QUAY_Y) + 2 && shoreDist(xx * V, zz * V) < 6) {
+              if (d === 0) return (xx + zz) % 8 === 0 ? c.slabB : c.slab;
+              return blockWall(c, xx, y, zz);
+            }
+            if (d === 0) {
+              const n = hash3(xx, 9, zz);
+              if (hash3(xx >> 3, 11, zz >> 3) < 0.55) return n < 0.42 ? c.sett : n < 0.7 ? c.settB : n < 0.86 ? c.soil : n < 0.95 ? c.gravel : c.clover;
+              return n < 0.5 ? c.grass : n < 0.75 ? c.clover : n < 0.92 ? c.soil : c.grassDry;
+            }
             if (d === 1) return c.soil;
             return blockWall(c, xx, y, zz);
           }
@@ -1935,4 +1950,3 @@ function gizliMutfak(b: Builder, c: IC2, anchors: Anchors): BuildResult['interio
 }
 
 export type { PathSeg };
-void shoreDist;

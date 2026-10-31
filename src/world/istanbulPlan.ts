@@ -295,7 +295,10 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
     if (hi - lo > 24) return false;
     const base = side ? frontLayer : lo;
     const floors = use === 'bazaar' ? 1 : on === K.Quay || on === K.Tram ? 4 + Math.floor(r() * 2) : on === K.Street ? 3 + Math.floor(r() * 2) : 2 + Math.floor(r() * 2);
-    const top = use === 'bazaar' ? base + 18 : Math.min(184, Math.max(hi + 10, base + 2 + floors * 12));
+    let top = use === 'bazaar' ? base + 18 : Math.min(184, Math.max(hi + 10, base + 2 + floors * 12));
+    // the roofs below the Süleymaniye's terrace stay low, so the terrace keeps its view over the Golden Horn
+    const T = SULEY.terrace;
+    if (x1 * V > T[0] - 4 && x0 * V < T[2] + 4 && z0 * V >= T[3] - 2 && z0 * V < HORN_Z) top = Math.min(top, Math.max(hi + 10, layerOf(HILLTOP_Y - 3.5)));
     const id = lots.length + 1;
     lots.push({ id, x0, z0, x1, z1, base, top, side: side ?? 's', door: side ? frontLayer : -1, seed: Math.floor(r() * 1e6), use, on });
     for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const c = col(x, z); lot[c] = id; kind[c] = K.Lot; walk[c] = base; }

@@ -7,10 +7,13 @@ import type { Pane } from '../world/hotels';
  * VOXEL_FRAG), and a few quads lie on the outer face of each opening instead: about 90% clear head on, a faint
  * cool tint, a soft streak, and more reflection at a glancing angle, the way a real pane reads from a room.
  * The quads sit behind the window wall's inner faces, so frames and mullions hide them where they should.
- * Nothing of this exists outside a room.
+ * While the player looks out (first person), whatever stands just outside the windows is not drawn either
+ * (uClearOut), so flower boxes, signs and rails don't stand in the view. Nothing of this exists outside a room.
  */
 export class RoomGlass {
   private mesh: THREE.Mesh | null = null;
+  /** What stands just outside the windows (flower boxes, signs, rails): hidden while looking out. */
+  private out: [THREE.Vector3, THREE.Vector3] | null = null;
   private mat: THREE.ShaderMaterial;
 
   constructor(private scene: THREE.Scene, private shared: SharedUniforms) {
@@ -61,7 +64,22 @@ export class RoomGlass {
       this.mesh = null;
     }
     box[0].set(1e9, 1e9, 1e9); box[1].set(-1e9, -1e9, -1e9);
+    this.out = null;
+    this.show(false);
     if (!panes?.length) return;
+    // a slab in front of the openings: from a hair outside the glass to 1.3 m out, a little wider than the
+    // windows, from a flower box's depth below the sills to just over the lintels
+    const lo = new THREE.Vector3(1e9, 1e9, 1e9), hi = new THREE.Vector3(-1e9, -1e9, -1e9);
+    for (const p of panes) {
+      const tx = (p.x1 - p.x0), tz = (p.z1 - p.z0), tl = Math.hypot(tx, tz) || 1, sx = (tx / tl) * 0.4, sz = (tz / tl) * 0.4;
+      for (const [x, z] of [[p.x0 - sx, p.z0 - sz], [p.x1 + sx, p.z1 + sz]]) for (const o of [0.02, 1.3]) {
+        lo.min(new THREE.Vector3(x + p.nx * o, p.y0 - 0.7, z + p.nz * o));
+        hi.max(new THREE.Vector3(x + p.nx * o, p.y1 + 0.4, z + p.nz * o));
+      }
+    }
+    this.out = [lo, hi];
+    panes = panes.filter((p) => !p.open);
+    if (!panes.length) return;
     const pos: number[] = [], nrm: number[] = [], idx: number[] = [];
     const E = 0.01; // a hair out from the glass voxels' outer face
     for (const p of panes) {
@@ -89,5 +107,8 @@ export class RoomGlass {
   /** In the iso view the cutaway may lower the window wall, so the panes only hang there in first person. */
   show(on: boolean): void {
     if (this.mesh) this.mesh.visible = on;
+    const c = this.shared.uClearOut.value;
+    if (on && this.out) { c[0].copy(this.out[0]); c[1].copy(this.out[1]); }
+    else { c[0].set(1e9, 1e9, 1e9); c[1].set(-1e9, -1e9, -1e9); }
   }
 }

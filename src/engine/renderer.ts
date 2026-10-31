@@ -35,6 +35,8 @@ export function makeSharedUniforms() {
     uWindowColor: { value: new THREE.Color(2.4, 1.6, 0.8) },
     /** Glass voxels inside this box (metres) are drawn clear: the window wall of the hotel room the player is in. */
     uClearGlass: { value: [new THREE.Vector3(1e9, 1e9, 1e9), new THREE.Vector3(-1e9, -1e9, -1e9)] },
+    /** Nothing is drawn inside this box: what stands just outside that room's windows, while the player looks out. */
+    uClearOut: { value: [new THREE.Vector3(1e9, 1e9, 1e9), new THREE.Vector3(-1e9, -1e9, -1e9)] },
     uLamp: { value: 0 },
     uNight: { value: 0 },
     uEmitDay: { value: 0.5 },

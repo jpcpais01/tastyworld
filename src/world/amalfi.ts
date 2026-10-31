@@ -220,21 +220,69 @@ function gozzo(c: AC, seed: number, len = 36): Prop {
   return p;
 }
 
+/**
+ * The ferry to Positano and Salerno, 30 m long, tied up at the pier with its bow to the sea: red below the
+ * waterline, a blue band and a row of portholes, a saloon deck with its windows and a promenade rail, a sun deck
+ * above with benches and life-raft drums, the bridge forward, a funnel and a radar mast, and the stern ramp up.
+ */
 function ferry(c: AC): Prop {
-  const p = new Prop(120, 40, 36, 0.25);
-  for (let x = 0; x < 120; x++) {
-    const t = x / 119;
-    const half = 17 * Math.min(1, Math.sin(Math.PI * Math.min(1, t * 1.05 + 0.02)) ** 0.35);
-    for (let z = 0; z < 36; z++) {
-      if (Math.abs(z - 17.5) > half) continue;
-      for (let y = 0; y < 10; y++) p.set(x, y, z, y < 3 ? c.ferryBlue : y === 9 ? c.ferryBlue : c.ferry);
+  const L = 120, W = 36, cz = 17.5;
+  const p = new Prop(L, 40, W, 0.25);
+  const half = (x: number) => 17 * Math.min(1, Math.sin(Math.PI * Math.min(1, (x / (L - 1)) * 1.05 + 0.02)) ** 0.35);
+  for (let x = 0; x < L; x++) {
+    const h = half(x);
+    // the sheer rises towards the bow
+    const deck = 9 + (x > 96 ? Math.round((x - 96) / 8) : 0);
+    for (let z = 0; z < W; z++) {
+      const dz = Math.abs(z - cz);
+      if (dz > h) continue;
+      const edge = dz > h - 1.2;
+      for (let y = 0; y <= deck; y++) {
+        let v = c.ferry;
+        if (y < 3) v = c.hullRed;
+        else if (y === 3) v = c.ferryBlue;
+        else if (y === 6 && edge && x % 4 === 2 && x > 6 && x < L - 12) v = c.glass;
+        else if (y === deck - 1) v = c.ferryBlue;
+        else if (y === deck && !edge) v = c.deckWood;
+        p.set(x, y, z, v);
+      }
+      // the promenade rail round the main deck: posts and a top rail, open between
+      if (edge) {
+        if (x % 3 === 0) p.set(x, deck + 1, z, c.white);
+        p.set(x, deck + 2, z, c.white);
+      }
     }
   }
-  p.box(16, 10, 6, 92, 16, 29, c.ferry);
-  p.box(16, 13, 6, 92, 14, 29, (x) => (x % 4 === 0 ? c.ferry : c.glass));
-  p.box(30, 17, 10, 70, 22, 25, c.ferry);
-  p.box(30, 19, 10, 70, 20, 25, (x) => (x % 3 === 0 ? c.ferry : c.glass));
-  p.box(48, 23, 15, 54, 30, 20, c.ferryBlue);
+  // the stern ramp, raised
+  p.box(0, 10, 9, 1, 16, 26, (_x, y, z) => (y === 16 || z === 9 || z === 26 ? c.iron : y % 2 ? c.marbleGrey : c.plinth));
+  // the saloon: a long row of windows, a door each side
+  p.box(14, 10, 5, 92, 15, 30, c.ferry);
+  p.box(14, 12, 5, 92, 14, 30, (x, _y, z) => (z === 5 || z === 30 || x === 14 || x === 92 ? (x % 4 === 0 ? c.ferry : c.glass) : c.ferry));
+  p.box(14, 15, 5, 92, 15, 30, c.ferryBlue);
+  for (const z of [5, 30]) p.box(40, 10, z, 41, 13, z, c.door);
+  // the sun deck on its roof: planking, a rail, benches in rows, life-raft drums along the sides
+  p.box(15, 16, 6, 91, 16, 29, c.deckWood);
+  for (let x = 14; x <= 92; x++) for (const z of [5, 30]) { if (x % 3 === 0) p.set(x, 17, z, c.white); p.set(x, 18, z, c.white); }
+  for (let z = 5; z <= 30; z++) for (const x of [14, 92]) { if (z % 3 === 0) p.set(x, 17, z, c.white); p.set(x, 18, z, c.white); }
+  for (let x = 20; x <= 44; x += 4) for (const z of [9, 14, 21, 26]) p.box(x, 17, z, x + 1, 17, z + 1, c.crateBlue);
+  for (let x = 24; x <= 60; x += 6) for (const z of [6, 29]) { p.box(x, 17, z, x + 2, 18, z, c.white); p.set(x + 1, 18, z, c.umbrellaA); }
+  // lifebuoys on the promenade rail
+  for (const x of [20, 56, 86]) for (const z of [Math.round(cz - half(x)), Math.round(cz + half(x))]) { p.set(x, 10, z, c.floatRed); p.set(x, 11, z, c.float); }
+  // the funnel: white, a blue band and a yellow stripe, black at the top
+  p.box(50, 17, 15, 56, 27, 20, (_x, y) => (y >= 27 ? c.iron : y === 23 ? c.hullYellow : y >= 22 ? c.ferryBlue : c.ferry));
+  // the bridge forward, its windows looking over the bow, wings out to both sides
+  p.box(70, 17, 9, 86, 22, 26, c.ferry);
+  p.box(86, 19, 9, 86, 21, 26, c.glass);
+  p.box(70, 19, 9, 86, 20, 9, (x) => (x % 3 ? c.glass : c.ferry));
+  p.box(70, 19, 26, 86, 20, 26, (x) => (x % 3 ? c.glass : c.ferry));
+  p.box(80, 18, 5, 86, 18, 30, c.ferry);
+  p.box(70, 23, 9, 86, 23, 26, c.ferryBlue);
+  // radar mast with a crossbar and a scanner
+  p.box(76, 24, 17, 77, 33, 18, c.iron);
+  p.box(76, 31, 13, 77, 31, 22, c.iron);
+  p.box(74, 34, 17, 79, 34, 18, c.white);
+  // the anchor in its pocket at the bow
+  p.box(L - 14, 6, 3, L - 13, 8, 3, c.iron); p.box(L - 14, 6, W - 4, L - 13, 8, W - 4, c.iron);
   return p;
 }
 
@@ -447,6 +495,8 @@ export function buildAmalfi(win?: Window): BuildResult {
     ],
     benches: b.benches,
     stools: b.stools,
+    // people sit along both sides of the cathedral steps, looking down over the piazza, the middle left to climb
+    stepSeats: [-7, -9.5, -12, -14.5, -17].flatMap((x) => [9.9, 10.7, 17.3, 18.1].map((z) => [x + (z % 2) * 0.4, z, Math.PI / 2] as [number, number, number])),
     cats: [[1.5, 0, -4], [-21, 0, 3.5], [38, 0, 44], [-60, 0, -2], [17, 0, 28.5]],
     emitters: b.emitters,
     vending: [],
@@ -1070,7 +1120,7 @@ function piazza(b: Builder, c: AC): void {
     b.place(cafeTable(k(b), cloth), x, PIAZZA_Y, z);
     b.place(stool(k(b), c.iron), x - 0.55, PIAZZA_Y, z);
     b.place(stool(k(b), c.iron), x + 0.55, PIAZZA_Y, z);
-    b.stools.push([x - 0.55, z, Math.PI / 2], [x + 0.55, z, -Math.PI / 2]);
+    b.stools.push([x - 0.55, z, Math.PI / 2, PIAZZA_Y], [x + 0.55, z, -Math.PI / 2, PIAZZA_Y]);
     if (seed % 2 === 0) b.place(umbrella(c, seed), x, PIAZZA_Y, z);
     // after dark a little light on every table, and the café's light spilling over its terrace
     b.lamp(x, PIAZZA_Y + 1.1, z, WARM, 2.5, 0.5);
@@ -1078,7 +1128,7 @@ function piazza(b: Builder, c: AC): void {
   };
   for (let i = 0; i < 4; i++) terrace(3 + i * 3.2, -3.6, b.k.c.white, i);
   for (let i = 0; i < 3; i++) terrace(5 + i * 3.4, 27.4, b.k.c.navy, i + 7);
-  for (const [x, z] of [[2, 6], [2, 22], [18, 3], [18, 24]] as const) { b.place(bench(k(b)), x, PIAZZA_Y, z, 1); b.benches.push([x, z, Math.PI / 2]); }
+  for (const [x, z] of [[2, 6], [2, 22], [18, 3], [18, 24]] as const) { b.place(bench(k(b)), x, PIAZZA_Y, z, 1); b.benches.push([x, z, Math.PI / 2, PIAZZA_Y]); }
   for (const [x, z] of [[-2.5, 7.5], [-2.5, 20.5], [19.5, 14], [19.5, 4]] as const) { b.place(potLemon(c, (x * 7 + z) | 0), x, PIAZZA_Y, z); }
   for (const [x, z] of [[1, 10], [1, 17], [17, 26]] as const) { b.place(lampPost(c), x, PIAZZA_Y, z); b.lamp(x, PIAZZA_Y + 3.4, z, WARM, 7, 0.9); }
   b.place(ceramicRack(c, 3), 14, PIAZZA_Y, -5.3);
@@ -1162,7 +1212,7 @@ function shore(b: Builder, c: AC, plan: Plan): void {
   b.lamp(82, 8, 51, [1, 0.5, 0.35], 6, 1.2);
   // lamps along the lungomare
   for (let z = -48; z < 80; z += 9) { b.place(lampPost(c), ROAD_X1 + 0.6, 2.0, z); b.lamp(ROAD_X1 + 0.6, 5.4, z, WARM, 7, 0.8); }
-  for (let z = -46; z < 78; z += 9) { b.place(bench(k(b)), ROAD_X1 + 0.6, 2.0, z + 4.5, 1); b.benches.push([ROAD_X1 + 0.6, z + 4.5, Math.PI / 2]); }
+  for (let z = -46; z < 78; z += 9) { b.place(bench(k(b)), ROAD_X1 + 0.6, 2.0, z + 4.5, 1); b.benches.push([ROAD_X1 + 0.6, z + 4.5, Math.PI / 2, 2.0]); }
   // the road tunnel's mouth
   const tz = TUNNEL_Z / V;
   if (g.touches(ROAD_X0 / V - 4, tz - 3, ROAD_X1 / V + 4, tz + 2)) {

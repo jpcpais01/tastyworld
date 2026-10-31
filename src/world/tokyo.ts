@@ -68,10 +68,12 @@ export interface Anchors {
   manekis: [number, number, number][];
   graph: { nodes: [number, number][]; edges: [number, number][] };
   idlers: { id: string; pos: [number, number, number] }[];
-  /** Street benches: centre x, z and the angle a sitter faces. */
-  benches: [number, number, number][];
-  /** Single outdoor seats (café terrace stools): x, z and the angle a sitter faces. */
-  stools: [number, number, number][];
+  /** Street benches: centre x, z, the angle a sitter faces and the ground they stand on (0 when left out). */
+  benches: [number, number, number, number?][];
+  /** Single outdoor seats (café terrace stools): x, z, the angle a sitter faces and the ground (0 when left out). */
+  stools: [number, number, number, number?][];
+  /** Steps people sit on (x, z and the angle a sitter faces): they sit on the step itself, feet on the ones below. */
+  stepSeats?: [number, number, number][];
   cats: [number, number, number][];
   emitters: Emitter[];
   vending: [number, number, number][];
@@ -190,7 +192,7 @@ export class Builder {
   indoor: [number, number, number, number, number, number][] = [];
   stallAnchors: StallAnchor[] = [];
   occluders: Occluder[] = [];
-  benches: [number, number, number][] = [];
+  benches: [number, number, number, number?][] = [];
   wires: Anchors['wires'] = [];
   /** True when there is open air at a point (metres). */
   clear(x: number, y: number, z: number): boolean {
@@ -198,7 +200,7 @@ export class Builder {
   }
   /** Footprints of props standing on the ground, so later ones can keep clear of them. */
   standing: [number, number, number, number][] = [];
-  stools: [number, number, number][] = [];
+  stools: [number, number, number, number?][] = [];
   sway: SwayBody[] = [];
   swayCells = new Map<number, number>();
   /** When set, props placed next hang from this sway body (lanterns on a swinging wire). */

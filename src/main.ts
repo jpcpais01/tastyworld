@@ -653,7 +653,7 @@ class Game {
     }
     this.hallRects = (a.halls ?? []).map((h) => h.rect);
     // the sun falling through their windows
-    this.shafts = new Shafts(this.r.scene, this.r.shared, a.halls ?? []);
+    this.shafts = new Shafts(this.r, a.halls ?? []);
 
     // your own footsteps follow the walk cycle, softly
     Actor.onStep = (act, run) => { if (act === this.player) this.audio.step(act.position.x, act.position.z, run); };

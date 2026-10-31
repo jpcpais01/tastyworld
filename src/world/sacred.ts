@@ -2,7 +2,7 @@ import { hash3 } from './grid';
 import { Prop } from './props';
 import { V, G } from './layout';
 import { Builder, WARM, WHITEWARM } from './tokyo';
-import type { Beam } from '../engine/shafts';
+import { PANE, type Beam, type BeamRoom } from '../engine/shafts';
 import { paintColors, toProp, altarpiece, apostle, ceilingScene, sideAltar } from './paintings';
 
 /**
@@ -42,6 +42,38 @@ export const mosqueWalls = (H: number) => (H - 1) * V;
 
 const pm = (v: number, m: number) => ((v % m) + m) % m;
 const yM = (y: number) => (y - G) * V;
+
+/**
+ * A window's sun beam from its glass: the voxels (x, y, z, palette colour, or 0 where the window is stone) of a pane
+ * one voxel thick in a wall whose outward normal is (nx, nz). The beam leaves the glass's inner face, exactly as wide
+ * and tall as the window, and carries its panes so stained glass throws its own colours. Pure: every worker builds
+ * the same beams without reading the grid.
+ */
+function glassBeam(b: Builder, cells: [number, number, number, number][], nx: number, nz: number, rooms?: BeamRoom[]): Beam {
+  // across the wall (-nz, nx) and along its normal, at voxel centres
+  const across = (x: number, z: number) => (x + 0.5) * -nz + (z + 0.5) * nx;
+  const along = (x: number, z: number) => (x + 0.5) * nx + (z + 0.5) * nz;
+  let u0 = Infinity, u1 = -Infinity, y0 = Infinity, y1 = -Infinity, a = 0;
+  for (const [x, y, z] of cells) {
+    const u = across(x, z);
+    u0 = Math.min(u0, u); u1 = Math.max(u1, u); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    a = along(x, z);
+  }
+  const W = Math.round(u1 - u0) + 1, Hh = y1 - y0 + 1;
+  const cols = Math.min(W, PANE), rows = Math.min(Hh, PANE);
+  const rgb = new Array<number>(cols * rows).fill(-1);
+  for (const [x, y, z, c] of cells) {
+    if (!c) continue;
+    const i = Math.floor((Math.round(across(x, z) - u0)) * cols / W), j = Math.floor((y - y0) * rows / Hh);
+    rgb[j * cols + i] = (b.pal.r[c] << 16) | (b.pal.g[c] << 8) | b.pal.b[c];
+  }
+  // the centre of the inner face: half a voxel inside the glass's centre
+  const uc = (u0 + u1) / 2, inner = a - 0.5;
+  return {
+    x: (uc * -nz + inner * nx) * V, y: yM((y0 + y1 + 1) / 2), z: (uc * nx + inner * nz) * V,
+    w: W * V, h: Hh * V, nx, nz, panes: { cols, rows, rgb }, rooms,
+  };
+}
 
 const cache = new WeakMap<Builder, ReturnType<typeof makeColors>>();
 function colors(b: Builder) {
@@ -254,6 +286,25 @@ export interface DuomoFrame {
   roof: [number, number];
 }
 
+// ---- the Duomo's stained glass, shared by the voxels and the beams of light they let in
+
+/** The rose's twelve spokes and rings in marble (0), its glass, or -1 outside it. */
+function roseGlass(k: K, y: number, z: number, zc: number, ry: number): number {
+  const r = Math.hypot(z + 0.5 - zc, y + 0.5 - ry);
+  if (r >= 7.2) return -1;
+  const ang = Math.atan2(y + 0.5 - ry, z + 0.5 - zc);
+  if (r < 1.6 || (r > 3.2 && r < 4) || Math.abs(Math.sin(ang * 6)) < 0.3) return 0;
+  return r < 3.2 ? (pm(Math.floor(ang * 1.9), 2) ? k.sgGold : k.sgRed) : pm(Math.floor((ang + Math.PI) * 6 / Math.PI), 2) ? k.sgBlue : k.sgGreen;
+}
+/** The two lancets either side of the rose (their first z). */
+const LANCETS = (zc: number) => [zc - 19, zc + 17];
+const lancetGlass = (k: K, y: number, dz: number) => [k.sgBlue, k.sgRed, k.sgGold, k.sgBlue, k.sgGreen, k.sgViolet][pm(y + dz * 2, 6)];
+/** An aisle window (four voxels wide from x0): white glass leading round coloured panes. */
+function aisleGlass(k: K, x: number, y: number, x0: number, zo: number, Y: number): number {
+  const lead = (y - Y) % 4 === 0 || x === x0 || x === x0 + 3;
+  return lead ? k.sgWhite : [k.sgBlue, k.sgGold, k.sgRed, k.sgGreen][pm(x + y + zo, 4)];
+}
+
 /**
  * Inside the Duomo: the baroque rebuilding of the 1700s inside the Arab-Norman shell. A nave of white and gold on
  * arcades of marble piers between two aisles, the gilded coffered ceiling with its painted canvases, the apse with
@@ -266,6 +317,7 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
   const k = colors(b);
   const g = b.grid;
   const { X0, X1, Z0, Z1, Y, H, FX, zc } = f;
+  const ROSE_Y = Y + 57;
   const floorY = yM(Y);
   // the hall's air: walls of three voxels, the front screen closes it at the east
   const IX0 = X0 + 3, IX1 = X1, IZ0 = Z0 + 3, IZ1 = Z1 - 3;
@@ -391,12 +443,28 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
     { pos: [m(IX1 - 12), floorY, m(NZ1 - 2)], face: -Math.PI / 2 - 0.4, seed: 936, pose: 'browse', alt: 'idle' },
     { pos: [m(CW.x1 + 3), floorY, m(CW.z0 + 3)], face: -Math.PI / 2, seed: 937, pose: 'browse', alt: 'idle' },
   );
-  // the sun: through the rose and the two lancets of the front, and the high windows of the aisles
-  hall.beams.push({ x: m(FX + 4), y: yM(Y + 57) + 0.125, z: m(zc + 0.5), w: 14 * V, h: 14 * V, nx: 1, nz: 0, tint: [1, 0.86, 0.72] });
-  for (const z0 of [zc - 19, zc + 17]) hall.beams.push({ x: m(FX + 4), y: yM(Y + 55), z: m(z0 + 1.5), w: 0.75, h: 3.4, nx: 1, nz: 0, tint: [0.85, 0.8, 1] });
-  for (let x = X0 + 6; x < X1 - 6; x += 12) {
-    hall.beams.push({ x: m(x + 2), y: yM(Y + 32), z: m(Z0), w: 1.0, h: 3.0, nx: 0, nz: -1, tint: [1, 0.92, 0.8] });
-    hall.beams.push({ x: m(x + 2), y: yM(Y + 32), z: m(Z1 + 1), w: 1.0, h: 3.0, nx: 0, nz: 1, tint: [1, 0.92, 0.8] });
+  // the sun: through the rose and the two lancets of the front, and the high windows of the aisles (whose light
+  // stays in its aisle but for what passes under the arcade's arches into the nave)
+  {
+    const rose: [number, number, number, number][] = [];
+    for (let y = ROSE_Y - 9; y <= ROSE_Y + 9; y++) for (let z = zc - 9; z <= zc + 9; z++) {
+      const c = roseGlass(k, y, z, zc, ROSE_Y);
+      if (c >= 0) rose.push([FX + 2, y, z, c]);
+    }
+    hall.beams.push(glassBeam(b, rose, 1, 0));
+    for (const z0 of LANCETS(zc)) {
+      const cells: [number, number, number, number][] = [];
+      for (let y = Y + 48; y <= Y + 61; y++) for (let z = z0; z <= z0 + 2; z++) cells.push([FX + 2, y, z, y === Y + 61 && z !== z0 + 1 ? 0 : lancetGlass(k, y, z - z0)]);
+      hall.beams.push(glassBeam(b, cells, 1, 0));
+    }
+    const arch = yM(Y + 28), xs = m(IX0), xe = m(IX1 + 1);
+    for (let x = X0 + 6; x < X1 - 6; x += 12) for (const [zo, zi, nz] of [[Z0, Z0 + 1, -1], [Z1, Z1 - 1, 1]] as const) {
+      const cells: [number, number, number, number][] = [];
+      for (let y = Y + 26; y <= Y + 37; y++) for (let xx = x; xx <= x + 3; xx++) cells.push([xx, y, zi, aisleGlass(k, xx, y, x, zo, Y)]);
+      const aisle: BeamRoom = nz < 0 ? [xs, m(IZ0), xe, m(NZ0 - 3), 1e4] : [xs, m(NZ1 + 4), xe, m(IZ1 + 1), 1e4];
+      const nave: BeamRoom = nz < 0 ? [m(PX0), m(NZ0 - 3), xe, m(IZ1 + 1), arch] : [m(PX0), m(IZ0), xe, m(NZ1 + 4), arch];
+      hall.beams.push(glassBeam(b, cells, 0, nz, [aisle, nave]));
+    }
   }
   b.halls.push(hall);
 
@@ -682,32 +750,26 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
   for (const zz of [zc - 5, zc + 4]) g.box(IX1 - 4, Y, zz, IX1 - 1, Y + 15, zz, (x, y) => ((x + y) % 4 === 0 ? k.goldDeep : k.bronze));
   g.box(IX1, Y, zc - 6, IX1, Y + 17, zc + 5, (_x, y, z) => (z >= zc - 4 && z <= zc + 3 && y <= Y + 15 ? 0 : y > Y + 15 ? k.gold : k.marble));
   // the rose window and the lancets of the front open through the screen: stained glass seen from inside
-  {
-    const ry = Y + 57;
-    for (let y = ry - 9; y <= ry + 9; y++)
-      for (let z = zc - 9; z <= zc + 9; z++) {
-        const r = Math.hypot(z + 0.5 - zc, y + 0.5 - ry);
-        if (r >= 7.2) continue;
-        const ang = Math.atan2(y + 0.5 - ry, z + 0.5 - zc);
-        const spoke = Math.abs(Math.sin(ang * 6)) < 0.3;
-        if (r < 1.6 || (r > 3.2 && r < 4) || spoke) { g.box(FX, y, z, FX + 2, y, z, k.marble); continue; }
-        g.box(FX, y, z, FX + 1, y, z, 0);
-        g.set(FX + 2, y, z, r < 3.2 ? (pm(Math.floor(ang * 1.9), 2) ? k.sgGold : k.sgRed) : pm(Math.floor((ang + Math.PI) * 6 / Math.PI), 2) ? k.sgBlue : k.sgGreen);
-      }
-    for (const z0 of [zc - 19, zc + 17]) for (let y = Y + 48; y <= Y + 61; y++) {
-      const zs = y === Y + 61 ? [z0 + 1] : [z0, z0 + 1, z0 + 2];
-      for (const z of zs) {
-        g.box(FX, y, z, FX + 1, y, z, 0);
-        g.set(FX + 2, y, z, [k.sgBlue, k.sgRed, k.sgGold, k.sgBlue, k.sgGreen, k.sgViolet][pm(y + (z - z0) * 2, 6)]);
-      }
+  for (let y = ROSE_Y - 9; y <= ROSE_Y + 9; y++)
+    for (let z = zc - 9; z <= zc + 9; z++) {
+      const c = roseGlass(k, y, z, zc, ROSE_Y);
+      if (c < 0) continue;
+      if (!c) { g.box(FX, y, z, FX + 2, y, z, k.marble); continue; }
+      g.box(FX, y, z, FX + 1, y, z, 0);
+      g.set(FX + 2, y, z, c);
+    }
+  for (const z0 of LANCETS(zc)) for (let y = Y + 48; y <= Y + 61; y++) {
+    const zs = y === Y + 61 ? [z0 + 1] : [z0, z0 + 1, z0 + 2];
+    for (const z of zs) {
+      g.box(FX, y, z, FX + 1, y, z, 0);
+      g.set(FX + 2, y, z, lancetGlass(k, y, z - z0));
     }
   }
   // the aisle windows: stained glass inside the clear outer pane, a reveal through the wall
   for (let x = X0 + 6; x < X1 - 6; x += 12) for (const [zo, zi, zr] of [[Z0, Z0 + 1, Z0 + 2], [Z1, Z1 - 1, Z1 - 2]] as const) {
     for (let y = Y + 26; y <= Y + 37; y++) for (let xx = x; xx <= x + 3; xx++) {
       g.set(xx, y, zr, 0);
-      const lead = (y - Y) % 4 === 0 || xx === x || xx === x + 3;
-      g.set(xx, y, zi, lead ? k.sgWhite : [k.sgBlue, k.sgGold, k.sgRed, k.sgGreen][pm(xx + y + zo, 4)]);
+      g.set(xx, y, zi, aisleGlass(k, xx, y, x, zo, Y));
     }
   }
 
@@ -757,6 +819,8 @@ export interface MosqueFrame {
   opening: (x: number, y: number, z: number) => boolean;
   /** Whether it is one of the upper lights (coloured glass) rather than a lower grilled window. */
   upper: (y: number) => boolean;
+  /** The clear glass of the drum's windows (palette colour). */
+  clear: number;
   /** İznik tiles all over the walls (the New Mosque) or only round the mihrab (Süleymaniye's restraint). */
   rich: boolean;
   /** The city's own stone and lead, for the ledges under the half-domes. */
@@ -843,6 +907,60 @@ function lampRing(k: K, r: number): Prop {
   return p;
 }
 
+/** The coloured glass of a mosque's upper lights, seen from inside (u along the wall, row over the floor). */
+const upperGlass = (k: K, u: number, row: number) => [k.sgRed, k.sgBlue, k.sgGold, k.sgGreen, k.sgTurq][pm(u + row * 2, 5)];
+
+/**
+ * The upper lights of a mosque's four walls, each a window of coloured glass in the inner skin: its voxels (x, y, z
+ * and u, the skin's pattern coordinate) and outward normal. Found from the frame's openings, so the beams sit exactly
+ * in the windows the walls are built with.
+ */
+function mosqueWindows(f: MosqueFrame, hidden: (x: number, y: number, z: number) => boolean): { cells: [number, number, number, number][]; nx: number; nz: number }[] {
+  const { X0, Z0, X1, Z1, Y, H } = f;
+  // each wall: the skin voxel and the outer wall's at step i, its pattern coordinate and normal (as the skin is laid)
+  const walls: { n: number; at: (i: number) => [number, number, number, number, number]; nx: number; nz: number }[] = [
+    { n: Z1 - Z0 - 1, at: (i) => [X0 + 1, Z0 + 1 + i, X0, Z0 + 1 + i, Z0 + 1 + i], nx: -1, nz: 0 },
+    { n: Z1 - Z0 - 1, at: (i) => [X1 - 1, Z0 + 1 + i, X1, Z0 + 1 + i, -(Z0 + 1 + i)], nx: 1, nz: 0 },
+    { n: X1 - X0 - 3, at: (i) => [X0 + 2 + i, Z0 + 1, X0 + 2 + i, Z0, -(X0 + 2 + i)], nx: 0, nz: -1 },
+    { n: X1 - X0 - 3, at: (i) => [X0 + 2 + i, Z1 - 1, X0 + 2 + i, Z1, X0 + 2 + i], nx: 0, nz: 1 },
+  ];
+  const out: { cells: [number, number, number, number][]; nx: number; nz: number }[] = [];
+  for (const w of walls) {
+    const lit = (i: number, y: number) => {
+      if (i < 0 || i >= w.n || !f.upper(y)) return false;
+      const [x, z, ox, oz] = w.at(i);
+      return f.opening(ox, y, oz) && !hidden(x, y, z);
+    };
+    // glass within a few voxels of other glass is one window (a bay's pair of lights and the oculus over them): its
+    // panes keep the stone between them dark
+    const seen = new Set<number>();
+    for (let i = 0; i < w.n; i++) for (let y = Y; y <= Y + H; y++) {
+      if (seen.has(i * 4096 + y) || !lit(i, y)) continue;
+      const cells: [number, number, number, number][] = [];
+      const stack: [number, number][] = [[i, y]];
+      seen.add(i * 4096 + y);
+      while (stack.length) {
+        const [a, yy] = stack.pop()!;
+        const [x, z, , , u] = w.at(a);
+        cells.push([x, yy, z, u]);
+        for (let da = -3; da <= 3; da++) for (let dy = -3; dy <= 3; dy++) {
+          const key = (a + da) * 4096 + yy + dy;
+          if (!seen.has(key) && lit(a + da, yy + dy)) { seen.add(key); stack.push([a + da, yy + dy]); }
+        }
+      }
+      out.push({ cells, nx: w.nx, nz: w.nz });
+    }
+  }
+  return out;
+}
+
+/** Whether (x, y, z) is in the inner shell of the half-dome centred (sx, sz) of radius r, within the hall's walls. */
+function inSemiShell(f: MosqueFrame, sx: number, sz: number, r: number, x: number, y: number, z: number): boolean {
+  const d3 = Math.hypot(x + 0.5 - sx, z + 0.5 - sz, y - (f.Y + f.H - 1));
+  return y >= f.Y + f.H - 1 && d3 >= r - 2 && d3 < r - 1 && x >= f.X0 && x <= f.X1 && z >= f.Z0 && z <= f.Z1;
+}
+const semiShell = (f: MosqueFrame, x: number, y: number, z: number) => f.semis.some(([sx, sz, r]) => inSemiShell(f, sx, sz, r, x, y, z));
+
 /**
  * Inside a mosque: the carpet in rows facing the qibla, İznik tiles and painted plaster, the four great piers and
  * the arches that carry the dome, pendentives, the dome and the half-domes painted inside, the drum's ring of
@@ -862,6 +980,7 @@ export function mosqueInterior(b: Builder, f: MosqueFrame): HallAnchor {
   const a = Math.min(R - 1, Math.floor((X1 - X0) / 2) - 10), bz = Math.min(R - 1, Math.floor((Z1 - Z0) / 2) - 8);
   const piers: [number, number][] = [[cx - a, cz - bz], [cx + a, cz - bz], [cx - a, cz + bz], [cx + a, cz + bz]];
   const mx = Math.floor(cx); // the mihrab's axis
+  const MIH = { x0: mx - 8, x1: mx + 7, top: Y + Math.min(31, H - 6) }; // its marble frame on the qibla wall
   const ringR = Math.round(R * 0.62), ringY = Y + 11;
   const galleries = !f.rich;
 
@@ -905,19 +1024,26 @@ export function mosqueInterior(b: Builder, f: MosqueFrame): HallAnchor {
     { pos: [m(cx - 3), floorY, m(cz + bz - 6)], face: Math.PI + 0.2, seed: 1403 + R, pose: 'browse', alt: 'photo' },
   );
   // the sun through the drum's ring of windows, and through the coloured upper lights of the walls
+  const clear = (b.pal.r[f.clear] << 16) | (b.pal.g[f.clear] << 8) | b.pal.b[f.clear];
+  // (each window centred on the voxels the drum's ring actually opens for it, which the grid skews a little; where a
+  // half-dome's shell runs across a window inside, that window lets no light into the hall)
+  const sector = (x: number, z: number) => Math.floor((Math.atan2(z + 0.5 - cz, x + 0.5 - cx) + Math.PI) * 24 / Math.PI);
+  const mid = new Map<number, [number, number]>();
+  for (let z = Math.floor(cz - R - 1); z <= cz + R + 1; z++) for (let x = Math.floor(cx - R - 1); x <= cx + R + 1; x++) {
+    const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz), s = sector(x, z);
+    if (d > R - 0.5 || d < R - 1.5 || s % 2 || semiShell(f, x, DY + 4, z)) continue;
+    const q = mid.get(s) ?? [0, 0];
+    mid.set(s, [q[0] + x + 0.5 - cx, q[1] + z + 0.5 - cz]);
+  }
   for (let s = 0; s < 48; s += 2) {
-    const an = -Math.PI + (s + 0.5) * Math.PI / 24, ca = Math.cos(an), sa = Math.sin(an);
-    hall.beams.push({ x: m(cx + ca * R), y: yM(DY + 3.5) + 0.125, z: m(cz + sa * R), w: (2 * Math.PI * R / 48) * V * 0.9, h: 4 * V, nx: ca, nz: sa, tint: [1, 0.93, 0.8] });
+    const q = mid.get(s);
+    if (!q) continue;
+    const an = Math.atan2(q[1], q[0]), ca = Math.cos(an), sa = Math.sin(an);
+    hall.beams.push({ x: m(cx + ca * (R - 1.5)), y: yM(DY + 4), z: m(cz + sa * (R - 1.5)), w: (2 * Math.PI * (R - 1.5) / 48) * V, h: 4 * V, nx: ca, nz: sa, panes: { cols: 1, rows: 1, rgb: [clear] } });
   }
-  const up = H - 16;
-  for (let x = X0; x + 9 <= X1; x += 12) {
-    hall.beams.push({ x: m(x + 6), y: yM(Y + up + 4.5), z: m(Z0), w: 1.5, h: 2.0, nx: 0, nz: -1, tint: [1, 0.8, 0.62] });
-    hall.beams.push({ x: m(x + 6), y: yM(Y + up + 4.5), z: m(Z1 + 1), w: 1.5, h: 2.0, nx: 0, nz: 1, tint: [1, 0.8, 0.62] });
-  }
-  for (let z = Z0; z + 9 <= Z1; z += 12) {
-    hall.beams.push({ x: m(X0), y: yM(Y + up + 4.5), z: m(z + 6), w: 1.5, h: 2.0, nx: -1, nz: 0, tint: [1, 0.8, 0.62] });
-    hall.beams.push({ x: m(X1 + 1), y: yM(Y + up + 4.5), z: m(z + 6), w: 1.5, h: 2.0, nx: 1, nz: 0, tint: [1, 0.8, 0.62] });
-  }
+  // (the mihrab's marble frame and the minbar's spire stand in front of the qibla wall's middle lights)
+  const hidden = (x: number, y: number, z: number) => z === Z0 + 1 && ((x >= MIH.x0 && x <= MIH.x1 && y <= MIH.top) || (x >= mx + 10 && x <= mx + 17 && y >= Y + 12 && y <= Y + 35));
+  for (const w of mosqueWindows(f, hidden)) hall.beams.push(glassBeam(b, w.cells.map(([x, y, z, u]) => [x, y, z, upperGlass(k, u, y - Y)]), w.nx, w.nz));
   // what stands on the floor and must be walked round (the voxels below block the rest)
   b.halls.push(hall);
 
@@ -929,7 +1055,7 @@ export function mosqueInterior(b: Builder, f: MosqueFrame): HallAnchor {
   // and the windows left open (the upper lights in coloured glass)
   const skin = (x: number, y: number, _z: number, ox: number, oz: number, u: number, wall: 'qibla' | 'side' | 'door') => {
     const row = y - Y;
-    if (f.opening(ox, y, oz)) return f.upper(y) ? [k.sgRed, k.sgBlue, k.sgGold, k.sgGreen, k.sgTurq][pm(u + row * 2, 5)] : 0;
+    if (f.opening(ox, y, oz)) return f.upper(y) ? upperGlass(k, u, row) : 0;
     const tiles = f.rich ? (wall === 'qibla' ? row < H - 14 : row < 12) : wall === 'qibla' && Math.abs(x + 0.5 - mx) < 16 && row < 20;
     if (tiles) return row === 0 ? k.navy : iznik(k, u, row, wall === 'qibla' && pm(Math.floor(u / 8), 3) === 1 ? 1 : 0);
     if (row < 4) return f.rich ? k.navy : (row === 3 ? k.marbleGrey : k.marble);
@@ -992,10 +1118,7 @@ export function mosqueInterior(b: Builder, f: MosqueFrame): HallAnchor {
   // the half-domes inside: fluted in cream and red, gilt at the rim
   for (const [sx, sz, r] of f.semis)
     for (let y = TOP + 1; y <= TOP + 1 + r; y++) for (let z = Math.floor(sz - r); z <= Math.ceil(sz + r); z++) for (let x = Math.floor(sx - r); x <= Math.ceil(sx + r); x++) {
-      if (dMain(x, z) < R - 1.5) continue;
-      const d3 = Math.hypot(x + 0.5 - sx, z + 0.5 - sz, y - (TOP + 1));
-      if (d3 < r - 2 || d3 >= r - 1) continue;
-      if (x < X0 || x > X1 || z < Z0 || z > Z1) continue;
+      if (dMain(x, z) < R - 1.5 || !inSemiShell(f, sx, sz, r, x, y, z)) continue;
       const ang = Math.atan2(z + 0.5 - sz, x + 0.5 - sx);
       g.set(x, y, z, y - (TOP + 1) < 2 ? k.gold : pm(Math.floor((ang + Math.PI) * 5), 2) ? k.paint : k.paintRed);
     }
@@ -1067,7 +1190,7 @@ export function mosqueInterior(b: Builder, f: MosqueFrame): HallAnchor {
   // the mihrab: a marble frame on the qibla wall, a niche under a hood of stalactites, an inscription over it,
   // a cresting, colonnettes; the great candlesticks either side
   {
-    const z0 = AZ0, x0 = mx - 8, x1 = mx + 7, yTop = Y + Math.min(31, H - 6);
+    const z0 = AZ0, x0 = MIH.x0, x1 = MIH.x1, yTop = MIH.top;
     g.box(x0, Y, z0, x1, yTop, z0 + 2, (x, y, z) => {
       const u = x - x0, row = y - Y, inN = x >= mx - 4 && x <= mx + 3;
       const archTop = 18 + Math.round(4 * (1 - Math.abs(x + 0.5 - mx) / 4.5));
@@ -1109,7 +1232,8 @@ export function mosqueInterior(b: Builder, f: MosqueFrame): HallAnchor {
     for (const [x, z] of [[x0, zt], [x1, zt], [x0, zt + 4], [x1, zt + 4]]) g.box(x, Y + topH, z, x, Y + topH + 9, z, k.marble);
     for (let i = 0; i < 13; i++) {
       const hw = 2.6 * (1 - i / 13);
-      g.box(Math.floor(x0 + 1.5 - hw), Y + topH + 10 + i, Math.floor(zt + 2 - hw), Math.ceil(x0 + 1.5 + hw), Y + topH + 10 + i, Math.ceil(zt + 2 + hw), (x, _y, z) => (Math.max(Math.abs(x + 0.5 - (x0 + 2)), Math.abs(z + 0.5 - (zt + 2.5))) <= hw + 0.5 ? (i === 0 ? k.gold : pm(i, 3) === 0 ? k.marbleGrey : k.marble) : 0));
+      // (kept off the qibla wall, whose coloured lights it would otherwise punch through)
+      g.box(Math.floor(x0 + 1.5 - hw), Y + topH + 10 + i, Math.max(zt, Math.floor(zt + 2 - hw)), Math.ceil(x0 + 1.5 + hw), Y + topH + 10 + i, Math.ceil(zt + 2 + hw), (x, y, z) => (Math.max(Math.abs(x + 0.5 - (x0 + 2)), Math.abs(z + 0.5 - (zt + 2.5))) <= hw + 0.5 ? (i === 0 ? k.gold : pm(i, 3) === 0 ? k.marbleGrey : k.marble) : g.get(x, y, z)));
     }
     g.box(x0 + 1, Y + topH + 23, zt + 2, x0 + 1, Y + topH + 26, zt + 2, k.gold);
   }

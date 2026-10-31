@@ -4,6 +4,7 @@ import { rng, hash3 } from './grid';
 import { G } from './layout';
 import { Prop, PropKit, stool, plantPot, cafeTable, crateStack, lantern, noren, flowerStand, breadShelf, bookCart, fishDisplay, boardSign, aFrame } from './props';
 import { buildFood, FoodId } from './food';
+import type { HotelInfo } from '../data/hotels';
 
 /**
  * Walkable ground floors. Street-front buildings are hollowed into a room behind the facade (walls two
@@ -12,7 +13,7 @@ import { buildFood, FoodId } from './food';
  * room. The cutaway in the voxel shader opens these rooms up whenever they sit between camera and player.
  */
 
-export type RoomKind = 'shop' | 'cafe' | 'izakaya' | 'konbini' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba';
+export type RoomKind = 'shop' | 'cafe' | 'izakaya' | 'konbini' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba' | 'hotel';
 
 export interface RoomNpc {
   role: 'keeper' | 'guest';
@@ -41,6 +42,9 @@ export interface RoomAnchor {
   spots: RoomSpot[];
   /** Restaurants are run by a StallInfo vendor instead of a keeper. */
   stall?: string;
+  /** A hotel lobby: the hotel's id, and where guests stand to take the lift (or the stairs) up to the rooms. */
+  hotel?: string;
+  lift?: { stand: [number, number]; pick: [number, number, number]; facing: number };
 }
 
 export interface SecretAnchor {
@@ -68,6 +72,9 @@ export interface ShopFloorOpts {
   restaurant?: RestaurantSpec;
   secret?: boolean;
   doorA?: number;
+  hotel?: HotelInfo;
+  /** The kind of shop whose daruma hiding spots this room stands in for (a hotel lobby in a former shop). */
+  spotKind?: RoomKind;
 }
 
 export function interiorColors(pal: Palette) {
@@ -92,6 +99,16 @@ export function interiorColors(pal: Palette) {
     capsuleA: a(0xf05a5a, 0.03), capsuleB: a(0x5ab0f0, 0.03), capsuleC: a(0xf5d24a, 0.03), capsuleD: a(0x6ad07a, 0.03), dome: a(0xe8f4fa, 0.02, { emit: 0.25 }),
     daruma: a(0xd8302a, 0.04), darumaGold: a(0xe0b040, 0.04), darumaFace: a(0xf6efe2, 0.02), darumaInk: a(0x1d1a1c, 0.02),
     record: a(0x18161a, 0.03), jukebox: a(0xf2a640, 0.03, { emit: 0.6 }),
+    // hotels: lobby stone, carpets, wallpapers, bed linen, lamps
+    marbleW: a(0xece8e0, 0.03), marbleG: a(0xd3cdc2, 0.03), linen: a(0xf7f5ef, 0.02), pillow: a(0xfbfaf4, 0.015),
+    carpetBlue: a(0x5a6478, 0.05), carpetBlueB: a(0x4c5568, 0.05), carpetRed: a(0x7a2e32, 0.05), carpetRedB: a(0x63242a, 0.05),
+    carpetPlum: a(0x3a2a3e, 0.05), carpetPlumB: a(0x30223a, 0.05), carpetSand: a(0xcdbfa6, 0.04), carpetSandB: a(0xbcae94, 0.04),
+    wpCream: a(0xefe6d4, 0.03), wpSage: a(0xd5dfcb, 0.03), wpBlue: a(0xdde2ea, 0.03), wpPlum: a(0x4a3550, 0.04), wpWarm: a(0xeadbc4, 0.03), wpStone: a(0xe9e5de, 0.03),
+    duvetBlue: a(0x4a6a9a, 0.04), duvetRed: a(0xb0473f, 0.04), duvetGold: a(0xd9b25a, 0.04), duvetPlum: a(0x6a3a7a, 0.04), duvetGreen: a(0x5f8a5a, 0.04), duvetGrey: a(0x9aa3ad, 0.04),
+    runnerRed: a(0x8a2a30, 0.04), runnerNavy: a(0x2b3a62, 0.04), headTan: a(0xa8845a, 0.05), headGrey: a(0x6d7076, 0.04),
+    shade: a(0xffe2ae, 0.02, { emit: 0.85 }), tvFrame: a(0x1b1b20, 0.02), screen: a(0x26304a, 0.03, { emit: 0.12 }),
+    quilt: a(0x3f5a8a, 0.05), quiltB: a(0xe9e1cf, 0.04), mapSea: a(0x8fb4d6, 0.04), mapLand: a(0x9ac08a, 0.05),
+    liftDoor: a(0xb7bec4, 0.02), liftLit: a(0xffb347, 0.02, { emit: 0.9 }),
   };
 }
 
@@ -200,7 +217,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
   };
 
   const [rx0, rz0] = P(A0, D0), [rx1, rz1] = P(A1 + 1, dep - 2);
-  const room: { id: string; kind: RoomKind; nth: number; rect: [number, number, number, number]; door: [number, number]; npcs: RoomNpc[]; spots: RoomSpot[]; stall?: string } = {
+  const room: RoomAnchor = {
     id: `${kind}-${nth}`, kind, nth,
     rect: [Math.min(rx0, rx1), Math.min(rz0, rz1), Math.max(rx0, rx1), Math.max(rz0, rz1)],
     door: P(da + 2.5, D0 + 1.2),
@@ -216,9 +233,10 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
     const [x, z] = P(a, d);
     room.spots.push({ kind: kindS, pos: [x, y, z], stand: P(sa, sd) });
   };
-  const darumaAt = (a: number, d: number, y: number) => b.darumaSpots.push({ kind, pos: withY(P(a, d), y) });
+  const darumaAt = (a: number, d: number, y: number) => b.darumaSpots.push({ kind: o.spotKind ?? kind, pos: withY(P(a, d), y) });
 
   // ---- shell: hollow the ground floor
+  const planks = (a: number, _y: number, d: number) => ((a + ((d >> 2) % 2) * 2) % 4 === 0 ? ic.plankB : (a % 2 ? ic.plank : ic.plankLight));
   const floorFn = ((): (a: number, y: number, d: number) => number => {
     switch (kind) {
       case 'konbini': case 'pharmacy': return (a, _y, d) => ((a + d) % 2 ? ic.tileW : ic.tileG);
@@ -228,7 +246,9 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       case 'kissa': return (a, _y, d) => ((a + d) % 2 ? ic.checkB : ic.checkW);
       case 'izakaya': return (a, _y, d) => (hash3(a >> 1, d >> 1, 5) < 0.5 ? ic.doma : ic.domaB);
       case 'books': return (a, _y, d) => ((a + (d >> 2)) % 3 === 0 ? ic.plankDark : ic.wainDark);
-      default: return (a, _y, d) => ((a + ((d >> 2) % 2) * 2) % 4 === 0 ? ic.plankB : (a % 2 ? ic.plank : ic.plankLight));
+      case 'hotel': if (o.hotel?.theme !== 'ryokan') return (a, _y, d) => (((a >> 2) + (d >> 2)) % 2 ? ic.marbleW : ic.marbleG);
+        return planks; // a ryokan's entrance hall is boards
+      default: return planks;
     }
   })();
   const [wainC, wallC] = ((): [number, number] => {
@@ -239,6 +259,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       case 'florist': return [ic.green, ic.sage];
       case 'bakery': return [ic.brick, ic.plaster];
       case 'books': return [ic.wainDark, ic.paperWall];
+      case 'hotel': return o.hotel?.theme === 'ryokan' ? [c.cedar, c.plaster] : o.hotel?.theme === 'boutique' ? [ic.wainDark, ic.wpPlum] : [ic.wainDark, ic.wpWarm];
       default: return [ic.wain, ic.plaster];
     }
   })();
@@ -265,7 +286,8 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
 
   // ---- storefront: door, windows, fascia
   const glassC = kind === 'konbini' || kind === 'pharmacy' ? c.konbiniGlass : c.glassLit;
-  const frame = kind === 'konbini' || kind === 'pharmacy' ? c.trim : kind === 'kissa' ? ic.wainDark : kind === 'izakaya' || kind === 'soba' ? c.woodDark : o.trim;
+  const ryokan = o.hotel?.theme === 'ryokan';
+  const frame = kind === 'konbini' || kind === 'pharmacy' ? c.trim : kind === 'kissa' ? ic.wainDark : kind === 'izakaya' || kind === 'soba' || ryokan ? c.woodDark : o.trim;
   lot.box(da, 0, 0, da + DW - 1, 9, 1, 0);
   lot.box(da, -1, 0, da + DW - 1, -1, 1, c.stoneStep);
   lot.box(da - 1, 0, -1, da - 1, 10, 0, frame);
@@ -368,6 +390,50 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       b.block(ax - 0.3, az - 0.3, ax + 0.3, az + 0.3);
       const [lx, lz] = front(w / 2, 0.8);
       b.lamp(lx, 2.3, lz, WARM, 5, 0.9);
+      break;
+    }
+    case 'hotel': {
+      if (ryokan) {
+        // a timber front with a lattice, an indigo noren and white lanterns either side of the door
+        lot.box(0, 0, 0, w - 1, 11, 0, (a, y, d) => {
+          const v = lot.get(a, y, d);
+          if (v === 0) return 0;
+          if (v === glassC) return (a % 2 === 0) ? c.woodDark : c.shoji;
+          return y === 0 || y >= 10 ? c.cedar : c.woodDark;
+        });
+        lot.box(0, 10, -1, w - 1, 10, -2, c.cedar);
+        lot.box(0, 11, -1, w - 1, 11, -2, c.roofTile);
+        lot.wallProp(noren(k, 10, k.c.indigo, k.c.norenWhite, 6, 3), da + DW / 2, 1.5, 0.02);
+        for (const la of [da - 1.2, da + DW + 1.2]) {
+          lot.wallProp(lantern(k, k.c.lanternWhite, 6, 8, o.seed + la), la, 1.3, 0.35);
+          const [lx, lz] = front(la, 0.5);
+          b.lamp(lx, 1.8, lz, WHITE, 4, 0.9);
+        }
+        lot.wallProp(boardSign(k, k.c.signCream, k.c.signBlack, 2, o.seed + 6, k.c.woodDark), w / 2, 2.85, 0.0);
+        lot.wallProp(plantPot(k, 'pine', o.seed + 2), 1.6, 0, 0.12);
+        lot.wallProp(plantPot(k, 'bamboo', o.seed + 3), w - 1.6, 0, 0.12);
+        break;
+      }
+      // a dark fascia with HOTEL in lit channel letters, a red carpet to the door, little trees either side
+      const hi = o.hotel!;
+      const band = hi.theme === 'boutique' || hi.theme === 'sky' ? ic.tvFrame : c.trimDark;
+      const glow = hi.theme === 'boutique' ? c.neonViolet : hi.theme === 'sky' ? c.neonYellow : c.signLit;
+      lot.box(0, 10, -1, w - 1, 13, -1, band);
+      const FONT = ['101111101101', '111101101111', '111010010010', '111110100111', '100100100111']; // H O T E L, 3 x 4 each
+      const la0 = Math.floor((w - 19) / 2);
+      FONT.forEach((g, i) => {
+        for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) if (g[row * 3 + col] === '1') lot.set(la0 + i * 4 + col, 13 - row, -2, glow);
+      });
+      const [gx, gz] = front(w / 2, 0.9);
+      b.lamp(gx, 3.0, gz, hi.theme === 'boutique' ? [0.7, 0.5, 1.0] : WHITE, 5, 0.7);
+      lot.box(da, -1, -3, da + DW - 1, -1, -1, ic.carpetRed);
+      for (const pa of [da - 1.8, da + DW + 1.8]) {
+        lot.wallProp(plantPot(k, 'pine', o.seed + pa), pa, 0, 0.12);
+        const [px, pz] = front(pa, 0.35);
+        b.block(px - 0.3, pz - 0.3, px + 0.3, pz + 0.3);
+      }
+      const [lx, lz] = front(da + DW / 2, 0.8);
+      b.lamp(lx, 2.3, lz, WARM, 4.5, 0.9);
       break;
     }
     case 'soba': {
@@ -636,6 +702,42 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       lampAt(midA + 0.5, D0 + 5, 2.7, COOL, 8, 1.0);
       break;
     }
+    case 'hotel': {
+      // the front desk across the back of the lobby, with the key cubbies on the wall behind it
+      const hi = o.hotel!;
+      const { ka, a1 } = backCounter(ryokan ? c.woodDark : ic.wainDark, ryokan ? c.hinoki : ic.marbleW);
+      lot.set(Math.min(a1, Math.floor(ka) + 2), 4, D1 - 3, ic.brass); // the bell
+      const wd = back ? pb : dep - 2;
+      lot.box(A0 + 4, 5, wd, a1, 7, wd, (a, y) => (y === 6 && a % 2 === 1 ? (hash3(a, y, o.seed) < 0.6 ? ic.brass : ic.wain) : ic.wainDark));
+      spot('buy', ka, D1 - 2.5, 1.2, ka, D1 - 4.5);
+      // the lift (stairs in a ryokan) on the right wall by the back of the lobby
+      const ld0 = D1 - 9, ld1 = D1 - 4, lm = (ld0 + ld1 + 1) / 2;
+      if (ryokan) {
+        for (let s = 0; s < 6; s++) lot.box(A1 - 2, 0, ld0 + s, A1, s * 2 + 1, ld0 + s, (_a, y) => (y === s * 2 + 1 ? c.hinoki : c.woodMid));
+        lot.box(A1 - 3, 0, ld0, A1 - 3, 2, ld0, c.woodDark); // newel post
+        room.lift = { stand: P(A1 - 0.5, ld0 - 1.6), pick: withY(P(A1 - 0.5, ld0 + 2), 1.4), facing: face(IN) };
+      } else {
+        lot.box(A1 + 1, 0, ld0, A1 + 1, 9, ld1, (_a, y, d) => (y === 9 ? (d === Math.floor(lm) || d === Math.floor(lm) - 1 ? ic.liftLit : c.steelDark)
+          : d === ld0 || d === ld1 || y === 8 ? c.steelDark : d === Math.floor(lm) - 1 ? ic.steel : ic.liftDoor));
+        lot.box(A1 + 1, 4, ld1 + 1, A1 + 1, 4, ld1 + 1, ic.liftLit); // call button
+        room.lift = { stand: P(A1 - 1.5, lm), pick: withY(P(A1 + 0.5, lm), 1.6), facing: face(PA) };
+      }
+      // a sofa and a low table by the window for guests waiting on friends
+      const sd0 = D0 + 2, sd1 = Math.min(D0 + 6, D1 - 10);
+      if (sd1 - sd0 >= 2) {
+        lot.box(A0, 0, sd0, A0 + 1, 1, sd1, ryokan ? ic.zabutonB : ic.velvet);
+        lot.box(A0, 2, sd0, A0, 3, sd1, ryokan ? c.woodDark : ic.velvetDark);
+        lot.box(A0 + 3, 0, sd0 + 1, A0 + 4, 1, sd1 - 1, (_a, y) => (y === 1 ? c.hinoki : ic.wainDark));
+        npc('guest', A0 + 1, (sd0 + sd1 + 1) / 2, PA, true);
+      }
+      lot.box(midA - 2, -1, D0 + 3, Math.min(A1 - 3, midA + 3), -1, D1 - 5, (a, _y, d) => (a === midA - 2 || d === D0 + 3 ? ic.duvetGold : ryokan ? ic.zabutonB : ic.carpetRed));
+      put(plantPot(k, 'bamboo', o.seed + 4), A1 - 0.6, D0 + 1.4, 0, OUT, 0.2);
+      put(pendant(k, ryokan ? k.c.lanternWhite : k.c.lanternAmber), (A0 + A1 + 1) / 2, D0 + 6, 2.15, OUT);
+      lampAt((A0 + A1 + 1) / 2, D0 + 5, 2.6, WARM, 8, 1.0);
+      lampAt(ka, D1 - 2, 2.4, WARM, 5, 0.8);
+      room.hotel = hi.id;
+      break;
+    }
     case 'soba': {
       // noodle-making station behind the left window: board, flour, the long knife
       lot.box(A0, 0, D0, leftA1, 2, D0 + 1, c.woodMid);
@@ -711,7 +813,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
     if (kind === 'izakaya' || kind === 'soba') {
       // tanzaku: the paper menu strips along the wall, a brushed dish name on each
       for (let a = A0 + 5; a <= bda - 2; a += 2) paint(a, 5, wd, a, 9, wd, (aa, y) => (y === 9 ? c.lacquer : (y === 7 || y === 6) && hash3(aa, y, o.seed) < 0.7 ? ic.ink : ic.paper));
-    } else if (A0 + 8 < bda - 1 && kind !== 'konbini' && kind !== 'pharmacy') {
+    } else if (A0 + 8 < bda - 1 && kind !== 'konbini' && kind !== 'pharmacy' && kind !== 'hotel') {
       const bg = [k.c.signRed, k.c.signBlue, k.c.signYellow, k.c.fabricGreen][Math.floor(wr() * 4)];
       paint(A0 + 5, 5, wd, A0 + 7, 8, wd, (a, y) => (y === 8 || a === A0 + 6 && y === 6 ? ic.paper : bg));
     }

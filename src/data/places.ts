@@ -1,6 +1,7 @@
 import type { IconName } from '../ui/emblems';
 import type { RoomKind } from '../world/interiors';
 import { randomLook, Look } from '../world/characters';
+import { HOTEL } from './hotels';
 
 /** Something small a shop sells over the counter. */
 export interface Buyable { icon: IconName; name: string; price: number; text: string; snack?: boolean; }
@@ -171,6 +172,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   kissa: { label: 'Kissaten', names: [['Kissa Komorebi', '喫茶 木漏れ日']], keepers: ['Master Kuroda'], keeperLook: {}, lines: [], buy: [] },
   soba: { label: 'Soba shop', names: [['Soba-dokoro Kikyō', 'そば処 桔梗']], keepers: ['Fujita-san'], keeperLook: {}, lines: [], buy: [] },
+  // each hotel has its own name, keeper and lines (data/hotels.ts)
+  hotel: { label: 'Hotel', names: [['Hotel', 'ホテル']], keepers: ['Receptionist'], keeperLook: {}, lines: [], buy: [] },
 };
 
 /** People sitting in cafés and bars have opinions, and the odd hint. */
@@ -207,12 +210,16 @@ export const CAPSULES: Capsule[] = [
 
 export const GACHA_PRICE = 200;
 
-export function roomName(kind: RoomKind, nth: number): [string, string] {
+export function roomName(kind: RoomKind, nth: number, hotel?: string): [string, string] {
+  const h = hotel ? HOTEL[hotel] : undefined;
+  if (h) return [h.name, h.jp];
   const n = PLACES[kind].names;
   return n[nth % n.length];
 }
 
-export function keeperOf(kind: RoomKind, nth: number, seed: number): { name: string; look: Look } {
+export function keeperOf(kind: RoomKind, nth: number, seed: number, hotel?: string): { name: string; look: Look } {
+  const h = hotel ? HOTEL[hotel] : undefined;
+  if (h) return { name: h.keeper, look: { ...randomLook(seed), backpack: undefined, ...h.keeperLook } as Look };
   const p = PLACES[kind];
   const look = { ...randomLook(seed), backpack: undefined, ...p.keeperLook } as Look;
   return { name: p.keepers[nth % p.keepers.length], look };

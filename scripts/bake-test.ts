@@ -59,6 +59,37 @@ if (a.secret) {
 }
 console.log('rooms with problems', bad);
 
+// ---- hotels: the lift in every lobby is reachable, and every room upstairs can be walked from its door
+{
+  const { HOTELS } = await import('../src/data/hotels');
+  let hbad = 0;
+  for (const h of HOTELS) {
+    const ha = a.hotels.find((x) => x.id === h.id);
+    const lobby = ha && a.rooms.find((r) => r.id === ha.lobby);
+    if (!ha || !lobby?.lift) { hbad++; console.log('HOTEL MISSING', h.id); continue; }
+    if (!reach(lobby.lift.stand[0], lobby.lift.stand[1])) { hbad++; console.log('HOTEL lift unreachable', h.id); }
+    if (ha.rooms.length !== h.rooms.length) { hbad++; console.log('HOTEL rooms', h.id, ha.rooms.length); }
+    for (const rm of ha.rooms) {
+      const hb = w.hotelRooms[rm.id];
+      if (!hb) { hbad++; console.log('ROOM NOT BAKED', rm.id); continue; }
+      const rn = new Nav(hb.nav);
+      let cells = 0; for (const v of hb.nav.height) if (v !== 255) cells++;
+      const [sx, sz] = rm.spawn;
+      const at = rn.heightAt(sx, sz);
+      const issues: string[] = [];
+      if (!rn.walkable(sx, sz) || Math.abs(at - rm.y) > 0.01) issues.push(`spawn h=${at}`);
+      for (const [k, st] of [['bed', rm.bed.stand], ['window', rm.window.stand], ['tea', rm.tea.stand]] as const) {
+        const p = rn.findPath(sx, sz, st[0], st[1]);
+        const e = p?.[p.length - 1];
+        if (!e || Math.hypot(e[0] - st[0], e[1] - st[1]) > 0.5) issues.push(k);
+      }
+      console.log('hotel room', rm.id, rm.type, `¥${rm.price}`, 'floor y', rm.y, 'cells', cells, issues.length ? `UNREACHABLE ${issues.join(' ')}` : 'ok');
+      if (issues.length) hbad++;
+    }
+  }
+  console.log('hotels', a.hotels.length, 'hotel problems', hbad);
+}
+
 // ---- seating: one sitter per seat, every sitter on a stool, no stool inside a table or another stool
 const town = buildTokyo();
 let seatBad = 0;
@@ -75,7 +106,7 @@ for (let i = 0; i < stools.length; i++) {
   for (let j = i + 1; j < stools.length; j++) if (Math.hypot(stools[i][0] - stools[j][0], stools[i][1] - stools[j][1]) < 0.55) { seatBad++; console.log('STOOLS', stools[i], stools[j]); }
   for (const tb of tables) if (Math.hypot(stools[i][0] - tb[0], stools[i][1] - tb[1]) < 0.4) { seatBad++; console.log('STOOL IN TABLE', stools[i], tb); }
 }
-for (const r of town.anchors.rooms) for (const n of r.npcs) if (n.sit && !['kissa', 'soba'].includes(r.kind)) {
+for (const r of town.anchors.rooms) for (const n of r.npcs) if (n.sit && !['kissa', 'soba', 'hotel'].includes(r.kind)) {
   const d = Math.min(...stools.map((s) => Math.hypot(s[0] - n.pos[0], s[1] - n.pos[2])));
   if (d > 0.15) { seatBad++; console.log('NO STOOL', r.id, d.toFixed(2)); }
 }

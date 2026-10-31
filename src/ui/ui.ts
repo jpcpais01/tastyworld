@@ -5,6 +5,7 @@ import type { StallInfo } from '../data/stalls';
 import { DISHES, DISH } from '../data/dishes';
 import { STALL } from '../data/stalls';
 import { MISSIONS, ITEMS, Mission, trackedMission } from '../data/missions';
+import { ROOM_TYPE, roomNo, type HotelInfo, type HotelRoomSpec } from '../data/hotels';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
@@ -20,6 +21,7 @@ const h = (tag: string, cls = '', html = ''): HTMLElement => {
 };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const yen = (n: number) => `¥${n.toLocaleString('en-US')}`;
+const clock = (hr: number) => { const m = Math.floor((((hr % 24) + 24) % 24) * 60); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 const stars = (n: number, of = 3) => G.star.repeat(n) + (of > n ? `<span class="off">${G.star.repeat(of - n)}</span>` : '');
 const touch = () => matchMedia('(pointer: coarse)').matches;
 const firstSentence = (t: string) => (t.match(/^.*?[.!?](\s|$)/)?.[0] ?? t).trim();
@@ -42,10 +44,10 @@ function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: n
 
 const MISSION_ICONS: Record<string, IconName> = {
   'first-bite': 'chopsticks', trio: 'dango', sweet: 'honey', apprentice: 'chef', alley: 'lantern', night: 'moon', cats: 'cat', secret: 'door', stars: 'star', master: 'trophy',
-  browse: 'bag', tables: 'bowl', gacha: 'capsule', 'gacha-all': 'crown', shelf: 'book', daruma: 'daruma',
+  browse: 'bag', tables: 'bowl', gacha: 'capsule', 'gacha-all': 'crown', shelf: 'book', daruma: 'daruma', hotel: 'bed', hotels: 'suitcase', ryokan: 'yukata',
 };
 /** Items that can be worn by the traveller. */
-export const WEARABLE = ['headband', 'happi', 'charm', 'chefhat'];
+export const WEARABLE = ['headband', 'happi', 'charm', 'chefhat', 'yukata'];
 
 /** What the UI asks of the game. */
 export interface GameHooks {
@@ -207,7 +209,7 @@ export class UI {
     tap('h-rl', () => this.onRotate?.(-1));
     tap('h-rr', () => this.onRotate?.(1));
     tap('h-view', () => this.onView?.());
-    tap('h-track', () => this.passport('missions'));
+    tap('h-track', () => (this.goalInfo ? this.map() : this.passport('missions')));
     tap('h-kb', () => this.showKeys(!$('h-keys').classList.contains('open')));
     for (const el of this.hud.querySelectorAll('button')) el.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.refresh();
@@ -236,6 +238,14 @@ export class UI {
 
   /** The pocket city map (the world map is a button on it). */
   map(): void { this.onMap?.(); }
+
+  /** A goal that comes before the missions in the HUD tracker (finding a bed for the night), or null. */
+  private goalInfo: { icon: string; title: string; sub: string } | null = null;
+  goal(g: { icon: string; title: string; sub: string } | null): void {
+    if (g?.title === this.goalInfo?.title && g?.sub === this.goalInfo?.sub) return;
+    this.goalInfo = g;
+    this.refresh();
+  }
 
   private compassKey = '';
   private northA = 0;
@@ -310,8 +320,15 @@ export class UI {
     // one mission at a time: a reward to claim first, otherwise the one closest to done
     const { next, ready } = trackedMission(this.s);
     this.ppDot.classList.toggle('hidden', !ready.length);
-    this.trackerEl.classList.toggle('ready', !!ready.length);
-    this.trackerEl.classList.toggle('hidden', !next);
+    const goal = this.goalInfo;
+    this.trackerEl.classList.toggle('goal', !!goal);
+    this.trackerEl.classList.toggle('ready', !goal && !!ready.length);
+    this.trackerEl.classList.toggle('hidden', !next && !goal);
+    if (goal) {
+      this.trackerEl.title = 'Open the city map (M)';
+      this.trackerEl.innerHTML = `<span class="ring">${icon(goal.icon)}</span><span class="qt">${esc(goal.title)}<small>${esc(goal.sub)}</small></span>`;
+      return;
+    }
     if (!next) return;
     const [a, b] = next.progress(this.s);
     const extra = ready.length > 1 ? `<span class="more">+${ready.length - 1}</span>` : '';
@@ -505,6 +522,63 @@ export class UI {
     }
     body.appendChild(menu);
     p.appendChild(body);
+  }
+
+  /**
+   * A hotel's front desk: its rooms with their prices. `booked` is the room id of tonight's booking here (if
+   * any), `elsewhere` the name of another hotel holding one.
+   */
+  hotel(ho: HotelInfo, line: string, rooms: (HotelRoomSpec & { id: string })[], booked: string | null, elsewhere: string | null, book: (id: string) => boolean): void {
+    const p = this.panel();
+    p.appendChild(noren(ho.jp));
+    this.head(p, esc(ho.name), '', `${esc(ho.street)} · Front desk · ${esc(ho.keeper)}`);
+    const body = h('div', 'panel-body');
+    body.innerHTML = `<div class="vendor-line"><span class="ava">${esc(ho.keeper.replace(/^(Mrs?\.|Ms\.|Okami|Clerk|Concierge) /, '').charAt(0))}</span><div class="say"><b>${esc(ho.keeper)}</b>“${esc(line)}”</div></div>`;
+    const menu = h('div', 'menu');
+    for (const rm of rooms) {
+      const t = ROOM_TYPE[rm.type];
+      const mine = rm.id === booked;
+      const card = h('div', 'dish-card room' + (rm.type === 'king' ? ' king' : ''), `
+        <div class="dimg"><span class="emo">${icon(t.icon)}</span><span class="badge${mine ? '' : ' floor'}">${mine ? `${G.check}Your room` : `${rm.floor + 1}F`}</span></div>
+        <div>
+          <h3>${esc(t.name)} · ${roomNo(rm.floor)}<span class="jp">${t.jp}</span></h3>
+          <p>${esc(t.text)}</p>
+          <div class="row">${mine ? `<button class="btn btn-soft" disabled>${G.check}Key in hand · take the ${ho.theme === 'ryokan' ? 'stairs' : 'lift'}</button>` : `<button class="btn btn-red">Book tonight · ${yen(rm.price)}</button>`}</div>
+        </div>`);
+      const btn = card.querySelector<HTMLButtonElement>('.btn-red');
+      if (btn) btn.onclick = () => {
+        if (!book(rm.id)) { this.audio.play('fail'); this.toast('purse', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
+        this.close();
+      };
+      menu.appendChild(card);
+    }
+    body.appendChild(menu);
+    body.appendChild(h('p', 'fine', elsewhere ? `You already have a room at ${esc(elsewhere)} tonight. Booking here gives that one up.` : 'One night, paid at the desk. Sleep until morning, check out whenever you like.'));
+    p.appendChild(body);
+  }
+
+  /**
+   * Lights out: the screen goes to night, the clock runs from one hour to the next, and morning comes. `mid`
+   * runs under the cover (the clock jumps there).
+   */
+  sleep(from: number, to: number, title: string, sub: string, mid: () => void): Promise<void> {
+    const el = h('div', 'sleep', `<div class="zz"><span>z</span><span>z</span><span>z</span></div><div class="sclock">${clock(from)}</div><b>${esc(title)}</b><small>${esc(sub)}</small>`);
+    document.body.appendChild(el);
+    const ck = el.querySelector('.sclock')!;
+    return new Promise((done) => {
+      requestAnimationFrame(() => el.classList.add('on'));
+      setTimeout(() => {
+        mid();
+        const span = ((to - from) % 24 + 24) % 24, t0 = performance.now();
+        const run = (now: number) => {
+          const k = Math.min(1, (now - t0) / 1700);
+          ck.textContent = clock(from + span * k * k * (3 - 2 * k));
+          if (k < 1) requestAnimationFrame(run);
+          else setTimeout(() => { el.classList.add('morning'); setTimeout(() => { el.classList.remove('on'); setTimeout(() => { el.remove(); done(); }, 700); }, 900); }, 300);
+        };
+        requestAnimationFrame(run);
+      }, 900);
+    });
   }
 
   private cook(st: StallInfo): void {

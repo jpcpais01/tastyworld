@@ -34,6 +34,7 @@ self.onmessage = (e: MessageEvent<WorkerIn>) => {
     });
     const tr: Transferable[] = [init.height.buffer, init.solid.buffer, init.nav.buffer, init.shore.buffer, init.lightmap.buffer, init.sway.buffer];
     init.tagged.forEach((t) => meshBuffers(t.mesh, tr));
+    for (const h of init.hotelRooms) tr.push(h.nav.height.buffer, h.lightmap.data.buffer);
     if (init.interior) {
       init.interior.chunks.forEach((m) => meshBuffers(m, tr));
       tr.push(init.interior.nav.height.buffer, init.interior.lightmap.data.buffer, init.interior.height.buffer, init.interior.solid.buffer);

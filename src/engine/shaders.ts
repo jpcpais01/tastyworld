@@ -278,6 +278,7 @@ uniform vec3 uCamFwd;
 uniform float uCutOn;      // 0 or 1: off in first person and on the title screen
 uniform sampler2D tHeight; // per-column top of the solid run that starts at street level (0.25 m units)
 uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres), shared by tHeight and tOwner
+uniform highp usampler2D tSolid; // per column: which of the 64 voxel layers from the street up are solid (two words)
 uniform sampler2D tOwner;  // per column: occluder id, owner above a split height, shell flag and split (see game/cutaway.ts)
 uniform sampler2D tCut;    // per id: shell height near side, shell height far side, inside height, far-side start
 uniform mat4 uViewProj;
@@ -285,6 +286,17 @@ float solidTop(vec2 xz) {
   vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return -100.0;
   return texture(tHeight, uv).r * 255.0 * 0.25;
+}
+// whether the voxel just above height h is solid in the column under xz: a section cap is drawn where the cut
+// plane runs through wall, also above a hollow room (a hotel floor over its lobby)
+bool solidJustAbove(vec2 xz, float h) {
+  vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return false;
+  int l = int(floor(h * 4.0 + 0.08));
+  if (l < 0) return false;
+  if (l >= 64) return solidTop(xz) > h + 0.02;
+  uvec2 w = texelFetch(tSolid, ivec2(uv * vec2(textureSize(tSolid, 0))), 0).rg;
+  return (((l < 32 ? w.x : w.y) >> uint(l & 31)) & 1u) == 1u;
 }
 // cut height at p (the column under p.xz, or the building hanging over it above the split), and the owner id
 // (0 = nothing to cut)
@@ -415,7 +427,7 @@ void main() {
       vec3 P = vWorld + uCamFwd * ((vWorld.y - h) / max(0.05, -uCamFwd.y));
       float idP;
       float hP = cutAt(P, fwdH, idP);
-      if (idP == id && abs(hP - h) < 0.001 && solidTop(P.xz) > h + 0.02) { capped = true; capP = P; capH = h; }
+      if (idP == id && abs(hP - h) < 0.001 && solidJustAbove(P.xz, h)) { capped = true; capP = P; capH = h; }
       else discard;
     }
   }
@@ -500,10 +512,10 @@ void main() {
   if (capped) {
     // section cap: warm cut stone with a darker rim where the wall ends
     float e = 0.0, o = 0.06, th = capH + 0.02;
-    e += step(solidTop(capP.xz + vec2(o, 0.0)), th);
-    e += step(solidTop(capP.xz - vec2(o, 0.0)), th);
-    e += step(solidTop(capP.xz + vec2(0.0, o)), th);
-    e += step(solidTop(capP.xz - vec2(0.0, o)), th);
+    e += solidJustAbove(capP.xz + vec2(o, 0.0), capH) ? 0.0 : 1.0;
+    e += solidJustAbove(capP.xz - vec2(o, 0.0), capH) ? 0.0 : 1.0;
+    e += solidJustAbove(capP.xz + vec2(0.0, o), capH) ? 0.0 : 1.0;
+    e += solidJustAbove(capP.xz - vec2(0.0, o), capH) ? 0.0 : 1.0;
     vec3 lightC = uSkyColor * 0.7 + uSunColor * 0.3 + uLamp * vec3(0.35, 0.24, 0.12);
     // colour depends on the cap point only: several fragments along one ray write the same cap, so they must agree
     float grain = fract(sin(dot(floor(capP.xz * 4.0), vec2(12.9898, 78.233))) * 43758.5453);

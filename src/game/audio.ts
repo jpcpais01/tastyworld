@@ -10,7 +10,7 @@
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh'
-  | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum';
+  | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding';
 
 export interface AudioRoom { rect: [number, number, number, number]; kind: string }
 
@@ -101,7 +101,7 @@ const BGM: Song = (() => {
 /** A semitone or whole tone below, staying in the scale: the koto's little lead-in. */
 const graceOf = (m: number) => m - ([0, 5].includes(m % 12) ? 1 : 2);
 
-const TILE_ROOMS = ['konbini', 'pharmacy', 'bakery', 'fish'];
+const TILE_ROOMS = ['konbini', 'pharmacy', 'bakery', 'fish', 'hotel'];
 const inRect = (r: readonly number[], x: number, z: number) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
 
 export class Audio {
@@ -292,6 +292,7 @@ export class Audio {
         note('bell', 96, t + 0.52, 0.12);
         break;
       case 'meow': fire('meow', t, 0.32, rand(0.92, 1.12)); break;
+      case 'ding': note('bell', 88, t, 0.2); note('bell', 84, t + 0.3, 0.18); break; // the lift arrives
       case 'whoosh': fire('whoosh', t, 0.42, rand(0.95, 1.05)); break;
       // eating
       case 'bite': fire('bite', t, 0.5, rand(0.9, 1.12)); fire('chew', t + 0.22, 0.2, rand(0.9, 1.1)); fire('chew', t + 0.5, 0.16, rand(0.85, 1.05)); break;

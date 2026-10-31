@@ -190,6 +190,11 @@ button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
 .quest.ready { background: linear-gradient(90deg, rgba(233, 87, 63, 0.92), rgba(214, 74, 52, 0.88)); box-shadow: inset 0 0 0 1px rgba(255, 220, 190, 0.3), 0 6px 18px rgba(185, 61, 39, 0.35); }
 .quest.ready .ring { background: #fff4e4; display: grid; place-items: center; color: var(--tomato-deep); }
 .quest.ready .ring::after { display: none; }
+.quest.goal { background: linear-gradient(90deg, rgba(123, 63, 134, 0.92), rgba(98, 50, 112, 0.88)); box-shadow: inset 0 0 0 1px rgba(240, 210, 255, 0.28), 0 6px 18px rgba(80, 36, 96, 0.35); }
+.quest.goal .ring { background: #fbf2ff; display: grid; place-items: center; font-size: 14px; line-height: 1; }
+.quest.goal .ring::after { display: none; }
+.quest.goal .ring .g { width: 15px; height: 15px; color: #7b3f86; }
+.quest.goal .qt small { color: rgba(255, 236, 255, 0.72); }
 .quest.ready .ring .g { width: 14px; height: 14px; }
 .quest.ready .qt small, .quest.ready .more { color: rgba(255, 244, 228, 0.85); }
 .quest.ready .more { background: rgba(255, 255, 255, 0.16); }
@@ -893,6 +898,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .cm-chip .dotc { display: block; flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--tomato); box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--line-2); }
 .cm-chip .dotc.mq { background: var(--sun); }
 .cm-chip .dotc.pal { background: var(--matcha); }
+.cm-chip .dotc.ht { background: #7b3f86; }
 .cm-chip:not(.on) .dotc { background: var(--ink-3); }
 @media (max-width: 980px) and (min-width: 561px) { .cm-sheet.carded .cm-legend { opacity: 0; pointer-events: none; } }
 .cm-legend { transition: opacity 0.2s; }
@@ -905,6 +911,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .cm-ic .g { width: 26px; height: 26px; }
 .cm-ic.q { font-family: var(--display); font-weight: 600; font-size: 26px; color: var(--ink-2); background: transparent; box-shadow: inset 0 0 0 2px var(--line-2); border: 2px dashed var(--ink-3); }
 .cm-ic.flag { background: var(--sun-soft); color: var(--sun-deep); }
+.cm-ic.hotel { background: #f1e4f2; color: #7b3f86; }
 .cm-tx { flex: 1; min-width: 0; padding-right: 22px; }
 .cm-tx b { display: block; font-family: var(--display); font-weight: 600; font-size: 17px; line-height: 1.15; }
 .cm-tx b .jp { font-size: 12px; font-weight: 400; color: var(--ink-3); letter-spacing: 1px; margin-left: 7px; }
@@ -993,3 +1000,23 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .dc-flag .flag { width: 42px; height: 28px; border-radius: 5px; }
 @media (max-width: 899px) { .dc-flag .flag { width: 36px; height: 24px; } }
 .bp-city span .flag { display: inline-block; vertical-align: -2px; width: 18px; height: 12px; margin-left: 2px; }
+
+/* hotel rooms at the front desk */
+.dish-card.room .dimg .badge.floor { background: #7b3f86; color: #fff; }
+.dish-card.room.king { box-shadow: inset 0 0 0 2px var(--sun); }
+.panel-body .fine { margin: 12px 4px 2px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); text-align: center; }
+
+/* lights out in a hotel room */
+.sleep { position: fixed; inset: 0; z-index: 58; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: #f3e9ff;
+  background: radial-gradient(ellipse at 50% 40%, #2a2f5c 0%, #141633 60%, #0b0c1f 100%); opacity: 0; pointer-events: none; transition: opacity 0.8s ease, background 0.8s ease; }
+.sleep.on { opacity: 1; pointer-events: auto; }
+.sleep.morning { background: radial-gradient(ellipse at 50% 40%, #ffe2b8 0%, #f6b98a 55%, #d98a6a 100%); color: #3b2618; }
+.sleep .zz { font-family: var(--display); font-weight: 600; font-size: 34px; height: 48px; display: flex; gap: 6px; }
+.sleep .zz span { animation: zz 1.8s ease-in-out infinite; opacity: 0; }
+.sleep .zz span:nth-child(2) { animation-delay: 0.3s; font-size: 0.8em; }
+.sleep .zz span:nth-child(3) { animation-delay: 0.6s; font-size: 0.6em; }
+@keyframes zz { 0% { opacity: 0; transform: translateY(8px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-14px); } }
+.sleep.morning .zz { visibility: hidden; }
+.sleep .sclock { font-family: var(--display); font-weight: 600; font-size: 56px; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+.sleep b { font-family: var(--display); font-weight: 600; font-size: 20px; }
+.sleep small { font-weight: 700; font-size: 13px; opacity: 0.75; max-width: 320px; text-align: center; }

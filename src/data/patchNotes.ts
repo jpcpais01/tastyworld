@@ -8,6 +8,21 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.11.0',
+    date: '2026-10-31',
+    title: 'Hotels: a bed for the night',
+    items: [
+      'Seven buildings around town are now real hotels, each with its own lobby, keeper and style: Hotel Kaminari-ya, Ryokan Hinode, Business Hotel Hikari, Hotel Neon Moon, Guesthouse Sakura, Minami Park Hotel and Hotel Sky Center-gai.',
+      'When you arrive, find a hotel before dark. The HUD reminds you, the sun starts setting around 18:00, and every hotel sparkles on the city map with its own pin (tap it and "Guide me" walks you to the door).',
+      'Check in at the front desk to book a room. Hotels have one to three rooms from ¥1,200 to ¥5,200, and every hotel with two or more has a king room on its top guest floor. The ryokan has a tatami room with futons.',
+      'Take the lift (or the ryokan\'s stairs) up to your room and walk around it: beds, nightstand lamps, a desk with a kettle and TV, an armchair by the window, a bathroom in the bigger rooms, and wallpaper, carpet and colours that match each hotel.',
+      'The windows are open onto the real city. Stand at one to look out in first person over the street below, from up to five floors up.',
+      'Make a cup of tea, take a nap in the day, or sleep after 17:00 to wake up at 07:00 the next morning. Leaving your room in the morning checks you out.',
+      'New missions: A Bed for the Night, Hotel Hopper (sleep in three hotels) and Futon and Tatami, which rewards a yukata you can wear.',
+      'When you are upstairs, the cutaway opens your own floor of the building, and walls cut on any floor now show their section caps.',
+    ],
+  },
+  {
     version: '0.10.25',
     date: '2026-10-31',
     title: 'Shops stay up while you order',

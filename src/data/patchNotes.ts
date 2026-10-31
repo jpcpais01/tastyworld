@@ -8,12 +8,32 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.15.14',
+    version: '0.15.16',
     date: '2026-10-31',
     title: 'Phones out',
     items: [
       'People looking at their phones now actually hold one: a little phone with a glowing screen appears in their hands, standing, walking or sitting on a bench, and slips away again when they put it back.',
       'They hold it a bit lower, between the hands in front of the chest, so their heads no longer hide it.',
+    ],
+  },
+  {
+    version: '0.15.15',
+    date: '2026-10-31',
+    title: 'Feet on the ground',
+    items: [
+      'Lamp posts, flower pots and lemon pots in Amalfi now stand on the ground that is really under them, instead of hanging in the air beside flights of steps and terrace edges.',
+      'The lamps up the cathedral steps stand on the steps themselves, between the people sitting along the edges.',
+      'Wall lanterns are fixed to the house walls, shop awnings sit flush against their fronts, and the lamps and benches along the seafront stand on the promenade.',
+    ],
+  },
+  {
+    version: '0.15.14',
+    date: '2026-10-31',
+    title: 'By the sea',
+    items: [
+      'Amalfi has new music, slow and easy like Tokyo\'s but from the coast: a fingerpicked nylon guitar sings the verse, a soft flute takes the chorus, a mandolin drops in a few plucked notes in the break, over upright bass and brushes. The busy mandolin tremolo is gone.',
+      'You can hear the sea all over town now: small waves breaking on Marina Grande and draining back over the pebbles, faint up in the lanes and fuller down by the shore.',
+      'The gulls are fewer and further off, out over the bay.',
     ],
   },
   {

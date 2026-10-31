@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.52',
+    date: '2026-10-31',
+    title: 'A tidier settings menu',
+    items: [
+      'Settings now sit on four tabs (Graphics, Sky, Sound and Game), so every page fits on screen with no scrollbar, on phones too.',
+      'Each setting has its own icon and a short line saying what it does, and sliders show their value in a badge as you drag.',
+      'The menu keeps the same size as you switch tabs and opens on the tab you used last.',
+    ],
+  },
+  {
     version: '0.16.51',
     date: '2026-10-31',
     title: 'Very far view',

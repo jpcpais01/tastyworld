@@ -50,6 +50,7 @@ export const G = {
   image: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.5" r="1.8"/><path d="m4 17.5 5-5 4 4 2.5-2.5 4.5 4.5"/>'),
   grid: svg('<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/>'),
   person: svg('<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/>'),
+  gauge: svg('<path d="M4.5 17a8 8 0 1 1 15 0"/><path d="m12 13 3.5-4.5"/><circle cx="12" cy="13.5" r="1.3"/>'),
   focus: svg('<path d="M3.5 5.5h17M3.5 18.5h17" stroke-dasharray="1.5 3.5"/><path d="M3.5 12h17"/><circle cx="12" cy="12" r="2.4"/>'),
   caption: svg('<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 15.5h17M7 17.8h5"/><path d="m6.5 12 3.5-3.5 3 3 2-2 2.5 2.5"/>'),
   download: svg('<path d="M12 3.5V15M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19.5h14"/>'),

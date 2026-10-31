@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.4',
+    date: '2026-10-31',
+    title: 'Cliffs and open sea',
+    items: [
+      'The sea off Amalfi no longer looks ruled into stripes when you zoom out: the swell bends, comes in sets, and calms to a soft shimmer from up high.',
+      'The headland towards Atrani is a proper sea cliff now: bedded limestone with dark water streaks, ribs and knobs of rock, and tufts of caper and broom on its ledges.',
+    ],
+  },
+  {
     version: '0.15.3',
     date: '2026-10-31',
     title: 'Via Lorenzo\'s shops',

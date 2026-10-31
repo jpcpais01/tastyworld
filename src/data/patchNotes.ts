@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.9',
+    date: '2026-10-31',
+    title: 'A day at the beach',
+    items: [
+      'Marina Grande fills with bathers from mid-morning to early evening: people stretched out in the sun on the lido beds and on towels on the free beach, some sitting up under their umbrellas to watch the sea, in bright trunks and costumes, straw hats and sunglasses.',
+      'Swimmers bob in the water off the lidos.',
+    ],
+  },
+  {
     version: '0.15.8',
     date: '2026-10-31',
     title: 'Gozzi in the bay',

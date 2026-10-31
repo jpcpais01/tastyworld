@@ -1,7 +1,7 @@
 {
   "name": "tastyworld",
   "private": true,
-  "version": "0.16.49",
+  "version": "0.16.50",
   "type": "module",
   "scripts": {
     "dev": "vite",

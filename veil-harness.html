@@ -1,0 +1,8 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%}#app{position:fixed;inset:0;background:linear-gradient(#89b,#bdb)}</style></head>
+<body><div id="app"></div><script type="module">
+import { arrivalVeil } from '/src/ui/arrival.ts';
+const q = new URLSearchParams(location.search);
+const v = arrivalVeil(document.getElementById('app'), q.get('c'), false);
+window.go = () => v.cover();
+window.state = () => { const e = document.querySelector('.veil'); const p = e.children[0]; return { cls: e.className, op: getComputedStyle(e).opacity, piece: getComputedStyle(p).opacity, n: e.children.length }; };
+</script></body></html>

@@ -250,14 +250,53 @@ const istanbul: Theme = (v) => {
 /** Every city chooses its own arrival; destinations without a city yet get the clouds. */
 const THEMES: Record<CityId, Theme> = { tokyo, amalfi, istanbul };
 
-/** The veil for landing in `dest` (a destination id), at night or by day. */
+const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+/**
+ * The veil for landing in `dest` (a destination id), at night or by day. Make it at take-off: it is built, its art
+ * decoded and painted once while the plane is in the air, so the first time it rolls in is as smooth as the tenth.
+ */
 export function arrivalVeil(parent: HTMLElement, dest: string, night: boolean): Veil {
-  const theme = (THEMES as Record<string, Theme | undefined>)[dest];
-  const v = el(`veil ${theme ? `arr-${dest}` : 'arr-clouds'}${night ? ' night' : ''}`);
-  const { coverMs, partMs } = (theme ?? clouds)(v, night);
+  const theme = (THEMES as Record<string, Theme | undefined>)[dest] ?? clouds;
+  const v = el(`veil ${theme !== clouds ? `arr-${dest}` : 'arr-clouds'}${night ? ' night' : ''}`);
+  let size = '', times = { coverMs: 0, partMs: 0 };
+  const build = () => {
+    v.replaceChildren();
+    v.removeAttribute('style');
+    size = `${innerWidth}x${innerHeight}`;
+    times = theme(v, night);
+    // parse every SVG once up front (data URLs are cached by the image loader, so the backgrounds reuse them)
+    const urls = new Set<string>();
+    for (const e of [v, ...v.querySelectorAll<HTMLElement>('[style]')]) {
+      for (const m of e.style.cssText.matchAll(/url\("(data:image\/svg\+xml,[^"]+)"\)/g)) urls.add(m[1]);
+    }
+    return Promise.all([...urls].map((u) => { const i = new Image(); i.src = u; return i.decode().catch(() => {}); }));
+  };
+  /** Lay everything out in its covering pose, nearly transparent, for two frames, then put it back unseen. */
+  let warming: Promise<void> | null = null;
+  const warm = () => warming ??= (async () => {
+    v.classList.add('warm', 'on');
+    void v.offsetWidth;
+    await frame(); await frame();
+    v.classList.remove('on');
+    void v.offsetWidth;
+    v.classList.remove('warm');
+    warming = null;
+  })();
   parent.appendChild(v);
+  void build().then(warm);
+  // a trip that never lands (closed mid-flight) should not leave it behind
+  const stale = setTimeout(() => v.remove(), 180000);
   return {
-    cover: async () => { void v.offsetWidth; v.classList.add('on'); await sleep(coverMs); },
-    part: () => { v.classList.add('out'); setTimeout(() => v.remove(), partMs); },
+    cover: async () => {
+      clearTimeout(stale);
+      if (!v.isConnected) parent.appendChild(v);
+      if (size !== `${innerWidth}x${innerHeight}`) { await warming; await build(); }
+      await warming;
+      await warm();
+      v.classList.add('on');
+      await sleep(times.coverMs);
+    },
+    part: () => { v.classList.add('out'); setTimeout(() => v.remove(), times.partMs); },
   };
 }

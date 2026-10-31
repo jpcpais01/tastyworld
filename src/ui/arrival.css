@@ -6,6 +6,13 @@
 .veil.on { pointer-events: auto; }
 .veil.on::before { opacity: 1; }
 .veil.out::before { opacity: 0; transition: opacity 0.6s ease 0.15s; }
+/* the warm-up at take-off: the covering pose, painted once at 1% so the art is decoded and the layers rastered */
+.veil.warm { opacity: 0.01; }
+.veil.warm, .veil.warm.on { pointer-events: none; }
+.veil.warm::before, .veil.warm *, .veil.warm *::before, .veil.warm *::after { transition: none !important; }
+.veil.warm .gl, .veil.warm .ms { opacity: 1 !important; }
+/* every moving piece keeps its own layer from the warm-up on, so nothing is rastered for the first time mid-move */
+.fl, .ms, .puff, .nr, .nr-rod, .lt, .bh, .tl, .gl { will-change: transform, opacity; }
 
 /* wind-blown bits (petals, leaves, bracts) */
 .fl { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: calc(var(--s) * 0.6); margin: calc(var(--s) * -0.3) 0 0 calc(var(--s) * -0.5);

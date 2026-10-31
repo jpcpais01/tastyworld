@@ -8,12 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.29',
+    version: '0.16.30',
     date: '2026-10-31',
     title: 'A living sea',
     items: [
       'The water has been rebuilt. The long swell now comes from many directions at once, its crests bend and come in patches, and the short chop and ripples move like real wind on water. Zoomed out, the sea, the Bosphorus and the canal no longer show striped or checkered patterns.',
       'The open sea shifts between broad patches of deeper and lighter blue.',
+    ],
+  },
+  {
+    version: '0.16.29',
+    date: '2026-10-31',
+    title: 'Clear view',
+    items: [
+      'Looking out of your hotel room window, the flower boxes, pots, signs, lanterns and balcony rails just outside no longer stand in the way: from inside you see the street and the view, in Tokyo, Amalfi and Istanbul. From the street they are all still there.',
     ],
   },
   {

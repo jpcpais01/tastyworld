@@ -272,6 +272,7 @@ uniform vec3 uGroundColor;
 uniform vec3 uFogColor;
 uniform vec3 uWindowColor;
 uniform vec3 uClearGlass[2]; // min, max corner (metres) of glass drawn clear: see game/roomglass.ts
+uniform vec3 uClearOut[2];   // min, max corner (metres) of anything not drawn at all: see game/roomglass.ts
 uniform float uLamp;
 uniform float uNight;
 uniform float uEmitDay;
@@ -511,6 +512,10 @@ void main() {
     vec3 gp = vWorld - vNormal * 0.05;
     if (all(greaterThan(gp, uClearGlass[0])) && all(lessThan(gp, uClearGlass[1]))) discard;
   }
+#ifndef CHARACTER
+  // and whatever hangs just outside that room's windows (flower boxes, signs, rails) while you look out
+  if (all(greaterThan(vWorld, uClearOut[0])) && all(lessThan(vWorld, uClearOut[1]))) discard;
+#endif
   vec3 albedo = srgb2lin(vColor.rgb) * (1.0 + (rnd - 0.5) * 2.0 * vVary);
 
 #ifdef CHARACTER

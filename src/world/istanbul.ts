@@ -6,7 +6,7 @@ import { Prop, rotateProp, bench, bush, grassTuft } from './props';
 import { buildFood, type FoodId } from './food';
 import { SWAY } from './sway';
 import type { RoomAnchor, RoomKind } from './interiors';
-import type { HotelAnchor, HotelRoomAnchor } from './hotels';
+import { paneOf, type HotelAnchor, type HotelRoomAnchor } from './hotels';
 import { ISTANBUL_HOTELS } from '../data/hotels';
 import {
   istanbulPlan, K, col, layerOf, inMap, hillY, isPath, shoreDist, type LotPlan, type Plan, type PathSeg,
@@ -1508,6 +1508,8 @@ function guestRoom(ctx: Ctx, f: Frame, lt: LotPlan, hotelId: string, spec: { flo
     bed: { stand: bedStand, pick: [bedPick[0], Y + 0.7, bedPick[1]], facing: ang(bedStand, bedPick) },
     window: { stand: winStand, pick: [winStand[0], Y + 1.5, winStand[1]], facing: ang(winStand, winLook) },
     tea: { stand: teaStand, pick: [teaPick[0], Y + 1.1, teaPick[1]], facing: ang(teaStand, teaPick) },
+    // the glass of the street windows (opened through above), clear from inside
+    panes: [paneOf((a, d) => f.m(a, d), 3, A1 - 2, 0, (L + 2 - G) * V, (L + 9 - G) * V, 0.5)],
   };
 }
 

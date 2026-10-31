@@ -48,6 +48,7 @@ import { album, ALBUM_MAX } from './game/album';
 import { Travel } from './ui/travel';
 import { CityMap, type Pin } from './ui/citymap';
 import { Beacon } from './game/guide';
+import { RoomGlass } from './game/roomglass';
 import type { Destination } from './data/destinations';
 import type { Coop, Peer } from './net/coop';
 
@@ -171,6 +172,8 @@ class Game {
   /** Lights out in a hotel bed (input waits), and whether the window view switched to first person. */
   private sleeping = false;
   private windowView = false;
+  /** The window glass of the hotel room the player is in, clear from inside. */
+  private roomGlass!: RoomGlass;
   private dusk = false;
   private doorOpen = new THREE.Group();
 
@@ -242,6 +245,7 @@ class Game {
     this.r.onPass = (name) => this.perf.pass(name);
     this.chars.onView = (drawing) => this.perf.pass(drawing ? 'characters' : 'world');
     this.r.scene.add(this.worldGroup, this.insideGroup);
+    this.roomGlass = new RoomGlass(this.r.scene, this.r.shared);
     this.insideGroup.visible = false;
     const hooks: GameHooks = {
       buy: (d, st) => this.buy(d, st),
@@ -844,6 +848,7 @@ class Game {
     fade.classList.add('on');
     await sleep(650);
     this.upstairs = { room: rm, hotel: ha, nav, lm: hb.lightmap };
+    this.roomGlass.set(rm.panes);
     this.nav = nav;
     this.path = [];
     this.pending = null;
@@ -875,6 +880,7 @@ class Game {
     fade.classList.add('on');
     await sleep(650);
     this.upstairs = null;
+    this.roomGlass.set(null);
     this.nav = this.navWorld;
     this.path = [];
     this.pending = null;
@@ -2274,6 +2280,7 @@ class Game {
     const sh = this.r.shared;
     sh.uCutOn.value = on ? 1 : 0;
     sh.uCamFwd.value.copy(this.cam.fwd);
+    this.roomGlass.show(this.cam.fp);
     this.cutaway.update(dt, this.player.position, this.cam.fwd, this.inside, on, this.upstairs?.room.y ?? 0);
     if (this.inside) return;
     const act = this.cutaway.active;

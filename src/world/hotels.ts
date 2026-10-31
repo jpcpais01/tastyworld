@@ -38,7 +38,7 @@ export interface HotelRoomAnchor {
   panes?: Pane[];
 }
 
-export interface Pane { x0: number; z0: number; x1: number; z1: number; y0: number; y1: number; nx: number; nz: number }
+export interface Pane { x0: number; z0: number; x1: number; z1: number; y0: number; y1: number; nx: number; nz: number; /** an open window: nothing to glaze */ open?: boolean }
 
 /** A pane on the plane where facade depth d meets d - 1 (the outward side), cells a0..a1, metres y0..y1. */
 export function paneOf(m: (a: number, d: number) => [number, number], a0: number, a1: number, d: number, y0: number, y1: number, half = 0): Pane {

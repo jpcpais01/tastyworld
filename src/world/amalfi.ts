@@ -7,7 +7,7 @@ import { buildFood, type FoodId } from './food';
 import type { RoomAnchor, RoomNpc } from './interiors';
 import { STALL } from '../data/stalls';
 import { HOTEL } from '../data/hotels';
-import type { HotelAnchor } from './hotels';
+import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
 
@@ -2473,6 +2473,8 @@ function hotelAnchors(plan: Plan): { rooms: RoomAnchor[]; hotels: HotelAnchor[] 
           bed: { stand: bedStand, pick: p3(R.P(5, vc), f.y + 0.8), facing: ang(bedStand, R.P(5, vc)) },
           window: { stand: winStand, pick: p3(R.P(wm, 0), f.y + 1.5), facing: ang(winStand, R.P(wm, -2)) },
           tea: { stand: teaStand, pick: p3(R.P(R.W - 2.5, 5.5), f.y + 0.9), facing: ang(teaStand, R.P(R.W - 2.5, 5.5)) },
+          // the French windows, thrown open: nothing to glaze, but the view out of them is kept clear
+          panes: rp.wins.map(([a0, a1]) => ({ ...paneOf(R.P, a0, a1, 0, f.y, f.y + 8 * V), open: true })),
         };
       }),
     });

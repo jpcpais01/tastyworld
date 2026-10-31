@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.24',
+    date: '2026-10-31',
+    title: 'Clear view',
+    items: [
+      'Looking out of your hotel room window, the flower boxes, pots, signs, lanterns and balcony rails just outside no longer stand in the way: from inside you see the street and the view, in Tokyo, Amalfi and Istanbul. From the street they are all still there.',
+    ],
+  },
+  {
     version: '0.16.23',
     date: '2026-10-31',
     title: 'Number plates',

@@ -1479,8 +1479,9 @@ export function buildTokyo(win?: Window): BuildResult {
   {
     const x0 = 96, z0 = 154;
     const yat = new Lot(b, x0, z0, x0 + 19, z0 + 7, 's');
-    yat.box(1, 0, 1, 18, 3, 6, c.wood);
-    yat.box(0, 4, 0, 19, 4, 6, c.counterTop);
+    // counter height (1 m) like every stall, so the cook shows over it and the hand-over clears it
+    yat.box(1, 0, 1, 18, 2, 6, c.wood);
+    yat.box(0, 3, 0, 19, 3, 6, c.counterTop);
     yat.box(2, 0, 7, 3, 1, 7, c.trunkDark); yat.box(16, 0, 7, 17, 1, 7, c.trunkDark);
     for (const a of [1, 18]) for (const d of [1, 6]) yat.box(a, 5, d, a, 11, d, c.woodDark);
     yat.box(-1, 12, -1, 20, 12, 7, (a) => (a % 2 ? c.roofTile : c.roofTileB));
@@ -1499,10 +1500,10 @@ export function buildTokyo(win?: Window): BuildResult {
     teppan.box(0, 0, 0, 17, 0, 5, k.c.black);
     for (let x = 1; x < 9; x += 2) for (let z = 1; z < 5; z += 2) teppan.set(x, 1, z, k.c.gold);
     teppan.box(11, 1, 1, 16, 1, 4, k.c.brass);
-    b.place(teppan, cx, 1.25, z0 * V + 0.55);
-    b.emitters.push({ kind: 'steam', pos: [cx - 0.5, 1.45, z0 * V + 0.55], rate: 1.2 });
-    b.place(buildFood('takoyaki', b.pal), cx - 0.9, 1.25, front - 0.35, 0);
-    b.place(buildFood('monjayaki', b.pal), cx + 0.9, 1.25, front - 0.35, 0);
+    b.place(teppan, cx, 1.0, z0 * V + 0.55);
+    b.emitters.push({ kind: 'steam', pos: [cx - 0.5, 1.2, z0 * V + 0.55], rate: 1.2 });
+    b.place(buildFood('takoyaki', b.pal), cx - 0.9, 1.0, front - 0.35, 0);
+    b.place(buildFood('monjayaki', b.pal), cx + 0.9, 1.0, front - 0.35, 0);
     for (const sx of [-1.6, 0, 1.6]) b.place(stool(k, k.c.lacquer), cx + sx, 0, front + 0.45);
     b.place(boardSign(k, k.c.signRed, k.c.white, 4, 83), cx, 3.05, front + 0.42, 0); // hangs off the eave, clear of the roof
     b.place(nobori(k, k.c.norenWhite, k.c.norenRed, 84), (x0 - 1.4) * V, 0, (z0 + 6) * V, 0);
@@ -1798,8 +1799,8 @@ function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
   g.box(48, G + 4, 4, 52, G + 11, 4, c.templeWhite);
   g.box(49, G + 6, 4, 51, G + 9, 4, c.cedar);
   // hinoki counter (L-shaped) with chef area behind
-  g.box(8, G, 22, 44, G + 3, 25, c.hinoki);
-  g.box(8, G + 4, 21, 44, G + 4, 26, c.counterTop);
+  g.box(8, G, 22, 44, G + 2, 25, c.hinoki);
+  g.box(8, G + 3, 21, 44, G + 3, 26, c.counterTop);
   g.box(8, G, 22, 44, G, 25, c.woodDark);
   // chef's prep shelf against the back wall
   g.box(6, G, 6, 44, G + 3, 10, c.woodMid);
@@ -1811,7 +1812,8 @@ function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
     g.box(x, G + 9, 2, x, G + 11, 3, col);
   }
   g.box(6, G + 8, 2, 44, G + 8, 4, c.hinoki);
-  g.box(12, G + 5, 21, 40, G + 6, 22, c.glassLit);
+  // the neta case, one cell tall and open in the middle where the chef hands the plate across
+  for (const [x0, x1] of [[12, 21], [32, 40]]) g.box(x0, G + 4, 21, x1, G + 4, 22, c.glassLit);
   // stools along the counter
   for (let i = 0; i < 6; i++) place(stool(k, k.c.woodDark), (10.5 + i * 5.5) * V, 0, 30 * V);
   // lanterns & lights
@@ -1827,8 +1829,8 @@ function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
   place(plantPot(k, 'bamboo', 504), 58 * V, 0, 40 * V);
   place(plantPot(k, 'bamboo', 505), 4 * V, 0, 44 * V);
   // food on the counter
-  place(buildFood('nigiri', b.pal), 22 * V, 1.25, 23 * V, 2);
-  place(buildFood('tamagoyaki', b.pal), 30 * V, 1.25, 23 * V, 2);
+  place(buildFood('nigiri', b.pal), 22.5 * V, 1.0, 24 * V, 2);
+  place(buildFood('tamagoyaki', b.pal), 31.5 * V, 1.0, 24 * V, 2);
   // entrance door frame (front-right open side)
   g.box(56, G, 44, 63, G + 12, 47, c.cedar);
   g.box(58, G, 44, 61, G + 9, 44, c.shoji);

@@ -143,9 +143,16 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
       ch[j * nx + i] = h;
       ck[j * nx + i] = h < 0 ? Kind.Seabed : h < 2.2 && -wet(cx, cz) < 10 ? Kind.Quay : parkAt(cx, cz) ? Kind.Park : h > 120 ? Kind.Scrub : Kind.Town;
     }
-  const pos: number[] = [], nor: number[] = [], kin: number[] = [];
-  const quad = (a: number[], b: number[], c: number[], d: number[], n: number[], k: number) => {
+  const pos: number[] = [], nor: number[] = [], kin: number[] = [], cel: number[] = [];
+  const mid = (i: number, j: number) => [(xs[i] + xs[i + 1]) / 2, (zs[j] + zs[j + 1]) / 2];
+  /**
+   * One face of a terrace. `own` is the middle of its cell, `nb` the middle of the cell whose top a riser's foot (c and
+   * d) stands on. In the iso view each cell squats by the amount for its own middle, so tops stay flat and level and
+   * every riser runs from one top to the other: the ground stays boxes, never a smooth slope.
+   */
+  const quad = (a: number[], b: number[], c: number[], d: number[], n: number[], k: number, own: number[], nb = own) => {
     pos.push(...a, ...b, ...c, ...a, ...c, ...d);
+    cel.push(...own, ...own, ...nb, ...own, ...nb, ...nb);
     for (let q = 0; q < 6; q++) { nor.push(...n); kin.push(k); }
   };
   for (let j = 0; j < nz; j++)
@@ -154,19 +161,23 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
       if (h === -40) continue;
       const k = ck[j * nx + i];
       const ax = xs[i], bx = xs[i + 1], az = zs[j], bz = zs[j + 1];
-      quad([ax, h, az], [ax, h, bz], [bx, h, bz], [bx, h, az], [0, 1, 0], k);
-      // the riser to each lower neighbour (+x and +z here, -x and -z from the neighbour's side)
-      const nb = (ii: number, jj: number) => (ii < 0 || jj < 0 || ii >= nx || jj >= nz ? h : ch[jj * nx + ii] === -40 ? h : ch[jj * nx + ii]);
+      const own = mid(i, j);
+      quad([ax, h, az], [ax, h, bz], [bx, h, bz], [bx, h, az], [0, 1, 0], k, own);
+      // the riser to each lower neighbour (+x and +z here, -x and -z from the neighbour's side); a level neighbour
+      // gets one too, from its -x or -z side, flat until the two squat apart
+      const nb = (ii: number, jj: number) => (ii < 0 || jj < 0 || ii >= nx || jj >= nz ? null : ch[jj * nx + ii] === -40 ? null : ch[jj * nx + ii]);
       const e = nb(i + 1, j), wv = nb(i - 1, j), n = nb(i, j + 1), s = nb(i, j - 1);
-      if (e < h) quad([bx, h, az], [bx, h, bz], [bx, e, bz], [bx, e, az], [1, 0, 0], k);
-      if (wv < h) quad([ax, h, bz], [ax, h, az], [ax, wv, az], [ax, wv, bz], [-1, 0, 0], k);
-      if (n < h) quad([bx, h, bz], [ax, h, bz], [ax, n, bz], [bx, n, bz], [0, 0, 1], k);
-      if (s < h) quad([ax, h, az], [bx, h, az], [bx, s, az], [ax, s, az], [0, 0, -1], k);
+      const lvl = h > 0;
+      if (e !== null && (e < h || (lvl && e === h))) quad([bx, h, az], [bx, h, bz], [bx, e, bz], [bx, e, az], [1, 0, 0], k, own, mid(i + 1, j));
+      if (wv !== null && wv < h) quad([ax, h, bz], [ax, h, az], [ax, wv, az], [ax, wv, bz], [-1, 0, 0], k, own, mid(i - 1, j));
+      if (n !== null && (n < h || (lvl && n === h))) quad([bx, h, bz], [ax, h, bz], [ax, n, bz], [bx, n, bz], [0, 0, 1], k, own, mid(i, j + 1));
+      if (s !== null && s < h) quad([ax, h, az], [bx, h, az], [bx, s, az], [ax, s, az], [0, 0, -1], k, own, mid(i, j - 1));
     }
   const gg = new THREE.BufferGeometry();
   gg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
   gg.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(nor), 3));
   gg.setAttribute('aKind', new THREE.BufferAttribute(new Float32Array(kin), 1));
+  gg.setAttribute('aCell', new THREE.BufferAttribute(new Float32Array(cel), 2));
   const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
 
   const u = {
@@ -206,11 +217,12 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
     glslVersion: THREE.GLSL3,
     uniforms: u,
     vertexShader: /* glsl */ `
-      in float aKind;
+      in float aKind; in vec2 aCell;
       ${SQUASH}
       out vec3 vWorld; out vec3 vN; out float vKind;
       void main() {
-        float s = squash(position.xz);
+        // squat by the amount for the middle of the cell this height belongs to: tops stay level
+        float s = squash(aCell);
         vec3 p = vec3(position.x, position.y > 0.0 ? position.y * s : position.y, position.z);
         vWorld = position; vN = normal; vKind = aKind;
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
@@ -220,11 +232,13 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
       ${COMMON}
       ${HAZE}
       uniform vec3 uSkyColor, uGroundColor, uSunColor, uSunDir, uWindowColor;
-      uniform float uNight, uLamp;
+      uniform float uNight, uLamp; uniform vec3 uCamFwd;
       in vec3 vWorld; in vec3 vN; in float vKind;
       layout(location = 0) out vec4 outColor;
       void main() {
         vec3 n = normalize(vN);
+        // a riser whose lower neighbour squatted less than its own cell now faces the other way
+        if (n.y < 0.5 && dot(n, uCamFwd) > 0.0) n = -n;
         vec2 p = vWorld.xz;
         float k = vKind;
         // a voxel grain on every face: quarter-metre cells near, coarser far away

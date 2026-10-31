@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.10',
+    date: '2026-10-31',
+    title: 'Blocky hills all the way out',
+    items: [
+      'The mountains past Amalfi and the hills across the water in Istanbul no longer melt into smooth ramps where they sink out of the way of the camera. Every block of ground now sinks as a whole, flat on top, so the hills nearest you step down in clean voxel terraces like the rest of the world.',
+    ],
+  },
+  {
     version: '0.17.9',
     date: '2026-10-31',
     title: 'Eminönü\'s waterfront, round the point',

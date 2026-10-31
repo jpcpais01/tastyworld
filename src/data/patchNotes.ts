@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.35',
+    date: '2026-10-31',
+    title: 'Real houses on the hills',
+    items: [
+      'The villages around Amalfi (Atrani, Ravello, Pontone and the houses up the valley and along the coast) are built like the town\'s own houses now, in the same stucco colours. Every window has dark glass, green or blue shutters folded back or shut, and a white sill. Each house has a door at the front, a white cornice and sometimes stone quoins and a terracotta downpipe.',
+      'Their upper floors have little balconies with iron railings and pots of geraniums. Their roofs are white barrel vaults, small domes, tiled hip roofs or terraces with a parapet, a pergola under vines or bougainvillea, or a room set back on top.',
+      'Atrani\'s and Ravello\'s bell towers have arched belfries and green and yellow majolica domes. At night, windows all over the hills light up.',
+    ],
+  },
+  {
     version: '0.16.34',
     date: '2026-10-31',
     title: 'Where Istanbul ends',

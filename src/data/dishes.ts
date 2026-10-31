@@ -1,5 +1,6 @@
 import type { FoodId } from '../world/food';
 import { CITY, perCity } from '../world/cityId';
+import { eur, lira } from './money';
 
 export interface Dish {
   id: FoodId;
@@ -22,7 +23,7 @@ export interface Dish {
 
 const TOKYO_DISHES: Dish[] = [
   {
-    id: 'takoyaki', name: 'Takoyaki', jp: 'たこ焼き', romaji: 'tako-yaki', stall: 'hachi', price: 600, dessert: false,
+    id: 'takoyaki', name: 'Takoyaki', jp: 'たこ焼き', romaji: 'tako-yaki', stall: 'hachi', price: 700, dessert: false,
     tagline: 'Molten octopus dumplings, flipped by hand.',
     origin: 'Osaka, 1935',
     history: 'Street vendor Tomekichi Endō refined a beef-filled snack called rajio-yaki into the octopus version that swept Japan. Tokyo festivals adopted it so completely that a summer matsuri without a takoyaki stall feels unfinished.',
@@ -32,7 +33,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 2, savory: 4, umami: 5, crunch: 2 },
   },
   {
-    id: 'monjayaki', name: 'Monjayaki', jp: 'もんじゃ焼き', romaji: 'monja-yaki', stall: 'hachi', price: 900, dessert: false,
+    id: 'monjayaki', name: 'Monjayaki', jp: 'もんじゃ焼き', romaji: 'monja-yaki', stall: 'hachi', price: 1300, dessert: false,
     tagline: "Tokyo's gooey griddle classic, eaten off tiny spatulas.",
     origin: 'Tsukishima, Tokyo, Meiji era',
     history: 'Children once wrote letters (moji) on hot griddles with runny batter as a cheap treat, called moji-yaki. It grew into monja, and Tsukishima now has a whole street of more than seventy monja shops.',
@@ -42,7 +43,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 5, umami: 4, crunch: 3 },
   },
   {
-    id: 'ningyoyaki', name: 'Ningyō-yaki', jp: '人形焼', romaji: 'ningyō-yaki', stall: 'kimura', price: 500, dessert: true,
+    id: 'ningyoyaki', name: 'Ningyō-yaki', jp: '人形焼', romaji: 'ningyō-yaki', stall: 'kimura', price: 700, dessert: true,
     tagline: 'Little sponge cakes shaped like lanterns and pagodas.',
     origin: 'Ningyōchō, Tokyo, Meiji era',
     history: 'Born in the doll-makers\' district of Ningyōchō, these cakes moved to Asakusa where bakers pressed them into the shapes of the temple\'s landmarks: the thunder-gate lantern, the five-storey pagoda and the pigeons of the temple yard.',
@@ -52,7 +53,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 1, crunch: 1 },
   },
   {
-    id: 'dango', name: 'Mitarashi Dango', jp: 'みたらし団子', romaji: 'mitarashi dango', stall: 'kimura', price: 350, dessert: true,
+    id: 'dango', name: 'Mitarashi Dango', jp: 'みたらし団子', romaji: 'mitarashi dango', stall: 'kimura', price: 200, dessert: true,
     tagline: 'Chewy rice dumplings in a glossy soy-caramel glaze.',
     origin: 'Kyoto, Shimogamo Shrine',
     history: 'Legend says the dumplings imitate bubbles rising from the shrine\'s Mitarashi purification pond. The sweet-and-salty glaze turned them into the most loved dango in Japan, Tokyo included.',
@@ -62,7 +63,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 2, umami: 2, crunch: 0 },
   },
   {
-    id: 'taiyaki', name: 'Taiyaki', jp: 'たい焼き', romaji: 'tai-yaki', stall: 'sakuraya', price: 300, dessert: true,
+    id: 'taiyaki', name: 'Taiyaki', jp: 'たい焼き', romaji: 'tai-yaki', stall: 'sakuraya', price: 250, dessert: true,
     tagline: 'A golden fish-shaped waffle stuffed with red bean.',
     origin: 'Azabu-Jūban, Tokyo, 1909',
     history: 'Naniwaya Sōhonten first cast the batter in the shape of a sea bream, or tai, a fish so expensive it was reserved for celebrations. The shop still makes them one by one in single moulds, a style fans call "tennen" (wild-caught).',
@@ -72,7 +73,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 1, crunch: 3 },
   },
   {
-    id: 'dorayaki', name: 'Dorayaki', jp: 'どら焼き', romaji: 'dora-yaki', stall: 'sakuraya', price: 350, dessert: true,
+    id: 'dorayaki', name: 'Dorayaki', jp: 'どら焼き', romaji: 'dora-yaki', stall: 'sakuraya', price: 300, dessert: true,
     tagline: 'Honey pancakes hugging a cloud of red bean.',
     origin: 'Ueno, Tokyo, 1914',
     history: 'The name means "gong cake". One story says the warrior-monk Benkei left his gong (dora) at a farmhouse, and the family cooked pancakes on it. Usagiya in Ueno created the two-pancake sandwich still copied today.',
@@ -82,7 +83,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 0, umami: 1, crunch: 0 },
   },
   {
-    id: 'yakitori', name: 'Yakitori', jp: '焼き鳥', romaji: 'yaki-tori', stall: 'torikichi', price: 700, dessert: false,
+    id: 'yakitori', name: 'Yakitori', jp: '焼き鳥', romaji: 'yaki-tori', stall: 'torikichi', price: 600, dessert: false,
     tagline: 'Charcoal-grilled chicken skewers, glazed with tare.',
     origin: 'Tokyo, Meiji era onwards',
     history: 'Yakitori became the soul of Tokyo\'s postwar yokochō, tiny alleys where returning workers squeezed onto stools beside smoking grills. Many of those lanes, lantern-lit and only a few metres wide, still stand by the big stations.',
@@ -102,7 +103,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 5, umami: 4, crunch: 5 },
   },
   {
-    id: 'ramen', name: 'Tokyo Shōyu Ramen', jp: '東京醤油ラーメン', romaji: 'shōyu rāmen', stall: 'hoshi', price: 950, dessert: false,
+    id: 'ramen', name: 'Tokyo Shōyu Ramen', jp: '東京醤油ラーメン', romaji: 'shōyu rāmen', stall: 'hoshi', price: 1100, dessert: false,
     tagline: 'Clear soy broth, springy curly noodles, pure comfort.',
     origin: 'Asakusa, Tokyo, 1910',
     history: 'Rairaiken opened in Asakusa with Chinese cooks serving Japanese customers and is often called Japan\'s first ramen shop. Its clear chicken-and-soy broth became the template for Tokyo-style ramen.',
@@ -112,7 +113,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 5, umami: 5, crunch: 1 },
   },
   {
-    id: 'gyoza', name: 'Yaki Gyōza', jp: '焼き餃子', romaji: 'yaki gyōza', stall: 'hoshi', price: 500, dessert: false,
+    id: 'gyoza', name: 'Yaki Gyōza', jp: '焼き餃子', romaji: 'yaki gyōza', stall: 'hoshi', price: 450, dessert: false,
     tagline: 'Pan-fried dumplings joined by a lacy crisp "wing".',
     origin: 'Postwar Japan, from Manchuria',
     history: 'Soldiers and settlers returning from northeast China after 1945 brought dumplings home. Japanese cooks pan-fried rather than boiled them, and a ramen shop without gyōza became unthinkable.',
@@ -122,7 +123,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 4, crunch: 4 },
   },
   {
-    id: 'nigiri', name: 'Edomae Nigiri', jp: '江戸前寿司', romaji: 'edomae zushi', stall: 'kakurega', price: 2400, dessert: false,
+    id: 'nigiri', name: 'Edomae Nigiri', jp: '江戸前寿司', romaji: 'edomae zushi', stall: 'kakurega', price: 8800, dessert: false,
     tagline: 'The original Tokyo fast food, perfected over two centuries.',
     origin: 'Edo (old Tokyo), 1820s',
     history: 'Hanaya Yohei is credited with pressing fish onto vinegared rice for customers in a hurry at street stalls near Edo Bay. Without refrigeration, fish was cured: kohada in vinegar, tuna marinated in soy (zuke), shrimp poached. Those techniques define Edomae sushi.',
@@ -132,7 +133,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 3, umami: 5, crunch: 0 },
   },
   {
-    id: 'tamagoyaki', name: 'Tamagoyaki', jp: '玉子焼き', romaji: 'tamago-yaki', stall: 'kakurega', price: 800, dessert: false,
+    id: 'tamagoyaki', name: 'Tamagoyaki', jp: '玉子焼き', romaji: 'tamago-yaki', stall: 'kakurega', price: 600, dessert: false,
     tagline: 'A sweet, layered omelette rolled in a square pan.',
     origin: 'Edo (old Tokyo)',
     history: 'Edo-style tamago is sweetened and enriched with dashi, cooked layer on layer in a rectangular makiyakinabe. Some sushi masters fold in ground shrimp so the finished block tastes almost like a soufflé cake.',
@@ -142,7 +143,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 3, savory: 2, umami: 3, crunch: 0 },
   },
   {
-    id: 'purin', name: 'Kissaten Purin', jp: 'プリン', romaji: 'purin', stall: 'komorebi', price: 550, dessert: true,
+    id: 'purin', name: 'Kissaten Purin', jp: 'プリン', romaji: 'purin', stall: 'komorebi', price: 600, dessert: true,
     tagline: 'A firm, eggy custard pudding under a cap of bitter caramel.',
     origin: 'Meiji-era Japan, via European custard',
     history: 'Custard pudding arrived with Western cooks in the late 1800s and was renamed purin. Old-style kissaten, the coffee houses of the Shōwa era, made it their signature: steamed firm, turned out onto a footed glass dish and crowned with cream and a cherry.',
@@ -152,7 +153,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 0, umami: 1, crunch: 0 },
   },
   {
-    id: 'napolitan', name: 'Spaghetti Napolitan', jp: 'ナポリタン', romaji: 'naporitan', stall: 'komorebi', price: 950, dessert: false,
+    id: 'napolitan', name: 'Spaghetti Napolitan', jp: 'ナポリタン', romaji: 'naporitan', stall: 'komorebi', price: 1100, dessert: false,
     tagline: 'Ketchup-glazed spaghetti with sausage, onion and green pepper.',
     origin: 'Yokohama, late 1940s',
     history: 'The chef of the Hotel New Grand in Yokohama is credited with creating it after the war, cooking spaghetti with tomato, ham and vegetables. Kissaten swapped the tomatoes for ketchup, and a nation of salarymen fell in love.',
@@ -162,7 +163,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 3, savory: 4, umami: 3, crunch: 0 },
   },
   {
-    id: 'zarusoba', name: 'Zaru Soba', jp: 'ざるそば', romaji: 'zaru soba', stall: 'kikyo', price: 850, dessert: false,
+    id: 'zarusoba', name: 'Zaru Soba', jp: 'ざるそば', romaji: 'zaru soba', stall: 'kikyo', price: 900, dessert: false,
     tagline: 'Cold buckwheat noodles on a bamboo tray, dipped in tsuyu.',
     origin: 'Edo (old Tokyo), 1700s',
     history: 'Edo had thousands of soba shops by the late 1700s. Buckwheat grew where rice would not, and its noodles were said to cure kakke, the beriberi that plagued rice-eating city folk. Serving them cold on a bamboo zaru let the clean, nutty taste of the buckwheat shine.',
@@ -172,7 +173,7 @@ const TOKYO_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 3, umami: 4, crunch: 1 },
   },
   {
-    id: 'tempura', name: 'Ebi Tempura', jp: '海老天ぷら', romaji: 'ebi tempura', stall: 'kikyo', price: 1100, dessert: false,
+    id: 'tempura', name: 'Ebi Tempura', jp: '海老天ぷら', romaji: 'ebi tempura', stall: 'kikyo', price: 1500, dessert: false,
     tagline: 'Prawns in a lacy, shattering batter, fried in sesame oil.',
     origin: 'Edo (old Tokyo), from 1500s Portuguese frying',
     history: 'Portuguese traders brought batter-frying to Nagasaki, but it was Edo\'s street stalls that turned it into tempura: fish from the bay, skewered and fried to order. Frying indoors was banned in wooden Edo for fear of fire, so tempura started as street food.',
@@ -187,7 +188,7 @@ const TOKYO_DISHES: Dish[] = [
 /** `jp` holds the dish's Italian name, `romaji` how to say it. */
 const AMALFI_DISHES: Dish[] = [
   {
-    id: 'sfogliatella', name: 'Sfogliatella Riccia', jp: 'sfogliatella', romaji: 'sfo-lya-TEL-la', stall: 'pansa', price: 450, dessert: true,
+    id: 'sfogliatella', name: 'Sfogliatella Riccia', jp: 'sfogliatella', romaji: 'sfo-lya-TEL-la', stall: 'pansa', price: eur(3), dessert: true,
     tagline: 'A crackling shell of a hundred pastry layers, filled with warm ricotta.',
     origin: 'Conca dei Marini, 1600s',
     history: 'Nuns at the convent of Santa Rosa, a few bays west of Amalfi, turned leftover semolina and ricotta into a pastry shaped like a monk\'s hood. In 1818 a Neapolitan pastry cook got hold of the recipe and the sfogliatella conquered the whole coast.',
@@ -197,7 +198,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 1, umami: 0, crunch: 5 },
   },
   {
-    id: 'delizia', name: 'Delizia al Limone', jp: 'delizia al limone', romaji: 'de-LEE-tsya al lee-MO-ne', stall: 'pansa', price: 600, dessert: true,
+    id: 'delizia', name: 'Delizia al Limone', jp: 'delizia al limone', romaji: 'de-LEE-tsya al lee-MO-ne', stall: 'pansa', price: eur(5.5), dessert: true,
     tagline: 'A dome of sponge soaked in limoncello under a cloak of lemon cream.',
     origin: 'Sorrento coast, 1978',
     history: 'Pastry chef Carmine Marzuillo created it for a cooking contest, using the fat, fragrant sfusato lemons of the Amalfi Coast. It became the coast\'s best loved cake in a single generation.',
@@ -207,7 +208,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 0, crunch: 0 },
   },
   {
-    id: 'cuoppo', name: 'Cuoppo di Mare', jp: "cuoppo d'Amalfi", romaji: 'KWOP-po di MA-re', stall: 'cuoppo', price: 800, dessert: false,
+    id: 'cuoppo', name: 'Cuoppo di Mare', jp: "cuoppo d'Amalfi", romaji: 'KWOP-po di MA-re', stall: 'cuoppo', price: eur(10), dessert: false,
     tagline: 'A paper cone of squid rings, prawns and anchovies, fried that minute.',
     origin: 'Naples and its coast, 1800s',
     history: 'Fry shops along the Bay of Naples sold the morning\'s smallest fish in rolled cones of rough paper, the cheapest hot meal for porters and fishermen. Amalfi\'s harbour still fries whatever the boats bring in.',
@@ -217,7 +218,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 4, umami: 4, crunch: 5 },
   },
   {
-    id: 'frittatina', name: 'Frittatina di Pasta', jp: 'frittatina', romaji: 'frit-ta-TEE-na', stall: 'cuoppo', price: 450, dessert: false,
+    id: 'frittatina', name: 'Frittatina di Pasta', jp: 'frittatina', romaji: 'frit-ta-TEE-na', stall: 'cuoppo', price: eur(3), dessert: false,
     tagline: 'Bucatini, peas and béchamel, breaded and fried into a golden disc.',
     origin: 'Naples, 20th century',
     history: 'Born as a way to use up yesterday\'s pasta, the frittatina became a fixture of every friggitoria on the coast. It is sold hot, wrapped in a napkin, next to the croquettes.',
@@ -227,7 +228,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 3, crunch: 3 },
   },
   {
-    id: 'portafoglio', name: 'Pizza a Portafoglio', jp: 'pizza a portafoglio', romaji: 'por-ta-FO-lyo', stall: 'portafoglio', price: 500, dessert: false,
+    id: 'portafoglio', name: 'Pizza a Portafoglio', jp: 'pizza a portafoglio', romaji: 'por-ta-FO-lyo', stall: 'portafoglio', price: eur(4), dessert: false,
     tagline: 'A small margherita folded in four, to eat walking.',
     origin: 'Naples, 1700s',
     history: 'Before there were pizzerias with tables, pizza was street food sold from stalls and folded like a wallet so you could carry it. The tradition never left the coast\'s back streets.',
@@ -237,7 +238,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 4, crunch: 2 },
   },
   {
-    id: 'montanara', name: 'Montanara', jp: 'pizza montanara', romaji: 'mon-ta-NA-ra', stall: 'portafoglio', price: 450, dessert: false,
+    id: 'montanara', name: 'Montanara', jp: 'pizza montanara', romaji: 'mon-ta-NA-ra', stall: 'portafoglio', price: eur(3.5), dessert: false,
     tagline: 'A little pizza fried until it puffs, then baked with tomato and cheese.',
     origin: 'Campania, 1800s',
     history: 'Families without a wood oven fried their pizza dough at home. The puffy, golden result was so good it became a classic of its own, finished with tomato and grated cheese.',
@@ -247,7 +248,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 3, crunch: 3 },
   },
   {
-    id: 'gelato', name: 'Gelato Limone e Pistacchio', jp: 'gelato', romaji: 'je-LA-to', stall: 'gelato', price: 400, dessert: true,
+    id: 'gelato', name: 'Gelato Limone e Pistacchio', jp: 'gelato', romaji: 'je-LA-to', stall: 'gelato', price: eur(3.5), dessert: true,
     tagline: 'Two scoops in a waffle cone: tart Amalfi lemon and roasted pistachio.',
     origin: 'Italy, 1600s',
     history: 'Ice from the mountains was once carried down to the coast in straw and stored in pits for summer sorbets. Gelato grew from those, and the coast\'s lemons made its sorbetto famous.',
@@ -257,7 +258,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 0, crunch: 1 },
   },
   {
-    id: 'granita', name: 'Granita al Limone', jp: 'granita al limone', romaji: 'gra-NEE-ta', stall: 'gelato', price: 350, dessert: true,
+    id: 'granita', name: 'Granita al Limone', jp: 'granita al limone', romaji: 'gra-NEE-ta', stall: 'gelato', price: eur(4), dessert: true,
     tagline: 'Lemon ice scraped into flakes: the coast\'s answer to August.',
     origin: 'Sicily and the south, 1500s',
     history: 'Snow collected on the mountains was flavoured with fruit juices. Granita is its descendant, coarser and brighter than sorbet.',
@@ -267,7 +268,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 3, savory: 0, umami: 0, crunch: 2 },
   },
   {
-    id: 'limoncello', name: 'Limoncello', jp: 'limoncello', romaji: 'lee-mon-CHEL-lo', stall: 'limonaia', price: 500, dessert: true, drink: 'cold',
+    id: 'limoncello', name: 'Limoncello', jp: 'limoncello', romaji: 'lee-mon-CHEL-lo', stall: 'limonaia', price: eur(4), dessert: true, drink: 'cold',
     tagline: 'Ice-cold lemon liqueur, poured from a bottle kept in the freezer.',
     origin: 'Amalfi Coast, early 1900s',
     history: 'Families on the coast steeped lemon peel in alcohol and sugar long before anyone sold it. Every grove still makes its own, and every family thinks theirs is the best.',
@@ -277,7 +278,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 0, crunch: 0 },
   },
   {
-    id: 'caprese', name: 'Torta Caprese', jp: 'torta caprese', romaji: 'TOR-ta ka-PRE-ze', stall: 'limonaia', price: 550, dessert: true,
+    id: 'caprese', name: 'Torta Caprese', jp: 'torta caprese', romaji: 'TOR-ta ka-PRE-ze', stall: 'limonaia', price: eur(5), dessert: true,
     tagline: 'A dense, flourless cake of chocolate and almonds, dusted white.',
     origin: 'Capri, 1920s',
     history: 'Legend says a baker on Capri forgot the flour in an almond cake for three American gangsters. It came out of the oven crisp outside and fudgy inside, and the mistake became a classic.',
@@ -287,7 +288,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 1, crunch: 1 },
   },
   {
-    id: 'scialatielli', name: 'Scialatielli ai Frutti di Mare', jp: 'scialatielli', romaji: 'sha-la-TYEL-lee', stall: 'grotta', price: 1800, dessert: false,
+    id: 'scialatielli', name: 'Scialatielli ai Frutti di Mare', jp: 'scialatielli', romaji: 'sha-la-TYEL-lee', stall: 'grotta', price: eur(26), dessert: false,
     tagline: 'Fresh ribbon pasta of the coast, tossed with clams, mussels and tomatoes.',
     origin: 'Amalfi, 1967',
     history: 'Chef Enrico Cosentino of Amalfi created these short, thick ribbons with milk, basil and cheese in the dough, and won a prize with them in 1978. They are now made all along the coast.',
@@ -297,7 +298,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 5, crunch: 1 },
   },
   {
-    id: 'totani', name: 'Totani e Patate', jp: 'totani e patate', romaji: 'TO-ta-nee e pa-TA-te', stall: 'grotta', price: 1400, dessert: false,
+    id: 'totani', name: 'Totani e Patate', jp: 'totani e patate', romaji: 'TO-ta-nee e pa-TA-te', stall: 'grotta', price: eur(20), dessert: false,
     tagline: 'Squid and potatoes slowly stewed with tomato: the fishermen\'s Sunday lunch.',
     origin: 'Amalfi and Praiano, traditional',
     history: 'The totano, a flying squid of the gulf, was the poor relation of the calamaro. Cooked with potatoes until both melt together, it became the most loved dish of the coast\'s fishing families.',
@@ -308,7 +309,7 @@ const AMALFI_DISHES: Dish[] = [
   },
   // ------------------------------------------------------------------ the restaurants
   {
-    id: 'espresso', name: 'Caffè Espresso', jp: 'un caffè', romaji: 'kaf-FE', stall: 'duomo', price: 150, dessert: false,
+    id: 'espresso', name: 'Caffè Espresso', jp: 'un caffè', romaji: 'kaf-FE', stall: 'duomo', price: eur(1.3), dessert: false,
     tagline: 'A thimble of coffee under hazelnut crema, drunk standing at the bar.',
     origin: 'Naples, 1900s',
     history: 'Naples made coffee in the flip-over cuccumella pot for a century before the espresso machine came south from Milan. The city took to it so completely that a Neapolitan coffee is now a style of its own: short, strong and sweetened in the cup.',
@@ -318,7 +319,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 0, umami: 1, crunch: 0 },
   },
   {
-    id: 'cornetto', name: 'Cornetto', jp: 'cornetto', romaji: 'kor-NET-to', stall: 'duomo', price: 250, dessert: true,
+    id: 'cornetto', name: 'Cornetto', jp: 'cornetto', romaji: 'kor-NET-to', stall: 'duomo', price: eur(1.8), dessert: true,
     tagline: 'The Italian breakfast crescent: softer and sweeter than a croissant.',
     origin: 'Vienna to Italy, 1700s',
     history: 'The crescent came over the Alps from Vienna, where the kipferl had been baked for centuries. Italian bakers made it richer, with egg and sugar in the dough and a glaze on top, and it became the breakfast of the whole country.',
@@ -328,7 +329,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 3, savory: 1, umami: 0, crunch: 2 },
   },
   {
-    id: 'ndunderi', name: 'Ndunderi di Minori', jp: 'ndunderi', romaji: 'n-DOON-de-ree', stall: 'gemma', price: 1400, dessert: false,
+    id: 'ndunderi', name: 'Ndunderi di Minori', jp: 'ndunderi', romaji: 'n-DOON-de-ree', stall: 'gemma', price: eur(18), dessert: false,
     tagline: 'Soft ricotta dumplings, maybe the oldest pasta on the coast.',
     origin: 'Minori, Roman times',
     history: 'In the next bay along, Minori has made these since the Romans, who mixed spelt flour with cheese and boiled the dough. They are said to be the ancestors of every gnocco in Italy, and Minori still holds a festival in their honour.',
@@ -338,7 +339,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 3, crunch: 0 },
   },
   {
-    id: 'parmigiana', name: 'Parmigiana di Melanzane', jp: 'parmigiana', romaji: 'par-mee-JA-na', stall: 'gemma', price: 1200, dessert: false,
+    id: 'parmigiana', name: 'Parmigiana di Melanzane', jp: 'parmigiana', romaji: 'par-mee-JA-na', stall: 'gemma', price: eur(15), dessert: false,
     tagline: 'Layers of fried aubergine, tomato and mozzarella, baked and rested.',
     origin: 'Naples and Sicily, 1700s',
     history: 'Naples and Palermo both claim it, and neither will give way. The Neapolitan cook Vincenzo Corrado wrote down an early version in 1786. In spite of the name, it probably has nothing to do with Parma.',
@@ -348,7 +349,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 2, savory: 4, umami: 4, crunch: 0 },
   },
   {
-    id: 'vongole', name: 'Spaghetti alle Vongole', jp: 'spaghetti alle vongole', romaji: 'VON-go-le', stall: 'saraceno', price: 1800, dessert: false,
+    id: 'vongole', name: 'Spaghetti alle Vongole', jp: 'spaghetti alle vongole', romaji: 'VON-go-le', stall: 'saraceno', price: eur(24), dessert: false,
     tagline: 'Spaghetti tossed with clams, garlic, oil and parsley. Nothing else.',
     origin: 'Naples, 1830s',
     history: 'The Duke of Buonvicino, Ippolito Cavalcanti, wrote down vermicelli with clams in his 1837 cookbook in Neapolitan dialect. It has been the coast\'s great pasta ever since, and its Christmas Eve dinner.',
@@ -358,7 +359,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 5, crunch: 0 },
   },
   {
-    id: 'acquapazza', name: "Pesce all'Acquapazza", jp: 'acquapazza', romaji: 'ak-kwa-PAT-tsa', stall: 'saraceno', price: 2200, dessert: false,
+    id: 'acquapazza', name: "Pesce all'Acquapazza", jp: 'acquapazza', romaji: 'ak-kwa-PAT-tsa', stall: 'saraceno', price: eur(30), dessert: false,
     tagline: 'A whole sea bream poached in "crazy water" with tomatoes and garlic.',
     origin: 'Fishermen of the coast',
     history: 'Fishermen cooked the fish nobody would buy right on the boat, in seawater with a few tomatoes, garlic and a splash of wine. The name may come from that wild seawater broth. Today it is the coast\'s favourite way to cook the best fish.',
@@ -368,7 +369,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 5, crunch: 0 },
   },
   {
-    id: 'margherita', name: 'Pizza Margherita', jp: 'pizza margherita', romaji: 'mar-ge-REE-ta', stall: 'forno', price: 900, dessert: false,
+    id: 'margherita', name: 'Pizza Margherita', jp: 'pizza margherita', romaji: 'mar-ge-REE-ta', stall: 'forno', price: eur(10), dessert: false,
     tagline: 'Soft Neapolitan pizza with a blistered rim, tomato, fior di latte and basil.',
     origin: 'Naples, 1889',
     history: 'The story goes that pizzaiolo Raffaele Esposito made it for Queen Margherita of Savoy, with the red, white and green of the new Italian flag. The legend may be polished, but the pizza is real, and the art of the Neapolitan pizzaiolo is now on UNESCO\'s list of the world\'s heritage.',
@@ -378,7 +379,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 2, savory: 4, umami: 4, crunch: 2 },
   },
   {
-    id: 'calzone', name: 'Calzone al Forno', jp: 'calzone', romaji: 'kal-TSO-ne', stall: 'forno', price: 1000, dessert: false,
+    id: 'calzone', name: 'Calzone al Forno', jp: 'calzone', romaji: 'kal-TSO-ne', stall: 'forno', price: eur(12), dessert: false,
     tagline: 'A folded pizza puffed up in the oven, full of ricotta, salami and mozzarella.',
     origin: 'Naples, 1700s',
     history: 'Calzone means trouser leg, and it was the pizza you could carry: folded shut and eaten walking along the street. The wood oven version puffs up like a pillow, and the fried version is its little brother.',
@@ -388,7 +389,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 5, umami: 4, crunch: 2 },
   },
   {
-    id: 'bruschetta', name: 'Bruschetta al Pomodoro', jp: 'bruschetta', romaji: 'broo-SKET-ta', stall: 'cantina', price: 600, dessert: false,
+    id: 'bruschetta', name: 'Bruschetta al Pomodoro', jp: 'bruschetta', romaji: 'broo-SKET-ta', stall: 'cantina', price: eur(7), dessert: false,
     tagline: 'Grilled country bread, rubbed with garlic, heaped with chopped tomato.',
     origin: 'Southern and central Italy, ancient',
     history: 'Bruscare means to toast over coals. Olive farmers tasted the new oil each autumn on grilled bread rubbed with garlic, and summer added the tomatoes. It is a dish of the poor that turned into the most famous starter in the world.',
@@ -398,7 +399,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 2, savory: 3, umami: 2, crunch: 4 },
   },
   {
-    id: 'carrozza', name: 'Mozzarella in Carrozza', jp: 'mozzarella in carrozza', romaji: 'mot-tsa-REL-la in kar-ROT-tsa', stall: 'cantina', price: 700, dessert: false,
+    id: 'carrozza', name: 'Mozzarella in Carrozza', jp: 'mozzarella in carrozza', romaji: 'mot-tsa-REL-la in kar-ROT-tsa', stall: 'cantina', price: eur(8), dessert: false,
     tagline: 'Mozzarella riding in a "carriage" of bread, dipped in egg and fried.',
     origin: 'Campania, 1800s',
     history: 'Families used up yesterday\'s mozzarella and stale bread by frying them together. The name says the cheese rides in a carriage, and when you pull the halves apart the strings of mozzarella look like the reins.',
@@ -408,7 +409,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 3, crunch: 4 },
   },
   {
-    id: 'panuozzo', name: 'Panuozzo', jp: 'panuozzo', romaji: 'pa-NWOT-tso', stall: 'ruocco', price: 900, dessert: false,
+    id: 'panuozzo', name: 'Panuozzo', jp: 'panuozzo', romaji: 'pa-NWOT-tso', stall: 'ruocco', price: eur(10), dessert: false,
     tagline: 'Pizza dough baked as a loaf, split and stuffed with sausage and bitter greens.',
     origin: 'Gragnano, 1980s',
     history: 'A pizzaiolo in Gragnano, the pasta town over the mountain, baked his pizza dough into a little loaf, split it while it was hot and filled it like a sandwich. The idea spread through every bakery and pizzeria in the region.',
@@ -418,7 +419,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 5, umami: 4, crunch: 3 },
   },
   {
-    id: 'taralli', name: 'Taralli Sugna e Pepe', jp: 'taralli', romaji: 'ta-RAL-lee', stall: 'ruocco', price: 350, dessert: false,
+    id: 'taralli', name: 'Taralli Sugna e Pepe', jp: 'taralli', romaji: 'ta-RAL-lee', stall: 'ruocco', price: eur(3), dessert: false,
     tagline: 'Crunchy twisted rings of dough with lard, black pepper and almonds.',
     origin: 'Naples, 1700s',
     history: 'Bakers twisted the scraps of bread dough with lard and pepper so nothing went to waste, and sold them on the seafront still warm. Neapolitans still buy them in the evening to eat by the water.',
@@ -428,7 +429,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 4, umami: 2, crunch: 5 },
   },
   {
-    id: 'arancino', name: 'Arancino di Riso', jp: "pall'e riso", romaji: 'a-ran-CHEE-no', stall: 'andrea', price: 450, dessert: false,
+    id: 'arancino', name: 'Arancino di Riso', jp: "pall'e riso", romaji: 'a-ran-CHEE-no', stall: 'andrea', price: eur(3.5), dessert: false,
     tagline: 'A golden ball of rice around ragù, peas and mozzarella, fried crisp.',
     origin: 'Sicily, 10th century',
     history: 'Rice and saffron came to Sicily under Arab rule, and cooks shaped it into balls the colour and size of oranges, arancini. Naples has its own version, the pall\'e riso, sold in every rosticceria next to the crocchè.',
@@ -438,7 +439,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 4, crunch: 4 },
   },
   {
-    id: 'crocche', name: 'Crocchè di Patate', jp: 'crocchè', romaji: 'krok-KE', stall: 'andrea', price: 300, dessert: false,
+    id: 'crocche', name: 'Crocchè di Patate', jp: 'crocchè', romaji: 'krok-KE', stall: 'andrea', price: eur(2), dessert: false,
     tagline: 'A finger of potato, cheese and parsley, crumbed and fried.',
     origin: 'Naples, 1700s',
     history: 'French chefs in Naples\' great houses, the monsù, brought the croquette with them. The street turned it into the crocchè: mashed potato, cheese and a cube of provola, sold for a few cents from every fryer in town.',
@@ -448,7 +449,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 4, umami: 3, crunch: 4 },
   },
   {
-    id: 'baba', name: 'Babà al Rum', jp: 'babà', romaji: 'ba-BA', stall: 'dolceria', price: 500, dessert: true,
+    id: 'baba', name: 'Babà al Rum', jp: 'babà', romaji: 'ba-BA', stall: 'dolceria', price: eur(4), dessert: true,
     tagline: 'A mushroom of yeast cake soaked in rum syrup until it glistens.',
     origin: 'Lorraine to Naples, 1800s',
     history: 'The story is that King Stanisław of Poland, living in exile in Lorraine, found his cake too dry and poured rum over it. French pastry cooks brought it to Naples, and Naples adopted it so completely that calling someone a babà is a compliment.',
@@ -458,7 +459,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 0, umami: 0, crunch: 0 },
   },
   {
-    id: 'zeppola', name: 'Zeppola di San Giuseppe', jp: 'zeppola', romaji: 'TSEP-po-la', stall: 'dolceria', price: 450, dessert: true,
+    id: 'zeppola', name: 'Zeppola di San Giuseppe', jp: 'zeppola', romaji: 'TSEP-po-la', stall: 'dolceria', price: eur(3.5), dessert: true,
     tagline: 'A ring of choux pastry piped with custard and topped with sour cherries.',
     origin: 'Naples, 1840',
     history: 'Made for the feast of Saint Joseph on 19 March, which is also Italy\'s Father\'s Day. The pastry cook Pasquale Pintauro was the first to write the recipe down, in 1840, and fried zeppole had been sold in the streets long before that.',
@@ -468,7 +469,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 0, umami: 0, crunch: 1 },
   },
   {
-    id: 'alici', name: 'Spaghetti alla Colatura', jp: 'colatura di alici', romaji: 'ko-la-TOO-ra di a-LEE-chee', stall: 'colatura', price: 1600, dessert: false,
+    id: 'alici', name: 'Spaghetti alla Colatura', jp: 'colatura di alici', romaji: 'ko-la-TOO-ra di a-LEE-chee', stall: 'colatura', price: eur(20), dessert: false,
     tagline: 'Spaghetti with the amber anchovy essence of Cetara, garlic and crisp crumbs.',
     origin: 'Cetara, Middle Ages',
     history: 'The Romans made garum, a fish sauce, along this coast. In the Middle Ages the Cistercian monks of Amalfi pressed salted anchovies in barrels, and the amber drops that came out were colatura. The village of Cetara, a few bays east, still makes it the same way.',
@@ -478,7 +479,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 5, umami: 5, crunch: 2 },
   },
   {
-    id: 'polpo', name: 'Polpo con le Patate', jp: 'polpo e patate', romaji: 'POL-po', stall: 'colatura', price: 1800, dessert: false,
+    id: 'polpo', name: 'Polpo con le Patate', jp: 'polpo e patate', romaji: 'POL-po', stall: 'colatura', price: eur(22), dessert: false,
     tagline: 'Octopus braised in its own juices with potatoes, olives and capers.',
     origin: 'Santa Lucia, Naples',
     history: 'The fishermen of Santa Lucia in Naples cooked octopus slowly in a clay pot with no water at all, because "the octopus cooks in its own water". Along the coast they add potatoes to soak up all that juice.',
@@ -488,7 +489,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 5, crunch: 1 },
   },
   {
-    id: 'sorrentina', name: 'Gnocchi alla Sorrentina', jp: 'gnocchi alla sorrentina', romaji: 'NYOK-kee al-la sor-ren-TEE-na', stall: 'masseria', price: 1300, dessert: false,
+    id: 'sorrentina', name: 'Gnocchi alla Sorrentina', jp: 'gnocchi alla sorrentina', romaji: 'NYOK-kee al-la sor-ren-TEE-na', stall: 'masseria', price: eur(14), dessert: false,
     tagline: 'Potato gnocchi baked in tomato and basil under melting mozzarella.',
     origin: 'Sorrento, 1900s',
     history: 'Sorrento, on the other side of the peninsula, put the region\'s three treasures together: soft potato gnocchi, sweet tomatoes and fresh mozzarella. It is baked and brought to the table still bubbling in its terracotta pot.',
@@ -498,7 +499,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 2, savory: 4, umami: 4, crunch: 1 },
   },
   {
-    id: 'polpette', name: 'Polpette al Ragù', jp: 'polpette', romaji: 'pol-PET-te', stall: 'masseria', price: 1200, dessert: false,
+    id: 'polpette', name: 'Polpette al Ragù', jp: 'polpette', romaji: 'pol-PET-te', stall: 'masseria', price: eur(13), dessert: false,
     tagline: 'Big soft meatballs simmered all morning in Sunday ragù.',
     origin: 'Naples, Sunday lunch',
     history: 'The Neapolitan ragù simmers for hours, and the meatballs go in to cook slowly with it. The sauce dresses the pasta and the meatballs come after, as a second course, the way every Sunday lunch in the south has gone for generations.',
@@ -508,7 +509,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 2, savory: 5, umami: 5, crunch: 0 },
   },
   {
-    id: 'melanzane', name: 'Melanzane al Cioccolato', jp: 'melanzane al cioccolato', romaji: 'me-lan-DZA-ne al chok-ko-LA-to', stall: 'chiostro', price: 700, dessert: true,
+    id: 'melanzane', name: 'Melanzane al Cioccolato', jp: 'melanzane al cioccolato', romaji: 'me-lan-DZA-ne al chok-ko-LA-to', stall: 'chiostro', price: eur(6), dessert: true,
     tagline: 'Fried aubergine layered with chocolate, ricotta and candied citron.',
     origin: 'Amalfi Coast monasteries, 1700s',
     history: 'The monks and nuns of the coast\'s monasteries are said to have first paired aubergine with chocolate. It became the sweet of mid-August, the feast of Ferragosto, and nobody outside the coast quite believes it until they taste it.',
@@ -518,7 +519,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 1, umami: 1, crunch: 1 },
   },
   {
-    id: 'pastiera', name: 'Pastiera Napoletana', jp: 'pastiera', romaji: 'pa-STYE-ra', stall: 'chiostro', price: 600, dessert: true,
+    id: 'pastiera', name: 'Pastiera Napoletana', jp: 'pastiera', romaji: 'pa-STYE-ra', stall: 'chiostro', price: eur(5), dessert: true,
     tagline: 'The Easter tart: wheat berries and ricotta perfumed with orange flower.',
     origin: 'Naples, 1600s',
     history: 'The nuns of San Gregorio Armeno in Naples perfected it in their convent: cooked wheat for new life, ricotta, eggs and orange flower water for spring. Legend says Queen Maria Theresa, who never smiled, smiled when she tasted it.',
@@ -528,7 +529,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 0, crunch: 2 },
   },
   {
-    id: 'risotto', name: 'Risotto al Limone', jp: 'risotto al limone', romaji: 'ree-ZOT-to al lee-MO-ne', stall: 'terrazza', price: 1900, dessert: false,
+    id: 'risotto', name: 'Risotto al Limone', jp: 'risotto al limone', romaji: 'ree-ZOT-to al lee-MO-ne', stall: 'terrazza', price: eur(24), dessert: false,
     tagline: 'Creamy risotto brightened with Amalfi lemon zest and juice.',
     origin: 'Amalfi Coast, modern kitchens',
     history: 'Rice is a northern grain, but the coast\'s cooks found it carries the perfume of the sfusato lemon like nothing else. The lemon risotto has become the signature of the coast\'s restaurants with a view.',
@@ -538,7 +539,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 3, crunch: 0 },
   },
   {
-    id: 'ravioli', name: 'Ravioli Capresi', jp: 'ravioli capresi', romaji: 'ra-VYO-lee ka-PRE-zee', stall: 'terrazza', price: 1500, dessert: false,
+    id: 'ravioli', name: 'Ravioli Capresi', jp: 'ravioli capresi', romaji: 'ra-VYO-lee ka-PRE-zee', stall: 'terrazza', price: eur(18), dessert: false,
     tagline: 'Half-moon ravioli of caciotta and marjoram from the isle of Capri.',
     origin: 'Capri, 1900s',
     history: 'The women of Capri made these with what the island had: caciotta cheese from the goats, marjoram from the hills and dough without eggs. They kept the dough thin and the filling fresh, and the island shaped them as half moons.',
@@ -552,7 +553,7 @@ const AMALFI_DISHES: Dish[] = [
 /** Istanbul's dishes (`jp` holds the Turkish name). */
 const ISTANBUL_DISHES: Dish[] = [
   {
-    id: 'simit', name: 'Simit', jp: 'simit', romaji: 'see-MEET', stall: 'simitci', price: 60, dessert: false,
+    id: 'simit', name: 'Simit', jp: 'simit', romaji: 'see-MEET', stall: 'simitci', price: lira(20), dessert: false,
     tagline: 'A crisp sesame ring, dipped in grape molasses and baked dark.',
     origin: 'Istanbul, at least 1500s',
     history: 'Court records of 1525 already fix the price of simit in the city, and the bakers of Istanbul have sold it from trays on their heads ever since. Today some two million are eaten in the city every day.',
@@ -562,7 +563,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 3, umami: 1, crunch: 4 },
   },
   {
-    id: 'pogaca', name: 'Peynirli Poğaça', jp: 'poğaça', romaji: 'poh-AH-cha', stall: 'simitci', price: 70, dessert: false,
+    id: 'pogaca', name: 'Peynirli Poğaça', jp: 'poğaça', romaji: 'poh-AH-cha', stall: 'simitci', price: lira(30), dessert: false,
     tagline: 'A soft round bun with salty white cheese and parsley inside.',
     origin: 'Ottoman bakeries, centuries old',
     history: 'Its name shares a root with the Italian focaccia: both come from the Latin for bread baked in the hearth. Every bakery in Turkey makes its own, plain, with cheese, with olives or with potato.',
@@ -572,7 +573,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 4, umami: 2, crunch: 1 },
   },
   {
-    id: 'balikekmek', name: 'Balık Ekmek', jp: 'balık ekmek', romaji: 'bah-LUK ek-MEK', stall: 'balikci', price: 350, dessert: false,
+    id: 'balikekmek', name: 'Balık Ekmek', jp: 'balık ekmek', romaji: 'bah-LUK ek-MEK', stall: 'balikci', price: lira(220), dessert: false,
     tagline: 'A grilled mackerel fillet in half a loaf, straight off a rocking boat.',
     origin: 'Eminönü, 1900s',
     history: 'Fishermen started grilling their catch on board and selling it in bread to the ferry crowds at Eminönü. The boats, painted gold and red and rocking at the quay, have been there for generations.',
@@ -582,7 +583,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 5, umami: 4, crunch: 2 },
   },
   {
-    id: 'tursu', name: 'Turşu Suyu', jp: 'turşu suyu', romaji: 'toor-SHOO soo-yoo', stall: 'balikci', price: 100, dessert: false, drink: 'cold',
+    id: 'tursu', name: 'Turşu Suyu', jp: 'turşu suyu', romaji: 'toor-SHOO soo-yoo', stall: 'balikci', price: lira(50), dessert: false, drink: 'cold',
     tagline: 'A glass of bright pink pickle juice, with a fork of pickles.',
     origin: 'Istanbul pickle shops, 1800s',
     history: 'Pickle shops have lined the old streets for centuries, keeping vegetables in brine through winter. The juice itself became a drink, coloured pink by beetroot or red carrot.',
@@ -592,7 +593,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 4, umami: 2, crunch: 3 },
   },
   {
-    id: 'midye', name: 'Midye Dolma', jp: 'midye dolma', romaji: 'MID-yeh dol-MAH', stall: 'midyeci', price: 250, dessert: false,
+    id: 'midye', name: 'Midye Dolma', jp: 'midye dolma', romaji: 'MID-yeh dol-MAH', stall: 'midyeci', price: lira(100), dessert: false,
     tagline: 'Mussels stuffed with spiced rice, eaten with a squeeze of lemon.',
     origin: 'Istanbul, brought by Armenian and Greek cooks, 1800s',
     history: 'The city\'s minority communities cooked shellfish when others would not, and their stuffed mussels became a street classic. Vendors carry them in wide trays and sell them one by one.',
@@ -602,7 +603,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 2, savory: 4, umami: 5, crunch: 0 },
   },
   {
-    id: 'kokorec', name: 'Kokoreç', jp: 'kokoreç', romaji: 'ko-ko-RETCH', stall: 'midyeci', price: 400, dessert: false,
+    id: 'kokorec', name: 'Kokoreç', jp: 'kokoreç', romaji: 'ko-ko-RETCH', stall: 'midyeci', price: lira(250), dessert: false,
     tagline: 'Lamb intestines wound on a spit, grilled, chopped and spiced in bread.',
     origin: 'Balkans and Anatolia, ancient',
     history: 'The dish goes back at least to Byzantine Constantinople and shepherds before them. Late-night kokoreç stands are an Istanbul institution, glowing coal grills turning long into the night.',
@@ -612,7 +613,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 5, umami: 5, crunch: 3 },
   },
   {
-    id: 'kestane', name: 'Kestane Kebap', jp: 'kestane kebap', romaji: 'kes-tah-NEH ke-BAHP', stall: 'kestaneci', price: 250, dessert: false,
+    id: 'kestane', name: 'Kestane Kebap', jp: 'kestane kebap', romaji: 'kes-tah-NEH ke-BAHP', stall: 'kestaneci', price: lira(120), dessert: false,
     tagline: 'Chestnuts roasted over charcoal on a cart, sold in a paper bag.',
     origin: 'Istanbul winters, centuries old',
     history: 'The chestnut forests of Bursa and the Black Sea fed the city every autumn. The kestaneci\'s cart with its glowing tray is the smell of an Istanbul winter.',
@@ -622,7 +623,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 3, savory: 2, umami: 1, crunch: 1 },
   },
   {
-    id: 'misir', name: 'Közde Mısır', jp: 'közde mısır', romaji: 'kuhz-DEH muh-SUR', stall: 'kestaneci', price: 150, dessert: false,
+    id: 'misir', name: 'Közde Mısır', jp: 'közde mısır', romaji: 'kuhz-DEH muh-SUR', stall: 'kestaneci', price: lira(60), dessert: false,
     tagline: 'A cob of corn grilled on the coals, rubbed with salt.',
     origin: 'Istanbul shores, 1900s',
     history: 'Corn sellers worked the beaches and promenades with their braziers: grilled in summer, boiled in a big pot in winter. The same carts swap chestnuts for corn as the seasons turn.',
@@ -632,7 +633,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 3, savory: 2, umami: 1, crunch: 3 },
   },
   {
-    id: 'dondurma', name: 'Maraş Dondurma', jp: 'dondurma', romaji: 'don-door-MAH', stall: 'dondurmaci', price: 250, dessert: true,
+    id: 'dondurma', name: 'Maraş Dondurma', jp: 'dondurma', romaji: 'don-door-MAH', stall: 'dondurmaci', price: lira(120), dessert: true,
     tagline: 'Stretchy ice cream thickened with orchid root, beaten until it can be cut with a knife.',
     origin: 'Kahramanmaraş, 1700s',
     history: 'Snow from the mountains near Maraş was mixed with milk, sugar and salep powder and beaten with paddles. The result is chewy and slow to melt, and it travelled the empire with the vendors.',
@@ -642,7 +643,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 0, umami: 0, crunch: 1 },
   },
   {
-    id: 'salep', name: 'Sıcak Salep', jp: 'salep', romaji: 'sah-LEP', stall: 'dondurmaci', price: 200, dessert: true, drink: 'hot',
+    id: 'salep', name: 'Sıcak Salep', jp: 'salep', romaji: 'sah-LEP', stall: 'dondurmaci', price: lira(90), dessert: true, drink: 'hot',
     tagline: 'Hot milk thickened with orchid root, dusted with cinnamon.',
     origin: 'Ottoman Istanbul, 1500s',
     history: 'Ground tubers of wild orchids were believed to warm and strengthen. Salep was the winter drink of the coffee houses, and in London it became saloop, sold on the streets before tea arrived.',
@@ -652,7 +653,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 4, savory: 0, umami: 0, crunch: 0 },
   },
   {
-    id: 'doner', name: 'Dürüm Döner', jp: 'dürüm döner', romaji: 'dew-REWM duh-NER', stall: 'durumcu', price: 400, dessert: false,
+    id: 'doner', name: 'Dürüm Döner', jp: 'dürüm döner', romaji: 'dew-REWM duh-NER', stall: 'durumcu', price: lira(220), dessert: false,
     tagline: 'Thin shavings from a turning spit of lamb, rolled in lavash with tomato and parsley.',
     origin: 'Bursa, 1800s',
     history: 'Cooks in Bursa stood the horizontal spit upright so the meat basted itself as it turned. Döner means "turning". From Istanbul it spread to the whole world.',
@@ -662,7 +663,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 5, umami: 5, crunch: 1 },
   },
   {
-    id: 'ayran', name: 'Ayran', jp: 'ayran', romaji: 'eye-RAHN', stall: 'durumcu', price: 100, dessert: false, drink: 'cold',
+    id: 'ayran', name: 'Ayran', jp: 'ayran', romaji: 'eye-RAHN', stall: 'durumcu', price: lira(40), dessert: false, drink: 'cold',
     tagline: 'Cold, frothy, salted yoghurt in a copper cup.',
     origin: 'Central Asia, ancient',
     history: 'Nomadic Turks diluted yoghurt with water for the long rides. Ayran is now officially the national drink of Turkey.',
@@ -672,7 +673,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 3, umami: 1, crunch: 0 },
   },
   {
-    id: 'baklava', name: 'Fıstıklı Baklava', jp: 'baklava', romaji: 'bahk-lah-VAH', stall: 'baklavaci', price: 450, dessert: true,
+    id: 'baklava', name: 'Fıstıklı Baklava', jp: 'baklava', romaji: 'bahk-lah-VAH', stall: 'baklavaci', price: lira(320), dessert: true,
     tagline: 'Forty layers of paper-thin pastry, pistachio and syrup.',
     origin: 'Topkapı Palace kitchens, 1400s',
     history: 'The palace kitchens perfected it, and on the fifteenth day of Ramadan the sultan sent trays of baklava to his soldiers in a ceremonial parade. The best pistachios still come from Gaziantep.',
@@ -682,7 +683,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 0, umami: 0, crunch: 4 },
   },
   {
-    id: 'kunefe', name: 'Künefe', jp: 'künefe', romaji: 'kew-neh-FEH', stall: 'baklavaci', price: 500, dessert: true,
+    id: 'kunefe', name: 'Künefe', jp: 'künefe', romaji: 'kew-neh-FEH', stall: 'baklavaci', price: lira(220), dessert: true,
     tagline: 'Crisp shredded pastry round a layer of melting cheese, soaked in syrup and served hot.',
     origin: 'Hatay and the Levant, 1200s',
     history: 'Arab cooks of the medieval Levant made it with unsalted cheese, and the city of Antakya in Hatay made it famous in Turkey. It is baked to order in little copper pans.',
@@ -692,7 +693,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 1, umami: 0, crunch: 3 },
   },
   {
-    id: 'hunkar', name: 'Hünkar Beğendi', jp: 'hünkar beğendi', romaji: 'hewn-KAR beh-en-DEE', stall: 'gizli', price: 900, dessert: false,
+    id: 'hunkar', name: 'Hünkar Beğendi', jp: 'hünkar beğendi', romaji: 'hewn-KAR beh-en-DEE', stall: 'gizli', price: lira(480), dessert: false,
     tagline: '"The sultan liked it": smoky aubergine cream under a slow lamb stew.',
     origin: 'Ottoman palace, 1869',
     history: 'Legend says palace cooks made it for the French Empress Eugénie\'s visit, and the sultan liked it so much it took his approval as its name. It has been the pride of Istanbul\'s old restaurants since.',
@@ -702,7 +703,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 1, savory: 5, umami: 5, crunch: 0 },
   },
   {
-    id: 'manti', name: 'Mantı', jp: 'mantı', romaji: 'man-TUH', stall: 'gizli', price: 800, dessert: false,
+    id: 'manti', name: 'Mantı', jp: 'mantı', romaji: 'man-TUH', stall: 'gizli', price: lira(320), dessert: false,
     tagline: 'Dumplings the size of a fingertip under garlic yoghurt and red pepper butter.',
     origin: 'Central Asia, carried west by the Turks',
     history: 'The dumplings rode west along the Silk Road. In Kayseri a bride\'s skill was judged by how many mantı fit on a single spoon: forty is the mark of a master.',

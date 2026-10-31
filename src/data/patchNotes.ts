@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.0',
+    date: '2026-10-31',
+    title: 'Real prices everywhere',
+    items: [
+      'Every price in the game now matches what things really cost in late 2026: street food, restaurants, cafés, shops, hotel rooms, vending machines and gachapon. A takoyaki is ¥700 and a bowl of ramen ¥1,100, a sfogliatella €3 and spaghetti alle vongole €24, a simit ₺20 and a balık ekmek ₺220.',
+      'Hotels cost what they should: ¥6,500 to ¥38,000 a night in Tokyo, €130 to €650 on the Amalfi Coast and ₺1,600 to ₺9,800 in Istanbul.',
+      'New travellers set off with ¥150,000 (about €830), enough for a week of eating well and sleeping somewhere nice. Mission rewards and cooking tips grew to match, and finishing a city\'s missions goes a long way toward the next trip.',
+      'Your wallet keeps one balance across the world at real exchange rates (€1 is ¥180, or ₺60). Wallets from earlier versions have been scaled up to the new prices, and never start below ¥150,000.',
+    ],
+  },
+  {
     version: '0.16.56',
     date: '2026-10-31',
     title: 'Landings without the loading screen',

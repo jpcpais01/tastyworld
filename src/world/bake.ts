@@ -6,7 +6,7 @@ import { buildTokyo, Anchors, PlacedProp, BuildResult, Window } from './tokyo';
 import { buildAmalfi } from './amalfi';
 import { buildIstanbul } from './istanbul';
 import { AMALFI, ISTANBUL } from './cityId';
-import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
+import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ } from './layout';
 import { assemble } from './assemble';
 import { solidBase, type Owners } from './owners';
 import { packSway, swayKey, SWAY_PART } from './sway';
@@ -173,26 +173,15 @@ function computeSolid(grid: SparseGrid, x0: number, z0: number, x1: number, z1: 
 }
 
 /**
- * Standing layer of each column of [x0,x1) x [z0,z1): the top of the highest floor at or under `top` with 7 voxels
- * of headroom, if it is at least minH. `top` is just above street level for the streets; a room upstairs passes
- * its own.
+ * Standing layer of each column of [x0,x1) x [z0,z1): the top of the highest floor at or under `top` (or the city's
+ * own `topAt`, which follows its hills) with 7 voxels of headroom, if it is at least minH. A floor without the
+ * headroom (under a tree, a beam, a sill) is no floor, and nothing above it is either: the treetops are never ground.
  */
 function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, blockers: [number, number, number, number][], minH: number, top = G + 8, topAt?: (x: number, z: number) => number): Uint8Array {
   const sx = x1 - x0, sz = z1 - z0;
   const height = new Uint8Array(sx * sz).fill(BLOCKED);
   for (let z = 0; z < sz; z++)
     for (let x = 0; x < sx; x++) {
-      if (x0 + x >= HILL[0] && x0 + x <= HILL[2] && z0 + z >= HILL[1] && z0 + z <= HILL[3]) {
-        // on the hill, the lowest open ground (the path runs under torii beams and trees)
-        if (topAt && !topAt(x0 + x, z0 + z)) continue;
-        for (let y = G - 1; y < G + 32; y++) {
-          if (grid.get(x0 + x, y - 1, z0 + z) === 0) continue;
-          let clear = true;
-          for (let k = 0; k < 7; k++) if (grid.get(x0 + x, y + k, z0 + z) !== 0) { clear = false; break; }
-          if (clear) { if (y >= minH) height[z * sx + x] = y; break; }
-        }
-        continue;
-      }
       for (let y = topAt ? topAt(x0 + x, z0 + z) : top; y >= 1; y--) {
         if (grid.get(x0 + x, y - 1, z0 + z) === 0) continue;
         let clear = true;

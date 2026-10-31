@@ -230,7 +230,7 @@ export class Crowd {
   private parkNode = -1;
   private viewR = 40;
   private pl: CrowdPlayer = { x: 0, z: 0, speed: 0, running: false, eating: false, facing: 0 };
-  private boats: Boats | null = null;
+  private boats: Boats | SeaBoats | null = null;
   private exercise: Exercise | null = null;
 
   constructor(private nav: Nav, private a: Anchors, private hooks: CrowdHooks, private make?: CrowdMaker) {
@@ -291,7 +291,7 @@ export class Crowd {
     if (this.jog.length < 10) this.jog = [];
     this.buildPlaces();
     if (make) {
-      this.boats = new Boats(sp.boats, make);
+      this.boats = sp.sea ? new SeaBoats(sp.sea, make) : new Boats(sp.boats, make);
       this.exercise = new Exercise(sp.exercise, make, (x, z) => this.free(x, z, 0.3), (x, z) => this.nav.heightAt(x, z));
     }
   }
@@ -1473,6 +1473,71 @@ class Boats {
       if (!on) continue;
       yield b.hull;
       if (b.out) yield* b.riders;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Gozzi out in the bay
+
+interface SeaBoat { hull: Actor; riders: Actor[]; t: number; speed: number; ring: number; from: number; to: number }
+
+class SeaBoats {
+  private list: SeaBoat[] = [];
+  private time = 0;
+  constructor(private o: { cx: number; cz: number; rx: number; rz: number; y: number }, private make: CrowdMaker) {}
+
+  populate(n: number, person: (seed: number) => Actor): void {
+    for (let i = 0; i < n; i++) {
+      // a fisherman at the tiller, now and then a friend on the forward thwart
+      const riders = [person(8200 + i * 3)];
+      if (i % 2) riders.push(person(8201 + i * 3));
+      for (const r of riders) { r.anim = 'sit'; r.noBlob = true; }
+      const hull = this.make.boat(8300 + i);
+      hull.noBlob = true;
+      // concentric rings, alternate ones run the other way round, so no two boats ever meet
+      const dir = i % 2 ? -1 : 1;
+      this.list.push({ hull, riders, t: (i / Math.max(1, n)) * Math.PI * 2 + i, speed: dir * rnd(1.6, 2.6), ring: i, from: 6.2 + i * 0.35, to: 19.2 + i * 0.3 });
+    }
+  }
+
+  settle(_hour: number): void {}
+
+  update(dt: number, hour: number): void {
+    this.time += dt;
+    const o = this.o;
+    for (const b of this.list) {
+      const h = b.hull, p = h.position;
+      const rx = o.rx + b.ring * 2, rz = o.rz + b.ring * 3.2;
+      b.t += (b.speed * dt) / ((rx + rz) / 2);
+      const s = Math.sin(b.t), c = Math.cos(b.t), dir = Math.sign(b.speed);
+      p.set(o.cx + c * rx, o.y - 0.18 + Math.sin(this.time * 1.3 + b.ring) * 0.05, o.cz + s * rz);
+      h.facing = h.targetFacing = Math.atan2(-s * rx * dir, c * rz * dir);
+      // riding the swell: the bow lifts and falls, the hull rolls a little
+      h.root.rotation.z = Math.sin(this.time * 0.9 + b.ring * 2) * 0.05;
+      h.root.rotation.x = Math.sin(this.time * 1.3 + b.ring) * 0.04 - 0.03;
+      const f = h.facing;
+      b.riders.forEach((r, i) => {
+        const along = i ? 0.5 : -1.8;
+        r.position.set(p.x + Math.sin(f) * along, p.y + 0.5 - SIT_DROP, p.z + Math.cos(f) * along);
+        r.facing = r.targetFacing = f;
+        r.anim = 'sit';
+        r.headYawTarget = Math.sin(this.time * 0.15 + i * 2 + b.ring) * 0.8;
+      });
+    }
+    this.hour = hour;
+  }
+
+  private hour = 12;
+
+  *visible(pl: CrowdPlayer, viewR: number): Generator<Actor> {
+    for (const b of this.list) {
+      const on = within(this.hour, b.from, b.to) && Math.hypot(b.hull.position.x - pl.x, b.hull.position.z - pl.z) < viewR + 12;
+      show(b.hull, on);
+      for (const r of b.riders) show(r, on);
+      if (!on) continue;
+      yield b.hull;
+      yield* b.riders;
     }
   }
 }

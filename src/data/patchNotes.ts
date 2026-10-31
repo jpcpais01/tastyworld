@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.8',
+    date: '2026-10-31',
+    title: 'Gozzi in the bay',
+    items: [
+      'Fishermen take their gozzi out into the bay off Marina Grande from early morning until dusk: white wooden boats with a coloured band and an outboard on the stern, riding the swell, sometimes with a friend sitting up front.',
+    ],
+  },
+  {
     version: '0.15.7',
     date: '2026-10-31',
     title: 'Rooms behind the walls',

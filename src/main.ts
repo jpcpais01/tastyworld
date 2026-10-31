@@ -13,7 +13,7 @@ import { Streamer, StreamView } from './engine/streamer';
 import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
-import { bikeModel, scooterModel, swanBoatModel } from './world/vehicles';
+import { bikeModel, scooterModel, swanBoatModel, gozzoModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
@@ -575,14 +575,14 @@ class Game {
       person: (look) => lazy(new Actor(buildPerson(look), this.chars, false, true)),
       dog: (seed) => { const d = lazy(new Actor(buildDog(seed), this.chars, true, true)); d.dog = true; return d; },
       vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), this.chars, true, true)),
-      boat: (seed) => lazy(new Actor(swanBoatModel(seed), this.chars, true, true)),
+      boat: (seed) => lazy(new Actor(AMALFI ? gozzoModel(seed) : swanBoatModel(seed), this.chars, true, true)),
     });
     this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
     const m = this.r.isMobile;
-    // Amalfi's streets are stairs: nobody rides them, and the swan boats and the dawn exercises stay in Tokyo
+    // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay
     this.crowd.populate(AMALFI
-      ? m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 0, exercise: 0 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 0, exercise: 0 }
+      ? m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0 }
       : m ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 } : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires

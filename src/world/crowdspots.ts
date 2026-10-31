@@ -70,6 +70,8 @@ export interface CrowdSpots {
   exercise: V2[];
   /** Swan boats: the loop they pedal on the pond, its height and the jetty they leave from. */
   boats: { cx: number; cz: number; rx: number; rz: number; y: number; dock: V2 };
+  /** Boats out at sea instead (Amalfi's gozzi): each runs its own ring of the bay from early morning to dusk. */
+  sea?: { cx: number; cz: number; rx: number; rz: number; y: number };
 }
 
 /** Amalfi: friends meet at the fountain in the piazza and joggers run the seafront and back. */
@@ -87,6 +89,8 @@ function amalfiSpots(): CrowdSpots {
     sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
     windows: [], jog, exercise: [],
     boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
+    // the bay between the beach and the pier, kept clear of the swimmers and the moorings
+    sea: { cx: 66, cz: -14, rx: 5, rz: 30, y: -0.55 },
   };
 }
 

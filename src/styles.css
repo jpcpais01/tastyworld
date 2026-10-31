@@ -84,7 +84,7 @@ button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
 .hidden { display: none !important; }
 .g { width: 22px; height: 22px; display: block; flex: none; }
 .g .t { fill: currentColor; fill-opacity: 0.18; }
-.flag { display: block; flex: none; width: 21px; height: 14px; border-radius: 3px; }
+.flag { display: block; flex: none; width: 21px; height: 14px; border-radius: 3px; overflow: hidden; clip-path: inset(0 round 3px); }
 .jp { font-family: var(--jp); }
 .eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 
@@ -1041,7 +1041,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .big-tap .g { width: 21px; height: 21px; }
 .dc-menu span { display: inline-flex; gap: 5px; align-items: center; }
 .dc-menu span .g { width: 15px; height: 15px; }
-.dc-flag .flag { width: 42px; height: 28px; border-radius: 5px; }
+.dc-flag .flag { width: 42px; height: 28px; border-radius: 5px; clip-path: inset(0 round 5px); }
 @media (max-width: 899px) { .dc-flag .flag { width: 36px; height: 24px; } }
 .bp-city span .flag { display: inline-block; vertical-align: -2px; width: 18px; height: 12px; margin-left: 2px; }
 

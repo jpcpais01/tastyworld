@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.21',
+    date: '2026-10-31',
+    title: 'Walls in relief',
+    items: [
+      'The mosque courtyards\' outer walls stand out in relief. Pilasters with marble capitals mark each bay. Every window has a moulded frame and sill under a red and white arch, and a string course and lead eave run along the top.',
+      'The Süleymaniye\'s precinct wall is finished in the same stone: grilled openings in marble frames under red and white arches, a string course near the ground and a lead coping on top.',
+    ],
+  },
+  {
     version: '0.16.20',
     date: '2026-10-31',
     title: 'Pomegranate juice and string lights',

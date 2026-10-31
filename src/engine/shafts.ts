@@ -24,7 +24,7 @@ export class Shafts {
   constructor(scene: THREE.Scene, shared: SharedUniforms, halls: ShaftHall[]) {
     for (const hall of halls) {
       if (!hall.beams.length) continue;
-      const mat = shaftMaterial(shared, hall.floor);
+      const mat = shaftMaterial(shared, hall.floor, hall.rect);
       const mesh = new THREE.Mesh(beamGeometry(hall), mat);
       mesh.frustumCulled = false;
       mesh.renderOrder = 9;
@@ -89,9 +89,9 @@ function beamGeometry(hall: ShaftHall): THREE.BufferGeometry {
   return g;
 }
 
-function shaftMaterial(u: SharedUniforms, floor: number): THREE.ShaderMaterial {
+function shaftMaterial(u: SharedUniforms, floor: number, rect: [number, number, number, number]): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    uniforms: { uSunDir: u.uSunDir, uSunColor: u.uSunColor, uNight: u.uNight, uTime: u.uTime, tNoise: u.tNoise, uFloor: { value: floor }, uTop: { value: 1e4 } },
+    uniforms: { uSunDir: u.uSunDir, uSunColor: u.uSunColor, uNight: u.uNight, uTime: u.uTime, tNoise: u.tNoise, uFloor: { value: floor }, uTop: { value: 1e4 }, uRect: { value: new THREE.Vector4(...rect) } },
     vertexShader: /* glsl */ `
       attribute float aAlong;
       attribute vec3 aN;
@@ -117,6 +117,7 @@ function shaftMaterial(u: SharedUniforms, floor: number): THREE.ShaderMaterial {
       uniform float uTime;
       uniform float uTop;
       uniform float uFloor;
+      uniform vec4 uRect;
       uniform sampler2D tNoise;
       varying vec3 vW;
       varying vec3 vTint;
@@ -124,6 +125,8 @@ function shaftMaterial(u: SharedUniforms, floor: number): THREE.ShaderMaterial {
       varying float vLit;
       void main() {
         if (vW.y > uTop || vLit < 0.003) discard;
+        // a low sun carries a beam right across the hall: it ends at the walls, never out in the street
+        if (vW.x < uRect.x || vW.z < uRect.y || vW.x > uRect.z || vW.z > uRect.w) discard;
         vec3 V = isOrthographic ? -vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]) : normalize(vW - cameraPosition);
         // a face seen edge on is where the beam's edge is: fade it, so the beam reads as a soft volume
         vec3 fn = normalize(cross(dFdx(vW), dFdy(vW)));

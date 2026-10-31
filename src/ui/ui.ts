@@ -145,6 +145,7 @@ export class UI {
   onParty: (() => void) | null = null;
   onWave: (() => void) | null = null;
   onPhoto: (() => void) | null = null;
+  onEndTrip: (() => void) | null = null;
   open: string | null = null;
   /** On a co-op trip as a guest: the leader's sky is shared, so the time of day setting waits. */
   skyFromLeader = false;
@@ -188,6 +189,8 @@ export class UI {
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
           <button id="h-set" title="Settings" aria-label="Settings">${G.gear}</button>
+          <span class="sep"></span>
+          <button id="h-trip" class="depart" title="End trip" aria-label="End trip">${G.depart}</button>
         </div>
         <button class="glass compass" id="h-compass" title="City map (M)" aria-label="Compass, opens the city map">
           <span class="dial"><span class="rose"><b>N</b><i></i></span><span class="aim"></span></span><span class="dist"></span>
@@ -218,6 +221,7 @@ export class UI {
     tap('h-party', () => this.onParty?.());
     tap('h-wave', () => this.onWave?.());
     tap('h-set', () => this.settings());
+    tap('h-trip', () => this.onEndTrip?.());
     tap('h-rl', () => this.onRotate?.(-1));
     tap('h-rr', () => this.onRotate?.(1));
     tap('h-view', () => this.onView?.());

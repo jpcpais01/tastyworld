@@ -29,6 +29,8 @@ import { Cutaway } from './game/cutaway';
 import { solidBase } from './world/owners';
 import { Shafts } from './engine/shafts';
 import { HALL_ROOM, type HallPose } from './world/sacred';
+/** Metres from a great hall within which all of its inside is drawn (see StreamView.halls). */
+const HALL_NEAR = 24;
 import { Audio } from './game/audio';
 import { loadState, saveState, saveNow, resetState, SaveState, viewMetres, VIEW_DEFAULT } from './game/state';
 import { DISHES, ALL_DISHES } from './data/dishes';
@@ -49,10 +51,11 @@ import { renderDishIcons } from './ui/icons';
 import { PhotoUI, capture } from './ui/photo';
 import { album, ALBUM_MAX } from './game/album';
 import { Travel } from './ui/travel';
+import { endTripCard, summarise, tripLog } from './ui/endtrip';
 import { CityMap, type Pin } from './ui/citymap';
 import { Beacon } from './game/guide';
 import { RoomGlass } from './game/roomglass';
-import type { Destination } from './data/destinations';
+import { DEST, type Destination } from './data/destinations';
 import type { Coop, Peer } from './net/coop';
 
 registerSW({ immediate: true });
@@ -169,6 +172,7 @@ class Game {
   /** The faithful and the visitors inside the cathedral and the mosques. */
   private hallPeople: { actor: Actor; pose: HallPose; alt?: HallPose; t: number }[] = [];
   private shafts!: Shafts;
+  private hallRects: [number, number, number, number][] = [];
   private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number; snackT: number }[] = [];
   private roomHere: RoomAnchor | null = null;
   /** The hotel room the player is in upstairs (it has its own walk map and light), or null on the street. */
@@ -275,6 +279,7 @@ class Game {
         if (this.started && this.lookColor !== this.s.profile.color) this.rebuildPlayer();
       },
       board: (d, coop) => this.start(d, coop),
+      home: () => this.goHome(),
       arrivalHour: () => this.tod.hour,
       cover: (on) => { this.covered = on; },
       notes: () => this.ui.notes(),
@@ -287,6 +292,7 @@ class Game {
     });
     this.ui.onMap = () => this.openCityMap();
     this.ui.onParty = () => this.travel.ticket();
+    this.ui.onEndTrip = () => this.endTrip();
     this.ui.onWave = () => this.wave();
     this.ui.onPhoto = () => this.setPhoto(true);
     this.photo = new PhotoUI({
@@ -357,7 +363,10 @@ class Game {
     // room contents: 20 m around you in first person; in the iso view as far as the crowd is drawn (about the
     // screen) up to 36 m: zoomed further out, a glimpse through a doorway is a few pixels, not worth a draw each
     const inner = fp ? 20 : Math.min(36, Math.max(20, this.cam.zoom * 1.3 + 8));
-    return { cam: this.r.view, fp, focus: this.started ? this.player.position : this.cam.target, inner };
+    const focus = this.started ? this.player.position : this.cam.target;
+    // a great hall the player is in or near is drawn whole, its far end too
+    const halls = this.hallRects.filter((r) => Math.hypot(Math.max(r[0] - focus.x, 0, focus.x - r[2]), Math.max(r[1] - focus.z, 0, focus.z - r[3])) < HALL_NEAR);
+    return { cam: this.r.view, fp, focus, inner, halls };
   }
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
@@ -621,6 +630,7 @@ class Game {
       this.worldGroup.add(act.root);
       this.hallPeople.push({ actor: act, pose: hp.pose, alt: hp.alt, t: 4 + Math.random() * 12 });
     }
+    this.hallRects = (a.halls ?? []).map((h) => h.rect);
     // the sun falling through their windows
     this.shafts = new Shafts(this.r.scene, this.r.shared, a.halls ?? []);
 
@@ -1154,11 +1164,18 @@ class Game {
     if (dest.id !== CITY && isCity(dest.id)) {
       // another city is another world to build: save, reload into it, and board as soon as it has loaded
       coop?.leave();
+      if (this.started) {
+        // flying on from the end of a trip here: that trip is over
+        this.setCoop(null);
+        this.s.trip = null;
+      }
       saveNow(this.s);
       goToCity(dest.id, { board: dest.id });
       return;
     }
     this.started = true;
+    // a new trip starts on landing; coming back to a trip that never ended (a reload) carries on with it
+    if (this.s.trip?.city !== CITY) { this.s.trip = tripLog(this.s); this.save(); }
     this.rebuildPlayer(); // the colour may have changed at the gate
     if (coop) {
       // friends land a step apart instead of on top of each other
@@ -1188,6 +1205,52 @@ class Game {
       this.save();
       setTimeout(() => this.ui.notes(), 600);
     }
+  }
+
+  /** The end-trip button: the trip summary with the two ways out (fly home, or on to another city). */
+  private endTrip(): void {
+    if (!this.started || this.ui.busy || this.cityMap.isOpen) return;
+    if (this.meal || this.sleeping || this.inside) {
+      this.ui.toast('depart', 'Not just yet', this.meal ? 'Finish your plate first. The plane can wait.' : this.sleeping ? 'Sleep in. The plane can wait till morning.' : 'Step back out into the street first.');
+      return;
+    }
+    this.setPhoto(false);
+    this.path = []; this.pending = null; this.joy = null;
+    saveNow(this.s);
+    const shell = document.createElement('div');
+    shell.className = 'trip-plain endtrip-shell';
+    shell.appendChild(endTripCard({
+      here: DEST[CITY] ?? DEST.tokyo,
+      home: this.travel.home,
+      sum: summarise(this.s),
+      pics: this.ui.icons,
+      crew: this.coop?.peers.size ?? 0,
+      click: () => this.audio.play('click'),
+      homeward: () => setTimeout(() => this.travel.homeward(), 260),
+      onward: () => setTimeout(() => this.travel.openMap('onward'), 260),
+      stay: () => this.ui.close(),
+    }));
+    this.audio.play('whoosh');
+    this.ui.overlay(shell, () => {});
+  }
+
+  /** The plane home has landed: the trip is over, the save is written, and the home menu is back over the city. */
+  private goHome(): void {
+    this.setCoop(null);
+    if (this.cam.fp) this.setFirstPerson(false, true);
+    this.setPhoto(false);
+    this.path = []; this.pending = null; this.joy = null;
+    this.s.trip = null;
+    this.started = false;
+    this.ui.showHud(false);
+    this.ui.prompt('', '', '');
+    // the next trip here lands where trips start
+    const a = this.w.anchors;
+    this.player.position.set(a.spawn[0], this.navWorld.heightAt(a.spawn[0], a.spawn[2]), a.spawn[2]);
+    this.player.facing = this.player.targetFacing = Math.PI * 0.5;
+    saveNow(this.s);
+    this.titleView();
+    this.travel.title();
   }
 
   // ------------------------------------------------------------------ game actions
@@ -1919,7 +1982,7 @@ class Game {
         if (j.look) {
           // auto-walking: dragging turns the view around the traveller and the walk carries on
           if (!j.looked && Math.hypot(dx, dy) > 14) j.looked = true;
-          if (j.looked && !this.ui.busy) this.cam.orbitBy(-(e.clientX - px) * 0.006, 0);
+          if (j.looked && !this.ui.busy) this.cam.walkTurn(-(e.clientX - px) * 0.006);
           return;
         }
         if (!j.active && Math.hypot(dx, dy) > 14) { j.active = true; this.path = []; this.pending = null; }
@@ -2131,7 +2194,7 @@ class Game {
         }
       }
     }
-    if (!this.path.length) this.cam.lookedByHand = false; // the next auto-walk starts facing its way again
+    if (!this.path.length) this.cam.endWalk(); // the next auto-walk starts facing its way again
     if (speed > 0) {
       const hv = this.nav.standHeightVox(p.x, p.z);
       const from = hv === 255 ? 12 : hv;
@@ -2139,8 +2202,8 @@ class Game {
       if (this.path.length > 0) {
         p.x += dx * step; p.z += dz * step;
         pl.targetFacing = Math.atan2(dx, dz);
-        // follow the walking direction, unless the player has taken the view to look around
-        if (this.cam.fp && !this.cam.lookedByHand) this.cam.turnToward(pl.targetFacing, dt);
+        // the view follows the walking direction, keeping whatever look offset the player has dialled in
+        this.cam.autoWalk(pl.targetFacing, dt);
       } else {
         // free movement slides along walls and nudges round corners, chairs and tree trunks
         const m = this.nav.slide(p.x, p.z, dx, dz, step, from, this.slideSide, PLAYER_REACH);

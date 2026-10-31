@@ -8,7 +8,7 @@ import { buildIstanbul } from './istanbul';
 import { AMALFI, ISTANBUL } from './cityId';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
 import { assemble } from './assemble';
-import type { Owners } from './owners';
+import { solidBase, type Owners } from './owners';
 import { packSway, swayKey, SWAY_PART } from './sway';
 export { assemble };
 
@@ -159,14 +159,15 @@ function computeHeight(grid: SparseGrid, x0: number, z0: number, x1: number, z1:
   return out;
 }
 
-function computeSolid(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number): Uint32Array {
+function computeSolid(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, ground: Uint8Array | null = null): Uint32Array {
   const sx = x1 - x0;
   const out = new Uint32Array(sx * (z1 - z0) * 2);
-  const top = Math.min(grid.sy, G + 64);
   for (let z = z0; z < z1; z++)
     for (let x = x0; x < x1; x++) {
-      const c = ((z - z0) * sx + x - x0) * 2;
-      for (let y = G; y < top; y++) if (grid.get(x, y, z) !== 0) out[c + ((y - G) >> 5)] |= 1 << ((y - G) & 31);
+      const ci = (z - z0) * sx + x - x0, c = ci * 2;
+      // the 64 layers start at the street, or just under the terrain on a hillside (see solidBase)
+      const y0 = G + solidBase(ground, ci), top = Math.min(grid.sy, y0 + 64);
+      for (let y = y0; y < top; y++) if (grid.get(x, y, z) !== 0) out[c + ((y - y0) >> 5)] |= 1 << ((y - y0) & 31);
     }
   return out;
 }
@@ -340,8 +341,10 @@ export class WorldPart {
     for (const l of res.lamps) field.addLamp(l);
     for (const bx of res.indoor) field.indoor(bx[0], bx[1], bx[2], bx[3], bx[4], bx[5], 0.62);
     // ground-floor rooms in metres, whose contents are drawn near the player only (the station hall is a
-    // landmark seen from across the square, so it keeps its insides)
-    this.rooms = res.indoor.filter((b) => b[4] - b[1] <= 11)
+    // landmark seen from across the square, so it keeps its insides); the great halls one walks into, the
+    // cathedral's nave and the mosques' prayer halls, are rooms too however tall
+    const halls = new Set((res.anchors.halls ?? []).flatMap((h) => h.inner.map((b) => b.join())));
+    this.rooms = res.indoor.filter((b) => b[4] - b[1] <= 11 || halls.has(b.join()))
       .map((b) => [b[0] * V, (b[1] - G) * V, b[2] * V, (b[3] + 1) * V, (b[4] + 1 - G) * V, (b[5] + 1) * V]);
     this.light = lightFnFor(field);
     progress?.('Placing lanterns', 0.75);
@@ -368,7 +371,7 @@ export class WorldPart {
     }
     const lightmap = computeLightmap(field, nav, x0, z0, x1, z1);
     const height = computeHeight(res.grid, x0, z0, x1, z1);
-    const solid = computeSolid(res.grid, x0, z0, x1, z1);
+    const solid = computeSolid(res.grid, x0, z0, x1, z1, ground);
     const shore = computeShore(res.grid, x0, z0, x1, z1);
 
     // hotel rooms upstairs: a small walk map and light map of their own, baked by the part their middle is in

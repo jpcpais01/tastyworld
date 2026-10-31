@@ -63,6 +63,16 @@ for (const h of a.hotels) {
   }
 }
 check('hidden door', a.hiddenDoor.stand[0], a.hiddenDoor.stand[1]);
+// the great halls: walked into from the street, everyone in them standing on their floor
+for (const h of a.halls ?? []) {
+  const [x0, z0, x1, z1] = h.rect;
+  const mid: [number, number] = h.kind === 'church' ? [x1 - 3, (z0 + z1) / 2] : [(x0 + x1) / 2, (z0 + z1) / 2];
+  if (check(`hall ${h.id}`, mid[0], mid[1], 1.2)) console.log('hall', h.id, 'floor', h.floor.toFixed(2), 'nav', nav.heightAt(mid[0], mid[1]).toFixed(2), 'people', h.people.length, 'beams', h.beams.length);
+  for (const p of h.people) {
+    if (p.pose === 'sit') continue;
+    if (check(`hall ${h.id} ${p.pose}`, p.pos[0], p.pos[2], 1.2) && Math.abs(nav.heightAt(p.pos[0], p.pos[2]) - p.pos[1]) > 0.3) { bad++; console.log('FLOATING hall person', h.id, p.pos.map((v) => v.toFixed(1)).join(','), 'ground', nav.heightAt(p.pos[0], p.pos[2]).toFixed(2)); }
+  }
+}
 console.log('hidden door y', nav.heightAt(a.hiddenDoor.stand[0], a.hiddenDoor.stand[1]).toFixed(2), 'label', a.hiddenDoor.label);
 let nb = 0;
 a.graph.nodes.forEach(([x, z], i) => { if (!nav.walkable(x, z) || !reach(x, z, 1.5)) { nb++; if (nb < 40) console.log('graph node off the walk', i, x.toFixed(1), z.toFixed(1), 'walkable', nav.walkable(x, z)); } });

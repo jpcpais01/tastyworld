@@ -3,7 +3,7 @@ import type { SaveState } from '../game/state';
 import { DISH, DISHES } from './dishes';
 import { CAPSULES } from './places';
 import { STALLS } from './stalls';
-import { HOTELS } from './hotels';
+import { HOTEL, HOTELS } from './hotels';
 import { AMALFI, ISTANBUL } from '../world/cityId';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
@@ -18,7 +18,10 @@ export interface Mission {
 
 const tasted = (s: SaveState) => Object.keys(s.tasted);
 const AMALFI_COUNT = DISHES.length;
-const AMALFI_STALL_IDS = ['pansa', 'cuoppo', 'portafoglio', 'gelato', 'limonaia'];
+const AMALFI_STALL_IDS = ['pansa', 'cuoppo', 'portafoglio', 'gelato', 'limonaia', 'duomo', 'gemma', 'saraceno', 'forno', 'cantina', 'ruocco', 'andrea', 'dolceria', 'colatura', 'masseria', 'chiostro', 'terrazza'];
+/** Amalfi's sit-down restaurants (the hidden grotta has its own mission). */
+const AMALFI_TABLES = STALLS.filter((st) => st.restaurant && !st.hidden).map((st) => st.id);
+const dinedAt = (s: SaveState) => AMALFI_TABLES.filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st));
 /** Only this city's stamps count for its missions (the passport keeps every city's). */
 const amalfiTasted = (s: SaveState) => tasted(s).filter((id) => DISHES.some((d) => d.id === id));
 const AMALFI_TASTED = (s: SaveState) => amalfiTasted(s).length;
@@ -57,6 +60,8 @@ const AMALFI_MISSIONS: Mission[] = [
   { id: 'a-climb', name: 'A Thousand Steps', desc: 'Climb to the lemon terraces high above the town.', progress: (s) => [s.flags.climbed ? 1 : 0, 1], reward: { yen: 800, item: 'basket' } },
   { id: 'a-night', name: 'Sera d\'Estate', desc: 'Eat something after dark, when the lanterns come on along the stairs.', progress: (s) => [s.flags.ateAtNight ? 1 : 0, 1], reward: { yen: 400 } },
   { id: 'a-lemons', name: 'Limoni di Maiolica', desc: 'Find the three majolica lemons hidden around town.', progress: (s) => [s.manekis.length, 3], reward: { item: 'whisper' } },
+  { id: 'a-tables', name: 'A Tavola!', desc: 'Sit down to eat in six of the town\'s restaurants.', progress: (s) => [Math.min(6, dinedAt(s).length), 6], reward: { yen: 1500, item: 'tovaglia' } },
+  { id: 'a-hotel', name: 'Buonanotte', desc: 'Check into one of the town\'s hotels and sleep until morning.', progress: (s) => [Math.min(1, s.stays.filter((h) => HOTEL[h]).length), 1], reward: { yen: 600 } },
   { id: 'a-secret', name: 'La Grotta', desc: 'Dine at the hidden kitchen in the rock.', progress: (s) => [s.tasted['scialatielli'] || s.tasted['totani'] ? 1 : 0, 1], reward: { yen: 1500, item: 'majolica' } },
   { id: 'a-stars', name: 'Bravo!', desc: 'Earn three stars on an Amalfi cooking challenge.', progress: (s) => [AMALFI_STALL_IDS.some((st) => (s.cooked[st] ?? 0) >= 3) ? 1 : 0, 1], reward: { yen: 700 } },
   { id: 'a-photos', name: 'Cartolina', desc: 'Take three photos of the coast in photo mode.', progress: (s) => [Math.min(3, s.flags.photosA ?? 0), 3], reward: { yen: 600 } },
@@ -111,6 +116,7 @@ export function missionStalls(m: Mission, s: SaveState): string[] {
     case 'i-tables': return ['durumcu', 'baklavaci'].filter((id) => !Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === id));
     case 'a-fried': return untasted((d) => d.stall === 'cuoppo');
     case 'alley': return untasted((d) => ['yakitori', 'karaage', 'ramen', 'gyoza'].includes(d.id));
+    case 'a-tables': return AMALFI_TABLES.filter((id) => !dinedAt(s).includes(id));
     case 'tables': return ['komorebi', 'kikyo'].filter((id) => !Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === id));
     case 'apprentice': case 'stars': case 'a-apprentice': case 'a-stars': case 'i-apprentice': case 'i-stars': return all.filter((st) => !st.hidden).map((st) => st.id);
     case 'secret': return s.hiddenFound ? ['kakurega'] : [];
@@ -134,6 +140,7 @@ export const ITEMS: Record<string, { name: string; icon: IconName; desc: string 
   basket: { name: 'Lemon basket', icon: 'flower', desc: 'Gennaro lent you a wicker basket for the terraces. It is heavier than it looks.' },
   whisper: { name: 'A whisper', icon: 'paw', desc: 'The three lemons all point up the stairs behind the cathedral, to a door in the rock...' },
   majolica: { name: 'Majolica tile', icon: 'chopsticks', desc: 'Zia Carmela gave you a hand-painted tile from the grotta wall. Blue, yellow, a little lemon.' },
+  tovaglia: { name: 'Checked tablecloth', icon: 'flower', desc: 'Six restaurants, six welcomes. Nonna Gemma says you are family now, and family does not pay for the wine.' },
   goldlemon: { name: 'Golden lemon', icon: 'medal', desc: 'Your Amalfi passport is complete. The whole coast knows your name.' },
   fes: { name: 'Red fez', icon: 'headband', desc: 'A felt fez with a black tassel, from a hat shop in the Grand Bazaar. Nobody wears them any more, which is why it is fun.' },
   onluk: { name: 'Usta\'s apron', icon: 'coat', desc: 'A white apron from the cook\'s own hook. Eline sağlık: health to your hands.' },

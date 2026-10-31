@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.31',
+    date: '2026-10-31',
+    title: 'Tokyo Tower',
+    items: [
+      'Tokyo Tower rises over the rooftops north of the city, at the end of the long avenue. Its 333 m lattice stands on four legs joined by great arches, in bands of orange and white, with the two-storey main deck halfway up, the top deck above it and the antenna to the tip.',
+      'After dark the floodlights turn it amber and gold, the deck windows glow and red aviation lights pulse up the mast. Foot Town sits between its legs in a plaza ringed with trees.',
+    ],
+  },
+  {
     version: '0.16.30',
     date: '2026-10-31',
     title: 'A living sea',

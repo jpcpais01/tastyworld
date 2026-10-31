@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.1',
+    date: '2026-10-31',
+    title: 'Every step you can climb',
+    items: [
+      'Stairs no longer start on top of a wall. Where a flight met a square or a street below it (the steps up from Piazza dei Dogi, the lanes off Via Lorenzo, the Grand Bazaar\'s gates) it now comes all the way down to the paving.',
+      'Amalfi\'s garden terraces and Istanbul\'s raised yards have their own little flights of steps from the lane beside them, cut into the terrace or built up against the wall, so you can walk up onto ground you can see.',
+      'The ground in front of the Grand Bazaar\'s walls is no longer a ledge you can\'t climb: steps lead up to it along the street.',
+      'On Tokyo\'s Inari Hill the treetops and bushes no longer count as ground.',
+    ],
+  },
+  {
     version: '0.17.0',
     date: '2026-10-31',
     title: 'Real prices everywhere',

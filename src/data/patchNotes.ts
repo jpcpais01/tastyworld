@@ -8,11 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.10.19',
+    version: '0.10.20',
     date: '2026-10-31',
     title: 'Lighter when zoomed far out',
     items: [
       'Zoomed far out in the iso view, the insides of shops and homes are now only drawn within about 36 m of you. At that zoom a doorway is a few pixels wide, but every furnished room still cost its own draw. That makes up to about a hundred fewer draws a frame and roughly 10% fewer triangles.',
+    ],
+  },
+  {
+    version: '0.10.19',
+    date: '2026-10-31',
+    title: 'Buildings behind you stay up',
+    items: [
+      'Walking right up to a building that is beside or behind you no longer makes it disappear. Buildings only lower when they actually stand between the camera and you (or you go inside).',
     ],
   },
   {

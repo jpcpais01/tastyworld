@@ -117,12 +117,25 @@ export class Cutaway {
       if (k < 0 || j < 0 || k >= g.sx || j >= g.sz) return;
       const c = j * g.sx + k, id = own[c];
       if (!id || this.blocking[id - 1]) continue;
-      const l = Math.floor(y / V);
-      if (l < 64 ? (f.solid[c * 2 + (l >> 5)] >>> (l & 31)) & 1 : l < f.height[c]) {
+      if (solidAt(f, c, y)) {
         this.blocking[id - 1] = 1;
         this.hits.push(id - 1);
       }
     }
+  }
+
+  /**
+   * How far (up to m) one can go from o along (dx, dz) at o's height before running into a solid voxel. Side
+   * samples stop there, so the band never reaches into a building beside or behind the player: that building
+   * hides nothing, and starting a ray inside it would lower it.
+   */
+  private reach(sc: Scene, o: THREE.Vector3, dx: number, dz: number, m: number): number {
+    const { g, f } = sc;
+    for (let t = V / 2; t <= m; t += V / 2) {
+      const k = Math.floor((o.x + dx * t - g.ox) / V), j = Math.floor((o.z + dz * t - g.oz) / V);
+      if (k < 0 || j < 0 || k >= g.sx || j >= g.sz || solidAt(f, j * g.sx + k, o.y)) return Math.max(0, t - V);
+    }
+    return m;
   }
 
   update(dt: number, p: THREE.Vector3, fwd: THREE.Vector3, inside: boolean, on: boolean): void {
@@ -153,10 +166,13 @@ export class Cutaway {
       s[3].set(p.x, p.y + 1.95, p.z);
       let k = 4;
       for (const m of SIDES)
-        for (const y of [0.6, 1.7]) {
-          s[k++].set(p.x - az * m, p.y + y, p.z + ax * m);
-          s[k++].set(p.x + az * m, p.y + y, p.z - ax * m);
-        }
+        for (const y of [0.6, 1.7])
+          for (const sd of [-1, 1]) {
+            const o = s[k++].set(p.x, p.y + y, p.z);
+            const r = this.reach(sc, o, sd * az, -sd * ax, m);
+            o.x += sd * az * r;
+            o.z -= sd * ax * r;
+          }
       const dl = Math.hypot(fwd.x, fwd.y, fwd.z) || 1;
       for (const o of s) this.march(sc, o, -fwd.x / dl, -fwd.y / dl, -fwd.z / dl);
       for (const i of live) {
@@ -207,6 +223,12 @@ export class Cutaway {
     }
     if (dirty) this.cut.needsUpdate = true;
   }
+}
+
+/** Whether column c of a scene is solid at height y (metres above the street). */
+function solidAt(f: Field, c: number, y: number): boolean {
+  const l = Math.floor(y / V);
+  return l < 64 ? ((f.solid[c * 2 + (l >> 5)] >>> (l & 31)) & 1) === 1 : l < f.height[c];
 }
 
 /** Highest solid point of a scene (metres above the street): rays stop there. */

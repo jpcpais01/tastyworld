@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.50',
+    date: '2026-10-31',
+    title: 'Smooth arrivals from the first landing',
+    items: [
+      'The city arrivals (Tokyo\'s noren, Amalfi\'s lemon boughs, Istanbul\'s tiles) now get ready while the plane is still in the air, so they glide in smoothly the very first time instead of catching for a moment.',
+    ],
+  },
+  {
     version: '0.16.49',
     date: '2026-10-31',
     title: 'Smaller pills',

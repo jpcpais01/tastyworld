@@ -322,10 +322,11 @@ export class Travel {
     trip.classList.add('flying');
     this.pending = null;
     trip.querySelector('.bp-wrap')?.remove();
-    await this.flight(trip, from, d, d.local, d.city, 'Arrived');
-    // then down into the streets, through a veil dressed for the city (clouds where there is none yet)
+    // the veil dressed for the city (clouds where there is none yet) gets ready while the plane is in the air
     const hour = this.hooks.arrivalHour();
     const veil = arrivalVeil($('app'), d.id, hour < 6 || hour >= 19);
+    await this.flight(trip, from, d, d.local, d.city, 'Arrived');
+    // then down into the streets through it
     this.audio.play('whoosh');
     void this.map?.diveIn(1500);
     await veil.cover();
@@ -389,8 +390,8 @@ export class Travel {
       await new Promise((r) => requestAnimationFrame(r));
       map.focus(from, true);
       await sleep(250);
-      await this.flight(trip, from, this.home, '', this.home.city, 'Welcome home');
       const veil = arrivalVeil($('app'), 'home', false);
+      await this.flight(trip, from, this.home, '', this.home.city, 'Welcome home');
       this.audio.play('whoosh');
       void map.diveIn(1500);
       await veil.cover();

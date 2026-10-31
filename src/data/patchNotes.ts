@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.54',
+    date: '2026-10-31',
+    title: 'Clear cathedral steps',
+    items: [
+      'The lone lamp post standing in the middle of the stairway up to Amalfi\'s cathedral is gone. The pair of lamps framing the portico at the top still lights the steps at night.',
+    ],
+  },
+  {
     version: '0.16.53',
     date: '2026-10-31',
     title: 'The Duomo\'s paintings and its crucifix',

@@ -1851,7 +1851,8 @@ function lanes(b: Builder, c: AC, plan: Plan): void {
         const wo = s.w / 2 + 0.6 - 0.25, lx = cx + nx * wo * side, lz = cz + nz * wo * side;
         b.place(wallLantern(c), lx, cy + 2.6, lz, faceTurn(-nx * side, -nz * side));
         b.lamp(lx, cy + 2.6, lz, WARM, 5.5, 0.75);
-      } else if (own(y)) {
+      } else if (own(y) && plan.kind[col(Math.floor(x / V), Math.floor(z / V))] !== K.Steps) {
+        // (never on the cathedral's flight, which keeps its own pair of lamps)
         b.place(lampPost(c), x, layerY(y), z);
         b.lamp(x, y + 2.6, z, WARM, 5.5, 0.75);
       }

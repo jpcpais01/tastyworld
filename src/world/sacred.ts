@@ -3,6 +3,7 @@ import { Prop } from './props';
 import { V, G } from './layout';
 import { Builder, WARM, WHITEWARM } from './tokyo';
 import type { Beam } from '../engine/shafts';
+import { paintColors, toProp, altarpiece, apostle, ceilingScene, sideAltar } from './paintings';
 
 /**
  * The great interiors one walks into straight from the street: Sant'Andrea's nave in Amalfi and the prayer halls of
@@ -60,7 +61,7 @@ function makeColors(b: Builder) {
     gold: a(0xd8ad45, 0.05, { emit: 0.07 }), goldDeep: a(0xa47a29, 0.05, { emit: 0.03 }), goldLight: a(0xf2d47d, 0.04, { emit: 0.12 }),
     // the painters' colours
     pSky: a(0x87a7c9, 0.05), pSkyDeep: a(0x4a6d9f, 0.05), pCloud: a(0xeee6d7, 0.04), pGlow: a(0xf4d89b, 0.04, { emit: 0.08 }), pRed: a(0xac3b30, 0.05), pBlue: a(0x2f4f8b, 0.05),
-    pGreen: a(0x587b4b, 0.05), pFlesh: a(0xddaf87, 0.04), pDark: a(0x3b2e27, 0.05), pOchre: a(0xbe8b3f, 0.05), pBrown: a(0x6f4b2d, 0.06), pWhite: a(0xf3efe6, 0.03),
+    pGreen: a(0x587b4b, 0.05), pFlesh: a(0xddaf87, 0.04), pFleshShade: a(0xb4805e, 0.04), pWhiteShade: a(0xd2cbbd, 0.03), pDark: a(0x3b2e27, 0.05), pOchre: a(0xbe8b3f, 0.05), pBrown: a(0x6f4b2d, 0.06), pWhite: a(0xf3efe6, 0.03),
     // wood, cloth, wax and metal
     walnut: a(0x5c3b25, 0.06), walnutDark: a(0x3d2718, 0.06), velvet: a(0x8b2027, 0.05), wax: a(0xf4ebd3, 0.03), flame: a(0xffc964, 0.02, { emit: 1 }),
     bronze: a(0x7e5c2e, 0.06), iron: a(0x2f2c2a, 0.04), tin: a(0xc8cbcf, 0.04), tinDark: a(0x7c8086, 0.04), water: a(0x6f8d97, 0.03),
@@ -137,6 +138,33 @@ function crucifix(k: K): Prop {
   p.box(3, 6, 0, 3, 10, 0, k.pFlesh);
   p.box(2, 10, 0, 4, 10, 0, k.pFlesh);
   p.set(3, 11, 0, k.pFlesh);
+  return p;
+}
+
+/**
+ * The great crucifix that hangs over the presbytery facing the pews: a gilt cross with trefoil ends and its title,
+ * the body pale against the gold, head bowed under the crown of thorns, the white loincloth (front at z = 0).
+ */
+function greatCrucifix(k: K): Prop {
+  const p = new Prop(15, 24, 3);
+  const cross = (x: number, y: number) => (x === 6 || x === 8 || y === 15 || y === 19 ? k.goldDeep : k.gold);
+  p.box(6, 0, 1, 8, 23, 2, cross);
+  p.box(0, 15, 1, 14, 19, 2, (x, y) => (y === 16 || y === 18 ? cross(x, y) : y === 15 || y === 19 ? (x < 2 || x > 12 ? k.goldLight : 0) : k.gold));
+  p.box(1, 16, 1, 13, 18, 2, cross);
+  for (const [x, y] of [[0, 17], [14, 17], [7, 23]] as const) p.box(Math.max(0, x - 1), y - 1, 1, Math.min(14, x + 1), Math.min(23, y + 1), 2, k.goldLight);
+  // the title over his head
+  p.box(5, 21, 0, 9, 22, 0, (x) => (x === 5 || x === 9 ? k.gold : k.pWhite));
+  // the body: arms along the beam to the hands, the torso, the cloth, the legs together and the feet
+  p.box(2, 17, 0, 5, 17, 0, k.pFlesh); p.box(9, 17, 0, 12, 17, 0, k.pFlesh);
+  p.set(1, 17, 0, k.pFlesh); p.set(13, 17, 0, k.pFlesh);
+  p.box(6, 11, 0, 8, 16, 0, (x, y) => (x === 8 || y === 11 ? k.pFleshShade : k.pFlesh));
+  p.box(6, 9, 0, 8, 10, 0, (x) => (x === 8 ? k.pWhiteShade : k.pWhite));
+  p.set(5, 10, 0, k.pWhite);
+  p.box(7, 3, 0, 8, 8, 0, (x) => (x === 8 ? k.pFleshShade : k.pFlesh));
+  p.box(7, 2, 0, 7, 2, 0, k.pFleshShade);
+  p.box(7, 18, 0, 8, 19, 0, (x, y) => (y === 19 && x === 7 ? k.pBrown : k.pFlesh));
+  p.box(6, 19, 0, 9, 19, 0, (x) => (x === 7 ? k.pBrown : x === 8 ? k.pBrown : 0));
+  p.set(9, 20, 0, k.pDark); p.set(6, 20, 0, k.pDark);
   return p;
 }
 
@@ -302,7 +330,37 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
   }
   // the high altar's candles and crucifix, the lamps of the apse
   for (const dz of [-6.5, -4.5, -2.5, 2.5, 4.5, 6.5]) b.place(candlestick(k, 9), m(AX - 2), floorY + 0.5 + 1.0 + 0.25, m(cz + dz));
-  b.place(crucifix(k), m(AX - 2), floorY + 0.5 + 1.0 + 1.25, m(cz));
+  // the altar cross turned to the pews, and the great crucifix hung over the presbytery facing them
+  b.place(crucifix(k), m(AX - 2), floorY + 0.5 + 1.0 + 1.25, m(cz), 3);
+  {
+    const x = m(AX + 8), y = floorY + 2.9, top = y + 3.0;
+    b.place(greatCrucifix(k), x, y, m(cz), 3);
+    b.place(chain(k, Math.round((yM(CEIL - 1) - top) / 0.125), k.gold), x, top, m(cz));
+    b.lamp(x + 2.5, floorY + 3.2, m(cz), WARM, 5, 0.5);
+  }
+  // the paintings: pixel art on fine voxels laid over their canvases (see world/paintings.ts)
+  {
+    const pc = paintColors(b), F = 0.0625;
+    // the altarpiece on the apse wall, facing down the nave (+x)
+    const z0 = Math.floor(cz) - 6, z1 = Math.ceil(cz) + 5, y0 = Y + 10, y1 = Y + 34;
+    b.place(toProp(altarpiece(pc, (z1 - z0 + 1) * 2, (y1 - y0 + 1) * 2), 'x', true), m(IX0 + 1) + F, yM(y0), m((z0 + z1 + 1) / 2));
+    // apostles over the arcades, facing into the nave from both sides
+    piers.forEach((px, i) => {
+      if (px === lastPier) return;
+      for (const [zn, face] of [[NZ0, 1], [NZ1, -1]] as const) {
+        const im = apostle(pc, 20, 34, i * 2 + (face > 0 ? 0 : 1));
+        b.place(toProp(im, 'z', face < 0), m(px + 10), yM(Y + 35), face > 0 ? m(zn + 1) + F : m(zn) - F);
+      }
+    });
+    // the ceiling's canvases, upright for someone looking up towards the altar
+    for (let i = 0; AX + 21 * i + 20 <= IX1; i++)
+      b.place(toProp(ceilingScene(pc, i, 20, 36), 'y', true, true), m(AX + 21 * i + 12), yM(CEIL) - 2 * F, m(NZ0 + 20));
+    // the side altars' paintings
+    [piers[1] + 10, piers[3] + 10].forEach((x, i) => {
+      for (const [zw, out] of [[IZ0, 1], [IZ1, -1]] as const)
+        b.place(toProp(sideAltar(pc, i * 2 + (out > 0 ? 0 : 1), 12, 28), 'z', out < 0), m(x), yM(Y + 6), out > 0 ? m(zw + 1) + F : m(zw) - F);
+    });
+  }
   b.lamp(m(AX), floorY + 2.6, m(cz), WARM, 8, 0.85);
   b.lamp(m(IX0 + 2), floorY + 5.5, m(cz), WHITEWARM, 7, 0.6);
   // votive candles and their glow by the side altars, a lamp in each aisle

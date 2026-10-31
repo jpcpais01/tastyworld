@@ -29,7 +29,7 @@ const CORNER_SV = [-1, -1, 1, 1];
 const AO_CURVE = [0.4, 0.62, 0.82, 1.0];
 
 /** Voxel sizes known to the shader (index stored per vertex). */
-export const SCALES = [0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5, 1.0];
+export const SCALES = [0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5, 1.0, 0.0375];
 
 export const STRIDE = 16; // attribute bytes per vertex
 
@@ -152,10 +152,14 @@ const flat = (L: Float32Array, c: number, m: number): number => {
   return q((L[c] + L[c + 5] + L[c + 10] + L[c + 15]) / 4, m);
 };
 
+/** Corner light of an unlit mesh (full sun and sky, no lamp), as cL holds it when there is no light function. */
+const UNLIT = new Float32Array([1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0]);
+
 // Scratch buffers shared by all mesh calls (slices are at most 300 x 300).
 const MAXS = 320 * 320;
 let scr: {
   keys: Float64Array; edgesM: Uint8Array; colM: Uint16Array; swM: Uint16Array; partM: Int8Array; lightM: Uint8Array; used: Uint8Array;
+  stripK: Float64Array; aoM: Uint8Array;
   cornerStamp: Int32Array; cornerVals: Float32Array; cornerAo: Uint8Array;
 } | null = null;
 let stampBase = 1;
@@ -163,7 +167,7 @@ function scratch() {
   if (!scr) {
     scr = {
       keys: new Float64Array(MAXS), edgesM: new Uint8Array(MAXS), colM: new Uint16Array(MAXS), swM: new Uint16Array(MAXS), partM: new Int8Array(MAXS),
-      lightM: new Uint8Array(MAXS * 6), used: new Uint8Array(MAXS),
+      lightM: new Uint8Array(MAXS * 6), used: new Uint8Array(MAXS), stripK: new Float64Array(MAXS), aoM: new Uint8Array(MAXS * 4),
       cornerStamp: new Int32Array(322 * 322), cornerVals: new Float32Array(322 * 322 * 5), cornerAo: new Uint8Array(322 * 322),
     };
   }
@@ -194,7 +198,10 @@ export function meshGrid(o: MeshOpts): MeshData {
   };
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-  const { keys, edgesM, colM, swM, partM, lightM, used, cornerStamp, cornerVals, cornerAo } = scratch();
+  const { keys, edgesM, colM, swM, partM, lightM, used, stripK, aoM, cornerStamp, cornerVals, cornerAo } = scratch();
+  // Unlit part meshes (characters) also merge faces whose AO only varies across them, into strips along the
+  // other axis: the rounded edges of a fine body are long runs of such faces (see stripMerge below).
+  const strips = greedy && !!parts && !light && !atlas;
   const maxU = keys.length;
 
   const cAo = [0, 0, 0, 0];
@@ -283,6 +290,7 @@ export function meshGrid(o: MeshOpts): MeshData {
       let any = false;
       stamp++;
       keys.fill(-2, 0, U * Vn);
+      if (strips) stripK.fill(0, 0, U * Vn);
       const ns = s + dn;
       const nIn = ns >= 0 && ns < dimN;
       const outsideSolid = !nIn && (na === 1 ? ns < gb : false);
@@ -357,6 +365,17 @@ export function meshGrid(o: MeshOpts): MeshData {
           if (uniform) {
             qs = flat(cL, 0, 63); qk = flat(cL, 1, 63); qr = flat(cL, 2, 31.875); qg = flat(cL, 3, 31.875); qb = flat(cL, 4, 31.875);
             uniform = qs >= 0 && qk >= 0 && qr >= 0 && qg >= 0 && qb >= 0;
+          }
+          if (!uniform && strips) {
+            // the corner AO repeats along u (corners 0,1 and 3,2 equal) or along v (0,3 and 1,2 equal)
+            const du = cAo[0] === cAo[1] && cAo[2] === cAo[3], dv = cAo[0] === cAo[3] && cAo[1] === cAo[2];
+            if (du || dv) {
+              stripK[mi] = ((((col * 16 + part + 1) * 256 + (cAo[0] | cAo[1] << 2 | cAo[2] << 4 | cAo[3] << 6)) * 2 + (seamFace ? 1 : 0)) * 2 + (du ? 0 : 1)) * 64 + sw % 64 + 1;
+              edgesM[mi] = edges; colM[mi] = col; partM[mi] = part; swM[mi] = sw; used[mi] = 0;
+              const a4 = mi * 4;
+              aoM[a4] = cAo[0]; aoM[a4 + 1] = cAo[1]; aoM[a4 + 2] = cAo[2]; aoM[a4 + 3] = cAo[3];
+              continue;
+            }
           }
           if (!uniform) {
             emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
@@ -461,6 +480,34 @@ export function meshGrid(o: MeshOpts): MeshData {
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
           emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, partM[mi], sw, key % 2);
         }
+      if (strips) {
+        // strips: one row (along u) or one column (along v) of faces with the same colour, part and AO pattern
+        const ao4 = [0, 0, 0, 0];
+        for (let iv = 0; iv < Vn; iv++)
+          for (let iu = 0; iu < U; iu++) {
+            const mi = iv * U + iu;
+            const key = stripK[mi];
+            if (!key || used[mi]) continue;
+            const alongV = Math.floor(key / 64) % 2 === 1;
+            let w = 1, h = 1;
+            if (!alongV) while (iu + w < U && w < 255 && stripK[mi + w] === key && !used[mi + w]) w++;
+            else while (iv + h < Vn && h < 255 && stripK[mi + h * U] === key && !used[mi + h * U]) h++;
+            let eU0 = 1, eU1 = 2, eV0 = 4, eV1 = 8;
+            for (let jv = 0; jv < h; jv++) {
+              const row = (iv + jv) * U + iu;
+              for (let ju = 0; ju < w; ju++) used[row + ju] = 1;
+              if (!(edgesM[row] & 1)) eU0 = 0;
+              if (!(edgesM[row + w - 1] & 2)) eU1 = 0;
+            }
+            for (let ju = 0; ju < w; ju++) {
+              if (!(edgesM[iv * U + iu + ju] & 4)) eV0 = 0;
+              if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
+            }
+            for (let k = 0; k < 4; k++) ao4[k] = aoM[mi * 4 + k];
+            p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
+            emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, ao4, UNLIT, null, 0, partM[mi], swM[mi], Math.floor(key / 128) % 2);
+          }
+      }
     }
   }
   stampBase = stamp + 1;

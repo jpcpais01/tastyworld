@@ -1,6 +1,7 @@
 import type { Look } from '../world/characters';
 import type { IconName } from '../ui/emblems';
 import { perCity } from '../world/cityId';
+import { eur, lira } from './money';
 
 /**
  * The seven places to stay. Each one is a real building in the city (picked by the corner of its lot), with a
@@ -47,7 +48,7 @@ const TOKYO_HOTELS: HotelInfo[] = [
     id: 'kaminariya', name: 'Hotel Kaminari-ya', jp: 'ホテル雷屋', street: 'Kaminari Lane', theme: 'inn',
     blurb: 'A family-run inn above the old shopping street, with creaky floors and the temple roofs out of the window.',
     lot: [181, 4], style: 'showa', floors: 3,
-    rooms: [{ floor: 1, type: 'twin', price: 1800 }, { floor: 2, type: 'king', price: 3200 }],
+    rooms: [{ floor: 1, type: 'twin', price: 14000 }, { floor: 2, type: 'king', price: 24000 }],
     keeper: 'Mrs. Kanemoto', keeperLook: { topStyle: 'cardigan', top: 0xb0603a, accent: 0x6a3a22, hat: 'none', glasses: true, hair: 0x8a8a8e, backpack: undefined },
     lines: [
       'Welcome, welcome! My grandmother opened this inn the year the lane got its first streetlights.',
@@ -59,7 +60,7 @@ const TOKYO_HOTELS: HotelInfo[] = [
     id: 'hinode', name: 'Ryokan Hinode', jp: '旅館 日の出', street: 'Yanaka Lanes', theme: 'ryokan',
     blurb: 'One tatami room above a wooden townhouse. Futon, green tea and the quietest lane in town.',
     lot: [-228, 76], style: 'machiya', floors: 2,
-    rooms: [{ floor: 1, type: 'tatami', price: 2400 }],
+    rooms: [{ floor: 1, type: 'tatami', price: 22000 }],
     keeper: 'Okami Setsuko', keeperLook: { topStyle: 'yukata', top: 0x2c3d73, accent: 0xe8dcc0, hat: 'none', hairStyle: 'bun', hair: 0x2a1d17, backpack: undefined },
     lines: [
       'Irasshaimase. Shoes off at the step, please. The tatami will thank you.',
@@ -71,7 +72,7 @@ const TOKYO_HOTELS: HotelInfo[] = [
     id: 'hikari', name: 'Business Hotel Hikari', jp: 'ビジネスホテル光', street: 'Station Square', theme: 'business',
     blurb: 'Small, spotless and right by the station. The rooms are tiny, the beds are not.',
     lot: [48, -184], style: 'modern', floors: 9,
-    rooms: [{ floor: 2, type: 'single', price: 1200 }, { floor: 3, type: 'double', price: 1900 }, { floor: 4, type: 'king', price: 3600 }],
+    rooms: [{ floor: 2, type: 'single', price: 9000 }, { floor: 3, type: 'double', price: 13000 }, { floor: 4, type: 'king', price: 21000 }],
     keeper: 'Clerk Hayashi', keeperLook: DESK,
     lines: [
       'Good evening. Check-in is from three, check-out is whenever you wake up. We are very flexible.',
@@ -83,7 +84,7 @@ const TOKYO_HOTELS: HotelInfo[] = [
     id: 'neonmoon', name: 'Hotel Neon Moon', jp: 'ホテル ネオン月', street: 'Neon-dori', theme: 'boutique',
     blurb: 'Velvet, dark wood and the whole of Neon-dori glowing through the glass.',
     lot: [328, -28], style: 'apartment', floors: 6,
-    rooms: [{ floor: 3, type: 'double', price: 2600 }, { floor: 4, type: 'king', price: 4400 }],
+    rooms: [{ floor: 3, type: 'double', price: 18000 }, { floor: 4, type: 'king', price: 32000 }],
     keeper: 'Concierge Rei', keeperLook: { topStyle: 'jacket', top: 0x2f2f35, accent: 0xb06aff, bottom: 0x2f2f35, hat: 'none', hairStyle: 'spiky', backpack: undefined },
     lines: [
       'Welcome to the Moon. We dim the lights so the street can do the decorating.',
@@ -95,7 +96,7 @@ const TOKYO_HOTELS: HotelInfo[] = [
     id: 'sakura', name: 'Guesthouse Sakura', jp: 'ゲストハウスさくら', street: 'Sakura Canal', theme: 'guesthouse',
     blurb: 'A cheerful little guesthouse on the canal. One room, one window, a hundred cherry trees.',
     lot: [396, 112], style: 'showa', floors: 4,
-    rooms: [{ floor: 2, type: 'single', price: 1400 }],
+    rooms: [{ floor: 2, type: 'single', price: 6500 }],
     keeper: 'Miki', keeperLook: { topStyle: 'tee', top: 0xf08ac0, accent: 0xf2efe7, hat: 'beanie', hatColor: 0x3f6e9a, backpack: undefined },
     lines: [
       'Hi hi! Backpackers from all over the world have slept upstairs. Sign the wall map before you go!',
@@ -107,7 +108,7 @@ const TOKYO_HOTELS: HotelInfo[] = [
     id: 'minami', name: 'Minami Park Hotel', jp: '南パークホテル', street: 'Minami-dori', theme: 'park',
     blurb: 'A proper old-fashioned hotel by the park, with brass keys and a doorman who remembers your name.',
     lot: [260, 260], style: 'modern', floors: 5,
-    rooms: [{ floor: 2, type: 'twin', price: 2000 }, { floor: 3, type: 'double', price: 2400 }, { floor: 4, type: 'king', price: 3800 }],
+    rooms: [{ floor: 2, type: 'twin', price: 16000 }, { floor: 3, type: 'double', price: 18000 }, { floor: 4, type: 'king', price: 28000 }],
     keeper: 'Mr. Shimizu', keeperLook: { ...DESK, top: 0x5a2a2a, glasses: true, hair: 0xb9b6b0 },
     lines: [
       'Good evening, and welcome to the Minami Park. We have kept the same brass keys since nineteen fifty-eight.',
@@ -119,7 +120,7 @@ const TOKYO_HOTELS: HotelInfo[] = [
     id: 'sky', name: 'Hotel Sky Center-gai', jp: 'ホテルスカイ センター街', street: 'Center-gai', theme: 'sky',
     blurb: 'Glass, marble and a lift that hums. The fanciest beds in Hikari-machi, right above the shopping street.',
     lot: [396, 64], style: 'apartment', floors: 9,
-    rooms: [{ floor: 3, type: 'double', price: 2800 }, { floor: 4, type: 'king', price: 5200 }],
+    rooms: [{ floor: 3, type: 'double', price: 20000 }, { floor: 4, type: 'king', price: 38000 }],
     keeper: 'Ms. Arai', keeperLook: { ...DESK, top: 0x1f4f4a, accent: 0xe0b040, hairStyle: 'bob' },
     lines: [
       'Welcome to Hotel Sky. Your key card opens the lift; the lift does the rest.',
@@ -142,7 +143,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'halic', name: 'Otel Haliç', jp: 'Haliç Oteli', street: '', theme: 'inn',
     blurb: 'An old family hotel over the Golden Horn. The ferries hoot you awake.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'twin', price: 1600 }, { floor: 2, type: 'king', price: 2800 }],
+    rooms: [{ floor: 1, type: 'twin', price: lira(3200) }, { floor: 2, type: 'king', price: lira(5600) }],
     keeper: 'Kemal Bey', keeperLook: { topStyle: 'cardigan', top: 0x5a4a3a, accent: 0x3a2a20, glasses: true, hair: 0xb9b6b0, hat: 'none', backpack: undefined },
     lines: [
       'Hoş geldiniz! My father opened this hotel the year the old bridge burned. We are still here, the bridge is new.',
@@ -154,7 +155,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'marti', name: 'Martı Pansiyon', jp: 'Martı Pansiyon', street: '', theme: 'guesthouse',
     blurb: 'A small guesthouse named after the gulls that sit on its roof. Cheap, clean, cheerful.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'single', price: 1100 }],
+    rooms: [{ floor: 1, type: 'single', price: lira(1800) }],
     keeper: 'Elif', keeperLook: W(0x3f6e9a, 0xf4f1ea, { hairStyle: 'ponytail', hair: 0x3b2a20 }),
     lines: [
       'The gulls? They live on the roof. They pay no rent and they wake everyone at five.',
@@ -166,7 +167,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'sirkeci', name: 'Sirkeci Konak', jp: 'Sirkeci Konak Oteli', street: '', theme: 'boutique',
     blurb: 'A restored mansion near the old station, all velvet, brass and painted ceilings.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'double', price: 2200 }, { floor: 2, type: 'king', price: 3600 }],
+    rooms: [{ floor: 1, type: 'double', price: lira(5200) }, { floor: 2, type: 'king', price: lira(8400) }],
     keeper: 'Selim Bey', keeperLook: HALIC,
     lines: [
       'The Orient Express used to end its journey at the station across the road. Our guests then came with steamer trunks.',
@@ -178,7 +179,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'lale', name: 'Lale Otel', jp: 'Lale Otel', street: '', theme: 'inn',
     blurb: 'Tulips painted on every door. A grandmotherly hotel that smells of linden tea.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'twin', price: 1500 }, { floor: 2, type: 'double', price: 1900 }],
+    rooms: [{ floor: 1, type: 'twin', price: lira(3000) }, { floor: 2, type: 'double', price: lira(3600) }],
     keeper: 'Nesrin Hanım', keeperLook: { topStyle: 'cardigan', top: 0x8a2a3a, accent: 0x5a1a2a, hairStyle: 'bun', hair: 0x6b6b70, hat: 'none', backpack: undefined },
     lines: [
       'The tulip came from here, you know. The Dutch took it from the sultans\' gardens.',
@@ -190,7 +191,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'vapur', name: 'Hotel Vapur', jp: 'Vapur Otel', street: '', theme: 'business',
     blurb: 'Neat, modern and right by the ferry piers. You can hear the departure bell from the lobby.',
     lot: [0, 0], style: 'modern', floors: 4,
-    rooms: [{ floor: 1, type: 'single', price: 1300 }, { floor: 2, type: 'double', price: 2000 }, { floor: 3, type: 'king', price: 3200 }],
+    rooms: [{ floor: 1, type: 'single', price: lira(2800) }, { floor: 2, type: 'double', price: lira(3800) }, { floor: 3, type: 'king', price: lira(6000) }],
     keeper: 'Murat', keeperLook: { topStyle: 'suit', top: 0x2b3a62, accent: 0xf2efe7, bottom: 0x2b3a62, hat: 'none', backpack: undefined },
     lines: [
       'Ferry to Kadıköy every twenty minutes. Feed the gulls a piece of simit from the back deck, everyone does.',
@@ -202,7 +203,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'kervan', name: 'Kervansaray Otel', jp: 'Kervansaray', street: '', theme: 'boutique',
     blurb: 'Built into an old merchants\' inn: thick stone walls, arched windows, a courtyard feeling.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'double', price: 2100 }, { floor: 2, type: 'king', price: 3400 }],
+    rooms: [{ floor: 1, type: 'double', price: lira(4800) }, { floor: 2, type: 'king', price: lira(7800) }],
     keeper: 'Hakan Bey', keeperLook: W(0x5a1a2a, 0xc9a24a, { glasses: true }),
     lines: [
       'Merchants slept here three hundred years ago, with their camels in the yard. You get a nicer bed.',
@@ -214,7 +215,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'bogaz', name: 'Boğaz Manzara', jp: 'Boğaz Manzara Otel', street: '', theme: 'sky',
     blurb: 'A tall, thin hotel whose top room looks straight down the Bosphorus.',
     lot: [0, 0], style: 'modern', floors: 4,
-    rooms: [{ floor: 2, type: 'double', price: 2400 }, { floor: 3, type: 'king', price: 4200 }],
+    rooms: [{ floor: 2, type: 'double', price: lira(5800) }, { floor: 3, type: 'king', price: lira(9800) }],
     keeper: 'Zeynep', keeperLook: { topStyle: 'suit', top: 0x2f2f35, accent: 0xf4f1ea, bottom: 0x2f2f35, hairStyle: 'long', hair: 0x2a1d17, hat: 'none', backpack: undefined },
     lines: [
       'Manzara means view. We named the hotel after the only thing that matters.',
@@ -226,7 +227,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'nar', name: 'Nar Konak', jp: 'Nar Konak', street: '', theme: 'inn',
     blurb: 'A wooden house hotel with a pomegranate tree at the door and creaking stairs.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'double', price: 1800 }],
+    rooms: [{ floor: 1, type: 'double', price: lira(3400) }],
     keeper: 'Gül Hanım', keeperLook: { topStyle: 'cardigan', top: 0xb0603a, accent: 0x6a3a22, hairStyle: 'bun', hair: 0x8a8a8e, hat: 'none', backpack: undefined },
     lines: [
       'Nar means pomegranate. The tree is older than the house, and the house is old.',
@@ -238,7 +239,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'yildiz', name: 'Otel Yıldız', jp: 'Yıldız Oteli', street: '', theme: 'business',
     blurb: 'A practical, friendly hotel by the tram, the kind travelling salesmen have used for fifty years.',
     lot: [0, 0], style: 'modern', floors: 4,
-    rooms: [{ floor: 1, type: 'twin', price: 1400 }, { floor: 2, type: 'single', price: 1200 }, { floor: 3, type: 'double', price: 1900 }],
+    rooms: [{ floor: 1, type: 'twin', price: lira(2600) }, { floor: 2, type: 'single', price: lira(2200) }, { floor: 3, type: 'double', price: lira(3200) }],
     keeper: 'Orhan Bey', keeperLook: HALIC,
     lines: [
       'Yıldız means star. We have no stars from the guidebooks, but the sky on the roof has plenty.',
@@ -250,7 +251,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'ebru', name: 'Ebru Butik', jp: 'Ebru Butik Otel', street: '', theme: 'boutique',
     blurb: 'Named after marbled paper; every wall hangs a swirl of colour made on water.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'double', price: 2000 }, { floor: 2, type: 'king', price: 3300 }],
+    rooms: [{ floor: 1, type: 'double', price: lira(4400) }, { floor: 2, type: 'king', price: lira(7200) }],
     keeper: 'Leyla', keeperLook: W(0x2f6b54, 0xf4f1ea, { hairStyle: 'bob', hair: 0x1d1a1c }),
     lines: [
       'Ebru is painting on water. You drop colours on thick water, swirl them with a comb and lay paper on top. No two are the same.',
@@ -262,7 +263,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'kubbe', name: 'Kubbe Otel', jp: 'Kubbe Otel', street: '', theme: 'park',
     blurb: 'A quiet hotel with a roof terrace facing the domes and minarets of the old city.',
     lot: [0, 0], style: 'modern', floors: 4,
-    rooms: [{ floor: 1, type: 'twin', price: 1700 }, { floor: 2, type: 'double', price: 2200 }, { floor: 3, type: 'king', price: 3500 }],
+    rooms: [{ floor: 1, type: 'twin', price: lira(3800) }, { floor: 2, type: 'double', price: lira(4400) }, { floor: 3, type: 'king', price: lira(7000) }],
     keeper: 'Ayşe Hanım', keeperLook: { topStyle: 'jacket', top: 0x6a4a7a, accent: 0xf4f1ea, hairStyle: 'long', hair: 0x3b2a20, hat: 'none', backpack: undefined },
     lines: [
       'Kubbe means dome. From the top room you can see six of them, and the gulls circling over each.',
@@ -274,7 +275,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
     id: 'cinar', name: 'Çınar Pansiyon', jp: 'Çınar Pansiyon', street: '', theme: 'guesthouse',
     blurb: 'A backpackers\' favourite under an old plane tree, with a cat on every step.',
     lot: [0, 0], style: 'apartment', floors: 4,
-    rooms: [{ floor: 1, type: 'single', price: 1000 }, { floor: 2, type: 'twin', price: 1300 }],
+    rooms: [{ floor: 1, type: 'single', price: lira(1600) }, { floor: 2, type: 'twin', price: lira(2200) }],
     keeper: 'Deniz', keeperLook: W(0xd9a24a, 0x3a2a20, { hairStyle: 'spiky', hair: 0x2a1d17 }),
     lines: [
       'Çınar is the plane tree outside. Istanbul\'s plane trees are hundreds of years old. Some have names.',
@@ -290,7 +291,7 @@ const AMALFI_HOTELS: HotelInfo[] = [
     id: 'marina', name: 'Albergo Marina Grande', jp: 'Albergo', street: 'The Harbour', theme: 'marina', stairs: true,
     blurb: 'A tall old harbour house against the cliff, blue shutters and every window full of boats and sea.',
     lot: [0, 0], style: 'modern', floors: 4,
-    rooms: [{ floor: 1, type: 'double', price: 2200 }, { floor: 2, type: 'twin', price: 2400 }, { floor: 3, type: 'king', price: 4200 }],
+    rooms: [{ floor: 1, type: 'double', price: eur(220) }, { floor: 2, type: 'twin', price: eur(240) }, { floor: 3, type: 'king', price: eur(420) }],
     keeper: 'Signor Vincenzo', keeperLook: { topStyle: 'suit', top: 0x2b4c86, accent: 0xf4f1ea, bottom: 0x2b3a62, hat: 'none', hair: 0xb9b6b0, glasses: true, backpack: undefined },
     lines: [
       'Benvenuti! My grandfather was a fisherman, and he built this house so he could see his boat from his bed.',
@@ -302,7 +303,7 @@ const AMALFI_HOTELS: HotelInfo[] = [
     id: 'limoni', name: 'Locanda dei Limoni', jp: 'Locanda', street: 'Salita dei Mulini', theme: 'locanda', stairs: true,
     blurb: 'A little inn up the steps among the lemon gardens. Majolica floors, lace curtains, the smell of blossom.',
     lot: [0, 0], style: 'modern', floors: 3,
-    rooms: [{ floor: 1, type: 'double', price: 1800 }, { floor: 2, type: 'king', price: 3200 }],
+    rooms: [{ floor: 1, type: 'double', price: eur(170) }, { floor: 2, type: 'king', price: eur(300) }],
     keeper: 'Signora Teresa', keeperLook: { topStyle: 'cardigan', top: 0xe9c23a, accent: 0xf4f1ea, bottom: 0x2f2f35, hat: 'none', hairStyle: 'bun', hair: 0x6b6b70, backpack: undefined },
     lines: [
       'You found us! Most people give up on the steps. The ones who keep climbing get the best sleep in Amalfi.',
@@ -314,7 +315,7 @@ const AMALFI_HOTELS: HotelInfo[] = [
     id: 'palazzo', name: 'Palazzo Ruggiero', jp: 'Palazzo', street: "Via Lorenzo d'Amalfi", theme: 'palazzo', stairs: true,
     blurb: 'A merchant\'s palace from the days of the maritime republic: painted ceilings, a marble stair, silk on the walls.',
     lot: [0, 0], style: 'modern', floors: 5,
-    rooms: [{ floor: 1, type: 'single', price: 2000 }, { floor: 2, type: 'double', price: 2800 }, { floor: 3, type: 'king', price: 4800 }],
+    rooms: [{ floor: 1, type: 'single', price: eur(260) }, { floor: 2, type: 'double', price: eur(380) }, { floor: 3, type: 'king', price: eur(650) }],
     keeper: 'Dottoressa Ruggiero', keeperLook: { topStyle: 'suit', top: 0x6a1e2a, accent: 0xe9c23a, bottom: 0x2f2f35, hat: 'none', hairStyle: 'bob', hair: 0x2a1d17, backpack: undefined },
     lines: [
       'Welcome to the Palazzo. My family traded silk and pepper with Constantinople when Amalfi ruled the sea.',
@@ -326,7 +327,7 @@ const AMALFI_HOTELS: HotelInfo[] = [
     id: 'gabbiano', name: 'Pensione Il Gabbiano', jp: 'Pensione', street: 'Vicoli di Ponente', theme: 'pensione', stairs: true,
     blurb: 'A friendly family pensione high in the lanes, with a view straight over the piazza to the sea.',
     lot: [0, 0], style: 'modern', floors: 3,
-    rooms: [{ floor: 1, type: 'twin', price: 1600 }, { floor: 2, type: 'king', price: 3000 }],
+    rooms: [{ floor: 1, type: 'twin', price: eur(130) }, { floor: 2, type: 'king', price: eur(240) }],
     keeper: 'Peppino', keeperLook: { topStyle: 'tee', top: 0xf4f1ea, accent: 0x2f63a8, bottom: 0x2b3a62, hat: 'none', hairStyle: 'short', hair: 0x2a1d17, backpack: undefined },
     lines: [
       'Ciao! It is called the Seagull because one of them sits on the roof every morning and shouts at my mother.',

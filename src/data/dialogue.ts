@@ -158,7 +158,7 @@ const ISTANBUL_IDLERS: Record<string, Idler> = {
     id: 'cayci', name: 'Çaycı Necati',
     look: { skin: 0xc98f6a, hair: 0x2a1d17, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'vest', accent: 0x8a2a2a, bottom: 0x2b2b30, shoes: 0x2a2a2e },
     lines: [
-      'Up here on the terrace of Süleymaniye the whole Golden Horn is yours. Tea is fifteen lira. The view is free.',
+      'Up here on the terrace of Süleymaniye the whole Golden Horn is yours. Tea is twenty-five lira. The view is free.',
       'Mimar Sinan built this mosque. He was a janissary engineer and built three hundred buildings. He is buried just over there, by the wall.',
       'See the boats down there? From up here they look like toys. In the morning the fog hides the whole Asian side.',
     ],

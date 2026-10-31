@@ -3,6 +3,7 @@ import type { RoomKind } from '../world/interiors';
 import { randomLook, Look } from '../world/characters';
 import { HOTEL } from './hotels';
 import { perCity } from '../world/cityId';
+import { lira } from './money';
 
 /** Something small a shop sells over the counter. */
 export interface Buyable { icon: IconName; name: string; price: number; text: string; snack?: boolean; }
@@ -41,13 +42,13 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
     lines: [
       'Zakka means "many things". Chopsticks, towels, cat ornaments... if it is small and cute, we have it.',
       'Tourists love the tenugui towels. Locals use them for everything: wiping sweat, wrapping lunch, even as a headband.',
-      'Have you tried the gachapon machines? Two hundred yen for a mystery capsule. My nephew has a whole shelf of them.',
+      'Have you tried the gachapon machines? Four hundred yen for a mystery capsule. They were a hundred when I was a girl. My nephew has a whole shelf of them.',
       'Somebody keeps hiding little red daruma in the shops around here. I found one behind my boxes once. Good luck, they say!',
     ],
     buy: [
-      { icon: 'towel', name: 'Tenugui towel', price: 600, text: 'A printed cotton towel with little goldfish. Locals use them for everything.' },
-      { icon: 'chopsticks', name: 'Lacquer chopsticks', price: 800, text: 'Red lacquer with a gold sakura petal. Rest them on the holder, never stick them upright in rice.' },
-      { icon: 'chime', name: 'Glass wind chime', price: 900, text: 'A fūrin. Its ring is meant to make a hot summer day feel cooler.' },
+      { icon: 'towel', name: 'Tenugui towel', price: 1100, text: 'A printed cotton towel with little goldfish. Locals use them for everything.' },
+      { icon: 'chopsticks', name: 'Lacquer chopsticks', price: 1650, text: 'Red lacquer with a gold sakura petal. Rest them on the holder, never stick them upright in rice.' },
+      { icon: 'chime', name: 'Glass wind chime', price: 2200, text: 'A fūrin. Its ring is meant to make a hot summer day feel cooler.' },
     ],
   },
   cafe: {
@@ -61,9 +62,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Sit as long as you like. Cafés here are a living room for people with tiny apartments.',
     ],
     buy: [
-      { icon: 'coffee', name: 'Hand-drip coffee', price: 480, text: 'Slow-poured, light and fruity. You can taste the patience.', snack: true },
-      { icon: 'latte', name: 'Iced matcha latte', price: 560, text: 'Bitter green tea, sweet milk, lots of ice.', snack: true },
-      { icon: 'toast', name: 'Thick toast set', price: 520, text: 'Four centimetres of fluffy shokupan with butter and ogura red bean.', snack: true },
+      { icon: 'coffee', name: 'Hand-drip coffee', price: 650, text: 'Slow-poured, light and fruity. You can taste the patience.', snack: true },
+      { icon: 'latte', name: 'Iced matcha latte', price: 650, text: 'Bitter green tea, sweet milk, lots of ice.', snack: true },
+      { icon: 'toast', name: 'Thick toast set', price: 600, text: 'Four centimetres of fluffy shokupan with butter and ogura red bean.', snack: true },
     ],
   },
   izakaya: {
@@ -78,9 +79,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Kanpai! Wait for everyone to have a glass before you drink, that is the only rule.',
     ],
     buy: [
-      { icon: 'tea', name: 'Oolong tea', price: 300, text: 'Iced oolong in a tall glass. The non-drinker\'s kanpai.', snack: true },
-      { icon: 'edamame', name: 'Edamame', price: 350, text: 'Salted green soybeans, popped straight from the pod.', snack: true },
-      { icon: 'pickles', name: 'Pickles platter', price: 400, text: 'Tsukemono: crunchy cucumber, yellow takuan and pink ginger.', snack: true },
+      { icon: 'tea', name: 'Oolong tea', price: 400, text: 'Iced oolong in a tall glass. The non-drinker\'s kanpai.', snack: true },
+      { icon: 'edamame', name: 'Edamame', price: 400, text: 'Salted green soybeans, popped straight from the pod.', snack: true },
+      { icon: 'pickles', name: 'Pickles platter', price: 480, text: 'Tsukemono: crunchy cucumber, yellow takuan and pink ginger.', snack: true },
     ],
   },
   konbini: {
@@ -95,10 +96,10 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'The capsule machines by the door? Kids love them. Adults too, honestly.',
     ],
     buy: [
-      { icon: 'onigiri', name: 'Tuna-mayo onigiri', price: 160, text: 'Pull tab 1, then corners 2 and 3. The nori stays crisp. Genius.', snack: true },
-      { icon: 'nikuman', name: 'Nikuman bun', price: 180, text: 'A fluffy steamed bun stuffed with pork, from the warmer by the till.', snack: true },
-      { icon: 'sando', name: 'Egg sando', price: 280, text: 'Soft white bread, crustless, full of creamy egg salad. A konbini legend.', snack: true },
-      { icon: 'chicken', name: 'Hot-case karaage', price: 220, text: 'Five crispy fried chicken bites in a paper cup, with a tiny toothpick.', snack: true },
+      { icon: 'onigiri', name: 'Tuna-mayo onigiri', price: 190, text: 'Pull tab 1, then corners 2 and 3. The nori stays crisp. Genius.', snack: true },
+      { icon: 'nikuman', name: 'Nikuman bun', price: 200, text: 'A fluffy steamed bun stuffed with pork, from the warmer by the till.', snack: true },
+      { icon: 'sando', name: 'Egg sando', price: 360, text: 'Soft white bread, crustless, full of creamy egg salad. A konbini legend.', snack: true },
+      { icon: 'chicken', name: 'Hot-case karaage', price: 270, text: 'Five crispy fried chicken bites in a paper cup, with a tiny toothpick.', snack: true },
     ],
   },
   florist: {
@@ -112,8 +113,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Never give four flowers. Shi, four, sounds like the word for death.',
     ],
     buy: [
-      { icon: 'flower', name: 'A single sunflower', price: 300, text: 'Wrapped in brown paper with a twist of raffia.' },
-      { icon: 'posy', name: 'Seasonal posy', price: 700, text: 'Small, careful and perfectly balanced. Ikebana for your backpack.' },
+      { icon: 'flower', name: 'A single sunflower', price: 350, text: 'Wrapped in brown paper with a twist of raffia.' },
+      { icon: 'posy', name: 'Seasonal posy', price: 1500, text: 'Small, careful and perfectly balanced. Ikebana for your backpack.' },
     ],
   },
   books: {
@@ -127,8 +128,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'People here read standing in the shop for hours. Tachiyomi, we call it. I do not mind.',
     ],
     buy: [
-      { icon: 'book', name: 'Old Edo cookbook', price: 1200, text: 'A woodblock-printed book of recipes from 1802. Mostly tofu, a hundred ways.' },
-      { icon: 'bookmark', name: 'Washi bookmark', price: 250, text: 'Handmade paper with a pressed maple leaf.' },
+      { icon: 'book', name: 'Old Edo cookbook', price: 9800, text: 'A woodblock-printed book of recipes from 1802. Mostly tofu, a hundred ways.' },
+      { icon: 'bookmark', name: 'Washi bookmark', price: 400, text: 'Handmade paper with a pressed maple leaf.' },
     ],
   },
   fish: {
@@ -143,7 +144,7 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
     ],
     buy: [
       { icon: 'chikuwa', name: 'Chikuwa fish cake', price: 200, text: 'A grilled tube of fish paste. Kids eat them straight from the bag.', snack: true },
-      { icon: 'fish', name: 'Grilled salted saba', price: 450, text: 'Mackerel with crackling skin, wrapped to go.', snack: true },
+      { icon: 'fish', name: 'Grilled salted saba', price: 600, text: 'Mackerel with crackling skin, wrapped to go.', snack: true },
     ],
   },
   bakery: {
@@ -157,9 +158,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Anpan was invented in Tokyo in 1874, for the Emperor himself. Sweet bean paste in soft bread.',
     ],
     buy: [
-      { icon: 'melonpan', name: 'Melon pan', price: 220, text: 'Crackly cookie crust, fluffy inside, still warm from the oven.', snack: true },
-      { icon: 'currypan', name: 'Curry pan', price: 250, text: 'A deep-fried bun full of thick Japanese curry. Crunchy, then spicy.', snack: true },
-      { icon: 'anpan', name: 'Anpan', price: 200, text: 'Soft bun with sweet red bean paste and a sprinkle of sesame.', snack: true },
+      { icon: 'melonpan', name: 'Melon pan', price: 250, text: 'Crackly cookie crust, fluffy inside, still warm from the oven.', snack: true },
+      { icon: 'currypan', name: 'Curry pan', price: 280, text: 'A deep-fried bun full of thick Japanese curry. Crunchy, then spicy.', snack: true },
+      { icon: 'anpan', name: 'Anpan', price: 230, text: 'Soft bun with sweet red bean paste and a sprinkle of sesame.', snack: true },
     ],
   },
   pharmacy: {
@@ -172,8 +173,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Feeling tired from walking? Try one of the little vitamin drinks. Salarymen swear by them.',
     ],
     buy: [
-      { icon: 'vitamin', name: 'Vitamin drink', price: 250, text: 'A tiny brown bottle with a big promise. You feel energetic. Probably.', snack: true },
-      { icon: 'plaster', name: 'Cute plasters', price: 300, text: 'Bandages printed with tiny shiba dogs.' },
+      { icon: 'vitamin', name: 'Vitamin drink', price: 200, text: 'A tiny brown bottle with a big promise. You feel energetic. Probably.', snack: true },
+      { icon: 'plaster', name: 'Cute plasters', price: 450, text: 'Bandages printed with tiny shiba dogs.' },
     ],
   },
   kissa: { label: 'Kissaten', names: [['Kissa Komorebi', '喫茶 木漏れ日']], keepers: ['Master Kuroda'], keeperLook: {}, lines: [], buy: [] },
@@ -192,9 +193,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'A cup of coffee commits one to forty years of friendship, the old proverb says. So now we are friends.',
     ],
     buy: [
-      { icon: 'coffee', name: 'Türk kahvesi', price: 180, text: 'Thick, foamy and strong, with a glass of water and a cube of lokum on the saucer.', snack: true },
-      { icon: 'tea', name: 'Çay', price: 60, text: 'Black tea in a tulip glass, the colour of a rabbit\'s blood, as they say here.', snack: true },
-      { icon: 'milk', name: 'Ayran', price: 90, text: 'Cold salted yoghurt, frothy on top. The best thing on a hot afternoon.', snack: true },
+      { icon: 'coffee', name: 'Türk kahvesi', price: lira(90), text: 'Thick, foamy and strong, with a glass of water and a cube of lokum on the saucer.', snack: true },
+      { icon: 'tea', name: 'Çay', price: lira(25), text: 'Black tea in a tulip glass, the colour of a rabbit\'s blood, as they say here.', snack: true },
+      { icon: 'milk', name: 'Ayran', price: lira(40), text: 'Cold salted yoghurt, frothy on top. The best thing on a hot afternoon.', snack: true },
     ],
   },
   cay: {
@@ -208,9 +209,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'A simit with your tea? Every morning of my life.',
     ],
     buy: [
-      { icon: 'tea', name: 'Tavşan kanı çay', price: 60, text: 'Dark, clear tea in a tulip glass. Hold it by the rim, it is hot.', snack: true },
-      { icon: 'simit', name: 'Simit', price: 80, text: 'A sesame ring, crisp outside, soft inside.', snack: true },
-      { icon: 'drop', name: 'Elma çayı', price: 70, text: 'Sweet apple tea, the one every visitor falls for.', snack: true },
+      { icon: 'tea', name: 'Tavşan kanı çay', price: lira(25), text: 'Dark, clear tea in a tulip glass. Hold it by the rim, it is hot.', snack: true },
+      { icon: 'simit', name: 'Simit', price: lira(25), text: 'A sesame ring, crisp outside, soft inside.', snack: true },
+      { icon: 'drop', name: 'Elma çayı', price: lira(30), text: 'Sweet apple tea, the one every visitor falls for.', snack: true },
     ],
   },
   lokanta: {
@@ -225,9 +226,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Bread is free and there is always more. Take it, take it.',
     ],
     buy: [
-      { icon: 'bean', name: 'Kuru fasulye', price: 260, text: 'White beans slow-cooked with tomato and butter, with a spoon of pilav.', snack: true },
-      { icon: 'pot', name: 'Mercimek çorbası', price: 160, text: 'Red lentil soup with lemon and a pinch of chilli. Dip your bread.', snack: true },
-      { icon: 'rice', name: 'Tereyağlı pilav', price: 120, text: 'Buttery rice with toasted orzo, shiny and fluffy.', snack: true },
+      { icon: 'bean', name: 'Kuru fasulye', price: lira(180), text: 'White beans slow-cooked with tomato and butter, with a spoon of pilav.', snack: true },
+      { icon: 'pot', name: 'Mercimek çorbası', price: lira(100), text: 'Red lentil soup with lemon and a pinch of chilli. Dip your bread.', snack: true },
+      { icon: 'rice', name: 'Tereyağlı pilav', price: lira(80), text: 'Buttery rice with toasted orzo, shiny and fluffy.', snack: true },
     ],
   },
   kebap: {
@@ -241,9 +242,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Lahmacun: squeeze lemon, add parsley, roll it up and eat it with your hands. Forks are for tourists.',
     ],
     buy: [
-      { icon: 'skewer', name: 'Adana kebap', price: 420, text: 'Hand-minced lamb and red pepper on a wide skewer, grilled over charcoal.', snack: true },
-      { icon: 'wrap', name: 'Lahmacun', price: 180, text: 'Paper-thin flatbread with spiced mince, rolled round parsley and lemon.', snack: true },
-      { icon: 'milk', name: 'Ayran', price: 90, text: 'Salty and cold. It puts the fire out.', snack: true },
+      { icon: 'skewer', name: 'Adana kebap', price: lira(420), text: 'Hand-minced lamb and red pepper on a wide skewer, grilled over charcoal.', snack: true },
+      { icon: 'wrap', name: 'Lahmacun', price: lira(120), text: 'Paper-thin flatbread with spiced mince, rolled round parsley and lemon.', snack: true },
+      { icon: 'milk', name: 'Ayran', price: lira(40), text: 'Salty and cold. It puts the fire out.', snack: true },
     ],
   },
   pide: {
@@ -257,9 +258,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'The wood oven is older than me. My father built it in 1971.',
     ],
     buy: [
-      { icon: 'pizza', name: 'Kıymalı pide', price: 300, text: 'A boat of crisp bread filled with spiced mince, sliced into strips.', snack: true },
-      { icon: 'cheese', name: 'Kaşarlı yumurtalı pide', price: 280, text: 'Melted kaşar cheese and an egg, glossy with butter.', snack: true },
-      { icon: 'milk', name: 'Ayran', price: 90, text: 'Frothy salted yoghurt in a copper cup.', snack: true },
+      { icon: 'pizza', name: 'Kıymalı pide', price: lira(280), text: 'A boat of crisp bread filled with spiced mince, sliced into strips.', snack: true },
+      { icon: 'cheese', name: 'Kaşarlı yumurtalı pide', price: lira(260), text: 'Melted kaşar cheese and an egg, glossy with butter.', snack: true },
+      { icon: 'milk', name: 'Ayran', price: lira(40), text: 'Frothy salted yoghurt in a copper cup.', snack: true },
     ],
   },
   borek: {
@@ -273,9 +274,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Börek and tea. That is breakfast. Anything else is decoration.',
     ],
     buy: [
-      { icon: 'croissant', name: 'Su böreği', price: 160, text: 'Soft layers of boiled dough and white cheese, crisp at the edges.', snack: true },
-      { icon: 'croissant', name: 'Kol böreği', price: 140, text: 'A coil of flaky pastry with spinach and feta.', snack: true },
-      { icon: 'tea', name: 'Çay', price: 60, text: 'The other half of breakfast.', snack: true },
+      { icon: 'croissant', name: 'Su böreği', price: lira(110), text: 'Soft layers of boiled dough and white cheese, crisp at the edges.', snack: true },
+      { icon: 'croissant', name: 'Kol böreği', price: lira(100), text: 'A coil of flaky pastry with spinach and feta.', snack: true },
+      { icon: 'tea', name: 'Çay', price: lira(20), text: 'The other half of breakfast.', snack: true },
     ],
   },
   muhallebi: {
@@ -289,9 +290,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'In the old days young couples came here to meet. Pudding was respectable. Cafés were not.',
     ],
     buy: [
-      { icon: 'milk', name: 'Tavuk göğsü', price: 170, text: 'A silky milk pudding with a secret: shreds of chicken breast, dusted with cinnamon.', snack: true },
-      { icon: 'rice', name: 'Fırın sütlaç', price: 150, text: 'Baked rice pudding with a burnished top, served cold.', snack: true },
-      { icon: 'tart', name: 'Kazandibi', price: 170, text: 'Caramelised milk pudding from the bottom of the pan, rolled up.', snack: true },
+      { icon: 'milk', name: 'Tavuk göğsü', price: lira(140), text: 'A silky milk pudding with a secret: shreds of chicken breast, dusted with cinnamon.', snack: true },
+      { icon: 'rice', name: 'Fırın sütlaç', price: lira(130), text: 'Baked rice pudding with a burnished top, served cold.', snack: true },
+      { icon: 'tart', name: 'Kazandibi', price: lira(140), text: 'Caramelised milk pudding from the bottom of the pan, rolled up.', snack: true },
     ],
   },
   lokum: {
@@ -305,9 +306,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Two hundred years ago a confectioner on this street made the sultan\'s lokum. Now we make it for you.',
     ],
     buy: [
-      { icon: 'sugar', name: 'Rose lokum', price: 120, text: 'Soft pink cubes in a cloud of icing sugar, scented with rosewater.', snack: true },
-      { icon: 'sugar', name: 'Pistachio lokum', price: 160, text: 'Studded with green Antep pistachios. The one everyone takes home.' },
-      { icon: 'honey', name: 'Akide candy', price: 90, text: 'Hard boiled sugar in a paper cone, the colours of a stained-glass window.' },
+      { icon: 'sugar', name: 'Rose lokum', price: lira(200), text: 'Soft pink cubes in a cloud of icing sugar, scented with rosewater.', snack: true },
+      { icon: 'sugar', name: 'Pistachio lokum', price: lira(350), text: 'Studded with green Antep pistachios. The one everyone takes home.' },
+      { icon: 'honey', name: 'Akide candy', price: lira(80), text: 'Hard boiled sugar in a paper cone, the colours of a stained-glass window.' },
     ],
   },
   baharat: {
@@ -322,9 +323,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Dried apricots, figs, mulberries. A handful is a lunch, my grandmother said.',
     ],
     buy: [
-      { icon: 'chili', name: 'Pul biber', price: 140, text: 'A bag of red pepper flakes, sweet and gently hot. On everything.' },
-      { icon: 'sprinkle', name: 'Sumac', price: 120, text: 'Dark red and lemony. Sprinkle it on onions and kebab.' },
-      { icon: 'tea', name: 'Apple tea', price: 100, text: 'A tin of dried apple tea for home.' },
+      { icon: 'chili', name: 'Pul biber', price: lira(120), text: 'A bag of red pepper flakes, sweet and gently hot. On everything.' },
+      { icon: 'sprinkle', name: 'Sumac', price: lira(100), text: 'Dark red and lemony. Sprinkle it on onions and kebab.' },
+      { icon: 'tea', name: 'Apple tea', price: lira(180), text: 'A tin of dried apple tea for home.' },
     ],
   },
   firin: {
@@ -338,9 +339,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Poğaça, açma, simit. Ask for them warm. We always have warm.',
     ],
     buy: [
-      { icon: 'croissant', name: 'Poğaça', price: 70, text: 'A soft round bun with white cheese inside.', snack: true },
-      { icon: 'toast', name: 'Açma', price: 70, text: 'A buttery ring of bread, softer than a simit.', snack: true },
-      { icon: 'flour', name: 'Somun ekmek', price: 50, text: 'A crusty white loaf, still warm. Tear the end off on the way home.', snack: true },
+      { icon: 'croissant', name: 'Poğaça', price: lira(30), text: 'A soft round bun with white cheese inside.', snack: true },
+      { icon: 'toast', name: 'Açma', price: lira(30), text: 'A buttery ring of bread, softer than a simit.', snack: true },
+      { icon: 'flour', name: 'Somun ekmek', price: lira(15), text: 'A crusty white loaf, still warm. Tear the end off on the way home.', snack: true },
     ],
   },
   balik: {
@@ -354,9 +355,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'The fish here pass through the Bosphorus twice a year, north to south and back. We just wait at the door.',
     ],
     buy: [
-      { icon: 'fish', name: 'Hamsi tava', price: 320, text: 'A pan of fried anchovies fanned in a circle, with lemon and red onion.', snack: true },
-      { icon: 'fish', name: 'Levrek ızgara', price: 480, text: 'Grilled sea bass with rocket and lemon.', snack: true },
-      { icon: 'tomato', name: 'Çoban salatası', price: 120, text: 'Tomato, cucumber, onion and parsley, chopped small, with sumac.', snack: true },
+      { icon: 'fish', name: 'Hamsi tava', price: lira(350), text: 'A pan of fried anchovies fanned in a circle, with lemon and red onion.', snack: true },
+      { icon: 'fish', name: 'Levrek ızgara', price: lira(650), text: 'Grilled sea bass with rocket and lemon.', snack: true },
+      { icon: 'tomato', name: 'Çoban salatası', price: lira(150), text: 'Tomato, cucumber, onion and parsley, chopped small, with sumac.', snack: true },
     ],
   },
   hotel: { label: 'Hotel', names: [['Hotel', 'ホテル']], keepers: ['Receptionist'], keeperLook: {}, lines: [], buy: [] },
@@ -390,7 +391,7 @@ const ISTANBUL_GUEST_LINES: string[] = [
 ];
 
 const AMALFI_GUEST_LINES: string[] = [
-  'Coffee standing at the bar, one euro, thirty seconds. Sitting down costs double, and it is worth it for the view.',
+  'Coffee standing at the bar, one euro thirty, thirty seconds. Sitting down costs double, and it is worth it for the view.',
   'Nonna says the lemons on the terraces are older than the church. She may be exaggerating. A little.',
   'The fishermen come in before seven. After that, the best fish is already in somebody\'s pan.',
   'They say there is a door in the rock up the stairs behind the Duomo. My cousin swears he ate there once.',
@@ -417,7 +418,9 @@ export const CAPSULES: Capsule[] = [
   { id: 'golden', name: 'Golden shrimp tempura', icon: 'shrimp', rare: true },
 ];
 
-export const GACHA_PRICE = 200;
+export const GACHA_PRICE = 400;
+/** A can from a Tokyo vending machine. */
+export const VENDING_PRICE = 160;
 
 export function roomName(kind: RoomKind, nth: number, hotel?: string): [string, string] {
   const h = hotel ? HOTEL[hotel] : undefined;

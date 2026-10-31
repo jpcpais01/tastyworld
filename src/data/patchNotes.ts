@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.25',
+    date: '2026-10-31',
+    title: 'Naples leaves the map',
+    items: [
+      'Naples is no longer on the world map. Its pizza, fried fish and coffee are waiting for you down the coast in Amalfi.',
+    ],
+  },
+  {
     version: '0.16.24',
     date: '2026-10-31',
     title: 'Look around on the way',

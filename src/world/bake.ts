@@ -6,7 +6,7 @@ import { buildTokyo, Anchors, PlacedProp, BuildResult, Window } from './tokyo';
 import { buildAmalfi } from './amalfi';
 import { buildIstanbul } from './istanbul';
 import { AMALFI, ISTANBUL } from './cityId';
-import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
+import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ } from './layout';
 import { assemble } from './assemble';
 import { solidBase, type Owners } from './owners';
 import { packSway, swayKey, SWAY_PART } from './sway';
@@ -173,26 +173,15 @@ function computeSolid(grid: SparseGrid, x0: number, z0: number, x1: number, z1: 
 }
 
 /**
- * Standing layer of each column of [x0,x1) x [z0,z1): the top of the highest floor at or under `top` with 7 voxels
- * of headroom, if it is at least minH. `top` is just above street level for the streets; a room upstairs passes
- * its own.
+ * Standing layer of each column of [x0,x1) x [z0,z1): the top of the highest floor at or under `top` (or the city's
+ * own `topAt`, which follows its hills) with 7 voxels of headroom, if it is at least minH. A floor without the
+ * headroom (under a tree, a beam, a sill) is no floor, and nothing above it is either: the treetops are never ground.
  */
 function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, blockers: [number, number, number, number][], minH: number, top = G + 8, topAt?: (x: number, z: number) => number): Uint8Array {
   const sx = x1 - x0, sz = z1 - z0;
   const height = new Uint8Array(sx * sz).fill(BLOCKED);
   for (let z = 0; z < sz; z++)
     for (let x = 0; x < sx; x++) {
-      if (x0 + x >= HILL[0] && x0 + x <= HILL[2] && z0 + z >= HILL[1] && z0 + z <= HILL[3]) {
-        // on the hill, the lowest open ground (the path runs under torii beams and trees)
-        if (topAt && !topAt(x0 + x, z0 + z)) continue;
-        for (let y = G - 1; y < G + 32; y++) {
-          if (grid.get(x0 + x, y - 1, z0 + z) === 0) continue;
-          let clear = true;
-          for (let k = 0; k < 7; k++) if (grid.get(x0 + x, y + k, z0 + z) !== 0) { clear = false; break; }
-          if (clear) { if (y >= minH) height[z * sx + x] = y; break; }
-        }
-        continue;
-      }
       for (let y = topAt ? topAt(x0 + x, z0 + z) : top; y >= 1; y--) {
         if (grid.get(x0 + x, y - 1, z0 + z) === 0) continue;
         let clear = true;
@@ -270,37 +259,70 @@ function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, 
 }
 
 /**
- * Half-resolution copy of a chunk for distant views: 50 cm voxels, each the most common colour of its
- * 2x2x2 block when at least three of the eight are solid (thin rails and wires drop out, walls stay).
+ * Coarse copy of a dense grid for distant views: cells of f x f x f voxels (f = 2 or 4) that are mostly
+ * solid (three eighths or more; thin rails and wires drop out, walls stay) take the colour you would see;
+ * the bottom row, a one-voxel sea bed at quarter resolution, keeps any cell with something in it.
+ * The vote is weighted by exposure: a voxel open to the sky outweighs every buried one, and one open to
+ * the side outweighs the buried ones too, so a one-voxel layer of paving, tiles, grass or roofing keeps its
+ * colour instead of losing to the earth or wall fill underneath it.
  */
-/** Coarse mesh of a chunk: cells of f x f x f voxels (f = 2 or 4) take the most common colour when mostly solid. */
-function meshLod(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number, f: number): MeshData | null {
-  const fine = grid.extract(x0 - f + 1, x1 + f - 1, z0 - f + 1, z1 + f - 1, G); // f-voxel border = one coarse cell
-  const cw = (x1 - x0) / f + 2, cd = (z1 - z0) / f + 2, ch = Math.ceil(grid.sy / f);
+export function coarsen(fine: Grid, f: number): Grid {
+  const cw = fine.sx / f, cd = fine.sz / f, ch = Math.ceil(fine.sy / f);
   const coarse = new Grid(cw, ch, cd);
   const n3 = f * f * f, need = (n3 * 3) >> 3;
-  const cols = new Uint16Array(n3);
-  const fy = fine.sy;
+  const cols = new Uint16Array(n3), uniq = new Uint16Array(n3), at = new Int32Array(n3);
+  const score = new Uint16Array(n3), tally = new Uint32Array(n3);
+  const { data, sx, sy, sz, sxz } = fine;
+  const UP = 2 * n3 + 1, SIDE = n3 + 1; // exposure weights; buried voxels count 1
   for (let y = 0; y < ch; y++)
     for (let z = 0; z < cd; z++)
       for (let x = 0; x < cw; x++) {
-        let n = 0;
-        for (let k = 0; k < n3; k++) {
-          const yy = y * f + Math.floor(k / f) % f;
-          if (yy >= fy) continue;
-          const v = fine.get(x * f + (k % f), yy, z * f + Math.floor(k / (f * f)));
-          if (v) cols[n++] = v;
+        let n = 0, mixed = false;
+        for (let dy = 0; dy < f; dy++) {
+          const yy = y * f + dy;
+          if (yy >= sy) break;
+          for (let dz = 0; dz < f; dz++) {
+            const row = yy * sxz + (z * f + dz) * sx + x * f;
+            for (let dx = 0; dx < f; dx++) {
+              const v = data[row + dx];
+              if (!v) continue;
+              if (n && v !== cols[0]) mixed = true;
+              at[n] = row + dx;
+              cols[n++] = v;
+            }
+          }
         }
-        if (n < need) continue;
-        let best = cols[0], bc = 0;
+        if (n < (y ? need : 1)) continue; // the bottom row is the sea bed and the ground: never leave holes
+        if (!mixed) { coarse.set(x, y, z, cols[0]); continue; }
+        // weigh each voxel by what it shows: sky above, air beside, or nothing (buried)
         for (let i = 0; i < n; i++) {
-          if (i && cols[i] === cols[i - 1]) continue;
-          let c = 0;
-          for (let j = 0; j < n; j++) if (cols[j] === cols[i]) c++;
-          if (c > bc) { bc = c; best = cols[i]; }
+          const j = at[i], yy = (j / sxz) | 0, r = j - yy * sxz, zz = (r / sx) | 0, xx = r - zz * sx;
+          if (yy + 1 >= sy || !data[j + sxz]) score[i] = UP;
+          else if (
+            (xx > 0 && !data[j - 1]) || (xx + 1 < sx && !data[j + 1]) ||
+            (zz > 0 && !data[j - sx]) || (zz + 1 < sz && !data[j + sx])
+          ) score[i] = SIDE;
+          else score[i] = 1;
         }
-        coarse.set(x, y, z, best);
+        let u = 0;
+        for (let i = 0; i < n; i++) {
+          let k = 0;
+          while (k < u && uniq[k] !== cols[i]) k++;
+          if (k === u) { uniq[u] = cols[i]; tally[u++] = 0; }
+          tally[k] += score[i];
+        }
+        let best = 0;
+        for (let k = 1; k < u; k++) if (tally[k] > tally[best]) best = k;
+        coarse.set(x, y, z, uniq[best]);
       }
+  return coarse;
+}
+
+/** Coarse mesh of a chunk at 1/f resolution (see coarsen). */
+function meshLod(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0: number, x1: number, z1: number, f: number): MeshData | null {
+  const fine = grid.extract(x0 - f + 1, x1 + f - 1, z0 - f + 1, z1 + f - 1, G); // f-voxel border = one coarse cell
+  const coarse = coarsen(fine, f);
+  const cw = coarse.sx, cd = coarse.sz;
   return meshGrid({ grid: coarse, pal, scale: f * V, origin: [(x0 - f) * V, -G * V, (z0 - f) * V], region: [1, cw - 1, 1, cd - 1], light, groundBelow: G / f, atlas: true });
 }
 

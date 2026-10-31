@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.17.4',
+    version: '0.17.9',
     date: '2026-10-31',
     title: 'Eminönü\'s waterfront, round the point',
     items: [
@@ -16,6 +16,59 @@ export const PATCH_NOTES: PatchNote[] = [
       'Two sets of granite steps lead down into the water, one on the Golden Horn and one in the Bosphorus bay, with rowing boats tied up at the bottom and a lifebuoy at the top.',
       'Real landing stages: the Bosphorus ferry now docks at a floating pontoon at the end of a stone jetty, reached through the terminal and down a gangway. On the Horn side a second pontoon with a canopy and a bench serves a Bosphorus tour boat with a striped awning over its top deck.',
       'Big paving flags of mixed stone along every quay, iron bollards where the balık ekmek boats tie up, and lamps, benches facing the water and plane trees in round planters all the way round the point.',
+    ],
+  },
+  {
+    version: '0.17.8',
+    date: '2026-10-31',
+    title: 'Lived-in house fronts',
+    items: [
+      'Amalfi\'s houses are finished like the real coast: the glass now sits back in the thickness of the wall inside a stucco frame, green and blue louvred shutters stand open beside it, and upstairs windows carry a little cornice and a stone sill. Fronts have string courses at each floor, painted corner pilasters, and a cornice with dentils under the roof.',
+      'The plaster has aged: damp creeping up from the paving or a painted dado along the street, rain streaks from sills and gutters, and patches where it has fallen away to show the tufa stone beneath. Front doors stand in grey stone frames with a fanlight, a brass knocker and a majolica house number. Ground-floor windows have iron grilles.',
+      'Amalfi shops have their names on majolica tile panels over their arches. Air conditioners hang on side walls, terraces have parapets with stone or terracotta coping and a spout, tiled roofs have proper eaves, and TV aerials stand on some roofs.',
+      'Istanbul\'s plaster and brick blocks have recessed upstairs windows, damp and rain streaks, plaster flaking off the brick, zinc downpipes, the odd satellite dish, and roller-shutter housings over the shops.',
+      'In Tokyo, upstairs windows have slim rain hoods, older houses have the boxes their night shutters slide into, walls carry grime runs under sills, and bare concrete shows its grid of form-tie holes.',
+    ],
+  },
+  {
+    version: '0.17.7',
+    date: '2026-10-31',
+    title: 'Pick your pace',
+    items: [
+      'Shift no longer has to be held to run. Each press now changes how fast you walk: slow, normal, fast, and round to slow again. Slow is a gentle stroll for taking in the street, fast is a run.',
+      'A new pace button in the bottom right corner shows the pace you are on with one, two or three arrows. Tap or click it to change pace, which also works on phones. Double-tapping or dragging the joystick far out still breaks into a run there.',
+      'Your pace is remembered for your next visit.',
+    ],
+  },
+  {
+    version: '0.17.6',
+    date: '2026-10-31',
+    title: 'The cloister and the Ruga dei Mercanti',
+    items: [
+      'The Cloister of Paradise beside Amalfi\'s cathedral is rebuilt as a real cloister. Slender twin columns carry white pointed arches that cross one another, the Arab-Norman interlace, under a tiled roof round a garden of palms, lemon trees, oleander and box hedges, with an old well-head where the paths meet. Roman sarcophagi and faded frescoes of saints line the walks.',
+      'The hillside round it is no longer bare cut rock: it rises as house fronts with windows, shutters, balconies and bougainvillea, and a parapet runs along the lane at the top, where you can look down into the garden. The bell tower\'s foot is whole again.',
+      'The Ruga dei Mercanti, the covered street behind the cathedral, climbs gently instead of going up a long stair and down again, and no longer runs through someone\'s living room. Its whitewashed vault rests on stone arches, lanterns burn on its walls day and night, and little shops are let into both walls: Vietri ceramics, lemons and limoncello, Amalfi paper, linen and a grocer.',
+      'Both covered ways open under striped stone portals with a majolica plaque over the arch.',
+    ],
+  },
+  {
+    version: '0.17.5',
+    date: '2026-10-31',
+    title: 'Paving that holds up from afar',
+    items: [
+      'Paving, tiles, lawns and roofs no longer turn to bare earth in the distance. The simplified far-away version of each street now keeps the colour you actually see on top, instead of the soil or filler underneath, in Tokyo, Amalfi and Istanbul alike.',
+      'The sea bed far out in Amalfi and Istanbul no longer has gaps in it.',
+    ],
+  },
+  {
+    version: '0.17.4',
+    date: '2026-10-31',
+    title: 'Every step you can climb',
+    items: [
+      'Stairs no longer start on top of a wall. Where a flight met a square or a street below it (the steps up from Piazza dei Dogi, the lanes off Via Lorenzo, the Grand Bazaar\'s gates) it now comes all the way down to the paving.',
+      'Amalfi\'s garden terraces and Istanbul\'s raised yards have their own little flights of steps from the lane beside them, cut into the terrace or built up against the wall, so you can walk up onto ground you can see.',
+      'The ground in front of the Grand Bazaar\'s walls is no longer a ledge you can\'t climb: steps lead up to it along the street.',
+      'On Tokyo\'s Inari Hill the treetops and bushes no longer count as ground.',
     ],
   },
   {

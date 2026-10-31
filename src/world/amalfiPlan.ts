@@ -1,5 +1,6 @@
 import { G, V, VX0, VZ0, SX, SZ } from './layout';
 import { hash3, rng } from './grid';
+import { regradePaths, gardenFlights } from './regrade';
 
 /**
  * Amalfi's ground plan: the hillside, the paths across it and the house lots on it, worked out once for the whole
@@ -25,6 +26,8 @@ export interface PathSeg {
   kind: K;
   /** Roofed over (a covered passage or a tunnel): the builder vaults it and keeps the space above it free. */
   roof?: number;
+  /** A covered passage's open ends (at a, at b): cut square and framed as a portal instead of rounded off. */
+  portal?: [boolean, boolean];
 }
 
 export interface LotPlan {
@@ -240,13 +243,15 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     // the 57 steps up to the cathedral and its atrium
     d0: { x: -4.5, z: 14, y: PIAZZA_Y }, d1: { x: -20, z: 14, y: DUOMO_Y }, d2: { x: -23, z: 14, y: DUOMO_Y }, d3: { x: -23, z: 26, y: DUOMO_Y },
     d4: { x: -23, z: 4, y: DUOMO_Y },
-    // the cloister, through a door at the end of the atrium
-    c0: { x: -30, z: 30, y: DUOMO_Y }, c1: { x: -38, z: 36, y: DUOMO_Y },
+    // the cloister, through a door at the end of the atrium: in along its east walk, then through the arcade's
+    // middle arch into the garden
+    c0: { x: -30, z: 30, y: DUOMO_Y }, c1: { x: -38, z: 36, y: DUOMO_Y }, c2: { x: -33.5, z: 30.6, y: DUOMO_Y }, c3: { x: -33.5, z: 36.4, y: DUOMO_Y },
     // Via Lorenzo d'Amalfi, climbing the valley, and Piazza dei Dogi halfway up
     m0: { x: -4, z: -3 }, m1: { x: -20, z: -8 }, m2: { x: -38, z: -6 }, m3: { x: -54, z: -9 }, m4: { x: -64, z: -8 },
     m5: { x: -82, z: -7 }, m6: { x: -110, z: -9 },
-    // Ruga dei Mercanti, the covered market passage behind the cathedral's east wall
-    u0: { x: -4.5, z: 2, y: PIAZZA_Y }, u1: { x: -18, z: 1.5 }, u2: { x: -34, z: 1 }, u3: { x: -46, z: -3 },
+    // Ruga dei Mercanti, the covered market passage behind the cathedral's east wall: it keeps to the foot of the
+    // slope, climbing gently beside the main street (a few low steps, never a flight up the hill and down again)
+    u0: { x: -4.5, z: 2, y: PIAZZA_Y }, u1: { x: -18, z: 1.5, y: 4.0 }, u2: { x: -34, z: 1, y: 5.5 }, u3: { x: -46, z: -3 },
     // the beach and the harbour
     b0: { x: 39, z: 9, y: 1.55 }, b1: { x: 39.5, z: -9, y: 1.15 }, b2: { x: 42, z: 34, y: 1.15 },
     // the Molo: a stone pier straight out from the beach below the piazza, a round belvedere at its end
@@ -260,6 +265,7 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     ['p0', 'p1', 3, K.Piazza], ['p1', 'p4', 3, K.Piazza], ['p4', 'd0', 3, K.Piazza], ['p1', 'p3', 3, K.Piazza], ['p0', 'p5', 3, K.Piazza],
     ['p5', 'p2', 3, K.Piazza], ['p2', 'u0', 2, K.Piazza], ['p2', 'm0', 3, K.Piazza], ['p4', 'p2', 3, K.Piazza], ['p3', 'p6', 3, K.Piazza],
     ['d0', 'd1', 10, K.Steps], ['d1', 'd2', 6, K.Piazza], ['d2', 'd3', 3, K.Piazza], ['d2', 'd4', 3, K.Piazza], ['d3', 'c0', 2.4, K.Covered, 3.5], ['c0', 'c1', 3, K.Piazza],
+    ['c0', 'c2', 2, K.Piazza], ['c2', 'c3', 2, K.Piazza], ['c3', 'c1', 2, K.Piazza],
     ['m0', 'm1', 4.2, K.Street], ['m1', 'm2', 4.2, K.Street], ['m2', 'm3', 4.4, K.Street], ['m3', 'm4', 9, K.Piazza], ['m4', 'm5', 4.2, K.Street], ['m5', 'm6', 4.2, K.Street],
     ['u0', 'u1', 2.6, K.Covered, 3.25], ['u1', 'u2', 2.6, K.Covered, 3.25], ['u2', 'u3', 2.6, K.Covered, 3.25], ['u3', 'm3', 2.6, K.Street],
     ['r2', 'b0', 3, K.Walk], ['b0', 'b1', 3, K.Sand], ['b0', 'b2', 3, K.Sand],
@@ -329,6 +335,12 @@ let cached: Plan | null = null;
 export const col = (x: number, z: number) => (z - VZ0) * SX + (x - VX0);
 export const layerOf = (y: number) => G + Math.round(y / V);
 
+/**
+ * The wild hillside (voxel column, its ground layer): the headland and the slopes above the highest lanes, left as
+ * cliff, scrub and woods rather than terraced. The town ends where it starts; no steps are cut up into it.
+ */
+export const wildRock = (x: number, z: number, w: number) => z * V < -44 || x * V > ROAD_X0 || w > layerOf(29);
+
 export function amalfiPlan(): Plan {
   if (cached) return cached;
   const n = SX * SZ;
@@ -357,8 +369,14 @@ export function amalfiPlan(): Plan {
   const { nodes, edges } = network();
   const ids = Object.keys(nodes);
   const ny = (id: string) => nodes[id].y ?? Math.max(PIAZZA_Y, hillY(nodes[id].x, nodes[id].z));
+  // a covered passage's end that opens onto a square or a street is a portal (the Ruga's two, the cloister's from
+  // the atrium); the end at the cloister door runs on into the doorway
+  const roofs = new Map<string, number>();
+  for (const [a, b, , , roof] of edges) if (roof) for (const id of [a, b]) roofs.set(id, (roofs.get(id) ?? 0) + 1);
+  const portal = (id: string) => roofs.get(id) === 1 && id !== 'c0';
   const segs: PathSeg[] = edges.map(([a, b, w, k, roof]) => ({
     a: [nodes[a].x, ny(a), nodes[a].z], b: [nodes[b].x, ny(b), nodes[b].z], w, kind: k, roof,
+    ...(roof && k === K.Covered ? { portal: [portal(a), portal(b)] as [boolean, boolean] } : {}),
   }));
   // paint the paths: each column takes the height of the closest path over it, uniformly graded along it
   for (const s of segs) paintSeg(s, walk, kind, best);
@@ -392,6 +410,8 @@ export function amalfiPlan(): Plan {
   // the cathedral and its bell tower stand on their own terrace above the steps
   rect(-60, 3, -26, 25, DUOMO_Y, K.Church, walk, kind, best);
   rect(-40, 25, -32, 30, DUOMO_Y, K.Church, walk, kind, best);
+  // every riser left where a stair meets a square or two paths cross on different grades becomes steps
+  regradePaths(walk, kind, { adjustable: new Set([K.Stair, K.Lane, K.Street]), fixed: new Set([K.Road, K.Walk, K.Piazza, K.Steps, K.Quay, K.Pier, K.Church, K.Sand]) });
   const lots = placeLots(walk, kind, lot, segs);
   // where the hill comes down to the shore road it does so in crags, a metre a step, like the headland across the
   // road (after the houses are placed, so the town stays as it was and only the bare slope round them is cut)
@@ -416,9 +436,16 @@ export function amalfiPlan(): Plan {
     lt.base = Math.max(lo, lt.base - 72);
     for (let z = lt.z0; z <= lt.z1; z++) for (let x = lt.x0; x <= lt.x1; x++) { const c = col(x, z); if (lot[c] === lt.id) walk[c] = lt.base; }
   }
+  // and every garden terrace left between the houses gets its steps down to the lane (the wild slopes above the
+  // town and the headland's crags stay as they are)
+  gardenFlights(walk, kind, lot, { ground: K.Rock, stair: K.Stair, path: (k) => isPath(k) && k !== K.Covered && k !== K.Tunnel, wild: (x, z) => wildRock(x, z, walk[col(x, z)]) });
   const nodeList = ids.map((id) => [nodes[id].x, nodes[id].z] as [number, number]);
   const index = new Map(ids.map((id, i) => [id, i]));
-  cached = { walk, kind, lot, lots, segs, nodes: nodeList, edges: edges.map(([a, b]) => [index.get(a)!, index.get(b)!]) };
+  // the walkers' graph: the old straight line from the cloister door to the garden would cross the arcade, and the
+  // flight from the garden up to the lane above is walled off by the cloister (both stay painted, so the town
+  // keeps its shape, but nobody walks them)
+  const walked = edges.filter(([a, b]) => !(a === 'c0' && b === 'c1') && !(a === 'c1' && b !== 'c3'));
+  cached = { walk, kind, lot, lots, segs, nodes: nodeList, edges: walked.map(([a, b]) => [index.get(a)!, index.get(b)!]) };
   return cached;
 }
 

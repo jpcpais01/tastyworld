@@ -27,7 +27,7 @@ import {
 function istanbulColors(b: Builder) {
   const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
   const F = { leaf: true }, GL = { glass: true };
-  return {
+  const c = {
     // stone: grey limestone of the mosques, the pinkish Küfeki stone of the hans, Ottoman brick, granite setts
     lime: a(0xd6d0c4, 0.05), limeDark: a(0xb9b2a4, 0.06), limeLight: a(0xe8e3d8, 0.04), kufeki: a(0xd8c7a8, 0.06), kufekiDark: a(0xbfac8a, 0.06),
     brick: a(0xa65a3e, 0.08), brickDark: a(0x8a4630, 0.08), mortar: a(0xcdbfa6, 0.05), granite: a(0x8b8781, 0.08), graniteB: a(0x77736d, 0.08),
@@ -72,7 +72,18 @@ function istanbulColors(b: Builder) {
     cartRed: a(0xc8302a, 0.03), flagRed: a(0xd8202a, 0.02), cartGlass: a(0xe8f0f2, 0.02, { glass: true }), chrome: a(0xb8bec4, 0.03), tramWhite: a(0xf2f2ee, 0.02), tramRed: a(0xc8282a, 0.03), rail: a(0x8a8580, 0.05), sleeper: a(0x5a4636, 0.06),
     lampGlow: a(0xffd89a, 0.03, { emit: 0.9, night: true }), lampGlowAlways: a(0xffd89a, 0.03, { emit: 0.85 }), ember: a(0xff7a2a, 0.05, { emit: 0.9 }),
     nazarBlue: a(0x1f4fb8, 0.03, { emit: 0.15 }), nazarLight: a(0x7ab8f0, 0.03), nazarWhite: a(0xf8f8f4, 0.02), nazarDark: a(0x14141a, 0.02),
+    // the small things on a block's walls: zinc downpipes, satellite dishes, the roller shutters' housings
+    zinc: a(0x8e9498, 0.04), zincDark: a(0x6e7478, 0.04), dish: a(0xe6e4de, 0.03), kepenk: a(0x9a9c9e, 0.04),
   };
+  // each wall's weathered shades: the damp that rises from the street, the streaks the rain leaves under a sill
+  const shade = (i: number, k: number, warm = 0) => {
+    const f = (v: number, w: number) => Math.max(0, Math.min(255, Math.round(v * k + w)));
+    return (f(b.pal.r[i], warm) << 16) | (f(b.pal.g[i], warm * 0.6) << 8) | f(b.pal.b[i], 0);
+  };
+  const walls = [...new Set([...PLASTER(c), ...GROUND_WALLS(c), c.brick])];
+  const dirt = new Map(walls.map((i) => [i, a(shade(i, 0.84, -4), 0.07)] as const));
+  const damp = new Map(walls.map((i) => [i, a(shade(i, 0.91, 2), 0.08)] as const));
+  return { ...c, dirt, damp };
 }
 
 export type IC2 = ReturnType<typeof istanbulColors>;
@@ -1213,8 +1224,11 @@ function yardWalls(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number)
 
 // ------------------------------------------------------------------------------------------- buildings
 
-const PLASTER = (c: IC2) => [c.cream, c.ochre, c.apricot, c.rose, c.salmon, c.mint, c.powder, c.lilac, c.stone, c.grey, c.white, c.yellow,
+type Keys<K extends string> = Record<K, number>;
+const PLASTER = (c: Keys<'cream' | 'ochre' | 'apricot' | 'rose' | 'salmon' | 'mint' | 'powder' | 'lilac' | 'stone' | 'grey' | 'white' | 'yellow' | 'terraPlaster' | 'sage' | 'sky' | 'blush' | 'sand' | 'pistachioP' | 'deepOchre' | 'warmGrey' | 'oxblood' | 'tealP'>) => [c.cream, c.ochre, c.apricot, c.rose, c.salmon, c.mint, c.powder, c.lilac, c.stone, c.grey, c.white, c.yellow,
   c.terraPlaster, c.sage, c.sky, c.blush, c.sand, c.pistachioP, c.deepOchre, c.warmGrey, c.oxblood, c.tealP];
+/** The tones a ground floor is painted in, under a plaster block of another colour. */
+const GROUND_WALLS = (c: Keys<'limeDark' | 'stone' | 'warmGrey' | 'oxblood' | 'sand' | 'grey' | 'terraPlaster'>) => [c.limeDark, c.stone, c.warmGrey, c.oxblood, c.sand, c.grey, c.terraPlaster];
 const WOOD = (c: IC2) => [c.woodRed, c.woodOchre, c.woodBlue, c.woodGreen, c.woodGrey, c.woodCream, c.woodBare, c.woodRed, c.woodTeal, c.woodYellow, c.woodPink, c.woodGrey];
 /** Painted trims: window frames, string courses, cornices. Light ones on dark walls, dark ones on pale walls. */
 const TRIM_LIGHT = (c: IC2) => [c.cornice, c.trim, c.limeLight, c.paintCream, c.stone];
@@ -1256,7 +1270,7 @@ function lookOf(c: IC2, lt: LotPlan, wooden: boolean, han: boolean): Look {
   return {
     mode,
     ground: mode === 'plaster' ? (g < 0.24 ? 'rustic' : g < 0.42 ? 'tone' : 'same') : mode === 'brick' && g < 0.4 ? 'rustic' : 'same',
-    groundWall: pick([c.limeDark, c.stone, c.warmGrey, c.oxblood, c.sand, c.grey, c.terraPlaster]),
+    groundWall: pick(GROUND_WALLS(c)),
     win: pick(kinds),
     bay: 5 + Math.floor(r() * 4),
     quoins: mode !== 'wood' && r() < 0.35,
@@ -1418,6 +1432,17 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
         const lit = hash3(a, yb, lt.seed) < 0.35;
         const pane = lit ? c.glassLit : c.glass;
         fr.box(g, a, sy0, 0, a + 2, sy1, 0, pane);
+        // upstairs the glass sits back in the thickness of the wall, so the reveal throws its shadow (the ground
+        // floor and any building with rooms upstairs keep it flush: their rooms are hollowed out after this)
+        if (fl > 0 && !o.room) for (let aa = a; aa <= a + 2; aa++) for (let y = sy0; y <= sy1; y++) {
+          const [bx, bz] = fr.xz(aa, 1);
+          const behind = g.get(bx, y, bz);
+          if (!behind || behind === c.glass || behind === c.glassLit) continue;
+          g.set(bx, y, bz, pane);
+          const [fx, fz] = fr.xz(aa, 0);
+          g.set(fx, y, fz, 0);
+        }
+        const face = (aa: number, y: number) => { const [fx, fz] = fr.xz(aa, 0); return g.get(fx, y, fz); };
         if (o.han) { fr.box(g, a, sy1 + 1, 0, a + 2, sy1 + 1, 0, c.brick); fr.box(g, a + 1, sy1 + 2, 0, a + 1, sy1 + 2, 0, c.brick); continue; }
         // the sill, then the window's own surround
         if (kind !== 'french') fr.box(g, a - 1, sy0 - 1, -1, a + 3, sy0 - 1, -1, o.trim);
@@ -1425,7 +1450,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
           fr.box(g, a - 1, sy0, 0, a - 1, sy1, 0, o.trim); fr.box(g, a + 3, sy0, 0, a + 3, sy1, 0, o.trim);
           fr.box(g, a - 1, sy1 + 1, 0, a + 3, sy1 + 1, 0, o.trim);
           // upstairs, the kafes lattice over the lower half of the sash on some houses
-          if (lk.kafes && fl > 0) fr.box(g, a, sy0, 0, a + 2, sy0 + 2, 0, (aa, y) => ((aa + y) % 2 ? c.kafes : pane));
+          if (lk.kafes && fl > 0) fr.box(g, a, sy0, 0, a + 2, sy0 + 2, 0, (aa, y) => ((aa + y) % 2 ? c.kafes : face(aa, y)));
         } else if (kind === 'shutter') {
           if (fl > 0) {
             fr.box(g, a - 1, sy1 + 1, -1, a + 3, sy1 + 1, -1, o.trim); // a pediment over the window
@@ -1471,7 +1496,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
               return y === sy0 ? (k < 0.55 ? bloom : c.leafLight) : k < 0.35 ? bloom : 0;
             });
             for (let aa = a - 1; aa <= a + 3; aa++) { const k = hash3(aa, yb, lt.seed + 9); if (k < 0.45) fr.box(g, aa, sy0 - 3 - (k < 0.15 ? 1 : 0), -2, aa, sy0 - 3, -2, c.ivy); }
-          } else if (h > 0.9 && !o.wooden) {
+          } else if (h > 0.84 && !o.wooden) {
             fr.box(g, a, sy0 - 4, -1, a + 2, sy0 - 2, -2, (aa, y, d) => (d === -2 && aa === a + 1 && y === sy0 - 3 ? c.grey : c.white));
             fr.box(g, a + 2, sy0 - 5, -1, a + 2, sy0 - 5, -1, c.grey);
           }
@@ -1495,6 +1520,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
         }
       }
     }
+    if (!o.wooden && !o.han) weather(ctx, fr, lt, o, ground, front, bays, floors);
     // the wooden houses' cumba: a closed bay window jutting out over the street on the upper floors
     if (o.wooden && front && floors >= 2 && fr.W >= 16) {
       const a0 = Math.floor(fr.W / 2) - 5, a1 = a0 + 9;
@@ -1520,6 +1546,11 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       const frameC = [c.woodDark, c.ironGreen, c.trimOx, c.iron, c.trimBlue, c.woodBare, c.trimGreen][Math.floor(hash3(lt.seed, 2, 2) * 7)];
       const bar = 4 + Math.floor(hash3(lt.seed, 2, 3) * 4);
       fr.box(g, a0, yb, 0, a1, yb + 9, 0, (a, y) => (y === yb + 9 ? o.trim : pm(a - a0, bar) === 0 || a === a1 ? frameC : y < yb + 2 ? frameC : c.shopGlass));
+      // the roller shutter's housing over the glass, rolled up for the day, and its guide rails down the sides
+      if (hash3(lt.seed, 2, 4) < 0.7) {
+        fr.box(g, a0, yb + 9, -1, a1, yb + 9, -1, (a, y, d) => { const [x, z] = fr.xz(a, d); return g.get(x, y, z) || c.kepenk; });
+        for (const a of [a0, a1]) fr.box(g, a, yb + 2, 0, a, yb + 8, 0, c.kepenk);
+      }
       signBoard(c, g, fr, a0, a1, yb + 10, lt.seed);
       if (lk.tiles >= 0 && top - base > 20) fr.box(g, 1, top - 6, 0, fr.W - 2, top - 3, 0, (a, y) => izTile(c, lk.tiles, a, y - (top - 6)));
       const [lx, lz] = fr.m(fr.W / 2, -1.5);
@@ -1537,6 +1568,78 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       if (hash3(lt.seed, 7, 7) < 0.6) fr.box(g, da + 1, yb + 5, 0, da + 2, yb + 5, 0, c.brass);
       const [lx, lz] = fr.m(da + 1.5, -0.4);
       if (hash3(lt.seed, 3, 3) < 0.5) { b.place(wallLantern(c), lx, (yb - G) * V + 2.4, lz, fr.turnOut); b.lamp(lx, (yb - G) * V + 2.4, lz, WARM, 4.5, 0.6); }
+    }
+  }
+}
+
+/**
+ * The wear of a century on a block's walls, and the things a household fixes to them: damp creeping up from the
+ * paving, rain streaks down from the cornice and the sills, plaster fallen away to show the brick behind, a zinc
+ * downpipe at a corner and now and then a satellite dish. Repaints only cells still in the wall's own colour, and
+ * sticks out only into empty air above head height.
+ */
+function weather(ctx: Ctx, fr: Frame, lt: LotPlan, o: { wall: number; trim: number; lk: Look; shopFront: boolean }, ground: (a: number) => number, front: boolean, bays: number[], floors: number): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  const { base, top, seed } = lt;
+  const lk = o.lk;
+  const own = (v: number) => v === o.wall || (lk.ground !== 'same' && v === lk.groundWall);
+  const shadeOf = (m: Map<number, number>, v: number) => m.get(v) ?? m.get(o.wall) ?? v;
+  const paint = (a: number, y: number, m: Map<number, number>) => {
+    const [x, z] = fr.xz(a, 0), v = g.get(x, y, z);
+    if (own(v)) g.set(x, y, z, shadeOf(m, v));
+  };
+  const H = (k: number, a = 0, y = 0) => hash3(seed * 7 + a, y, k);
+  const plaster = lk.mode === 'plaster';
+  // damp, rising in a soft wave from the street where the wall meets the paving
+  for (let a = 0; a < fr.W; a++) {
+    const gl = ground(a);
+    if (gl > base + 2 || gl < base - 6) continue;
+    const y0 = Math.max(base + 2, gl);
+    const wave = Math.sin(a * 0.5 + seed) + Math.sin(a * 0.19 + seed * 0.7);
+    const h = Math.max(0, Math.round((plaster ? 1.6 : 0.8) + wave * 1.4));
+    for (let y = y0; y < y0 + h; y++) paint(a, y, c.damp);
+  }
+  // rain streaks down from the cornice, and under the upstairs sills
+  for (let a = 1; a < fr.W - 1; a++) {
+    const h = H(61, a);
+    if (h < 0.08) for (let y = top - 2; y >= top - 3 - Math.floor(h * 90); y--) paint(a, y, c.dirt);
+  }
+  for (let fl = 1; fl < floors; fl++) for (const a of bays) {
+    const h = H(62, a, fl);
+    if (h < 0.35) for (let y = base + fl * 12 + 1; y >= base + fl * 12 - Math.floor(h * 12); y--) paint(a + 1, y, c.dirt);
+  }
+  // plaster fallen away from the brick under it, in ragged patches
+  if (plaster) {
+    const n = Math.floor(H(63) * 3.6);
+    for (let i = 0; i < n && fr.W > 8 && top - base > 14; i++) {
+      const ha = H(64, i), hy = H(65, i);
+      const pa = 1 + Math.floor(ha * (fr.W - 7)), py = base + 3 + Math.floor(hy * hy * (top - base - 9));
+      const pw = 3 + (Math.floor(ha * 17) % 4), ph = 2 + (Math.floor(hy * 13) % 3);
+      for (let u = 0; u < pw; u++) for (let v = 0; v < ph; v++) {
+        if ((u === 0 || u === pw - 1) && (v === 0 || v === ph - 1)) continue;
+        const [x, z] = fr.xz(pa + u, 0), cur = g.get(x, py + v, z);
+        if (own(cur)) g.set(x, py + v, z, (py + v) % 3 === 2 ? c.mortar : (pa + u + ((py + v) % 6 < 3 ? 0 : 2)) % 4 === 0 ? c.mortar : c.brick);
+      }
+    }
+  }
+  // a zinc downpipe from the gutter to the street at one front corner, its joints banded
+  if (front && H(66) < 0.6 && fr.W >= 10) {
+    const a = H(67) < 0.5 ? 0 : fr.W - 1;
+    const gl = ground(a);
+    if (gl <= base + 2 && gl >= base - 6) for (let y = gl; y < top; y++) {
+      const [x, z] = fr.xz(a, -1);
+      if (!g.get(x, y, z)) g.set(x, y, z, (y - gl) % 12 === 11 ? c.zincDark : c.zinc);
+    }
+  }
+  // a satellite dish beside an upstairs window, on one block in eight
+  if (floors >= 2 && bays.length && H(68) < 0.14) {
+    const a = bays[Math.floor(H(69) * bays.length)] + 4, fl = 1 + Math.floor(H(70) * (floors - 1));
+    const y = base + fl * 12 + 6;
+    const [ax, az] = fr.xz(a, -1), [dx, dz] = fr.xz(a, -2), [ex, ez] = fr.xz(a + 1, -2);
+    if (a + 1 < fr.W - 1 && ground(a) + 10 < y && !g.get(ax, y, az) && !g.get(dx, y, dz) && !g.get(ex, y, ez) && !g.get(dx, y + 1, dz) && !g.get(ex, y + 1, ez)) {
+      g.set(ax, y, az, c.zincDark);
+      for (const [x, z] of [[dx, dz], [ex, ez]]) { g.set(x, y, z, c.dish); g.set(x, y + 1, z, c.dish); }
     }
   }
 }

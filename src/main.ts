@@ -90,7 +90,10 @@ const ANIMS: readonly Anim[] = ['idle', 'walk', 'run', 'cook', 'eat', 'wave', 's
 const SEND_EVERY = 0.1; // seconds between co-op movement samples
 
 const PLAYER_SPEED = 3.2;
-const RUN_SPEED = 4.8; // Shift, a long joystick drag, or a double tap
+const RUN_SPEED = 4.8; // the fast pace, a long joystick drag, or a double tap
+/** Walking paces that Shift (or the HUD button) cycles through, in m/s. */
+const PACES = [1.7, PLAYER_SPEED, RUN_SPEED] as const;
+const PACE_KEY = 'tastyworld.pace';
 const BODY_R = 0.32; // how wide a person is to the sway shader (a cat is 0.1)
 const VIEW_KEY = 'tastyworld.view';
 const VENDOR_CALLS = TEXT.vendorCalls;
@@ -199,6 +202,8 @@ class Game {
   private path: [number, number][] = [];
   private pending: Interactable | null = null;
   private pathRun = false;
+  /** Chosen walking pace: 0 slow, 1 normal, 2 fast (index into PACES). */
+  private pace = 1;
   private lastTap = { t: 0, x: 0, y: 0 };
   private slideSide = 1;
   /** Vertical speed while dropping off a ledge (m/s, negative is down). */
@@ -303,6 +308,7 @@ class Game {
     this.ui.onEndTrip = () => this.endTrip();
     this.ui.onWave = () => this.wave();
     this.ui.onPhoto = () => this.setPhoto(true);
+    this.ui.onPace = () => this.cyclePace();
     this.photo = new PhotoUI({
       shutter: () => this.shutter(),
       close: () => this.setPhoto(false),
@@ -1261,6 +1267,9 @@ class Game {
     let fp = false;
     try { fp = localStorage.getItem(VIEW_KEY) === 'fp'; } catch { /* storage blocked */ }
     if (fp) this.setFirstPerson(true, true);
+    let pace = 1;
+    try { pace = Number(localStorage.getItem(PACE_KEY) ?? 1); } catch { /* storage blocked */ }
+    this.setPace(PACES[pace] ? pace : 1, false);
     if (!this.s.flags.introSeen) {
       this.s.flags.introSeen = true;
       this.s.flags.lastPatch = PATCH_NOTES[0].version;
@@ -1970,6 +1979,17 @@ class Game {
   }
 
   // ------------------------------------------------------------------ input
+  /** Shift or the HUD pace button: slow, normal, fast and round again. The choice is kept between visits. */
+  private cyclePace(): void {
+    this.setPace((this.pace + 1) % PACES.length);
+  }
+
+  private setPace(i: number, save = true): void {
+    this.pace = i;
+    this.ui.setPace(i);
+    if (save) try { localStorage.setItem(PACE_KEY, String(i)); } catch { /* storage blocked */ }
+  }
+
   private bindInput(): void {
     const canvas = this.r.gl.domElement;
     window.addEventListener('keydown', (e) => {
@@ -1985,6 +2005,7 @@ class Game {
         case 'KeyM': this.ui.open ? this.ui.close() : this.ui.map(); break;
         case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
         case 'KeyG': if (!this.ui.busy) this.wave(); break;
+        case 'ShiftLeft': case 'ShiftRight': if (!this.ui.busy) this.cyclePace(); break;
         case 'KeyC': this.setPhoto(true); break;
         case 'Escape': this.ui.endDialogue(); this.ui.close(); break;
         case 'Equal': case 'NumpadAdd': this.cam.zoomBy(0.85); break;
@@ -2239,8 +2260,9 @@ class Game {
         dx = ax.fwd.x * f + ax.right.x * rt;
         dz = ax.fwd.y * f + ax.right.y * rt;
         const len = Math.hypot(dx, dz);
-        run = this.joy?.active ? this.joy.run : k.has('ShiftLeft') || k.has('ShiftRight');
-        speed = (run ? RUN_SPEED : PLAYER_SPEED) * Math.min(1, Math.hypot(f, rt));
+        const pace = this.joy?.active && this.joy.run ? RUN_SPEED : PACES[this.pace];
+        run = pace > PLAYER_SPEED;
+        speed = pace * Math.min(1, Math.hypot(f, rt));
         dx /= len; dz /= len;
       } else if (this.path.length) {
         const [tx, tz] = this.path[0];
@@ -2256,8 +2278,9 @@ class Game {
           }
         } else {
           dx = ddx / d; dz = ddz / d;
-          run = this.pathRun || this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
-          speed = (run ? RUN_SPEED : PLAYER_SPEED) * (this.path.length === 1 ? Math.min(1, 0.35 + d) : 1);
+          const pace = this.pathRun ? RUN_SPEED : PACES[this.pace];
+          run = pace > PLAYER_SPEED;
+          speed = pace * (this.path.length === 1 ? Math.min(1, 0.35 + d) : 1);
         }
       }
     }

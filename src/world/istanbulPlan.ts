@@ -1,5 +1,6 @@
 import { G, V, VX0, VZ0, SX, SZ } from './layout';
 import { hash3, rng } from './grid';
+import { regradePaths, gardenFlights } from './regrade';
 
 /**
  * Istanbul's ground plan: Eminönü and the slopes above it, worked out once for the whole map from pure functions
@@ -379,8 +380,12 @@ export function istanbulPlan(): Plan {
       const c = col(x, z), k = kind[c];
       if ((k === K.Lane || k === K.Stair || k === K.Street) && beyond((x + 0.5) * V, (z + 0.5) * V)) { kind[c] = K.Ground; walk[c] = Math.min(250, layerOf(hillY((x + 0.5) * V, (z + 0.5) * V))); }
     }
+  // every riser left where a street meets a square or a hall, or two paths cross on different grades, becomes steps
+  regradePaths(walk, kind, { adjustable: new Set([K.Street, K.Lane, K.Stair]), fixed: new Set([K.Quay, K.Square, K.Steps, K.Covered, K.Court, K.Terrace, K.Tram, K.Mosque, K.Park]) });
   const lots = placeLots(walk, kind, lot, segs);
   waterfront(walk, kind, lot);
+  // and every yard or strip of open ground above the street beside it gets steps up from it
+  gardenFlights(walk, kind, lot, { ground: K.Ground, stair: K.Stair, path: (k) => isPath(k) && k !== K.Covered, wild: (x, z) => beyond((x + 0.5) * V, (z + 0.5) * V) });
   // the crowd's walking graph stops at the edge: a path running out of the town ends at its last walkable point
   const nodeList: [number, number][] = ids.map((id) => [nodes[id].x, nodes[id].z]);
   const index = new Map(ids.map((id, i) => [id, i]));

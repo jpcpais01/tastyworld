@@ -108,18 +108,18 @@ uniform float uTime;
 #ifdef CHARACTER
 #ifdef POSE_TEXTURE
 #include <batching_pars_vertex>
-// one body per batch instance: its texels hold 12 part rotations, 12 pivots, root offset + flash, light, lamp
+// one body per batch instance: its texels hold 13 part rotations (+ shrink), 13 pivots, root offset + flash, light, lamp
 // (layout in game/charbatch.ts)
 uniform highp sampler2D tPose;
 flat out vec4 vCharLight; // sun, sky, highlight, flash
 flat out vec3 vCharLamp;
 #else
-uniform vec3 uPivot[12];
-uniform vec3 uRot[12]; // pitch, yaw, roll
+uniform vec3 uPivot[13];
+uniform vec3 uRot[13]; // pitch, yaw, roll
 uniform vec3 uOffset;
 #endif
-// skeleton: torso <- head, arms <- forearms; hips <- thighs <- shins (see PART in characters.ts)
-const int PARENT[12] = int[12](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3);
+// skeleton: torso <- head, arms <- forearms <- phone; hips <- thighs <- shins (see PART in characters.ts)
+const int PARENT[13] = int[13](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3, 11);
 #endif
 #ifdef SWAY
 ${SWAY_FN}
@@ -180,22 +180,24 @@ void main() {
 #ifdef POSE_TEXTURE
   int body = int(getIndirectIndex(gl_DrawID)) * 32, pw = textureSize(tPose, 0).x;
 #define POSE(k) texelFetch(tPose, ivec2((body + (k)) % pw, (body + (k)) / pw), 0)
-  vec4 off = POSE(24);
-  vCharLight = vec4(POSE(25).xyz, off.w);
-  vCharLamp = POSE(26).xyz;
-#define ROT(k) POSE(k).xyz
-#define PIV(k) POSE(12 + (k)).xyz
+  vec4 off = POSE(26);
+  vCharLight = vec4(POSE(27).xyz, off.w);
+  vCharLamp = POSE(28).xyz;
+#define ROT(k) POSE(k)
+#define PIV(k) POSE(13 + (k)).xyz
 #else
   vec4 off = vec4(uOffset, 0.0);
-#define ROT(k) uRot[k]
+#define ROT(k) vec4(uRot[k], 0.0)
 #define PIV(k) uPivot[k]
 #endif
   int j = int(aPack.w + 0.5);
-  for (int k = 0; k < 3; k++) {
+  for (int k = 0; k < 4; k++) {
     if (j < 0) break;
-    vec3 a = ROT(j), pv = PIV(j);
+    // w shrinks a part to its pivot: a phone put away collapses to a point (nothing to draw)
+    vec4 a = ROT(j);
+    vec3 pv = PIV(j);
     mat3 R = rotY(a.y) * rotX(a.x) * rotZ(a.z);
-    p = R * (p - pv) + pv;
+    p = R * (p - pv) * (1.0 - a.w) + pv;
     n = R * n;
     j = PARENT[j];
   }

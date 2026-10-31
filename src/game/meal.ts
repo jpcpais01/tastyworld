@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Actor, geometryFrom } from './actors';
+import { PART_COUNT } from '../world/characters';
 import { meshGrid } from '../world/mesher';
 import { voxelMaterial, SharedUniforms } from '../engine/renderer';
 import { mealKit, MealKit, HandModel, Piece, V3, VOX, noodleBundle, pastaTwirl } from '../world/handfood';
@@ -229,7 +230,7 @@ export class Meal {
 
   constructor(readonly id: string, private host: MealHost, private onDone: () => void) {
     this.kit = mealKit(id);
-    const zero = () => Array.from({ length: 12 }, () => new THREE.Vector3());
+    const zero = () => Array.from({ length: PART_COUNT }, () => new THREE.Vector3());
     this.uni = { uCharLight: { value: new THREE.Vector3(1, 1, 0) }, uCharLamp: { value: new THREE.Vector3() } };
     this.mat = voxelMaterial(host.shared, { CHARACTER: 1 }, {
       uPivot: { value: zero() }, uRot: { value: zero() }, uOffset: { value: new THREE.Vector3() },

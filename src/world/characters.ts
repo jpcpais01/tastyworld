@@ -11,8 +11,10 @@ export const CAT_SCALE = 0.05;
  * Part ids. People have a small skeleton: thighs hang from the hips, shins from the knees, forearms
  * from the elbows, and head and arms ride on the torso (see PARENT in the voxel shader).
  */
-export const PART = { body: 0, head: 1, armL: 2, armR: 3, legL: 4, legR: 5, tail: 6, hips: 7, shinL: 8, shinR: 9, foreL: 10, foreR: 11 };
-export const PART_COUNT = 12;
+export const PART = { body: 0, head: 1, armL: 2, armR: 3, legL: 4, legR: 5, tail: 6, hips: 7, shinL: 8, shinR: 9, foreL: 10, foreR: 11, phone: 12 };
+export const PART_COUNT = 13;
+/** Voxel size of the small things people carry in their hands (a phone), finer than the body. */
+export const PROP_SCALE = 0.025;
 
 export interface CharModel {
   grid: Grid;
@@ -26,6 +28,11 @@ export interface CharModel {
    * swing out to fill the wedge that opens on the outside of a bent knee or elbow.
    */
   caps?: { grid: Grid; parts: Uint8Array };
+  /**
+   * Finer voxels carried by the body (the phone in the right hand, its own part, shrunk to nothing by the
+   * pose while it is put away), meshed at PROP_SCALE from `origin`.
+   */
+  prop?: { grid: Grid; parts: Uint8Array; origin: [number, number, number] };
 }
 
 export interface Look {
@@ -255,8 +262,30 @@ export function buildPerson(look: Look): CharModel {
     [ox + 6.5 * s, 4 * s, oz + 4 * s],
     [ox + 1 * s, 12 * s, oz + 4 * s], // left elbow
     [ox + 9 * s, 12 * s, oz + 4 * s],
+    [ox + 9 * s, 8.5 * s, oz + 4.5 * s], // phone: tucked into the right fist while it is put away
   ];
-  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots, caps };
+  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots, caps, prop: phone(pal, look, [ox + 6.75 * s, 6.4 * s, oz + 5.02 * s]) };
+}
+
+const PHONE_CASES = [0x26262c, 0xe9e5dc, 0xd9748f, 0x4f7fae, 0xe8b84a, 0x5f9a78, 0x8a6fb0];
+
+/**
+ * A phone on the inside of the right fist, reaching across towards the left one: a coloured case at the back
+ * and a lit screen in a dark bezel at the front, a touch big (10 x 17.5 cm) so it reads next to chunky hands.
+ * When the forearms come up to the chest, it sits between the hands with the screen turned up to the eyes.
+ */
+function phone(pal: Palette, look: Look, origin: [number, number, number]): NonNullable<CharModel['prop']> {
+  const W = 4, H = 7, D = 2;
+  const grid = new Grid(W, H, D);
+  const parts = new Uint8Array(W * H * D).fill(PART.phone);
+  const cs = pal.add(PHONE_CASES[(look.skin ^ look.top ^ look.hair) % PHONE_CASES.length], { vary: 0.02 });
+  const bezel = pal.add(0x17171b, { vary: 0.01 });
+  const screen = pal.add(0xbfe2ff, { vary: 0.05, emit: 0.55 });
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    grid.set(x, y, 0, cs);
+    grid.set(x, y, 1, y === 0 || y === H - 1 ? bezel : screen);
+  }
+  return { grid, parts, origin };
 }
 
 export function buildCat(seed: number): CharModel {

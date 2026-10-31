@@ -9,6 +9,8 @@ import { DISHES } from '../data/dishes';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { WorldMap } from './worldmap';
 import { G } from './glyphs';
+
+type LatLon = { lat: number; lon: number };
 import { FLAGS, icon } from './emblems';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -60,13 +62,16 @@ function cloudVeil(): { cover(): Promise<void>; part(): void } {
 /** Cap and jacket colours a traveller can pick for co-op trips. */
 export const COLORS = [0xe9573f, 0xf4b63f, 0x4f9a6a, 0x3f6fc0, 0xe07aa8, 0x2bb3b1];
 
-export type MapMode = 'solo' | 'coop' | 'view';
+/** solo / coop: from the home menu. view: the world map in game. onward: the end of a trip, on to another city. */
+export type MapMode = 'solo' | 'coop' | 'view' | 'onward';
 
 /** What the travel screens ask of the game. */
 export interface TravelHooks {
   save(): void;
-  /** Start the trip (from the home menu). */
+  /** Start the trip (from the home menu, or flying on from the end of one). */
   board(dest: Destination, coop: Coop | null): void;
+  /** The plane home has landed: end the trip and show the home menu. */
+  home(): void;
   /** The hour on the clock in the city when the plane lands. */
   arrivalHour(): number;
   /** The map covers the whole screen: the 3D view can rest. */
@@ -163,15 +168,18 @@ export class Travel {
     const trip = h('div', `trip ${mode}`);
     const map = new WorldMap(trip);
     this.map = map;
-    const here = mode === 'view' ? DEST[this.hooks.coop()?.dest ?? CITY] ?? DEST[CITY] : null;
-    const label = mode === 'solo' ? 'Solo trip' : mode === 'coop' ? 'Co-op trip' : 'World map';
+    const onward = mode === 'onward';
+    const here = mode === 'view' ? DEST[this.hooks.coop()?.dest ?? CITY] ?? DEST[CITY] : onward ? DEST[CITY] : null;
+    // onward flights leave from the city the trip ends in, every other one from home
+    const origin: LatLon & { city: string; code: string } = onward && here ? here : this.home;
+    const label = mode === 'solo' ? 'Solo trip' : mode === 'coop' ? 'Co-op trip' : onward ? 'Next stop' : 'World map';
     const top = h('div', 'trip-top', `
-      <button class="round-btn" data-a="back" aria-label="${mode === 'view' ? 'Close map' : 'Back to the menu'}">${mode === 'view' ? G.close : G.back}</button>
-      <div class="trip-title"><div class="eyebrow">${label}</div><h2>${mode === 'view' ? 'Where in the world' : 'Where to?'}</h2></div>
-      <div class="trip-from">${G.home}<span>Flying from <b>${esc(this.home.city)}</b></span></div>`);
+      <button class="round-btn" data-a="back" aria-label="${mode === 'view' ? 'Close map' : onward ? `Stay in ${esc(origin.city)}` : 'Back to the menu'}">${mode === 'view' ? G.close : G.back}</button>
+      <div class="trip-title"><div class="eyebrow">${label}</div><h2>${mode === 'view' ? 'Where in the world' : onward ? 'Where next?' : 'Where to?'}</h2></div>
+      <div class="trip-from">${onward ? G.depart : G.home}<span>Flying from <b>${esc(origin.city)}</b></span></div>`);
     const sheet = h('div', 'trip-sheet');
     trip.append(top, sheet);
-    let sel: Destination = here ?? DEST[CITY] ?? DEST.tokyo;
+    let sel: Destination = (onward ? DESTINATIONS.find((d) => d.open && d.id !== CITY) : null) ?? here ?? DEST[CITY] ?? DEST.tokyo;
 
     // pins
     const pins = new Map<string, HTMLElement>();
@@ -204,11 +212,11 @@ export class Travel {
       for (const c of strip.children) c.classList.toggle('on', (c as HTMLElement).dataset.id === d.id);
       strip.querySelector('.on')?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: snap ? 'auto' : 'smooth' });
       const isHere = here?.id === d.id;
-      const dist = km(this.home, d), lt = localTime(d.tz);
+      const dist = km(origin, d), lt = localTime(d.tz);
       const hrs = dist / 850 + 0.6, dur = `${Math.floor(hrs)}h ${String(Math.round((hrs % 1) * 60 / 5) * 5).padStart(2, '0')}m`;
       const leg = isHere ? '' : dist < 150
         ? `<span class="dc-leg">${G.plane}<b>A lap over the city</b></span>`
-        : `<span class="dc-leg"><b>${esc(this.home.code)}</b><i>${G.plane}</i><b>${d.code}</b></span><span class="dc-dist">${Math.round(dist).toLocaleString('en-GB')} km · ${dur}</span>`;
+        : `<span class="dc-leg"><b>${esc(origin.code)}</b><i>${G.plane}</i><b>${d.code}</b></span><span class="dc-dist">${Math.round(dist).toLocaleString('en-GB')} km · ${dur}</span>`;
       card.innerHTML = `
         <div class="dc-head">
           <span class="dc-flag">${FLAGS[d.id] ?? ''}</span>
@@ -224,6 +232,16 @@ export class Travel {
         b.setAttribute('disabled', '');
         cta.appendChild(b);
         cta.appendChild(h('p', 'cta-note', `The ${esc(d.city)} street food guide is still simmering. ${DESTINATIONS.filter((o) => o.open).map((o) => esc(o.city)).join(' and ')} ${DESTINATIONS.filter((o) => o.open).length > 1 ? 'are' : 'is'} open now!`));
+      } else if (onward && isHere) {
+        const b = h('button', 'btn btn-hero', `${G.pin}You are here`);
+        b.setAttribute('disabled', '');
+        cta.appendChild(b);
+        cta.appendChild(h('p', 'cta-note', `Pick another city to fly on to, or go back to keep exploring ${esc(d.city)}.`));
+      } else if (onward) {
+        const b = h('button', 'btn btn-hero', `${G.depart}Fly on to ${esc(d.city)}`);
+        b.onclick = () => { this.audio.play('click'); void this.fly(trip, d, null, origin); };
+        cta.appendChild(b);
+        cta.appendChild(h('p', 'cta-note', `${esc(origin.city)} keeps your stamps. You can fly back any time.`));
       } else if (mode === 'view') {
         const b = h('button', 'btn btn-hero', `${G.arrow}Back to ${esc(d.city)}`);
         b.onclick = () => { this.audio.play('click'); this.hooks.close(); };
@@ -248,7 +266,7 @@ export class Travel {
           cta.appendChild(j);
         }
       }
-      map.setRoute(isHere ? null : this.home, d);
+      map.setRoute(isHere ? null : origin, d);
       map.focus(d, snap);
       layout();
     };
@@ -316,36 +334,88 @@ export class Travel {
   }
 
   // ------------------------------------------------------------------ boarding
-  private async fly(trip: HTMLElement, d: Destination, coop: Coop | null): Promise<void> {
+  private async fly(trip: HTMLElement, d: Destination, coop: Coop | null, from: LatLon = this.home): Promise<void> {
     if (trip.classList.contains('flying')) return;
     trip.classList.add('flying');
     this.pending = null;
     trip.querySelector('.bp-wrap')?.remove();
-    const map = this.map;
-    if (map) {
-      // the flight: swoop down to the runway, take off, cruise round the globe, land
-      const skip = h('button', 'trip-skip', `Skip${G.arrow}`);
-      skip.onclick = () => { this.audio.play('click'); map.skip(); skip.remove(); };
-      trip.appendChild(skip);
-      map.setRoute(this.home, d);
-      setTimeout(() => this.audio.play('jet'), 700);
-      await map.fly(this.hooks.arrivalHour());
-      skip.remove();
-    }
-    this.audio.play('chime');
-    trip.appendChild(h('div', 'landed', `<div class="stamp-big"><span>${esc(d.local)}</span>${esc(d.city.toUpperCase())}<small>Arrived · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</small></div>`));
-    setTimeout(() => this.audio.play('stamp'), 250);
-    await sleep(1000);
+    await this.flight(trip, from, d, d.local, d.city, 'Arrived');
     // then down through the clouds and into the streets
     const veil = cloudVeil();
     this.audio.play('whoosh');
-    void map?.diveIn(1500);
+    void this.map?.diveIn(1500);
     await veil.cover();
     this.hooks.close();
     $('title').classList.add('hidden');
     this.hooks.board(d, coop);
     await sleep(350);
     veil.part();
+  }
+
+  /** Take off, cruise round the globe and land, then stamp the arrival. */
+  private async flight(trip: HTMLElement, from: LatLon, to: LatLon, local: string, name: string, word: string): Promise<void> {
+    const map = this.map;
+    if (map) {
+      // the flight: swoop down to the runway, take off, cruise round the globe, land
+      const skip = h('button', 'trip-skip', `Skip${G.arrow}`);
+      skip.onclick = () => { this.audio.play('click'); map.skip(); skip.remove(); };
+      trip.appendChild(skip);
+      map.setRoute(from, to);
+      setTimeout(() => this.audio.play('jet'), 700);
+      await map.fly(this.hooks.arrivalHour());
+      skip.remove();
+    }
+    this.audio.play('chime');
+    trip.appendChild(h('div', 'landed', `<div class="stamp-big">${local ? `<span>${esc(local)}</span>` : ''}${esc(name.toUpperCase())}<small>${word} · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</small></div>`));
+    setTimeout(() => this.audio.play('stamp'), 250);
+    await sleep(1000);
+  }
+
+  /**
+   * The end of a trip, flying home: the globe opens on the city being left, the plane flies the route home, the
+   * home stamp lands, and clouds cover the switch back to the home menu.
+   */
+  homeward(): void {
+    const from = DEST[CITY] ?? DEST.tokyo;
+    const trip = h('div', 'trip solo homeward flying');
+    const map = new WorldMap(trip);
+    this.map = map;
+    const homePin = h('div', 'pin home', `<span class="pin-tag">${G.home}${esc(this.home.city)}</span><span class="pin-dot"></span>`);
+    map.addPin(homePin, this.home);
+    const p = h('div', 'pin open sel', `<span class="pin-tag"><span class="fl">${FLAGS[from.id] ?? ''}</span><span class="nm">${esc(from.city)}</span></span><span class="pin-dot"></span>`);
+    p.dataset.place = from.id;
+    map.addPin(p, from);
+    this.keyHandler = (e: KeyboardEvent) => {
+      if (e.code === 'Escape' || e.code === 'Space' || e.code === 'Enter') { e.stopPropagation(); e.preventDefault(); map.skip(); }
+    };
+    window.addEventListener('keydown', this.keyHandler, true);
+    let done = false;
+    this.hooks.overlay(trip, () => {
+      map.dispose();
+      if (this.map === map) this.map = null;
+      if (this.keyHandler) window.removeEventListener('keydown', this.keyHandler, true);
+      this.keyHandler = null;
+      this.hooks.cover(false);
+      // closed before landing (it should not be): still end the trip, the plane has left
+      if (!done) { done = true; this.hooks.home(); }
+    });
+    this.hooks.cover(true);
+    map.setRoute(from, this.home);
+    void (async () => {
+      await new Promise((r) => requestAnimationFrame(r));
+      map.focus(from, true);
+      await sleep(250);
+      await this.flight(trip, from, this.home, '', this.home.city, 'Welcome home');
+      const veil = cloudVeil();
+      this.audio.play('whoosh');
+      void map.diveIn(1500);
+      await veil.cover();
+      done = true;
+      this.hooks.close();
+      this.hooks.home();
+      await sleep(350);
+      veil.part();
+    })();
   }
 
   private async hostPass(trip: HTMLElement, d: Destination): Promise<void> {

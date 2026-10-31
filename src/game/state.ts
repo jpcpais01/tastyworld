@@ -56,9 +56,14 @@ export interface SaveState {
   playTime: number;
   /** Photos taken in photo mode (the pictures themselves live in the album, game/album.ts). */
   photos: number;
+  /** The trip under way: the city and what the save looked like on landing (for the end-of-trip summary). */
+  trip?: TripLog | null;
   /** The city-bound parts of the save (see LOCAL) for every city but the one being played, by city id. */
   cities?: Record<string, Partial<SaveState>>;
 }
+
+/** A snapshot taken on landing in a city, so the end of the trip can tell what it came to. */
+export interface TripLog { city: string; t0: number; tasted: Record<string, number>; photos: number; yen: number; rooms: number }
 
 /**
  * What belongs to one city: its hidden things, the rooms and stalls found, tonight's bed, the map pin and the

@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.14.0',
+    date: '2026-10-31',
+    title: 'Fly around the world',
+    items: [
+      'The travel map is now a little voxel planet floating in space. Drag to spin it, pinch or scroll to zoom in close: mountains, forests, deserts and ice caps are built from blocks, with surf rolling onto every coast and chunky clouds drifting over the sea.',
+      'Day and night fall across the globe where they really are right now. On the night side, towns and cities twinkle.',
+      'Every city has its own airport and a landmark beside it: a torii and a red-and-white tower in Tokyo, Namsan tower in Seoul, a golden chedi in Bangkok, a mosque in Istanbul, Vesuvius by Naples, the Belém tower in Lisbon and a pyramid near Mexico City.',
+      'The destination card shows your route, the distance, the flight time and the local time there.',
+      'Flying is now a short film. The camera swoops down to your home runway, the engines spool up and the Tasty Air jet rolls, lifts off and climbs through the clouds, trailing a contrail. It cruises along the great circle while the hours pass and day and night sweep across the world below, then lands beside your destination just as the sun reaches the time it is in the city.',
+      'On arrival the camera dives down, the clouds close in and part again on the street. Already in Japan? You get a lap over the city instead.',
+      'In a hurry? Tap Skip (or press Space) to speed the flight up.',
+    ],
+  },
+  {
     version: '0.13.0',
     date: '2026-10-31',
     title: 'Birds in the city',

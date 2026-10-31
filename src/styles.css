@@ -667,14 +667,18 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 
 /* ---------------------------------------------------------------- travel map */
 .trip, .trip-plain { position: absolute; inset: 0; pointer-events: auto; overflow: hidden; }
-.trip { background: #9ed3d6; animation: fadeIn 0.35s ease; }
+.trip { background: #131a3c; animation: fadeIn 0.35s ease; }
 .trip-plain { background: rgba(29, 21, 18, 0.42); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: fadeIn 0.25s ease; }
 .wm { position: absolute; inset: 0; touch-action: none; }
 .wm canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
 .wm canvas:active { cursor: grabbing; }
 .wm-pins { position: absolute; inset: 0; pointer-events: none; }
-.wm-plane { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 3; }
-.wm-plane svg { position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; fill: #fff; stroke: var(--ink); stroke-width: 1.2; stroke-linejoin: round; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.18)); }
+/* a soft vignette over the starfield, so the globe sits in a pool of light */
+.wm::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(130% 100% at 50% 40%, rgba(19, 26, 60, 0) 55%, rgba(8, 10, 28, 0.55) 100%); }
+.trip-skip { position: absolute; z-index: 5; left: 50%; bottom: calc(22px + var(--safe-b)); transform: translateX(-50%); display: inline-flex; gap: 6px; align-items: center; padding: 9px 14px 9px 18px; border-radius: 99px;
+  background: rgba(255, 250, 242, 0.16); color: #fffaf2; font-family: var(--body); font-weight: 800; font-size: 13.5px; letter-spacing: 0.02em; box-shadow: inset 0 0 0 1px rgba(255, 250, 242, 0.28); animation: fadeIn 0.5s ease 1.2s both; }
+.trip-skip .g { width: 16px; height: 16px; }
+.trip-skip:active { transform: translateX(-50%) translateY(2px); }
 
 .pin { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: auto; z-index: 1; }
 .pin .pin-dot { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 3px var(--ink-3), 0 3px 0 rgba(0, 0, 0, 0.18); }
@@ -700,13 +704,13 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .round-btn:active { transform: translateY(2px); }
 .round-btn .g { width: 20px; height: 20px; stroke-width: 2.4; }
 .trip-top { position: absolute; left: 0; right: 0; top: 0; z-index: 4; display: flex; gap: 12px; align-items: center; padding: calc(16px + var(--safe-t)) calc(18px + var(--safe-r)) 12px calc(18px + var(--safe-l)); pointer-events: none;
-  background: linear-gradient(180deg, rgba(158, 211, 214, 0.95), rgba(158, 211, 214, 0)); transition: opacity 0.4s, transform 0.4s; }
+  background: linear-gradient(180deg, rgba(14, 19, 46, 0.85), rgba(14, 19, 46, 0)); transition: opacity 0.4s, transform 0.4s; }
 .trip-top > * { pointer-events: auto; }
-.trip-title .eyebrow { color: #3a7880; }
-.trip-title h2 { margin: 2px 0 0; font-family: var(--display); font-weight: 600; font-size: 28px; line-height: 1; color: var(--ink); text-shadow: 0 2px 0 rgba(255, 255, 255, 0.5); }
-.trip-from { margin-left: auto; display: flex; gap: 8px; align-items: center; padding: 8px 14px 8px 10px; border-radius: 99px; background: rgba(255, 250, 242, 0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 13px; font-weight: 700; color: var(--ink-2); }
-.trip-from .g { width: 18px; height: 18px; color: var(--indigo); }
-.trip-from b { color: var(--ink); }
+.trip-title .eyebrow { color: #ffc76b; }
+.trip-title h2 { margin: 2px 0 0; font-family: var(--display); font-weight: 600; font-size: 28px; line-height: 1; color: #fffaf2; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+.trip-from { margin-left: auto; display: flex; gap: 8px; align-items: center; padding: 8px 14px 8px 10px; border-radius: 99px; background: rgba(255, 250, 242, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 250, 242, 0.2); font-size: 13px; font-weight: 700; color: rgba(255, 250, 242, 0.75); }
+.trip-from .g { width: 18px; height: 18px; color: #ffc76b; }
+.trip-from b { color: #fffaf2; }
 
 .trip-sheet { position: absolute; z-index: 4; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); width: min(560px, calc(100vw - 28px)); background: var(--cream); border-radius: var(--r-l); box-shadow: var(--shadow-2);
   padding: 14px 16px 16px; animation: sheetUp 0.45s var(--spring) 0.1s both; transition: opacity 0.4s, transform 0.4s; }
@@ -724,6 +728,16 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .dc-name h3 .jp { font-size: 14px; font-weight: 400; color: var(--ink-2); letter-spacing: 1px; }
 .dc-name p { margin: 2px 0 0; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
 .dc-head .badge { flex: none; }
+.dc-trip { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 10px; font-size: 12.5px; font-weight: 800; color: var(--ink-2); }
+.dc-leg { display: inline-flex; gap: 6px; align-items: center; padding: 3px 10px; border-radius: 99px; background: var(--cream-2); box-shadow: inset 0 0 0 1px var(--line); letter-spacing: 0.06em; }
+.dc-leg b { color: var(--ink); font-weight: 900; }
+.dc-leg i { display: inline-flex; color: var(--tomato); }
+.dc-leg .g { width: 14px; height: 14px; color: var(--tomato); }
+.dc-dist { color: var(--ink-3); }
+.dc-time { margin-left: auto; display: inline-flex; gap: 5px; align-items: center; }
+.dc-time .g { width: 15px; height: 15px; }
+.dc-time.day .g { color: var(--sun-deep); }
+.dc-time.night .g { color: var(--indigo); }
 .dc-blurb { margin: 10px 0 10px; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
 .dc-menu { display: flex; gap: 6px; flex-wrap: wrap; }
 .dc-menu span { font-size: 12.5px; font-weight: 700; padding: 4px 9px; border-radius: 99px; background: var(--sun-soft); color: #7a5410; }
@@ -733,7 +747,6 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .cta-note { margin: 2px 0 0; text-align: center; font-size: 12.5px; font-weight: 700; color: var(--ink-3); }
 .trip.flying .trip-sheet { opacity: 0; transform: translate(-50%, 40px); pointer-events: none; }
 .trip.flying .trip-top { opacity: 0; transform: translateY(-20px); pointer-events: none; }
-.trip.flying .pin:not(.sel):not(.home) { opacity: 0; transition: opacity 0.4s; }
 @media (min-width: 900px) {
   .trip-sheet { left: calc(20px + var(--safe-l)); top: 96px; bottom: auto; transform: none; width: 400px; max-height: calc(100vh - 116px - var(--safe-b)); overflow: auto; animation-name: sheetLeft; }
   .trip.flying .trip-sheet { transform: translateX(-40px); }
@@ -755,6 +768,20 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .stamp-big { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 22px 30px; border: 4px solid var(--tomato); border-radius: 26px; color: var(--tomato); background: rgba(255, 250, 242, 0.92);
   font-family: var(--display); font-weight: 600; font-size: 34px; letter-spacing: 0.08em; transform: rotate(-8deg); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); animation: stampIn 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
 .stamp-big span { font-family: var(--jp); font-size: 22px; letter-spacing: 4px; }
+/* the arrival: blocky clouds roll in from the edges, hide the switch to the city, then part */
+.veil { position: absolute; inset: 0; z-index: 61; pointer-events: none; overflow: hidden; }
+.veil::before { content: ''; position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 45%, #fffaf2 0%, #f4ecdf 60%, #e4e0f0 100%); opacity: 0; transition: opacity 0.5s ease 0.45s; }
+.veil.on { pointer-events: auto; }
+.veil.on::before { opacity: 1; }
+.veil.out::before { opacity: 0; transition: opacity 0.6s ease 0.15s; }
+.puff { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: calc(var(--s) * 0.5); opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0.7);
+  transition: transform 1s cubic-bezier(0.2, 0.75, 0.25, 1) var(--d), opacity 0.35s ease var(--d); }
+.puff i { position: absolute; background: #fffaf2; border-radius: 16%; box-shadow: inset 0 calc(var(--s) * -0.035) 0 rgba(150, 140, 190, 0.18), 0 calc(var(--s) * 0.02) calc(var(--s) * 0.06) rgba(40, 40, 90, 0.12); }
+.puff i:nth-child(1) { left: 0; right: 0; bottom: 0; height: 52%; }
+.puff i:nth-child(2) { left: 12%; width: 42%; top: 14%; height: 62%; }
+.puff i:nth-child(3) { left: 44%; width: 38%; top: 0; height: 74%; }
+.veil.on .puff { opacity: 1; transform: translate(-50%, -50%); }
+.veil.out .puff { opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1.3); transition: transform 1.2s cubic-bezier(0.5, 0, 0.75, 0.4) var(--d), opacity 0.9s ease calc(var(--d) + 0.3s); }
 .stamp-big small { font-family: var(--body); font-size: 11px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; }
 
 /* ---------------------------------------------------------------- boarding pass */

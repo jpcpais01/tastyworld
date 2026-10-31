@@ -83,6 +83,8 @@ export interface Anchors {
   darumas: [number, number, number][];
   secret: SecretAnchor | null;
   occluders: Occluder[];
+  /** Overhead wires birds can sit on: end x, z, other end x, z, height of the top of the wire at its ends, sag (m). */
+  wires: [number, number, number, number, number, number][];
 }
 
 export interface BuildResult {
@@ -183,6 +185,7 @@ export class Builder {
   stallAnchors: StallAnchor[] = [];
   occluders: Occluder[] = [];
   benches: [number, number, number][] = [];
+  wires: Anchors['wires'] = [];
   /** True when there is open air at a point (metres). */
   clear(x: number, y: number, z: number): boolean {
     return this.grid.get(Math.floor(x / V), Math.floor(y / V) + G, Math.floor(z / V)) === 0;
@@ -209,7 +212,13 @@ export class Builder {
   place(prop: Prop, cx: number, y: number, cz: number, turns = 0, tag?: string): Prop {
     const p = rotateProp(prop, turns);
     const sx = p.sx * p.scale, sz = p.sz * p.scale;
-    this.props.push(this.placed(p, [cx - sx / 2, y, cz - sz / 2], tag));
+    const pl = this.placed(p, [cx - sx / 2, y, cz - sz / 2], tag);
+    this.props.push(pl);
+    if (prop.wireSag !== undefined) {
+      // along x, or along z after an odd number of turns; the top of the end voxels is the perch height
+      const half = (turns & 1 ? sz : sx) / 2 - p.scale, top = pl.origin[1] + p.sy * p.scale;
+      this.wires.push(turns & 1 ? [cx, cz - half, cx, cz + half, top, prop.wireSag] : [cx - half, cz, cx + half, cz, top, prop.wireSag]);
+    }
     if (!tag && y < 0.3) this.standing.push([cx - sx / 2, cz - sz / 2, cx + sx / 2, cz + sz / 2]);
     return p;
   }
@@ -1705,6 +1714,7 @@ export function buildTokyo(win?: Window): BuildResult {
     darumas,
     secret: b.secret,
     occluders: b.occluders,
+    wires: b.wires,
   };
 
   // join the city's street graph onto the old district's (negative indices name old nodes)

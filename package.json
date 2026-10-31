@@ -11,7 +11,8 @@
     "check:world": "tsx scripts/bake-test.ts",
     "worldmap": "npm i --no-save world-atlas@2 topojson-client@3 && node scripts/make-worldmap.mjs node_modules/world-atlas/land-50m.json",
     "check:crowd": "tsx scripts/gait-check.ts && tsx scripts/crowd-check.ts",
-    "check:props": "tsx scripts/prop-check.ts"
+    "check:props": "tsx scripts/prop-check.ts",
+    "check:birds": "tsx scripts/bird-check.ts"
   },
   "dependencies": {
     "@fontsource-variable/nunito": "^5.3.0",

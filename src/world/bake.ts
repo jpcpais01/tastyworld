@@ -2,7 +2,9 @@ import { Grid, SparseGrid } from './grid';
 import { LightField, Lamp } from './lighting';
 import { meshGrid, mergeMeshes, splitInner, orderFaces, packAtlas, MeshData, LightFn } from './mesher';
 import { Palette } from './palette';
-import { buildTokyo, Anchors, PlacedProp, BuildResult } from './tokyo';
+import { buildTokyo, Anchors, PlacedProp, BuildResult, Window } from './tokyo';
+import { buildAmalfi } from './amalfi';
+import { AMALFI } from './cityId';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
 import { assemble } from './assemble';
 import type { Owners } from './owners';
@@ -47,6 +49,8 @@ export interface BakedWorld {
   owners: Owners;
   /** Signed distance to the water's edge per column: 128 + 16 x voxels (positive over open water). */
   shore: Uint8Array;
+  /** Terrain under each column (voxels above street level) on a hillside city, or null where the city is flat. */
+  ground: Uint8Array | null;
   /** Walk map and character light of each hotel room upstairs, by room id (the street map only knows the ground). */
   hotelRooms: Record<string, HotelRoomBake>;
   anchors: Anchors;
@@ -66,6 +70,8 @@ export interface PartInit {
   solid: Uint32Array;
   nav: Uint8Array;
   shore: Uint8Array;
+  /** Terrain under each column (voxels above street level), for cities that climb hills; null on flat ones. */
+  ground: Uint8Array | null;
   lightmap: Uint8Array;
   tagged: { tag: string; mesh: MeshData }[];
   anchors: Anchors;
@@ -78,6 +84,11 @@ export interface PartInit {
 }
 
 const BLOCKED = 255;
+
+/** The builder of the city this page is visiting. */
+export function buildWorld(win?: Window): BuildResult {
+  return AMALFI ? buildAmalfi(win) : buildTokyo(win);
+}
 /** Extra voxel rows a strip keeps on its -z side (long sun shadows from tall buildings) and +z side (sky light). */
 const HALO_LO = 112, HALO_HI = 40;
 
@@ -164,7 +175,7 @@ function computeSolid(grid: SparseGrid, x0: number, z0: number, x1: number, z1: 
  * of headroom, if it is at least minH. `top` is just above street level for the streets; a room upstairs passes
  * its own.
  */
-function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, blockers: [number, number, number, number][], minH: number, top = G + 8): Uint8Array {
+function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, blockers: [number, number, number, number][], minH: number, top = G + 8, topAt?: (x: number, z: number) => number): Uint8Array {
   const sx = x1 - x0, sz = z1 - z0;
   const height = new Uint8Array(sx * sz).fill(BLOCKED);
   for (let z = 0; z < sz; z++)
@@ -179,7 +190,7 @@ function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: nu
         }
         continue;
       }
-      for (let y = top; y >= 1; y--) {
+      for (let y = topAt ? topAt(x0 + x, z0 + z) : top; y >= 1; y--) {
         if (grid.get(x0 + x, y - 1, z0 + z) === 0) continue;
         let clear = true;
         for (let k = 0; k < 7; k++) if (grid.get(x0 + x, y + k, z0 + z) !== 0) { clear = false; break; }
@@ -319,8 +330,8 @@ export class WorldPart {
   init(progress?: (stage: string, f: number) => void): PartInit {
     const { z0, z1 } = this;
     const wz0 = Math.max(VZ0, z0 - HALO_LO), wz1 = Math.min(VZ0 + SZ, z1 + HALO_HI);
-    progress?.('Building Tokyo', 0.04);
-    const res = (this.res = buildTokyo([VX0, wz0, VX0 + SX, wz1]));
+    progress?.(AMALFI ? 'Building Amalfi' : 'Building Tokyo', 0.04);
+    const res = (this.res = buildWorld([VX0, wz0, VX0 + SX, wz1]));
     if (res.sway.length >= SWAY_PART) throw new Error(`too many sway bodies: ${res.sway.length}`);
     res.grid.compact();
     progress?.('Lighting the streets', 0.4);
@@ -348,7 +359,12 @@ export class WorldPart {
     }
     progress?.('Paving the streets', 0.85);
     const x0 = VX0, x1 = VX0 + SX;
-    const nav = computeNav(res.grid, x0, z0, x1, z1, res.anchors.blockers, 10);
+    const nav = computeNav(res.grid, x0, z0, x1, z1, res.anchors.blockers, 10, G + 8, res.navTop);
+    let ground: Uint8Array | null = null;
+    if (res.groundAt) {
+      ground = new Uint8Array((x1 - x0) * (z1 - z0));
+      for (let z = z0; z < z1; z++) for (let x = x0; x < x1; x++) ground[(z - z0) * (x1 - x0) + x - x0] = Math.max(0, Math.min(255, res.groundAt(x, z) - G));
+    }
     const lightmap = computeLightmap(field, nav, x0, z0, x1, z1);
     const height = computeHeight(res.grid, x0, z0, x1, z1);
     const solid = computeSolid(res.grid, x0, z0, x1, z1);
@@ -414,7 +430,7 @@ export class WorldPart {
     }
     progress?.('Ready', 1);
     return {
-      part: this.part, rows: this.rows, height, solid, nav, shore, lightmap, tagged, anchors: res.anchors, interior, hotelRooms,
+      part: this.part, rows: this.rows, height, solid, nav, shore, ground, lightmap, tagged, anchors: res.anchors, interior, hotelRooms,
       sway: packSway(res.sway, this.swayBase),
       stats: { lamps: res.lamps.length, ms: performance.now() - this.t0, bytes: res.grid.bytes + field.bytes },
     };

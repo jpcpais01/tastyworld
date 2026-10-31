@@ -9,6 +9,8 @@ export class Prop {
   bodies: SwayBody[] = [];
   /** Per voxel (grid layout): 1-based index into bodies, 0 = static. */
   swayIdx: Uint8Array | null = null;
+  /** Set on overhead wires (see wire()): how far the middle sags, so birds know where to sit on it. */
+  wireSag?: number;
   constructor(sx: number, sy: number, sz: number, public scale = 0.125) {
     this.grid = new Grid(sx, sy, sz);
   }
@@ -615,6 +617,7 @@ export function wire(k: PropKit, length: number, sag: number, col?: number): Pro
   }
   // swings about the line between its two ends, which stay put
   p.sway(SWAY.wire, [0, sagV + 1.5, 0.5], [1, 0, 0], undefined, 0);
+  p.wireSag = sagV * s;
   return p;
 }
 

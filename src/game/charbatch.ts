@@ -4,7 +4,7 @@ import { voxelMaterial, type SharedUniforms } from '../engine/renderer';
 import { voxelDepthMaterial, SHADOW_DYNAMIC } from '../engine/shadows';
 
 /** Bodies the batch can hold at once (crowd bodies far away are released, so this is never near). */
-const MAX_BODIES = 1024;
+const MAX_BODIES = 1536;
 /** Texels per body in the pose texture; the layout is in POSE. */
 const ROW = 32;
 /** Pose texture width: 64 bodies side by side per texture row (so a frame's upload is a few row-sized copies). */
@@ -25,7 +25,7 @@ export const POSE = {
 } as const;
 
 /**
- * Every animated character (people, cats, dogs, bikes, swan boats) drawn in one call.
+ * Every animated character (people, cats, dogs, bikes, swan boats, birds) drawn in one call.
  *
  * Bodies are different meshes, so they share one three.js BatchedMesh: one vertex buffer, one material,
  * one multi-draw with per-body frustum culling and front-to-back order. A body's skeleton pose, root
@@ -41,6 +41,7 @@ export class CharacterBatch {
   private geo = new Map<number, number>();
   private roots = new Map<number, THREE.Object3D>();
   private shown = new Map<number, boolean>();
+  private copies = new Set<number>();
   private top = -1;
   /** Told when the main view starts (true) and finishes (false) drawing the bodies, so the perf overlay can time them apart. */
   onView: ((drawing: boolean) => void) | null = null;
@@ -89,7 +90,51 @@ export class CharacterBatch {
     return id;
   }
 
+  /**
+   * A mesh many bodies share (a flock of birds of one plumage): add it once, then place copies with
+   * addCopy. Kept for the life of the batch.
+   */
+  shared(md: MeshData): number {
+    const g = bodyGeometry(md), m = this.mesh;
+    if (m.unusedVertexCount < md.vertexCount || m.unusedIndexCount < md.indices.length) m.optimize();
+    if (m.unusedVertexCount < md.vertexCount || m.unusedIndexCount < md.indices.length) {
+      const mv = m.geometry.attributes.position.count - m.unusedVertexCount, mi = m.geometry.index!.count - m.unusedIndexCount;
+      m.setGeometrySize(Math.ceil((mv + md.vertexCount) * 1.5), Math.ceil((mi + md.indices.length) * 1.5));
+    }
+    return m.addGeometry(g);
+  }
+
+  /**
+   * A body drawing a shared mesh. Its owner places it with place() and shows or hides it with show()
+   * (there is no root object to follow), and writes its pose texels like any body. Returns its id.
+   */
+  addCopy(gid: number, pivots: THREE.Vector3[]): number {
+    const id = this.mesh.addInstance(gid);
+    this.copies.add(id);
+    const o = id * ROW * 4;
+    this.data.fill(0, o, o + ROW * 4);
+    for (let i = 0; i < pivots.length; i++) pivots[i].toArray(this.data, o + (POSE.pivot + i) * 4);
+    this.top = Math.max(this.top, id);
+    return id;
+  }
+
+  /** Placement of a copy (see addCopy). */
+  place(id: number, m: THREE.Matrix4): void {
+    this.mesh.setMatrixAt(id, m);
+  }
+
+  /** Visibility of a copy (see addCopy). */
+  show(id: number, on: boolean): void {
+    this.mesh.setVisibleAt(id, on);
+  }
+
+  /** The texels of body `id` in `data` (pose, pivots, offset, light; see POSE). */
+  texels(id: number): Float32Array {
+    return this.data.subarray(id * ROW * 4, (id + 1) * ROW * 4);
+  }
+
   remove(id: number): void {
+    if (this.copies.delete(id)) { this.mesh.deleteInstance(id); return; }
     const gid = this.geo.get(id);
     if (gid === undefined) return;
     this.mesh.deleteGeometry(gid); // (and its instance)
@@ -124,7 +169,7 @@ export class CharacterBatch {
 
   /** Bodies currently held (for the perf overlay). */
   get count(): number {
-    return this.geo.size;
+    return this.geo.size + this.copies.size;
   }
 }
 

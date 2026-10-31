@@ -467,6 +467,30 @@ export class Crowd {
     this.exercise?.update(dt, hour);
   }
 
+  /**
+   * The closest shown walker (or rider, or dog) to a point within r metres (at most 2 m, the hash cell),
+   * as distance, ground speed and position; distance is Infinity when nobody is there. Only people near
+   * the player are in the hash. Reuses one result object.
+   */
+  nearest(x: number, z: number, r: number): { d: number; speed: number; x: number; z: number } {
+    const out = this.near;
+    out.d = Infinity; out.speed = 0;
+    const kx = Math.floor(x / CELL) + 512, kz = Math.floor(z / CELL) + 512;
+    for (let ix = kx - 1; ix <= kx + 1; ix++) for (let iz = kz - 1; iz <= kz + 1; iz++) {
+      const l = this.grid.get(ix * 1024 + iz);
+      if (!l) continue;
+      for (const o of l) {
+        if (o.hidden) continue;
+        const p = o.actor.position, d = Math.hypot(p.x - x, p.z - z);
+        if (d < r && d < out.d) { out.d = d; out.speed = o.mode === 'ride' ? Math.max(o.actor.speed, 3) : o.actor.speed; out.x = p.x; out.z = p.z; }
+        const pet = o.pet?.actor.position;
+        if (pet) { const dp = Math.hypot(pet.x - x, pet.z - z); if (dp < r && dp < out.d) { out.d = dp; out.speed = Math.max(1.5, o.pet!.actor.speed); out.x = pet.x; out.z = pet.z; } }
+      }
+    }
+    return out;
+  }
+  private near = { d: Infinity, speed: 0, x: 0, z: 0 };
+
   private key(x: number, z: number): number {
     return (Math.floor(x / CELL) + 512) * 1024 + Math.floor(z / CELL) + 512;
   }

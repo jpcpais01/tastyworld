@@ -24,6 +24,7 @@ import { Crowd } from './game/crowd';
 import { CharacterBatch } from './game/charbatch';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi } from './game/fx';
+import { Birds, type Threat } from './game/birds';
 import { Cutaway } from './game/cutaway';
 import { Audio } from './game/audio';
 import { loadState, saveState, resetState, SaveState, viewMetres, VIEW_DEFAULT } from './game/state';
@@ -184,6 +185,7 @@ class Game {
   private chef!: Actor;
   private blobs!: Blobs;
   private koi!: Koi;
+  private birds!: Birds;
   private particles!: Particles;
   private interactables: Interactable[] = [];
   private near: Interactable | null = null;
@@ -561,6 +563,8 @@ class Game {
       ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 }
       : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
     this.crowd.settle(this.tod.hour);
+    // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
+    this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);
 
     // cats
     a.cats.forEach((c, i) => {
@@ -2031,6 +2035,13 @@ class Game {
       const viewR = this.cam.fp ? Math.min(80, this.viewDist * 0.65) : this.cam.zoom * 1.3 + 8;
       this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends, viewR);
       this.perf.lap('crowd');
+      // up in a hotel room you are no bother to the birds in the street
+      const threats: Threat[] = this.upstairs ? [] : [{ x: pl.position.x, z: pl.position.z, speed: pl.speed }];
+      for (const [x, z] of friends) threats.push({ x, z, speed: 1 });
+      const food: [number, number] | null = (this.eatT > 0 || this.meal) && pl.speed < 0.1 ? [pl.position.x, pl.position.z] : null;
+      this.birds.setVisible(true);
+      this.birds.update(dt, this.tod.hour, pl.position.x, pl.position.z, viewR, threats, (x, z, r) => this.crowd.nearest(x, z, r), food);
+      this.perf.lap('birds');
       this.updateCats(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
@@ -2070,7 +2081,7 @@ class Game {
           this.ui.bubble(`call-${v.stall.id}`, VENDOR_CALLS[Math.floor(Math.random() * VENDOR_CALLS.length)], [q.x, q.y + 2.1, q.z], 2.4);
         }
       }
-    }
+    } else this.birds.setVisible(false);
     // everyone animated and drawn this frame (one list, reused)
     const all = this.drawn;
     all.length = 0;

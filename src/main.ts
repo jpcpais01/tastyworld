@@ -438,7 +438,7 @@ class Game {
 
     this.blobs = new Blobs(this.r.scene, 160);
     this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
-    this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas]);
+    this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, !a.noPetals);
     this.beacon = new Beacon(this.r.scene);
     this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand, hotels: a.hotels }, {
       player: () => {

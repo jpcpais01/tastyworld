@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.11',
+    date: '2026-10-31',
+    title: 'Lucciole',
+    items: [
+      'On summer nights fireflies blink over the lemon pergolas on Amalfi\'s terraces.',
+      'Tokyo\'s cherry petals no longer drift over Amalfi\'s harbour, and its park fireflies stay in Tokyo.',
+    ],
+  },
+  {
     version: '0.15.10',
     date: '2026-10-31',
     title: 'The ferry and the steps',

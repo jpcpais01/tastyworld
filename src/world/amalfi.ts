@@ -499,6 +499,9 @@ export function buildAmalfi(win?: Window): BuildResult {
     stepSeats: [-7, -9.5, -12, -14.5, -17].flatMap((x) => [9.9, 10.7, 17.3, 18.1].map((z) => [x + (z % 2) * 0.4, z, Math.PI / 2] as [number, number, number])),
     cats: [[1.5, 0, -4], [-21, 0, 3.5], [38, 0, 44], [-60, 0, -2], [17, 0, 28.5]],
     emitters: b.emitters,
+    // lucciole over the lemon pergolas on summer nights; no cherry blossom on this coast
+    fireflies: fireflySpots(plan),
+    noPetals: true,
     vending: [],
     blockers: b.blockers,
     koiArea: [9.2, 11.2, 10.8, 12.8],
@@ -1223,6 +1226,19 @@ function shore(b: Builder, c: AC, plan: Plan): void {
       g.box(x, d < 4.2 ? crown : Y, tz, x, Y + 30, tz + 1, (xx, y, zz) => (y < crown + 2 ? c.stripeTufa : masonry(c, xx, y, zz, false)));
     }
   }
+}
+
+/** Fireflies over the lemon pergolas, from the plan alone: the same pergola test as gardens(), on a coarse grid. */
+function fireflySpots(plan: Plan): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (let z = VZ0 + 8; z < VZ0 + SZ - 8; z += 12)
+    for (let x = VX0 + 8; x < VX0 + SX - 8; x += 12) {
+      const ci = col(x, z), mx = x * V, mz = z * V;
+      if (plan.kind[ci] !== K.Rock || mx > ROAD_X0 || mz < -44) continue;
+      if (hash3(Math.floor(mx / 11), 17, Math.floor(mz / 11)) >= 0.62 || hash3(x, 41, z) > 0.19) continue;
+      out.push([mx, (plan.walk[ci] - G) * V + 3.0, mz]); // just above the leaf roof at 2.5 m, where they can be seen
+    }
+  return out.slice(0, 100);
 }
 
 /** Lemon pergolas on the terraces, olive and cypress higher up, a palm here and there. */

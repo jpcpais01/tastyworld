@@ -76,6 +76,10 @@ export interface Anchors {
   stepSeats?: [number, number, number][];
   cats: [number, number, number][];
   emitters: Emitter[];
+  /** Where fireflies dance on summer nights (metres); left out, they keep to Tokyo's park. */
+  fireflies?: [number, number, number][];
+  /** No cherry petals drifting along the canal (a city without the sakura). */
+  noPetals?: boolean;
   vending: [number, number, number][];
   blockers: [number, number, number, number][];
   koiArea: [number, number, number, number];

@@ -19,7 +19,7 @@ import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y,
  */
 
 function amalfiColors(b: Builder) {
-  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
+  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
   const F = { leaf: true };
   return {
     // stone of the coast: pale limestone cliffs, tufa walls, grey basalt paving
@@ -35,7 +35,7 @@ function amalfiColors(b: Builder) {
     ochre: a(0xe0ae66, 0.04), peach: a(0xefc4a2, 0.04), pink: a(0xe8b2a6, 0.04), rose: a(0xd9917f, 0.04), terracotta: a(0xc47a58, 0.05), sky: a(0xbfd2d8, 0.04),
     sage: a(0xc9d1b4, 0.04), plasterOld: a(0xd9cbb0, 0.06), plinth: a(0x9e968a, 0.05),
     shutterGreen: a(0x3d6b4b, 0.04), shutterDeep: a(0x2e5541, 0.04), shutterBrown: a(0x6e4a32, 0.04), shutterBlue: a(0x4f6f86, 0.04),
-    glass: a(0x3d4c58, 0.04), glassLit: a(0xffcf8a, 0.04, { emit: 0.7, night: true }), shopLit: a(0xffd9a0, 0.04, { emit: 0.55 }),
+    glass: a(0x3d4c58, 0.04, { glass: true }), glassLit: a(0xffcf8a, 0.04, { emit: 0.7, night: true, glass: true }), shopLit: a(0xffd9a0, 0.04, { emit: 0.55 }),
     door: a(0x5a3a26, 0.06), doorGreen: a(0x31503c, 0.05), sill: a(0xe2dccf, 0.03), iron: a(0x2b2a2a, 0.04),
     roofWhite: a(0xf4f1ea, 0.03), roofTile: a(0xb5603f, 0.07), roofTileB: a(0x9c4f33, 0.07), terraceTile: a(0xc58a64, 0.06),
     // the cathedral: striped stone, gold mosaic, green and yellow majolica

@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.7',
+    date: '2026-10-31',
+    title: 'Hotels worth checking into',
+    items: [
+      'Istanbul\'s hotel lobbies have a band of blue İznik tiles, a gold calligraphy panel, potted palms, cushions on the sofa, a coffee table set with tea, and coloured-glass lanterns hanging over the carpet.',
+      'Every Istanbul guest room now has a night table with a lamp by the bed, a painting of a Bosphorus ferry on the wall and a lantern from the ceiling. The bigger rooms also get a wardrobe.',
+      'Istanbul\'s cafés, restaurants and shops hang painted İznik plates along their walls, and coloured lanterns light the tables.',
+    ],
+  },
+  {
     version: '0.16.6',
     date: '2026-10-31',
     title: 'Rooms you can see into',

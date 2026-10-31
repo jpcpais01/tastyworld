@@ -10,6 +10,14 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>Tasty World</title>
+    <script>
+      // a reload into another city mid-landing (src/world/cityId.ts goToCity): show the arrival veil's wash, never
+      // the loading screen, until src/boot.ts puts the veil itself back up
+      try {
+        var land = JSON.parse(sessionStorage.getItem('tastyworld.resume') || 'null');
+        if (land && land.board) document.documentElement.setAttribute('data-land', land.board + (land.night ? ' night' : ''));
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app">
@@ -34,6 +42,6 @@
       </div>
       <div id="fade"></div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/boot.ts"></script>
   </body>
 </html>

@@ -13,6 +13,7 @@ import { CookingGame } from './cooking';
 import { G } from './glyphs';
 import { icon, IconName } from './emblems';
 import { album, sharePhoto, canShareFiles, ALBUM_MAX, type Photo } from '../game/album';
+import { landing } from './arrival';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -162,6 +163,9 @@ export class UI {
 
   // ------------------------------------------------------------------ loading + title
   loading(f: number, stage: string): void {
+    // a reload into another city mid-landing shows the arrival veil instead, with its own thread of progress
+    // (the last stretch is the streets settling in after the build, so the thread stops short of full)
+    landing()?.progress(f * 0.92);
     ($('load-fill') as HTMLElement).style.width = `${Math.max(3, Math.min(100, f * 100)).toFixed(1)}%`;
     $('load-stage').textContent = stage;
   }

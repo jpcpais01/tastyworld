@@ -36,8 +36,12 @@ export const perCity = <T>(m: Record<CityId, T>): T => m[CITY];
 
 export const isCity = (id: string): id is CityId => known(id) !== null;
 
-/** What to pick up after the page reloads into another city: board straight away, host a co-op trip, or join one. */
-export type Resume = { board: CityId } | { host: CityId } | { ticket: string };
+/**
+ * What to pick up after the page reloads into another city: board straight away (the plane has landed and the
+ * arrival veil is up, by day or by night), host a co-op trip, or join one.
+ */
+export type Resume = { board: CityId; night?: boolean } | { host: CityId } | { ticket: string };
+/** index.html reads this key too, before anything else paints (see the landing script there). */
 const RESUME_KEY = 'tastyworld.resume';
 
 /** Reload the page into another city (the caller saves first), carrying on with `then` once it has loaded. */
@@ -51,13 +55,19 @@ export function goToCity(id: CityId, then: Resume): void {
   location.replace(`${location.pathname}?${q}${location.hash}`);
 }
 
-/** The step carried over from the page that sent us here, read once. */
-export function takeResume(): Resume | null {
+/** The step carried over from the page that sent us here, without using it up. */
+export function peekResume(): Resume | null {
   try {
     const raw = sessionStorage.getItem(RESUME_KEY);
-    sessionStorage.removeItem(RESUME_KEY);
     return raw ? JSON.parse(raw) as Resume : null;
   } catch {
     return null;
   }
+}
+
+/** The step carried over from the page that sent us here, read once. */
+export function takeResume(): Resume | null {
+  const r = peekResume();
+  try { sessionStorage.removeItem(RESUME_KEY); } catch { /* storage blocked */ }
+  return r;
 }

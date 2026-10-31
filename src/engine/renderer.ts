@@ -96,6 +96,8 @@ export class Renderer {
   readonly particleDepth: THREE.IUniform<THREE.Texture | null> = { value: null };
   quality: Quality;
   renderScale = 1;
+  /** Hears each render pass start by name (the perf overlay times them on the GPU). */
+  onPass: ((name: string) => void) | null = null;
   private pixelRatio = 1;
   private rtScene!: THREE.WebGLRenderTarget;
   private rtHalf!: THREE.WebGLRenderTarget;
@@ -243,14 +245,17 @@ export class Renderer {
     // sun shadows fade in with the sun; by night the moon is too dim to need them and the baked light carries it
     const sc = this.shared.uSunColor.value;
     const sunLum = sc.r * 0.2126 + sc.g * 0.7152 + sc.b * 0.0722;
+    this.onPass?.('shadows');
     this.shadows.update(gl, this.scene, cam, this.firstPerson, this.shared.uSunDir.value, THREE.MathUtils.smoothstep(sunLum, 0.075, 0.15));
     // scene
+    this.onPass?.('world');
     gl.setRenderTarget(this.rtScene);
     gl.setClearColor(0x000000, 1);
     gl.clear(true, true, false);
     gl.render(this.scene, cam);
 
     // half-res copy (tilt-shift source)
+    this.onPass?.('bloom');
     this.matHalf.uniforms.tSrc.value = this.rtScene.texture;
     this.matHalf.uniforms.uTexel.value.set(1 / this.w, 1 / this.h);
     this.pass(this.matHalf, this.rtHalf);
@@ -274,6 +279,7 @@ export class Renderer {
     }
 
     // particles into a half-res premultiplied buffer
+    this.onPass?.('particles');
     this.particleDepth.value = this.rtScene.depthTexture;
     gl.setRenderTarget(this.rtParticles);
     gl.setClearColor(0x000000, 0);
@@ -281,6 +287,7 @@ export class Renderer {
     gl.render(this.particleScene, cam);
 
     // composite to screen
+    this.onPass?.('water+post');
     const u = this.composite.uniforms;
     u.tScene.value = this.rtScene.texture;
     u.tDepth.value = this.rtScene.depthTexture;

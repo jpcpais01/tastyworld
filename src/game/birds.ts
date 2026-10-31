@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { meshGrid } from '../world/mesher';
 import { buildBird, BIRD_PART, type Species } from '../world/birds';
+import { AMALFI } from '../world/cityId';
 import { POSE, type CharacterBatch } from './charbatch';
 import { sampleLightmap } from './actors';
 import type { NavData, LightMap2D } from '../world/bake';
@@ -50,6 +51,7 @@ const KIND: Record<Species, Kind> = {
   crow: { size: 1, gait: 'walk', pace: 0.45, fly: 5.5, flap: 4, glide: 'soar', flush: 3.0, wake: 4.8, sleep: 18.0, flock: [1, 3], perch: 'roof' },
   wagtail: { size: 0.62, gait: 'run', pace: 0.95, fly: 5.5, flap: 12, glide: 'bound', flush: 2.6, wake: 5.0, sleep: 18.4, flock: [1, 2], perch: 'any' },
   bulbul: { size: 0.82, gait: 'hop', pace: 0.1, fly: 6, flap: 11, glide: 'bound', flush: 2.8, wake: 4.9, sleep: 18.3, flock: [1, 3], perch: 'wire' },
+  gull: { size: 1, gait: 'walk', pace: 0.5, fly: 7, flap: 3.2, glide: 'soar', flush: 3.4, wake: 5.0, sleep: 19.5, flock: [2, 6], perch: 'roof' },
   kingfisher: { size: 0.66, gait: 'none', pace: 0, fly: 8, flap: 18, glide: 'none', flush: 5.5, wake: 5.5, sleep: 18.0, flock: [1, 1], perch: 'bank' },
 };
 
@@ -134,9 +136,9 @@ const vA = new THREE.Vector3();
 const vS = new THREE.Vector3();
 
 /** Zones and the birds found there: [species, weight]. */
-const SQUARES = new Set(['plaza', 'ekimae', 'midori', 'park', 'inari', 'station']);
-const GREEN = new Set(['midori', 'park', 'inari', 'yanaka']);
-const WATERSIDE = new Set(['canal', 'farbank']);
+const SQUARES = new Set(['plaza', 'ekimae', 'midori', 'park', 'inari', 'station', 'piazza', 'dogi', 'scalinata']);
+const GREEN = new Set(['midori', 'park', 'inari', 'yanaka', 'limoni', 'limoni2', 'chiostro']);
+const WATERSIDE = new Set(['canal', 'farbank', 'marina', 'molo', 'lungomare']);
 const AVENUES = new Set(['hikari', 'neon', 'minami', 'nishi', 'center']);
 
 export class Birds {
@@ -307,7 +309,7 @@ export class Birds {
       for (let cx = 0; cx < sx; cx += step) {
         const x = ox + (cx + r() * step) * V, z = oz + (cz + r() * step) * V;
         const zone = zoneAt(x, z)?.id ?? '';
-        if (zone === 'kakurega') continue;
+        if (zone === 'kakurega' || zone === 'grotta') continue;
         const sq = SQUARES.has(zone), green = GREEN.has(zone), water = WATERSIDE.has(zone), ave = AVENUES.has(zone);
         const density = sq ? 0.4 : water ? 0.3 : ave ? 0.07 : 0.14;
         if (r() > density) continue;
@@ -317,7 +319,11 @@ export class Birds {
         let open = 0;
         for (let k = 0; k < 8; k++) if (!Number.isNaN(this.groundAt(x + Math.cos(k * 0.785) * 1.2, z + Math.sin(k * 0.785) * 1.2))) open++;
         if (open < 6) continue;
-        const sp = choose(sq
+        const sp = choose(AMALFI ? (sq
+          ? [['pigeon', 1], ['sparrow', 0.5], ['gull', 0.12], ['dove', 0.1], ['crow', 0.05]]
+          : water ? [['gull', 1], ['pigeon', 0.35], ['wagtail', 0.35], ['sparrow', 0.15]]
+          : green ? [['sparrow', 0.6], ['dove', 0.4], ['crow', 0.2], ['wagtail', 0.1]]
+          : [['sparrow', 0.65], ['pigeon', 0.4], ['dove', 0.12], ['crow', 0.06]]) : sq
           ? [['pigeon', 1], ['sparrow', 0.45], ['crow', 0.12], ['dove', green ? 0.3 : 0.04], ['bulbul', green ? 0.25 : 0], ['wagtail', 0.15]]
           : water ? [['pigeon', 0.5], ['wagtail', 0.7], ['sparrow', 0.35], ['crow', 0.1]]
           : green ? [['sparrow', 0.6], ['bulbul', 0.4], ['dove', 0.3], ['pigeon', 0.3], ['crow', 0.15]]
@@ -329,14 +335,14 @@ export class Birds {
     // birds that sit about up top: sparrows and bulbuls on wires, crows and pigeons along the roofs
     for (const l of this.wires.values()) for (const p of l) {
       if (r() > 0.07 || !room(p.x, p.z, 5)) continue;
-      const sp: Species = r() < 0.6 ? 'sparrow' : r() < 0.6 ? 'bulbul' : 'pigeon';
+      const sp: Species = r() < 0.6 ? 'sparrow' : r() < 0.6 ? (AMALFI ? 'dove' : 'bulbul') : 'pigeon';
       const near: Perch[] = [];
       this.near(this.wires, p.x, p.z, 3, near);
       keep(spot(p.x, p.z, sp, false, 0, near.filter((q) => Math.abs(q.y - p.y) < 0.6).slice(0, 8)));
     }
     for (const l of this.roofs.values()) for (const p of l) {
       if (r() > 0.03 || !room(p.x, p.z, 10)) continue;
-      const sp: Species = r() < 0.45 ? 'crow' : 'pigeon';
+      const sp: Species = AMALFI ? (r() < 0.45 ? 'gull' : r() < 0.15 ? 'crow' : 'pigeon') : r() < 0.45 ? 'crow' : 'pigeon';
       const near: Perch[] = [];
       this.near(this.roofs, p.x, p.z, 3, near);
       keep(spot(p.x, p.z, sp, false, 0, near.filter((q) => Math.abs(q.y - p.y) < 0.3).slice(0, 8)));
@@ -769,7 +775,7 @@ export class Birds {
       if (u < 0.6) { b.act = 'idle'; b.ad = rnd(0.8, 3); }
       else if (u < 0.82) { b.act = 'preen'; b.ad = rnd(1, 2.5); }
       else if (u < 0.92) { b.act = 'shake'; b.ad = 0.5; }
-      else { b.act = b.sp === 'crow' || b.sp === 'bulbul' ? 'call' : 'idle'; b.ad = 1.2; }
+      else { b.act = b.sp === 'crow' || b.sp === 'bulbul' || b.sp === 'gull' ? 'call' : 'idle'; b.ad = 1.2; }
     }
     let pitch = 0, head = 0, tail = 0;
     const k2 = b.at / b.ad;

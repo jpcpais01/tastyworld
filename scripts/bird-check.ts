@@ -31,7 +31,8 @@ const count = (m: Map<number, unknown[]>) => [...m.values()].reduce((n, l) => n 
 console.log(`perches: ${count(B.roofs)} roof, ${count(B.wires)} wire (${w.anchors.wires.length} wires), ${B.banks.length} bank`);
 if (!birds.spots.some((s) => s.sp === 'kingfisher')) bad('no kingfisher anywhere');
 if ((per.pigeon ?? 0) < 20) bad('too few pigeon flocks');
-if (count(B.wires) < 50 || count(B.roofs) < 200) bad('too few perches');
+// Amalfi has no overhead wires: its small birds keep to the ground and the roofs
+if ((process.env.CITY !== 'amalfi' && count(B.wires) < 50) || count(B.roofs) < 200) bad('too few perches');
 // perches are in open air
 for (const m of [B.roofs, B.wires] as Map<number, { x: number; y: number; z: number }[]>[])
   for (const l of m.values()) for (const p of l) if (birds.solidAt(p.x, p.y + 0.05, p.z)) { bad(`perch inside a wall at ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)}`); break; }

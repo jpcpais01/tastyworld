@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.2',
+    date: '2026-10-31',
+    title: 'Gulls and fishing nets',
+    items: [
+      'Amalfi has its own birds: yellow-legged gulls on the harbour, the beach and the rooftops, hooded crows, Italian sparrows and collared doves.',
+      'The harbour quay is a working one now: fishing nets drying in heaps with their floats, lobster pots, coils of rope, blue fish crates and two ferry ticket booths.',
+      'The beach cabins, towels and kayaks are life-size now.',
+    ],
+  },
+  {
     version: '0.15.1',
     date: '2026-10-31',
     title: 'Marina Grande',

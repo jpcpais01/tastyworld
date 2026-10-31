@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.25',
+    date: '2026-10-31',
+    title: 'Shops stay up while you order',
+    items: [
+      'Standing at a stall or shop front no longer lowers that shop behind you. Its awning, lanterns and signs only lower it when they really cover your character.',
+      'The clear band beside you now stops at shop fronts and doorways instead of reaching into the building next to you.',
+    ],
+  },
+  {
     version: '0.10.24',
     date: '2026-10-31',
     title: 'Even lighter city meshes',

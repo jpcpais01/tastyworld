@@ -105,8 +105,12 @@ export class Cutaway {
     return [r[0] - m, r[1] - m, r[2] + m, r[3] + m];
   }
 
-  /** Marks every occluder owning a solid voxel on the ray from o towards the camera (d, normalised). */
-  private march(sc: Scene, o: THREE.Vector3, dx: number, dy: number, dz: number): void {
+  /**
+   * Marks every occluder owning a solid voxel on the ray from o towards the camera (d, normalised). For the side
+   * band (core) only voxels inside its footprint count: what hangs off a facade beside you (awnings, lanterns,
+   * signs) only lowers its building when it covers you yourself, so a shop you stand in front of stays up.
+   */
+  private march(sc: Scene, o: THREE.Vector3, dx: number, dy: number, dz: number, core: boolean): void {
     const { g, f, own } = sc;
     const step = 0.1;
     const tMax = dy > 0.05 ? (sc.top - o.y) / dy : 40;
@@ -117,23 +121,31 @@ export class Cutaway {
       if (k < 0 || j < 0 || k >= g.sx || j >= g.sz) return;
       const c = j * g.sx + k, id = own[c];
       if (!id || this.blocking[id - 1]) continue;
-      if (solidAt(f, c, y)) {
+      if (solidAt(f, c, y) && (!core || this.core(sc, k, j, id))) {
         this.blocking[id - 1] = 1;
         this.hits.push(id - 1);
       }
     }
   }
 
+  /** Whether column (k, j) lies inside the footprint of occluder id (1-based), not just in what it spills over. */
+  private core(sc: Scene, k: number, j: number, id: number): boolean {
+    const r = this.occ[id - 1].rect, x = sc.g.ox + (k + 0.5) * V, z = sc.g.oz + (j + 0.5) * V;
+    return x > r[0] && x < r[2] && z > r[1] && z < r[3];
+  }
+
   /**
-   * How far (up to m) one can go from o along (dx, dz) at o's height before running into a solid voxel. Side
-   * samples stop there, so the band never reaches into a building beside or behind the player: that building
-   * hides nothing, and starting a ray inside it would lower it.
+   * How far (up to m) one can go from o along (dx, dz) at o's height while staying in the open: side samples stop
+   * at the first solid voxel or footprint (an open stall front, a doorway), so the band never reaches into a
+   * building beside or behind the player. That building hides nothing, and a ray starting inside it would lower it.
    */
   private reach(sc: Scene, o: THREE.Vector3, dx: number, dz: number, m: number): number {
-    const { g, f } = sc;
+    const { g, f, own } = sc;
     for (let t = V / 2; t <= m; t += V / 2) {
       const k = Math.floor((o.x + dx * t - g.ox) / V), j = Math.floor((o.z + dz * t - g.oz) / V);
-      if (k < 0 || j < 0 || k >= g.sx || j >= g.sz || solidAt(f, j * g.sx + k, o.y)) return Math.max(0, t - V);
+      if (k < 0 || j < 0 || k >= g.sx || j >= g.sz) return Math.max(0, t - V);
+      const c = j * g.sx + k;
+      if (solidAt(f, c, o.y) || (own[c] && this.core(sc, k, j, own[c]))) return Math.max(0, t - V);
     }
     return m;
   }
@@ -174,7 +186,7 @@ export class Cutaway {
             o.z -= sd * ax * r;
           }
       const dl = Math.hypot(fwd.x, fwd.y, fwd.z) || 1;
-      for (const o of s) this.march(sc, o, -fwd.x / dl, -fwd.y / dl, -fwd.z / dl);
+      for (let i = 0; i < s.length; i++) this.march(sc, s[i], -fwd.x / dl, -fwd.y / dl, -fwd.z / dl, i >= 4);
       for (const i of live) {
         const o = this.occ[i], [x0, z0, x1, z1] = o.rect;
         if (i < sc.from || i >= sc.to || o.kind !== 'building' || block[i]) continue;

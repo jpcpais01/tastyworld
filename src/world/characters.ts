@@ -47,11 +47,13 @@ export interface Look {
   /** Knee-length shorts (ignored with a skirt). */
   shorts?: boolean;
   shoes: number;
-  hat?: 'cap' | 'headband' | 'chef' | 'straw' | 'bucket' | 'beanie' | 'none';
+  hat?: 'cap' | 'headband' | 'chef' | 'straw' | 'bucket' | 'beanie' | 'scarf' | 'none';
   hatColor?: number;
   backpack?: number;
   glasses?: boolean;
   charm?: boolean;
+  /** A full moustache, Istanbul's classic. */
+  moustache?: boolean;
 }
 
 const SKINS = [0xf6d2b4, 0xeec39f, 0xe0ac86, 0xc98f6a, 0xa8714f, 0xf9dcc4];
@@ -68,12 +70,21 @@ export function randomLook(seed: number): Look {
   const topStyles: Look['topStyle'][] = ISTANBUL ? ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'] : AMALFI ? ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'] : ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'];
   const topStyle = pick(topStyles);
   const hats: Look['hat'][] = ISTANBUL ? ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'] : AMALFI ? ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'] : ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'];
-  return {
+  const look: Look = {
     skin: pick(SKINS), hair: pick(HAIRS), hairStyle: pick(hairStyles), top: pick(TOPS), topStyle,
     accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.25, shoes: pick(SHOES), shorts: r() < (AMALFI ? 0.4 : 0.12),
     hat: pick(hats), hatColor: pick(TOPS), backpack: r() < 0.15 ? pick(TOPS) : undefined, glasses: r() < (AMALFI ? 0.35 : 0.15),
   };
+  if (ISTANBUL) {
+    // headscarves in soft prints and plain colours, long skirts or trousers under them; moustaches on the men
+    look.shorts = r() < 0.05;
+    if (r() < 0.24) { look.hat = 'scarf'; look.hatColor = SCARVES[Math.floor(r() * SCARVES.length)]; look.hairStyle = 'short'; look.skirt = r() < 0.6; }
+    else if (!look.skirt && r() < 0.3) look.moustache = true;
+  }
+  return look;
 }
+
+const SCARVES = [0xc9a9a6, 0x7a8fa8, 0xe8dcc8, 0x9a6a7a, 0x5a6e5a, 0xd8b88a, 0x3e4a6a, 0xb86a5a, 0xf0e6ea, 0x8a7aa8];
 
 export function buildPerson(look: Look): CharModel {
   const W = 10, H = 25, D = 8;
@@ -182,6 +193,7 @@ export function buildPerson(look: Look): CharModel {
   if (look.glasses) { box(2, 18, 6, 7, 18, 6, dark, PART.head); set(3, 18, 6, white, PART.head); set(6, 18, 6, white, PART.head); }
   set(2, 17, 6, blush, PART.head); set(7, 17, 6, blush, PART.head);
   set(4, 16, 6, mouth, PART.head); set(5, 16, 6, mouth, PART.head);
+  if (look.moustache) box(3, 17, 6, 6, 17, 6, C(look.hair === 0xb9b6b0 || look.hair === 0x6b6b70 ? look.hair : 0x1d1a1c), PART.head);
 
   // hair
   const hs = look.hairStyle;
@@ -209,6 +221,13 @@ export function buildPerson(look: Look): CharModel {
     case 'beanie': box(2, 21, 1, 7, 23, 6, hc, PART.head); box(1, 21, 1, 8, 21, 6, hc, PART.head); break;
     case 'bucket': box(1, 22, 0, 8, 22, 7, hc, PART.head); box(2, 23, 1, 7, 24, 6, hc, PART.head); break;
     case 'straw': { const st = C(0xe6c98a, 0.08); box(0, 22, 0, 9, 22, 7, st, PART.head); box(2, 23, 1, 7, 24, 6, st, PART.head); box(2, 23, 1, 7, 23, 6, C(0xc8372d), PART.head); break; }
+    case 'scarf': // a headscarf wrapped round the head and under the chin, its ends over the shoulders behind
+      box(2, 23, 1, 7, 23, 6, hc, PART.head);
+      box(1, 15, 1, 1, 22, 6, hc, PART.head); box(8, 15, 1, 8, 22, 6, hc, PART.head);
+      box(2, 15, 0, 7, 22, 0, hc, PART.head);
+      box(2, 21, 6, 7, 22, 6, hc, PART.head);
+      box(2, 15, 6, 2, 16, 6, hc, PART.head); box(7, 15, 6, 7, 16, 6, hc, PART.head);
+      break;
     case 'chef': box(2, 21, 1, 7, 24, 6, white, PART.head); box(1, 23, 0, 8, 24, 7, white, PART.head); break;
     case 'headband': { const hb = C(look.hatColor ?? 0xf2efe7); box(2, 20, 1, 7, 20, 6, hb, PART.head); box(1, 20, 1, 1, 20, 6, hb, PART.head); box(8, 20, 1, 8, 20, 6, hb, PART.head); set(4, 20, 0, hb, PART.head); set(4, 19, 0, hb, PART.head); set(5, 18, 0, hb, PART.head); break; }
   }

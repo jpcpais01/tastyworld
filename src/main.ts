@@ -160,6 +160,7 @@ class Game {
   private shelfClosed = new THREE.Group();
   private shelfOpen = new THREE.Group();
   /** Keepers and regulars inside the shops; only simulated when the player is close. */
+  private extras: Actor[] = [];
   private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number; snackT: number }[] = [];
   private roomHere: RoomAnchor | null = null;
   /** The hotel room the player is in upstairs (it has its own walk map and light), or null on the street. */
@@ -188,6 +189,8 @@ class Game {
   private mealZoom = 0;
   private crowd!: Crowd;
   private lastToll = -1;
+  /** Moves whatever lives beyond the map (Istanbul's ferries), once a frame. */
+  private farTick: ((dt: number) => void) | null = null;
   /** Which of the day's calls to prayer last sounded (-2 until the first frame, so loading mid-call stays quiet). */
   private lastEzan = -2;
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
@@ -371,7 +374,8 @@ class Game {
     if (ISTANBUL) {
       // the city beyond the map: Galata and its tower over the Horn, Asia across the Bosphorus, the old city's domes
       const far = farIstanbul(sh, [WX0, WZ0, WX1, WZ1]);
-      this.worldGroup.add(far.ground, far.houses);
+      this.worldGroup.add(far.ground, far.houses, far.ferries);
+      this.farTick = far.update;
       this.r.composite.uniforms.uWaterBounds.value.set(-4000, -4000, 4000, 4000);
       this.r.composite.uniforms.uSea.value = 1;
       this.r.camera.far = 1800;
@@ -573,6 +577,17 @@ class Game {
       });
     }
 
+    // people who keep to one spot: the anglers along the Galata Bridge, a phone out now and then
+    (a.extras ?? []).forEach((ex, i) => {
+      const act = new Actor(buildPerson(randomLook(ex.seed)), this.chars, false, true);
+      act.position.set(ex.pos[0], this.navWorld.heightAt(ex.pos[0], ex.pos[2]), ex.pos[2]);
+      act.facing = act.targetFacing = ex.face;
+      act.anim = i % 6 === 2 ? 'phone' : 'idle';
+      act.root.visible = false;
+      this.worldGroup.add(act.root);
+      this.extras.push(act);
+    });
+
     // your own footsteps follow the walk cycle, softly
     Actor.onStep = (act, run) => { if (act === this.player) this.audio.step(act.position.x, act.position.z, run); };
     this.audio.setRooms(a.rooms.map((rm) => ({ rect: rm.rect, kind: rm.kind })));
@@ -596,6 +611,7 @@ class Game {
     });
     this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
+    for (const ex of a.extras ?? []) this.crowd.addObstacle(ex.pos[0], ex.pos[2]);
     const m = this.r.isMobile;
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
     // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
@@ -2174,6 +2190,12 @@ class Game {
       for (const c of this.cats) all.push(c.actor);
     }
     // shop keepers and regulars: only the ones near the player are shown and animated
+    for (const act of this.extras) {
+      const q = act.position;
+      const on = !this.inside && !this.upstairs && Math.hypot(pp.x - q.x, pp.z - q.z) < 30;
+      act.root.visible = on;
+      if (on) all.push(act);
+    }
     for (const e of this.roomActors) {
       const q = e.actor.position;
       const d = Math.hypot(pp.x - q.x, pp.z - q.z);
@@ -2293,6 +2315,7 @@ class Game {
       if (f || rt) this.panCamera(-rt * dt * window.innerHeight * 0.5, f * dt * window.innerHeight * 0.5 * Math.sin(this.cam.pitch));
     }
     this.wasInside = this.inside;
+    this.farTick?.(dt);
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
     if (HILLSIDE) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
   }

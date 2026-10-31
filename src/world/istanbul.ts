@@ -562,6 +562,7 @@ export function buildIstanbul(win?: Window): BuildResult {
     benches: b.benches,
     stools: b.stools,
     cats: CATS,
+    extras: anglers(),
     emitters: b.emitters,
     noPetals: true,
     vending: [],
@@ -598,6 +599,9 @@ export function buildIstanbul(win?: Window): BuildResult {
 const CATS: [number, number, number][] = [
   [10, 0, 33], [-6, 0, 36.5], [21, 0, 20], [-30, 0, 26], [-12, 0, 0], [6, 0, -18], [12.5, 0, -60], [-48, 0, -27],
   [-80, 0, 5], [-40, 0, -86], [-126, 0, -70], [-120, 0, 17], [-64, 0, -104], [-100, 0, 30], [24, 0, -96],
+  // Istanbul is a city of cats: on the quays by the fish boats, in the bazaar halls, on the mosque terraces
+  [-100, 0, 39], [-40, 0, 39], [3, 0, 39.5], [26, 0, -30], [26, 0, -70], [-60, 0, 6], [-36, 0, -52], [-66, 0, -90],
+  [-94, 0, -97], [-137, 0, 15], [-40, 0, -103], [-62, 0, -74], [-24, 0, 8], [-80, 0, 34], [-114, 0, -60], [-138, 0, -80],
 ];
 
 /** The three nazar charms: in the Spice Bazaar, on the bridge rail among the fishermen, on the hilltop terrace's wall. */
@@ -1627,19 +1631,33 @@ function bridge(ctx: Ctx): void {
   for (let z = HORN_Z + 2; z < 64; z += 6) {
     for (const x of [-22.2, -13.8]) { b.place(lampPost(c), x, 1.5, z); b.lamp(x, 5.3, z, WARM, 7, 0.8); }
   }
-  // fishing rods leaning out over the rail, a bucket and a stool by each fisherman's spot
-  const r = rng(53);
-  for (let z = HORN_Z + 3.5; z < 63; z += 1.7) for (const side of [-1, 1]) {
-    if (r() < 0.35) continue;
-    const x = side < 0 ? -21.9 : -14.1;
+  // fishing rods leaning out over the rail, a bucket by each fisherman's spot
+  for (const { x, z, side, tone } of rodSpots()) {
     const rod = new Prop(2, 26, 2, 0.125);
     for (let i = 0; i < 26; i++) rod.set(i < 13 ? 0 : 1, i, 0, i > 22 ? c.hullRed : c.iron);
     b.place(rod, x + side * 0.15, 1.5, z, side < 0 ? 3 : 1);
     const bucket = new Prop(3, 3, 3, 0.125);
-    bucket.box(0, 0, 0, 2, 2, 2, [c.hullBlue, c.hullRed, c.white][Math.floor(r() * 3)]);
+    bucket.box(0, 0, 0, 2, 2, 2, [c.hullBlue, c.hullRed, c.white][tone]);
     bucket.set(1, 2, 1, c.marbleGrey);
     b.place(bucket, x - side * 0.5, 1.5, z + 0.4);
   }
+}
+
+/** The Galata Bridge's rods along both rails: the rail it leans over (-1 west, +1 east), the bucket's colour. */
+function rodSpots(): { x: number; z: number; side: number; tone: number; angler: boolean }[] {
+  const r = rng(53), out: { x: number; z: number; side: number; tone: number; angler: boolean }[] = [];
+  for (let z = HORN_Z + 3.5; z < 63; z += 1.7) for (const side of [-1, 1]) {
+    if (r() < 0.35) continue;
+    out.push({ x: side < 0 ? -21.9 : -14.1, z, side, tone: Math.floor(r() * 3), angler: r() < 0.6 });
+  }
+  return out;
+}
+
+/** The anglers standing at their rods, looking out over the Horn. */
+function anglers(): { pos: [number, number, number]; face: number; seed: number }[] {
+  return rodSpots().filter((s) => s.angler && Math.abs(s.z - 58) > 1.5).map((s, i) => ({
+    pos: [s.x - s.side * 0.8, 1.5, s.z - 0.3] as [number, number, number], face: s.side < 0 ? -Math.PI / 2 : Math.PI / 2, seed: 7100 + i * 7,
+  }));
 }
 
 /** Eminönü square: pigeons' seed sellers, the shoeshine man, benches, lamps, the simit trays. */

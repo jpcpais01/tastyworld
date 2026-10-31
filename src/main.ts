@@ -795,7 +795,8 @@ class Game {
     const dist = viewMetres(st.viewDist ?? VIEW_DEFAULT[tier]);
     this.viewDist = dist;
     if (this.streamer) this.streamer.dist = dist;
-    this.r.persp.far = dist + 10;
+    // the voxel city fades out at the view distance, but the skyline beyond the map stays visible further
+    this.r.persp.far = Math.max(dist + 10, 650);
     this.r.persp.fov = st.fov;
     this.r.persp.updateProjectionMatrix();
     this.cam.maxZoom = 34 + THREE.MathUtils.clamp((dist - 80) / 220, 0, 1) * 46;

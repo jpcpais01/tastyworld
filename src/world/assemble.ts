@@ -37,6 +37,7 @@ export function assemble(inits: PartInit[]): BakedWorld {
     lightmap: { sx: SX / 2, sz: SZ / 2, ox: WX0, oz: WZ0, cell: 0.5, data: lm },
     interiorChunks: int.chunks, interiorNav: int.nav, interiorLightmap: int.lightmap,
     height, interiorHeight: int.height, solid, interiorSolid: int.solid, owners, shore,
+    hotelRooms: Object.fromEntries(inits.flatMap((p) => p.hotelRooms.map(({ id, nav: n, lightmap }) => [id, { nav: n, lightmap }]))),
     anchors: a0.anchors,
     sway: stackSway(inits),
     stats: { lamps: a0.stats.lamps, ms, bytes },

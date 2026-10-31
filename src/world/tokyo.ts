@@ -17,6 +17,8 @@ import { SwayBody, SWAY, swayKey } from './sway';
 import { wrapLot, dressBlock } from './facades';
 import { noteFront } from './dressing';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
+import { hotelFloors, type HotelAnchor } from './hotels';
+import { hotelAt, type HotelInfo } from '../data/hotels';
 
 export interface PlacedProp {
   prop: Prop;
@@ -75,6 +77,8 @@ export interface Anchors {
   koiArea: [number, number, number, number];
   /** Walkable ground-floor rooms behind the storefronts. */
   rooms: RoomAnchor[];
+  /** The hotels: their lobbies are among the rooms, their guest rooms upstairs are here. */
+  hotels: HotelAnchor[];
   /** Tiny daruma dolls hidden inside the shops. */
   darumas: [number, number, number][];
   secret: SecretAnchor | null;
@@ -171,6 +175,7 @@ export class Builder {
   r = rng(20261030);
   ic: IC;
   rooms: RoomAnchor[] = [];
+  hotels: HotelAnchor[] = [];
   roomCount: Partial<Record<RoomKind, number>> = {};
   darumaSpots: DarumaSpot[] = [];
   secret: SecretAnchor | null = null;
@@ -321,8 +326,8 @@ export class Lot {
 
 // ---------------------------------------------------------------------------------------------
 
-export type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba';
-const ROOM_GROUNDS: Ground[] = ['shop', 'cafe', 'izakaya', 'konbini', 'florist', 'books', 'fish', 'bakery', 'pharmacy', 'kissa', 'soba'];
+export type Ground = 'stall' | 'shop' | 'shutter' | 'cafe' | 'izakaya' | 'konbini' | 'plain' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba' | 'hotel';
+const ROOM_GROUNDS: Ground[] = ['shop', 'cafe', 'izakaya', 'konbini', 'florist', 'books', 'fish', 'bakery', 'pharmacy', 'kissa', 'soba', 'hotel'];
 export type Style = 'modern' | 'showa' | 'machiya' | 'izakaya' | 'apartment' | 'kura';
 
 export interface BuildingOpts {
@@ -339,9 +344,19 @@ export interface BuildingOpts {
   secret?: boolean;
   /** Facade coordinate of the door's first column, when the middle of the facade is not reachable. */
   doorA?: number;
+  hotel?: HotelInfo;
+  /** For a hotel, the ground floor the building had before (its shop's hiding spot keeps the daruma where they were). */
+  was?: Ground;
+}
+
+/** A building the hotel list names (by its lot) becomes that hotel: its look, its height and a lobby downstairs. */
+export function hotelize(lot: Lot, o: BuildingOpts): BuildingOpts {
+  const hi = hotelAt(lot.x0, lot.z0);
+  return hi && !o.hotel ? { ...o, was: o.ground, ground: 'hotel', style: hi.style, floors: hi.floors, hotel: hi, awning: undefined, restaurant: undefined, secret: undefined, doorA: undefined, roof: 'flat' } : o;
 }
 
 export function building(lot: Lot, o: BuildingOpts): { H: number } {
+  o = hotelize(lot, o);
   const b = lot.b, c = b.c, k = b.k;
   const r = rng(o.seed);
   const pick = <T,>(arr: T[]) => arr[Math.floor(r() * arr.length)];
@@ -464,7 +479,7 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
 
   // deep enough lots get a walkable room behind the storefront; shallow ones keep a display recess
   if (ROOM_GROUNDS.includes(o.ground) && dep >= 14 && w >= 10) {
-    shopFloor(lot, { kind: o.ground as RoomKind, seed: o.seed, trim, awn, awning, lanterns: o.lanterns, restaurant: o.restaurant, secret: o.secret, doorA: o.doorA });
+    shopFloor(lot, { kind: o.ground as RoomKind, seed: o.seed, trim, awn, awning, lanterns: o.lanterns, restaurant: o.restaurant, secret: o.secret, doorA: o.doorA, hotel: o.hotel, spotKind: o.was && o.was !== 'hotel' && ROOM_GROUNDS.includes(o.was) ? o.was as RoomKind : undefined });
   } else switch (o.ground === 'kissa' ? 'cafe' : o.ground === 'soba' ? 'izakaya' : o.ground) {
     case 'shop': {
       lot.box(1, 0, 0, w - 2, 10, 2, 0);
@@ -629,6 +644,11 @@ export function building(lot: Lot, o: BuildingOpts): { H: number } {
 
   // the same finish round the sides and back as on the front
   wrapLot(lot, { h: H, gh: GH, fh: FH, wall, trim, look: wood ? 'wood' : o.style === 'kura' ? 'kura' : 'plain', seed: o.seed * 5 + 3, pipe: !wood && o.style !== 'kura' });
+  if (o.hotel) {
+    const lobby = b.rooms[b.rooms.length - 1];
+    if (lobby?.hotel !== o.hotel.id) throw new Error(`hotel ${o.hotel.id}: the lot is too small for a lobby`);
+    hotelFloors(lot, o.hotel, lobby, o.style);
+  }
 
   // vertical sign
   if (o.signs !== false && o.floors >= 2 && r() < 0.75) {
@@ -1178,6 +1198,7 @@ export function buildTokyo(win?: Window): BuildResult {
   const pick = <T,>(arr: T[]) => arr[Math.floor(r() * arr.length)];
   // a building whose front the dressing pass fills with the street's clutter
   const noted = (lot: Lot, o: BuildingOpts, mix: string) => {
+    o = hotelize(lot, o);
     const nr = b.rooms.length;
     const { H } = building(lot, o);
     noteFront(lot, o.ground, o.style, mix, H, o.seed, b.rooms.slice(nr).map((rm) => rm.door));
@@ -1200,10 +1221,12 @@ export function buildTokyo(win?: Window): BuildResult {
     const style0: Style = r() < 0.22 ? 'machiya' : r() < 0.12 ? 'kura' : pick(['showa', 'modern', 'showa', 'apartment']);
     const floors0 = style0 === 'machiya' || style0 === 'kura' ? 2 : near ? 2 + Math.floor(r() * 2) : 2 + Math.floor(r() * 4);
     const awning = ground0 === 'shop' || ground0 === 'cafe' ? pick(awnPairs) : undefined;
-    const ground = force?.ground ?? ground0, style = force?.style ?? style0, floors = force?.floors ?? floors0;
-    noted(lot, { floors, style, ground, seed, awning: ground === 'shop' || ground === 'cafe' || ground === 'kissa' ? awning ?? awnPairs[seed % awnPairs.length] : undefined, restaurant: force?.restaurant, secret: force?.secret }, 'shops');
+    const ground = force?.ground ?? ground0, floors = force?.floors ?? floors0;
+    const o = hotelize(lot, { floors, style: force?.style ?? style0, ground, seed, awning: ground === 'shop' || ground === 'cafe' || ground === 'kissa' ? awning ?? awnPairs[seed % awnPairs.length] : undefined, restaurant: force?.restaurant, secret: force?.secret });
+    noted(lot, o, 'shops');
+    const style = o.style;
     const [fx, fz] = lot.front(lot.width / 2, 0.3);
-    if (style !== 'machiya' && style !== 'kura' && b.clear(fx, 3.6, fz)) {
+    if (!o.hotel && style !== 'machiya' && style !== 'kura' && b.clear(fx, 3.6, fz)) {
       lot.wallProp(lantern(k, lanternAlt ? k.c.lanternRed : k.c.lanternWhite, 5, 6, seed), lot.width / 2, 3.3, 0.15);
       const [lx, lz] = lot.front(lot.width / 2, 0.5);
       b.lamp(lx, 3.4, lz, lanternAlt ? RED : WHITEWARM, 3.5, 0.8);
@@ -1678,6 +1701,7 @@ export function buildTokyo(win?: Window): BuildResult {
     blockers: b.blockers,
     koiArea: [1, 43.4, 71, 49.6],
     rooms: b.rooms,
+    hotels: b.hotels,
     darumas,
     secret: b.secret,
     occluders: b.occluders,

@@ -165,13 +165,14 @@ export class IsoCamera {
   }
 
   /** Screen pixel -> point on the walkable surface (marches the view ray over the heightfield). */
-  pick(px: number, py: number, nav: Nav, extraHeights?: (x: number, z: number) => number | null): THREE.Vector3 | null {
+  /** `top` is the highest floor worth looking for (metres): the street's 12 m, or a room upstairs. */
+  pick(px: number, py: number, nav: Nav, extraHeights?: (x: number, z: number) => number | null, top = 12): THREE.Vector3 | null {
     const ndc = new THREE.Vector3((px / window.innerWidth) * 2 - 1, -(py / window.innerHeight) * 2 + 1, -1);
     if (this.fp) return this.pickFirstPerson(ndc, nav, extraHeights);
     const origin = ndc.clone().unproject(this.cam);
     const dir = this.fwd.clone();
-    // start where the ray is 12 m above the street, march down to -3 m
-    const t0 = (origin.y - 12) / -dir.y;
+    // start where the ray is `top` metres above the street, march down to -3 m
+    const t0 = (origin.y - top) / -dir.y;
     const p = origin.clone().addScaledVector(dir, Math.max(0, t0));
     const step = 0.08;
     for (let i = 0; i < 600; i++) {

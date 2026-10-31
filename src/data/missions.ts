@@ -32,6 +32,9 @@ export const MISSIONS: Mission[] = [
   { id: 'gacha', name: 'Capsule Collector', desc: 'Collect six different gachapon capsule charms.', progress: (s) => [Math.min(6, s.capsules.length), 6], reward: { yen: 1200 } },
   { id: 'gacha-all', name: 'Gachapon Master', desc: `Complete the set of ${CAPSULES.length} capsule charms, golden shrimp included.`, progress: (s) => [s.capsules.length, CAPSULES.length], reward: { yen: 2500, title: 'Capsule Royalty' } },
   { id: 'shelf', name: 'Between the Pages', desc: 'An old bookshop on Kaminari Lane is hiding a room.', progress: (s) => [s.flags.shelfOpen ? 1 : 0, 1], reward: { yen: 1000 } },
+  { id: 'hotel', name: 'A Bed for the Night', desc: 'Check into a hotel before dark and sleep until morning.', progress: (s) => [Math.min(1, s.stays.length), 1], reward: { yen: 600 } },
+  { id: 'hotels', name: 'Hotel Hopper', desc: 'Spend a night in three different hotels.', progress: (s) => [Math.min(3, s.stays.length), 3], reward: { yen: 1500, title: 'Seasoned Traveller' } },
+  { id: 'ryokan', name: 'Futon and Tatami', desc: 'Sleep on a futon at a traditional ryokan.', progress: (s) => [s.stays.includes('hinode') ? 1 : 0, 1], reward: { yen: 500, item: 'yukata' } },
   { id: 'daruma', name: 'Daruma Hunt', desc: 'Find the eight tiny daruma hidden inside the shops.', progress: (s) => [s.darumas.length, 8], reward: { yen: 2000, item: 'daruma' } },
   { id: 'master', name: 'Master of Tokyo', desc: `Collect all ${DISHES.length} food passport stamps.`, progress: (s) => [tasted(s).length, DISHES.length], reward: { yen: 3000, title: 'Tokyo Gourmet', item: 'gold' } },
 ];
@@ -71,5 +74,6 @@ export const ITEMS: Record<string, { name: string; icon: IconName; desc: string 
   chefhat: { name: 'Itamae\'s blessing', icon: 'knife', desc: 'Chef Sato let you help behind the counter. A rare honour.' },
   daruma: { name: 'Lucky daruma', icon: 'daruma', desc: 'All eight found. Paint in the second eye, and your wish comes true.' },
   noren: { name: 'Regular\'s noren', icon: 'noren', desc: 'The masters at Komorebi and Kikyō now greet you by name.' },
+  yukata: { name: 'Cotton yukata', icon: 'yukata', desc: 'The okami of Ryokan Hinode let you keep the indigo yukata. Locals will think you live here.' },
   gold: { name: 'Gold stamp', icon: 'medal', desc: 'Your Japan passport is complete. Seoul is calling.' },
 };

@@ -14,6 +14,16 @@ const dots = (pts: string) => {
 
 export const E = {
   // ---------------------------------------------------------------- places and events
+  bed: svg('<path class="t" d="M3 12.5h18v4H3z"/><path d="M3 7v12.5M21 12.5v7M3 16.5h18"/><rect x="5" y="9.5" width="5" height="3" rx="1.2"/>'),
+  futon: svg('<rect class="t" x="3" y="9" width="18" height="8" rx="1.5"/><rect x="4.5" y="10.5" width="4.5" height="5" rx="1.2"/><path d="M11.5 9v8M2.5 19.5h19"/>'),
+  key: svg('<circle class="t" cx="7.5" cy="12" r="4"/><circle cx="7.5" cy="12" r="1.2"/><path d="M11.5 12H21M17.5 12v3M20 12v2.5"/>'),
+  bell: svg('<path class="t" d="M4.5 16.5a7.5 7.5 0 0 1 15 0Z"/><path d="M3 16.5h18M3 19.5h18M12 9V7M10.5 7h3"/>'),
+  lift: svg('<rect class="t" x="5" y="7" width="14" height="13.5" rx="1"/><path d="M12 7v13.5M9.5 4.5 12 2l2.5 2.5"/>'),
+  stairs: svg('<path class="t" d="M3 20.5V16h4.5v-4.5H12V7h4.5V3.5H21v17H3Z"/>'),
+  suitcase: svg('<rect class="t" x="4" y="7.5" width="16" height="12" rx="2"/><path d="M9 7.5V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2.5M8 7.5v12M16 7.5v12"/>'),
+  skyline: svg('<path class="t" d="M3 20.5V11h4V7h4v6h3V5h4v8h3v7.5H3Z"/><path d="M2 20.5h20"/>' + dots('9 10 16 8.5 16 11.5 5 14')),
+  yukata: svg('<path class="t" d="M8 3.5 4 6l1 5.5 2-.8v9.8h10v-9.8l2 .8L20 6l-4-2.5"/><path d="M8 3.5 12 10l4-6.5M7 13h10M12 10l-3 10.5"/>'),
+  sunrise: svg('<path class="t" d="M6 15a6 6 0 0 1 12 0Z"/><path d="M3 18.5h18M6 15a6 6 0 0 1 12 0M12 2.5v4M9.5 5 12 2.5 14.5 5M4.6 9.6l1.6 1.6M19.4 9.6l-1.6 1.6"/>'),
   stall: svg('<path class="t" d="M3 9h18l-2-4.5H5L3 9Z"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12.5v8h14v-8M9.5 20.5v-4.5h5v4.5"/>'),
   door: svg('<rect class="t" x="5" y="3" width="14" height="18" rx="1.2"/><path d="M12 3v18M5 9h14M5 15h14"/><path stroke-width="2.6" d="M14.5 12h.01"/>'),
   wall: svg('<rect x="3.5" y="4" width="17" height="16" rx="1.5"/><path d="M3.5 9.3h17M3.5 14.6h17M10 4v5.3M15 9.3v5.3M8 14.6V20"/>'),

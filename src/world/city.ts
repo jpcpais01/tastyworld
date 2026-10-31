@@ -9,7 +9,7 @@ import { G, V, VX0, VZ0, SX, SZ, HILL } from './layout';
 import { SWAY } from './sway';
 import { dress, noteFront, noteGarden, noteTree } from './dressing';
 import { wrapLot } from './facades';
-import { Builder, Lot, building, tiledRoof, sakuraTree, bridge, boat, surface, RED, WARM, WHITEWARM, COOL, Ground, Style, Side, BuildingOpts } from './tokyo';
+import { Builder, Lot, building, tiledRoof, sakuraTree, bridge, boat, surface, RED, WARM, WHITEWARM, COOL, Ground, Style, Side, BuildingOpts, hotelize } from './tokyo';
 import {
   glyph, lantern, streetLamp, bench, vendingMachine, bicycle, stoneLantern, plantPot, postBox, boardSign, noren, nobori,
   scooter, binCorner, acUnit, crateStack, stool, wire, bollard, jizo,
@@ -338,6 +338,7 @@ function house(lot: Lot, seed: number, mix: Mix, r: () => number) {
   }
   if (o.ground === 'konbini') o.signs = false;
   if ((o.ground === 'pharmacy' || o.ground === 'soba') && lot.width < 20) o.ground = 'shop'; // their layouts need the width
+  o = hotelize(lot, o);
   const nr = b.rooms.length;
   const { H } = building(lot, o);
   noteFront(lot, o.ground, o.style, mix, H, seed, b.rooms.slice(nr).map((rm) => rm.door));

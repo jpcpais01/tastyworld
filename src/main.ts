@@ -33,6 +33,8 @@ import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
 import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable } from './data/places';
 import type { RoomAnchor } from './world/interiors';
+import type { HotelAnchor, HotelRoomAnchor } from './world/hotels';
+import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo } from './data/hotels';
 import { UI, GameHooks } from './ui/ui';
 import { renderDishIcons } from './ui/icons';
 import { Travel } from './ui/travel';
@@ -55,6 +57,8 @@ interface Interactable {
   pick: V3;
   r: number;
   inside: boolean;
+  /** A hotel room upstairs that this belongs to (it is only there while the player is in that room). */
+  room?: string;
   prompt(): [string, string, string] | null;
   act(): void;
 }
@@ -78,6 +82,7 @@ function playerLook(wear: Record<string, boolean>, color = 0xd8452f): Look {
     skin: 0xf0c8a8, hair: 0x3b2a20, hairStyle: 'short', top: 0xf2efe7, topStyle: 'tee', accent: color,
     bottom: 0x3f6e9a, shoes: 0xf2efe7, hat: 'cap', hatColor: color, backpack: color === 0xf4b63f ? 0xd8452f : 0xe3a937,
   };
+  if (wear.yukata) { l.topStyle = 'yukata'; l.top = 0x2c3d73; l.accent = 0xe8dcc0; }
   if (wear.happi) { l.topStyle = 'happi'; l.top = 0x2c3d73; l.accent = 0xf2efe7; }
   if (wear.headband) { l.hat = 'headband'; l.hatColor = 0xd8372b; }
   if (wear.chefhat) { l.hat = 'chef'; l.hatColor = 0xf7f4ee; }
@@ -137,12 +142,23 @@ class Game {
   private matCut!: THREE.ShaderMaterial;
   private heightWorld!: THREE.DataTexture;
   private heightInside!: THREE.DataTexture;
+  private solidWorld!: THREE.DataTexture;
+  private solidInside!: THREE.DataTexture;
   private doorClosed = new THREE.Group();
   private shelfClosed = new THREE.Group();
   private shelfOpen = new THREE.Group();
   /** Keepers and regulars inside the shops; only simulated when the player is close. */
   private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number; snackT: number }[] = [];
   private roomHere: RoomAnchor | null = null;
+  /** The hotel room the player is in upstairs (it has its own walk map and light), or null on the street. */
+  private upstairs: { room: HotelRoomAnchor; hotel: HotelAnchor; nav: Nav; lm: LightMap2D } | null = null;
+  private roomNavs = new Map<string, Nav>();
+  /** Hotel rooms already shown this session (the first visit gets a word of welcome). */
+  private roomsSeen = new Set<string>();
+  /** Lights out in a hotel bed (input waits), and whether the window view switched to first person. */
+  private sleeping = false;
+  private windowView = false;
+  private dusk = false;
   private doorOpen = new THREE.Group();
 
   player!: Actor;
@@ -333,6 +349,16 @@ class Game {
     };
     this.heightWorld = heightTex(w.height, w.nav.sx, w.nav.sz);
     this.heightInside = heightTex(w.interiorHeight, w.interiorNav.sx, w.interiorNav.sz);
+    const solidTex = (data: Uint32Array, sx: number, sz: number) => {
+      const t = new THREE.DataTexture(data, sx, sz, THREE.RGIntegerFormat, THREE.UnsignedIntType);
+      t.internalFormat = 'RG32UI';
+      t.magFilter = t.minFilter = THREE.NearestFilter;
+      t.generateMipmaps = false;
+      t.needsUpdate = true;
+      return t;
+    };
+    this.solidWorld = solidTex(w.solid, w.nav.sx, w.nav.sz);
+    this.solidInside = solidTex(w.interiorSolid, w.interiorNav.sx, w.interiorNav.sz);
     this.cutaway = new Cutaway(w.owners, w.nav, w.interiorNav, { height: w.height, solid: w.solid }, { height: w.interiorHeight, solid: w.interiorSolid });
     sh.tCut.value = this.cutaway.cut;
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
@@ -371,7 +397,7 @@ class Game {
     this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas]);
     this.beacon = new Beacon(this.r.scene);
-    this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand }, {
+    this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand, hotels: a.hotels }, {
       player: () => {
         const [x, z] = this.mapPos();
         const f = this.cam.fwd, fl = Math.hypot(f.x, f.z) || 1;
@@ -414,6 +440,7 @@ class Game {
     }
     // shops, cafés and bars behind the storefronts
     for (const rm of a.rooms) this.buildRoom(rm);
+    this.buildHotels();
     // tiny daruma hidden in the back rooms
     a.darumas.forEach((d, i) => {
       this.interactables.push({
@@ -571,11 +598,11 @@ class Game {
 
   private buildRoom(rm: RoomAnchor): void {
     const place = PLACES[rm.kind];
-    const [name, jp] = roomName(rm.kind, rm.nth);
+    const [name, jp] = roomName(rm.kind, rm.nth, rm.hotel);
     const buy = rm.spots.find((sp) => sp.kind === 'buy');
     rm.npcs.forEach((n, i) => {
       const keeper = n.role === 'keeper';
-      const info = keeper ? keeperOf(rm.kind, rm.nth, n.seed) : { name: 'Regular', look: randomLook(n.seed) };
+      const info = keeper ? keeperOf(rm.kind, rm.nth, n.seed, rm.hotel) : { name: rm.hotel ? 'A guest' : 'Regular', look: randomLook(n.seed) };
       const act = new Actor(buildPerson(info.look), this.chars, false, true); // built when first near
       act.position.set(n.pos[0], n.sit ? n.pos[1] - SIT_DROP : this.navWorld.heightAt(n.pos[0], n.pos[2]), n.pos[2]);
       act.facing = act.targetFacing = n.facing;
@@ -585,7 +612,21 @@ class Game {
       this.worldGroup.add(act.root);
       const entry = { actor: act, room: rm, keeper, facing: n.facing, sit: n.sit, anim: anim as 'idle' | 'cook' | 'sit', talk: 0, seed: n.seed, snackT: 4 + Math.random() * 12 };
       this.roomActors.push(entry);
-      if (keeper && buy) {
+      if (keeper && buy && rm.hotel) {
+        // the front desk: check in, or chat with the keeper once you have a key
+        const hid = rm.hotel;
+        this.interactables.push({
+          key: `room-${rm.id}`, x: buy.pos[0], z: buy.pos[2], stand: buy.stand, pick: [n.pos[0], 1.6, n.pos[2]], r: 1.7, inside: false,
+          prompt: () => ['bell', name, this.s.hotel?.id === hid ? `Talk to ${info.name}` : `Check in with ${info.name}`],
+          act: () => {
+            this.faceEachOther(act, n.sit);
+            act.anim = 'bow';
+            setTimeout(() => { if (act.anim === 'bow') act.anim = anim; }, 1200);
+            this.audio.play('clink');
+            this.frontDesk(hid, entry);
+          },
+        });
+      } else if (keeper && buy) {
         // the keeper serves from the counter: one stop to chat and buy
         this.interactables.push({
           key: `room-${rm.id}`, x: buy.pos[0], z: buy.pos[2], stand: buy.stand, pick: [n.pos[0], 1.6, n.pos[2]], r: 1.7, inside: false,
@@ -608,10 +649,10 @@ class Game {
           act: () => {
             this.faceEachOther(act, n.sit);
             this.audio.play('pop');
-            const lines = keeper && place.lines.length ? place.lines : GUEST_LINES;
+            const lines = keeper && place.lines.length ? place.lines : rm.hotel ? HOTEL_GUEST_LINES : GUEST_LINES;
             const line = lines[(entry.seed + entry.talk++) % lines.length];
             if (!n.sit) act.anim = 'wave';
-            this.ui.dialogue(keeper ? info.name : 'A regular', [line], () => { act.anim = anim; act.targetFacing = n.facing; act.headYawTarget = 0; });
+            this.ui.dialogue(keeper ? info.name : rm.hotel ? 'A guest' : 'A regular', [line], () => { act.anim = anim; act.targetFacing = n.facing; act.headYawTarget = 0; });
           },
         });
       }
@@ -623,6 +664,222 @@ class Game {
         prompt: () => ['capsule', 'Gachapon', `Turn the handle · ¥${GACHA_PRICE}`],
         act: () => this.gacha(sp.pos),
       });
+    }
+  }
+
+  // ------------------------------------------------------------------ hotels
+  /** The lift (or a ryokan's stairs) in every lobby, and the bed, window, kettle and door of every room upstairs. */
+  private buildHotels(): void {
+    const a = this.w.anchors;
+    for (const ha of a.hotels) {
+      const info = HOTEL[ha.id];
+      const lift = a.rooms.find((r) => r.id === ha.lobby)?.lift;
+      if (!info || !lift) continue;
+      const stairs = info.theme === 'ryokan';
+      const icon = stairs ? 'stairs' : 'lift';
+      this.interactables.push({
+        key: `lift-${ha.id}`, x: lift.pick[0], z: lift.pick[2], stand: lift.stand, pick: lift.pick, r: 1.5, inside: false,
+        prompt: () => {
+          const rm = this.booking(ha.id);
+          return rm ? [icon, `Room ${roomNo(rm.floor)}`, stairs ? 'Up the stairs' : 'Take the lift up'] : [icon, stairs ? 'Stairs' : 'Lift', 'Guests only'];
+        },
+        act: () => {
+          const rm = this.booking(ha.id);
+          if (rm) void this.goUpstairs(ha, rm);
+          else { this.audio.play('click'); this.ui.toast('bell', 'Guests only', `Check in at the front desk with ${info.keeper} first.`); }
+        },
+      });
+      for (const rm of ha.rooms) {
+        const no = roomNo(rm.floor);
+        const near = (st: [number, number], pick: V3) => Math.hypot(st[0] - pick[0], st[1] - pick[2]) + 0.6;
+        const it = (key: string, stand: [number, number], pick: V3, prompt: () => [string, string, string], act: () => void, r = near(stand, pick)) =>
+          this.interactables.push({ key: `${key}-${rm.id}`, x: pick[0], z: pick[2], stand, pick, r, inside: false, room: rm.id, prompt, act });
+        it('hdoor', rm.door.stand, rm.door.pick, () => ['door', `Room ${no}`, 'Back down to the lobby'], () => void this.goDownstairs(), 1.4);
+        it('bed', rm.bed.stand, rm.bed.pick, () => {
+          const h = this.tod.hour;
+          return [rm.type === 'tatami' ? 'futon' : 'bed', ROOM_TYPE[rm.type].name, h >= 17 || h < 6 ? 'Sleep until morning' : 'Take a nap'];
+        }, () => { this.player.targetFacing = rm.bed.facing; void this.sleepIn(rm); });
+        it('win', rm.window.stand, rm.window.pick, () => ['skyline', 'The window', 'Look out over the city'], () => this.lookOut(rm));
+        it('tea', rm.tea.stand, rm.tea.pick, () => ['tea', rm.type === 'tatami' ? 'Tea set' : 'Kettle', 'Make a cup of green tea'], () => {
+          this.player.targetFacing = rm.tea.facing;
+          this.audio.play('pop');
+          this.ui.toast('tea', 'Green tea', rm.type === 'tatami' ? 'The okami left a pot of sencha and two rice crackers. Perfect.' : 'The kettle clicks off. A tea bag from the tray, hot water and a moment to yourself.');
+          this.startMeal('tea', null, () => {});
+        });
+      }
+    }
+  }
+
+  /** Tonight's room at a hotel, if the booking is there. */
+  private booking(hotel: string): HotelRoomAnchor | null {
+    const b = this.s.hotel;
+    if (!b || b.id !== hotel) return null;
+    return this.w.anchors.hotels.find((h) => h.id === hotel)?.rooms.find((r) => r.id === b.room) ?? null;
+  }
+
+  private frontDesk(id: string, entry: { talk: number }): void {
+    const info = HOTEL[id], ha = this.w.anchors.hotels.find((h) => h.id === id);
+    if (!info || !ha) return;
+    const line = info.lines[entry.talk++ % info.lines.length];
+    const b = this.s.hotel;
+    this.ui.hotel(info, line, ha.rooms.map((r) => ({ id: r.id, floor: r.floor, type: r.type, price: r.price })),
+      b?.id === id ? b.room : null, b && b.id !== id ? HOTEL[b.id]?.name ?? null : null, (rid) => this.checkIn(ha, rid));
+  }
+
+  private checkIn(ha: HotelAnchor, roomId: string): boolean {
+    const rm = ha.rooms.find((r) => r.id === roomId);
+    if (!rm || this.s.yen < rm.price) return false;
+    this.s.yen -= rm.price;
+    this.s.hotel = { id: ha.id, room: rm.id };
+    this.audio.play('coin');
+    setTimeout(() => this.audio.play('ding'), 380);
+    const info = HOTEL[ha.id];
+    const t = ROOM_TYPE[rm.type];
+    this.ui.toast('key', `${t.name} · Room ${roomNo(rm.floor)}`, `Checked in at ${info.name}. Take the ${info.theme === 'ryokan' ? 'stairs' : 'lift'} up whenever you like, and sleep before it gets late.`, true);
+    this.player.flash = 1;
+    if (this.s.pin?.id === `hotel-${ha.id}`) this.setPin(null);
+    this.afterChange();
+    return true;
+  }
+
+  private async goUpstairs(ha: HotelAnchor, rm: HotelRoomAnchor): Promise<void> {
+    const hb = this.w.hotelRooms[rm.id];
+    if (!hb || this.upstairs) return;
+    let nav = this.roomNavs.get(rm.id);
+    if (!nav) this.roomNavs.set(rm.id, (nav = new Nav(hb.nav)));
+    const fade = document.getElementById('fade')!;
+    this.endMeal();
+    this.audio.play('ding');
+    fade.classList.add('on');
+    await sleep(650);
+    this.upstairs = { room: rm, hotel: ha, nav, lm: hb.lightmap };
+    this.nav = nav;
+    this.path = [];
+    this.pending = null;
+    const p = this.player.position;
+    p.set(rm.spawn[0], rm.y, rm.spawn[1]);
+    this.player.facing = this.player.targetFacing = rm.spawn[2];
+    if (this.cam.fp) this.cam.fpYaw = rm.spawn[2];
+    this.cam.target.copy(p);
+    this.cam.snap();
+    await sleep(120);
+    this.audio.play('door');
+    fade.classList.remove('on');
+    const info = HOTEL[ha.id];
+    if (!this.roomsSeen.has(rm.id)) {
+      this.roomsSeen.add(rm.id);
+      setTimeout(() => this.ui.toast(ROOM_TYPE[rm.type].icon, `Room ${roomNo(rm.floor)} · ${info.name}`, 'Your room for the night. Try the window, put the kettle on, and the bed is yours whenever you are tired.'), 500);
+    }
+  }
+
+  private async goDownstairs(): Promise<void> {
+    const up = this.upstairs;
+    if (!up) return;
+    const lift = this.w.anchors.rooms.find((r) => r.id === up.hotel.lobby)?.lift;
+    if (!lift) return;
+    const fade = document.getElementById('fade')!;
+    this.endMeal();
+    if (this.windowView) { this.windowView = false; this.setFirstPerson(false, true); }
+    this.audio.play('door');
+    fade.classList.add('on');
+    await sleep(650);
+    this.upstairs = null;
+    this.nav = this.navWorld;
+    this.path = [];
+    this.pending = null;
+    const p = this.player.position;
+    p.set(lift.stand[0], this.navWorld.heightAt(lift.stand[0], lift.stand[1]), lift.stand[1]);
+    this.player.facing = this.player.targetFacing = lift.facing + Math.PI;
+    if (this.cam.fp) this.cam.fpYaw = this.player.facing;
+    this.cam.target.copy(p);
+    this.cam.snap();
+    await sleep(120);
+    this.audio.play('ding');
+    fade.classList.remove('on');
+    // the morning after: hand the key back
+    const b = this.s.hotel;
+    if (b?.slept) {
+      this.s.hotel = null;
+      const info = HOTEL[b.id];
+      setTimeout(() => this.ui.toast('suitcase', 'Checked out', `Thank you for staying at ${info?.name ?? 'the hotel'}! Tonight, why not try another one?`), 500);
+      this.afterChange();
+    }
+  }
+
+  /** Lie down: until seven in the morning after dark, or a two-hour nap in the day. */
+  private async sleepIn(rm: HotelRoomAnchor): Promise<void> {
+    if (this.sleeping) return;
+    this.sleeping = true;
+    this.path = [];
+    this.pending = null;
+    this.endMeal();
+    const h = this.tod.hour;
+    const night = h >= 17 || h < 6;
+    const info = HOTEL[rm.hotel];
+    // the clock is someone else's when the settings fix it or a co-op leader keeps it
+    const follow = !!this.coop && !this.coop.host;
+    const keep = this.s.settings.timeOfDay !== null || follow;
+    const to = night ? 7 : (h + 2) % 24;
+    const sub = keep
+      ? follow ? 'Your trip leader keeps the clock, so the city kept its hour.' : 'The time of day is fixed in your settings, so the city kept its hour.'
+      : night ? `${info?.name ?? 'The hotel'} · the city is waking up` : 'Two hours later, fresh as a daikon.';
+    const first = night && !this.s.stays.includes(rm.hotel);
+    await this.ui.sleep(h, keep ? h : to, night ? 'Good morning!' : 'What a lovely nap', sub, () => {
+      if (!keep) this.tod.hour = to;
+      if (night) {
+        if (this.s.hotel?.room === rm.id) this.s.hotel.slept = true;
+        if (first) this.s.stays.push(rm.hotel);
+      }
+    });
+    this.sleeping = false;
+    if (first) {
+      this.audio.play('chime');
+      const n = this.s.stays.length;
+      this.ui.toast('sunrise', `A night at ${info?.name ?? 'the hotel'}`, rm.type === 'tatami'
+        ? 'You slept on a futon on fresh tatami. The okami says the yukata is yours to keep.'
+        : `${n} of ${HOTELS.length} hotels slept in. Check out at the lobby whenever you like.`, true);
+      this.player.flash = 1;
+    }
+    this.afterChange();
+  }
+
+  /** Stand at the window and look out: first person, facing the street. */
+  private lookOut(rm: HotelRoomAnchor): void {
+    // step up to the glass (the view switches to first person at the same moment, so the step does not show)
+    const p = this.player.position, [wx, wz] = rm.window.stand;
+    if (Math.hypot(p.x - wx, p.z - wz) > 0.3 && this.nav.walkable(wx, wz)) p.set(wx, this.nav.heightAt(wx, wz), wz);
+    this.path = [];
+    this.pending = null;
+    this.player.facing = this.player.targetFacing = rm.window.facing;
+    if (!this.cam.fp) {
+      this.setFirstPerson(true, true);
+      this.windowView = true;
+    }
+    this.cam.fpYaw = rm.window.facing;
+    this.cam.fpPitch = -0.1;
+    this.audio.play('whoosh');
+    this.ui.toast('skyline', `The view from ${roomNo(rm.floor)}`, this.windowView
+      ? (this.r.isMobile ? 'Drag to look around. Walk away from the window to step back.' : 'Move the mouse to look around. Walk away from the window to step back.')
+      : 'The whole street, right below you.');
+  }
+
+  /** The HUD goal while the traveller still needs a bed tonight, and a nudge when the sun starts to set. */
+  private hotelGoal(): void {
+    const h = this.tod.hour, b = this.s.hotel;
+    let g: { icon: string; title: string; sub: string } | null = null;
+    if (this.started && !this.inside) {
+      if (!b && (h >= 13 || h < 5.5)) {
+        const dark = h >= 19 || h < 5.5;
+        g = { icon: 'bed', title: dark ? 'Find a hotel for the night' : 'Find a hotel before dark', sub: dark ? `${HOTELS.length} on the map` : 'sunset 19:00' };
+      } else if (b && !b.slept && !this.upstairs && (h >= 21 || h < 5)) {
+        g = { icon: 'moon', title: `Back to ${HOTEL[b.id]?.name ?? 'your hotel'}`, sub: `room ${roomNo(this.booking(b.id)?.floor ?? 1)}` };
+      }
+    }
+    this.ui.goal(g);
+    if (h < 18 && h > 6) this.dusk = false;
+    else if (!this.dusk && h >= 18 && h < 19 && this.started && !b) {
+      this.dusk = true;
+      this.ui.toast('sunset', 'The sun is going down', 'Time to find a bed for the night. The hotels sparkle on your city map (M).', true);
     }
   }
 
@@ -775,6 +1032,7 @@ class Game {
         'Visit the food stalls to taste local dishes and collect stamps in my Food Passport.',
         'Vendors will even let me help cook. Locals love to share stories, too.',
         'And Grandma Fumiko by the temple said something about lucky cats…',
+        'But first things first: I need a bed for tonight. There are seven hotels in town, and the sun sets at seven. Check in before dark!',
       ]), 700);
     } else if (this.s.flags.lastPatch !== PATCH_NOTES[0].version) {
       this.s.flags.lastPatch = PATCH_NOTES[0].version;
@@ -994,6 +1252,7 @@ class Game {
     const n = inside ? this.w.interiorNav : this.w.nav;
     const sh = this.r.shared;
     sh.tHeight.value = inside ? this.heightInside : this.heightWorld;
+    sh.tSolid.value = inside ? this.solidInside : this.solidWorld;
     sh.tOwner.value = inside ? this.cutaway.ownerInside : this.cutaway.ownerWorld;
     sh.uHeightRect.value.set(n.ox, n.oz, 1 / (n.sx * 0.25), 1 / (n.sz * 0.25));
   }
@@ -1044,10 +1303,15 @@ class Game {
     fade.classList.remove('on');
   }
 
+  /** Interactables in the scene the player is in: the street, the Kakurega, or one hotel room. */
+  private usable(it: Interactable): boolean {
+    return it.inside === this.inside && (it.room ?? null) === (this.upstairs?.room.id ?? null);
+  }
+
   private interact(): void {
     if (this.ui.advanceDialogue()) return;
     if (this.meal) { this.meal.hurry(); return; }
-    if (this.ui.busy || !this.near) return;
+    if (this.ui.busy || this.sleeping || !this.near) return;
     this.path = [];
     this.near.act();
   }
@@ -1125,7 +1389,7 @@ class Game {
   /** Where the player is on the city map (inside the hidden restaurant: its door). */
   private mapPos(): [number, number] {
     const p = this.player.position;
-    return this.inside ? this.w.anchors.hiddenDoor.stand : [p.x, p.z];
+    return this.inside ? this.w.anchors.hiddenDoor.stand : this.upstairs ? this.upstairs.hotel.entrance : [p.x, p.z];
   }
 
   private openCityMap(): void {
@@ -1471,7 +1735,7 @@ class Game {
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
     let best: Interactable | null = null, bd = 60;
     for (const it of this.interactables) {
-      if (it.inside !== this.inside) continue;
+      if (!this.usable(it)) continue;
       const sp = this.screen(it.pick);
       if (!sp) continue;
       const d = Math.hypot(sp[0] - cx, sp[1] - cy);
@@ -1484,12 +1748,12 @@ class Game {
   }
 
   private tap(x: number, y: number): void {
-    if (!this.started || this.ui.busy) return;
+    if (!this.started || this.ui.busy || this.sleeping) return;
     if (this.meal) { this.meal.hurry(); return; }
     // tapped an interactable?
     let best: Interactable | null = null, bd = 46;
     for (const it of this.interactables) {
-      if (it.inside !== this.inside) continue;
+      if (!this.usable(it)) continue;
       const sp = this.screen(it.pick);
       if (!sp) continue;
       const d = Math.hypot(sp[0] - x, sp[1] - y);
@@ -1507,7 +1771,7 @@ class Game {
       if (path) { this.path = path; this.pending = best; this.audio.play('click'); }
       return;
     }
-    const hit = this.cam.pick(x, y, this.nav);
+    const hit = this.cam.pick(x, y, this.nav, undefined, this.upstairs ? this.upstairs.room.y + 3 : 12);
     if (!hit) return;
     const path = this.nav.findPath(p.x, p.z, hit.x, hit.z);
     this.pending = null;
@@ -1528,7 +1792,7 @@ class Game {
     let dx = 0, dz = 0, speed = 0, run = false;
     // under the pocket map only a walk already under way carries on
     const mapOpen = this.cityMap.isOpen;
-    if ((!this.ui.busy || mapOpen) && this.started) {
+    if ((!this.ui.busy || mapOpen) && this.started && !this.sleeping) {
       const k = this.keys;
       let f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
       let rt = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
@@ -1584,6 +1848,7 @@ class Game {
       }
     }
     if (!this.path.length) this.pathRun = false;
+    if (this.windowView && speed > 0) { this.windowView = false; this.setFirstPerson(false, true); }
     p.y += (this.nav.heightAt(p.x, p.z) - p.y) * Math.min(1, dt * 14);
     pl.speed = speed;
     if (this.meal && speed > 0) this.endMeal();
@@ -1591,7 +1856,7 @@ class Game {
     if (this.waveT > 0) { this.waveT -= dt; if (speed > 0) this.waveT = 0; }
     pl.anim = speed > 0 ? (run && speed > PLAYER_SPEED ? 'run' : 'walk') : this.waveT > 0 ? 'wave' : this.eatT > 0 ? 'eat' : 'idle';
     pl.update(dt);
-    pl.light(this.lm);
+    pl.light(this.upstairs?.lm ?? this.lm);
   }
 
   private updateCats(dt: number): void {
@@ -1724,7 +1989,7 @@ class Game {
     // in first person, prefer what you're looking at
     const fp = this.cam.fp, f = this.cam.fwd, fl = Math.hypot(f.x, f.z) || 1;
     for (const it of this.interactables) {
-      if (it.inside !== this.inside) continue;
+      if (!this.usable(it)) continue;
       const d = Math.hypot(it.x - p.x, it.z - p.z);
       if (d >= it.r) continue;
       const score = fp ? d - (((it.x - p.x) * f.x + (it.z - p.z) * f.z) / (fl * Math.max(d, 0.05))) * 0.8 : d;
@@ -1745,7 +2010,7 @@ class Game {
     const sh = this.r.shared;
     sh.uCutOn.value = on ? 1 : 0;
     sh.uCamFwd.value.copy(this.cam.fwd);
-    this.cutaway.update(dt, this.player.position, this.cam.fwd, this.inside, on);
+    this.cutaway.update(dt, this.player.position, this.cam.fwd, this.inside, on, this.upstairs?.room.y ?? 0);
     if (this.inside) return;
     const act = this.cutaway.active;
     for (const c of this.chunks) {
@@ -1847,14 +2112,16 @@ class Game {
     this.hudT -= dt;
     if (this.hudT <= 0) {
       this.hudT = 0.25;
-      const rm = this.inside ? null : this.roomAt(pl.x, pl.z);
+      const rm = this.inside || this.upstairs ? null : this.roomAt(pl.x, pl.z);
       if (rm !== this.roomHere) {
         this.roomHere = rm;
         if (rm && this.started && !this.s.rooms.includes(rm.id)) { this.s.rooms.push(rm.id); this.afterChange(); }
       }
       this.discover();
-      const rn = rm ? roomName(rm.kind, rm.nth) : null;
-      const z = this.inside ? { name: 'Kakurega · Hidden Counter', jp: '隠れ家' } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: 'Tokyo', jp: '東京' };
+      const rn = rm ? roomName(rm.kind, rm.nth, rm.hotel) : null;
+      const up = this.upstairs, hi = up && HOTEL[up.hotel.id];
+      const z = this.inside ? { name: 'Kakurega · Hidden Counter', jp: '隠れ家' } : up && hi ? { name: `${hi.name} · ${roomNo(up.room.floor)}`, jp: hi.jp } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: 'Tokyo', jp: '東京' };
+      this.hotelGoal();
       this.ui.location(z.name, z.jp, this.tod.label());
       let sizzle = 0;
       if (!this.inside) for (const e of this.w.anchors.emitters) {

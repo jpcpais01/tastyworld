@@ -5,7 +5,9 @@ import { STALLS, type StallInfo } from '../data/stalls';
 import { DISHES } from '../data/dishes';
 import { missionStalls, trackedMission } from '../data/missions';
 import type { SaveState } from '../game/state';
+import { HOTELS, ROOM_TYPE, type HotelInfo } from '../data/hotels';
 import { G } from './glyphs';
+import { icon } from './emblems';
 
 /**
  * The pocket map: an illustrated, folded paper map of the city drawn from the world itself. The soft
@@ -21,6 +23,8 @@ export interface MapWorld {
   stalls: StallAnchor[];
   /** Where the hidden restaurant is on the street (its interior lives off the map). */
   hiddenDoor: [number, number];
+  /** Each hotel's front door (just inside it), by hotel id. */
+  hotels: { id: string; entrance: [number, number] }[];
 }
 
 export interface Pin { x: number; z: number; name: string; jp?: string; id?: string }
@@ -66,7 +70,7 @@ const SAKURA = ['#f1b6c4', '#eeaabb', '#f5c3cf'];
 const PARKS = new Set(['park', 'inari', 'midori', 'farbank']);
 
 // ---------------------------------------------------------------------------------------- places
-type Glyph = 'train' | 'torii' | 'temple' | 'tree' | 'bag' | 'bath' | 'lantern';
+type Glyph = 'train' | 'torii' | 'temple' | 'tree' | 'bag' | 'bath' | 'lantern' | 'bed';
 const GLYPH: Record<Glyph, string> = {
   train: 'M7 3.5h10a3 3 0 0 1 3 3V15a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6.5a3 3 0 0 1 3-3Z M4 10.5h16 M8.5 21l2-3 M15.5 21l-2-3 M8 14.5h.01 M16 14.5h.01',
   torii: 'M3 5.5c3.5 1.3 14.5 1.3 18 0 M5 9.5h14 M7 6.6V21 M17 6.6V21 M12 9.5V7',
@@ -74,6 +78,7 @@ const GLYPH: Record<Glyph, string> = {
   tree: 'M12 21v-6 M12 15c-4 0-7-2.6-7-6.2a7 7 0 0 1 14 0c0 3.6-3 6.2-7 6.2Z',
   bag: 'M5 8h14l-1.2 12.5H6.2L5 8Z M9 8V6.5a3 3 0 0 1 6 0V8',
   bath: 'M5 20h14 M8 16c-1.6-2 1.6-3 0-5.2s1.6-3 0-5.3 M12 16c-1.6-2 1.6-3 0-5.2s1.6-3 0-5.3 M16 16c-1.6-2 1.6-3 0-5.2s1.6-3 0-5.3',
+  bed: 'M3 19V6.5 M3 15.5h18V19 M21 15.5v-3a2.5 2.5 0 0 0-2.5-2.5H11v5.5 M7 12.4a1.6 1.6 0 1 0 0-.01',
   lantern: 'M12 2.5v2 M9 4.5h6 M7.5 8.2c0-2.1 2-3.7 4.5-3.7s4.5 1.6 4.5 3.7v5.6c0 2.1-2 3.7-4.5 3.7s-4.5-1.6-4.5-3.7V8.2Z M7.6 11h8.8 M9 19.5h6',
 };
 const ZONE_ICON: Record<string, Glyph> = { station: 'train', midori: 'torii', inari: 'torii', park: 'tree', ginza: 'bag', plaza: 'temple', gado: 'lantern' };
@@ -85,6 +90,7 @@ const EXTRA_PLACES: { name: string; jp: string; at: [number, number]; icon: Glyp
 interface Roof { x0: number; z0: number; x1: number; z1: number; top: number; fill: string; style: 'hip' | 'flat' | 'shrine' | 'glass' | 'rail' | 'chimney' | 'station' }
 interface Tree { x: number; z: number; r: number; fill: string }
 interface Label { name: string; jp: string; x: number; z: number; district: boolean; vertical: boolean; icon?: Glyph; zone?: string }
+interface HotelMark { h: HotelInfo; x: number; z: number; sx: number; sy: number }
 interface Marker { id: string; kind: 'stall' | 'resto' | 'hidden' | 'unknown'; st: StallInfo; x: number; z: number; sx: number; sy: number; target: boolean; done: number; total: number }
 
 /**
@@ -239,14 +245,15 @@ export class CityMap {
   private last = 0;
   private t0 = 0;
   private pinT = -9;
-  private sel: { kind: 'marker'; m: Marker } | { kind: 'pin' } | { kind: 'friend'; name: string; x: number; z: number } | null = null;
+  private sel: { kind: 'marker'; m: Marker } | { kind: 'hotel'; m: HotelMark } | { kind: 'pin' } | { kind: 'friend'; name: string; x: number; z: number } | null = null;
   private markers: Marker[] = [];
+  private hotelMarks: HotelMark[] = [];
   private pointers = new Map<number, { x: number; y: number }>();
   private drag = { moved: 0, pinch: 0, lastT: 0 };
   private ro: ResizeObserver | null = null;
   private s!: SaveState;
   private icons: Record<string, string> = {};
-  private filter = { food: true, missions: true, friends: true };
+  private filter = { food: true, missions: true, friends: true, hotels: true };
 
   constructor(private world: MapWorld, private host: CityMapHost) {
     ({ roofs: this.roofs, trees: this.trees } = roofsOf(world));
@@ -273,6 +280,10 @@ export class CityMap {
     this.s = s;
     this.icons = icons;
     this.markers = this.buildMarkers();
+    this.hotelMarks = HOTELS.flatMap((h) => {
+      const a = this.world.hotels.find((x) => x.id === h.id);
+      return a ? [{ h, x: a.entrance[0], z: a.entrance[1], sx: 0, sy: 0 }] : [];
+    });
     const el = document.createElement('div');
     el.className = 'cmap';
     el.innerHTML = `
@@ -290,6 +301,7 @@ export class CityMap {
         <div class="cm-legend">
           <button class="cm-chip on" data-f="food"><i class="dotc"></i>Food</button>
           <button class="cm-chip on" data-f="missions"><i class="dotc mq"></i>Mission</button>
+          <button class="cm-chip on" data-f="hotels"><i class="dotc ht"></i>Hotels</button>
           <button class="cm-chip on hidden" data-f="friends"><i class="dotc pal"></i>Friends</button>
         </div>
         <div class="cm-hint">Tap anywhere to pin a spot</div>
@@ -509,6 +521,9 @@ export class CityMap {
       if (d < bd) { bd = d; best = m; }
     }
     if (best) { this.host.click(); this.select({ kind: 'marker', m: best }); return; }
+    if (this.filter.hotels) for (const m of this.hotelMarks) {
+      if (Math.hypot(m.sx - sx, m.sy - sy) < 20) { this.host.click(); this.select({ kind: 'hotel', m }); return; }
+    }
     if (this.filter.friends) for (const f of this.host.friends()) {
       const [fx, fy] = this.toScreen(f.x, f.z);
       if (Math.hypot(fx - sx, fy - sy) < 20) { this.host.click(); this.select({ kind: 'friend', name: f.name, x: f.x, z: f.z }); return; }
@@ -578,6 +593,13 @@ export class CityMap {
       const tasted = m.kind === 'unknown' ? '' : m.done >= m.total ? `<span class="cm-tag ok">${G.check}All ${m.total} tasted</span>` : `<span class="cm-tag">${m.done}/${m.total} tasted</span>`;
       html = `<div class="cm-ic${m.kind === 'unknown' ? ' q' : ''}">${m.kind === 'unknown' ? '?' : img ? `<img src="${img}" alt="">` : G.bowl}</div>
         <div class="cm-tx"><b>${esc(guide.name)}${guide.jp ? `<span class="jp">${guide.jp}</span>` : ''}</b><small>${sub}</small><div class="cm-meta">${tasted}${m.target ? `<span class="cm-tag mq">${G.sparkle}Mission</span>` : ''}<span class="cm-dist">${dist(stand[0], stand[1])}</span></div></div>`;
+    } else if (sel.kind === 'hotel') {
+      const h = sel.m.h, booked = this.s.hotel?.id === h.id;
+      guide = { x: sel.m.x, z: sel.m.z, name: h.name, jp: h.jp, id: `hotel-${h.id}` };
+      const from = Math.min(...h.rooms.map((r) => r.price));
+      const rooms = h.rooms.map((r) => ROOM_TYPE[r.type].icon).join('');
+      html = `<div class="cm-ic hotel">${icon('bed')}</div>
+        <div class="cm-tx"><b>${esc(h.name)}<span class="jp">${h.jp}</span></b><small>${esc(h.street)} · ${esc(h.blurb)}</small><div class="cm-meta">${booked ? `<span class="cm-tag ok">${G.check}Your room</span>` : `<span class="cm-tag">${rooms} from ¥${from.toLocaleString('en-US')}</span>`}${this.s.stays.includes(h.id) ? `<span class="cm-tag ok">Stayed here</span>` : ''}<span class="cm-dist">${dist(sel.m.x, sel.m.z)}</span></div></div>`;
     } else if (sel.kind === 'friend') {
       guide = { x: sel.x, z: sel.z, name: sel.name };
       html = `<div class="cm-ic">${G.people}</div><div class="cm-tx"><b>${esc(sel.name)}</b><small>On this trip with you</small><div class="cm-meta"><span class="cm-dist">${dist(sel.x, sel.z)}</span></div></div>`;
@@ -634,6 +656,7 @@ export class CityMap {
     this.drawRoute(c);
     this.drawLabels(c);
     this.drawMarkers(c, t);
+    this.drawHotels(c, t);
     this.drawFriends(c);
     this.drawPin(c, now);
     this.drawPlayer(c, t);
@@ -885,6 +908,46 @@ export class CityMap {
         c.font = `600 ${11.5}px Fredoka, system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'top';
         c.strokeStyle = C.halo; c.lineWidth = 3.5; c.strokeText(m.st.name, x, y + 3);
         c.fillStyle = C.ink; c.fillText(m.st.name, x, y + 3);
+      }
+    }
+  }
+
+  /** Hotels: a plum pin with a bed. They sparkle while you still need somewhere to sleep tonight. */
+  private drawHotels(c: CanvasRenderingContext2D, t: number): void {
+    if (!this.filter.hotels) return;
+    const sel = this.sel?.kind === 'hotel' ? this.sel.m : null;
+    const big = this.scale >= 2.6;
+    const need = !this.s.hotel;
+    for (const m of this.hotelMarks) {
+      const [x, y] = this.toScreen(m.x, m.z);
+      const r = (big ? 12 : 9) * (sel === m ? 1.18 : 1);
+      const cy = y - r - 5;
+      m.sx = x; m.sy = cy;
+      if (x < -40 || y < -40 || x > this.w + 40 || y > this.h + 60) continue;
+      const booked = this.s.hotel?.id === m.h.id;
+      const col = booked ? '#4f9a6a' : '#7b3f86';
+      c.fillStyle = 'rgba(60, 36, 20, 0.25)';
+      c.beginPath(); c.ellipse(x + 1, y + 1, r * 0.45, r * 0.18, 0, 0, Math.PI * 2); c.fill();
+      if (need) this.sparkleRing(c, x, cy, r + 5, t);
+      c.beginPath();
+      c.moveTo(x, y);
+      c.bezierCurveTo(x - r * 0.35, y - 4, x - r, cy + r * 0.55, x - r, cy);
+      c.arc(x, cy, r, Math.PI, 0);
+      c.bezierCurveTo(x + r, cy + r * 0.55, x + r * 0.35, y - 4, x, y);
+      c.fillStyle = col; c.fill();
+      c.strokeStyle = 'rgba(40, 24, 16, 0.5)'; c.lineWidth = 1; c.stroke();
+      c.save();
+      c.translate(x, cy);
+      const k = (r * 1.3) / 24;
+      c.scale(k, k);
+      c.translate(-12, -12);
+      c.strokeStyle = '#fffaf0'; c.lineWidth = 2.4; c.lineCap = c.lineJoin = 'round';
+      c.stroke(glyphPath(GLYPH.bed));
+      c.restore();
+      if (this.scale >= 9 || sel === m || booked) {
+        c.font = `600 ${11.5}px Fredoka, system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'top';
+        c.strokeStyle = C.halo; c.lineWidth = 3.5; c.strokeText(m.h.name, x, y + 3);
+        c.fillStyle = C.ink; c.fillText(m.h.name, x, y + 3);
       }
     }
   }

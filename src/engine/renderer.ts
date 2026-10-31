@@ -44,6 +44,8 @@ export function makeSharedUniforms() {
     /** First-person distance fog: camera position and density (0 = off). */
     uFog: { value: new THREE.Vector4(0, 0, 0, 0) },
     tHeight: { value: null as THREE.Texture | null },
+    // an integer sampler must never see the default (float) placeholder texture, so it starts with an empty one
+    tSolid: { value: emptySolid() as THREE.Texture },
     uHeightRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     tOwner: { value: null as THREE.Texture | null },
     tCut: { value: null as THREE.Texture | null },
@@ -304,4 +306,11 @@ export class Renderer {
   get depthTexture(): THREE.DepthTexture {
     return this.rtScene.depthTexture as THREE.DepthTexture;
   }
+}
+
+function emptySolid(): THREE.DataTexture {
+  const t = new THREE.DataTexture(new Uint32Array(2), 1, 1, THREE.RGIntegerFormat, THREE.UnsignedIntType);
+  t.internalFormat = 'RG32UI';
+  t.needsUpdate = true;
+  return t;
 }

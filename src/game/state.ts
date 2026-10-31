@@ -42,6 +42,10 @@ export interface SaveState {
   rooms: string[];
   /** Ids of the stalls and restaurants the player has come across (they show on the city map). */
   seen: string[];
+  /** Tonight's booking: the hotel, the room (HotelRoomAnchor id) and whether the night has been slept. */
+  hotel?: { id: string; room: string; slept?: boolean } | null;
+  /** Ids of the hotels the traveller has spent a night in. */
+  stays: string[];
   /** The spot pinned on the city map, if any. */
   pin?: { x: number; z: number; name: string; jp?: string; id?: string } | null;
   settings: Settings;
@@ -55,7 +59,7 @@ const KEY = 'tastyworld.save.v1';
 
 export function defaultState(): SaveState {
   return {
-    v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [],
+    v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [], stays: [], hotel: null,
     settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, fov: 72, perf: false }, profile: { name: '', color: 0xe9573f }, playTime: 0,
   };
 }

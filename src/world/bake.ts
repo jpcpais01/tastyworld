@@ -47,11 +47,15 @@ export interface BakedWorld {
   owners: Owners;
   /** Signed distance to the water's edge per column: 128 + 16 x voxels (positive over open water). */
   shore: Uint8Array;
+  /** Walk map and character light of each hotel room upstairs, by room id (the street map only knows the ground). */
+  hotelRooms: Record<string, HotelRoomBake>;
   anchors: Anchors;
   /** Sway bodies of every part, stacked for the sway texture (see world/sway.ts). */
   sway: { data: Float32Array; width: number; height: number };
   stats: { lamps: number; ms: number; bytes: number };
 }
+
+export interface HotelRoomBake { nav: NavData; lightmap: LightMap2D }
 
 /** What one worker hands back after building its strip of the city. */
 export interface PartInit {
@@ -66,6 +70,8 @@ export interface PartInit {
   tagged: { tag: string; mesh: MeshData }[];
   anchors: Anchors;
   interior: { chunks: MeshData[]; nav: NavData; lightmap: LightMap2D; height: Uint8Array; solid: Uint32Array } | null;
+  /** The hotel rooms whose middle lies in this part's strip. */
+  hotelRooms: ({ id: string } & HotelRoomBake)[];
   /** This part's sway bodies, packed (ids from part * SWAY_PART + 1). */
   sway: Float32Array;
   stats: { lamps: number; ms: number; bytes: number };
@@ -153,7 +159,12 @@ function computeSolid(grid: SparseGrid, x0: number, z0: number, x1: number, z1: 
   return out;
 }
 
-function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, blockers: [number, number, number, number][], minH: number): Uint8Array {
+/**
+ * Standing layer of each column of [x0,x1) x [z0,z1): the top of the highest floor at or under `top` with 7 voxels
+ * of headroom, if it is at least minH. `top` is just above street level for the streets; a room upstairs passes
+ * its own.
+ */
+function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: number, blockers: [number, number, number, number][], minH: number, top = G + 8): Uint8Array {
   const sx = x1 - x0, sz = z1 - z0;
   const height = new Uint8Array(sx * sz).fill(BLOCKED);
   for (let z = 0; z < sz; z++)
@@ -168,7 +179,7 @@ function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: nu
         }
         continue;
       }
-      for (let y = G + 8; y >= 1; y--) {
+      for (let y = top; y >= 1; y--) {
         if (grid.get(x0 + x, y - 1, z0 + z) === 0) continue;
         let clear = true;
         for (let k = 0; k < 7; k++) if (grid.get(x0 + x, y + k, z0 + z) !== 0) { clear = false; break; }
@@ -343,6 +354,28 @@ export class WorldPart {
     const solid = computeSolid(res.grid, x0, z0, x1, z1);
     const shore = computeShore(res.grid, x0, z0, x1, z1);
 
+    // hotel rooms upstairs: a small walk map and light map of their own, baked by the part their middle is in
+    const hotelRooms: PartInit['hotelRooms'] = [];
+    for (const h of res.anchors.hotels)
+      for (const rm of h.rooms) {
+        const [vx0, vz0, vx1, vz1] = rm.vox;
+        const cz = (vz0 + vz1) >> 1;
+        if (cz < z0 || cz >= z1) continue;
+        // even-aligned and one cell wider all round (blocked), as the light map wants
+        const nx0 = (vx0 - 2) & ~1, nz0 = (vz0 - 2) & ~1, nx1 = (vx1 + 4) & ~1, nz1 = (vz1 + 4) & ~1;
+        const layer = G + rm.layer;
+        const rnav = computeNav(res.grid, nx0, nz0, nx1, nz1, [], layer, layer + 8);
+        const sx = nx1 - nx0;
+        for (let z = nz0; z < nz1; z++)
+          for (let x = nx0; x < nx1; x++)
+            if (x < vx0 || x > vx1 || z < vz0 || z > vz1) rnav[(z - nz0) * sx + x - nx0] = BLOCKED;
+        hotelRooms.push({
+          id: rm.id,
+          nav: { sx, sz: nz1 - nz0, ox: nx0 * V, oz: nz0 * V, height: rnav },
+          lightmap: { sx: sx / 2, sz: (nz1 - nz0) / 2, ox: nx0 * V, oz: nz0 * V, cell: 0.5, data: computeLightmap(field, rnav, nx0, nz0, nx1, nz1) },
+        });
+      }
+
     let interior: PartInit['interior'] = null;
     if (this.part === 0) {
       progress?.('Preparing a secret', 0.93);
@@ -381,7 +414,7 @@ export class WorldPart {
     }
     progress?.('Ready', 1);
     return {
-      part: this.part, rows: this.rows, height, solid, nav, shore, lightmap, tagged, anchors: res.anchors, interior,
+      part: this.part, rows: this.rows, height, solid, nav, shore, lightmap, tagged, anchors: res.anchors, interior, hotelRooms,
       sway: packSway(res.sway, this.swayBase),
       stats: { lamps: res.lamps.length, ms: performance.now() - this.t0, bytes: res.grid.bytes + field.bytes },
     };

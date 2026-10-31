@@ -37,7 +37,8 @@ const OFF = 1e4;
 const BUCKET = 8; // metres per cell of the lookup grid
 const REACH = 64; // metres around the player that can hold something between it and the camera
 
-interface State { e: number; hold: number; c: number }
+/** e: lowered, c: holding the player (dollhouse), f: floor height of the room the player is in (metres). */
+interface State { e: number; hold: number; c: number; f: number }
 interface Scene { g: GridRect; f: Field; own: Uint16Array; from: number; to: number; top: number }
 
 export class Cutaway {
@@ -65,7 +66,7 @@ export class Cutaway {
     this.occ = o.occ;
     this.world = { g: wr, f: wf, own: o.world.id, from: 0, to: o.worldN, top: maxTop(wf) };
     this.inside = { g: ir, f: inf, own: o.inside.id, from: o.worldN, to: o.occ.length, top: maxTop(inf) };
-    this.st = this.occ.map(() => ({ e: 0, hold: 0, c: 0 }));
+    this.st = this.occ.map(() => ({ e: 0, hold: 0, c: 0, f: 0 }));
     this.active = this.occ.map(() => false);
     this.blocking = new Uint8Array(this.occ.length);
     this.data.fill(OFF);
@@ -150,7 +151,11 @@ export class Cutaway {
     return m;
   }
 
-  update(dt: number, p: THREE.Vector3, fwd: THREE.Vector3, inside: boolean, on: boolean): void {
+  /**
+   * `floor` is the height of the floor the player stands on inside a building (a hotel room upstairs): the
+   * dollhouse then opens that floor instead of the ground floor.
+   */
+  update(dt: number, p: THREE.Vector3, fwd: THREE.Vector3, inside: boolean, on: boolean, floor = 0): void {
     const fl = Math.hypot(fwd.x, fwd.z) || 1;
     const ax = fwd.x / fl, az = fwd.z / fl;
     const sc = inside ? this.inside : this.world;
@@ -214,13 +219,16 @@ export class Cutaway {
         // (a fully lowered one must stay put: easing it 'towards' 1 from 1 used to nudge it up every other frame)
         st.e = blocking || st.hold > 0 ? Math.min(1, st.e + dt * 3.8) : Math.max(0, st.e - dt * 2.2);
         st.c = contain ? Math.min(1, st.c + dt * 3) : Math.max(0, st.c - dt * 3);
+        if (contain) st.f = floor;
       }
       const j = (i + 1) * 4;
       let f = OFF, b = OFF, n = OFF, back = 0;
       if (st.e > 0 || st.c > 0) {
         const e = st.e * st.e * (3 - 2 * st.e), c = st.c * st.c * (3 - 2 * st.c);
-        const low = o.top + (o.low - o.top) * e;
-        const roomH = o.top + (Math.max(o.low, ROOM_TOP) - o.top) * e;
+        // upstairs the near walls drop to waist height on that floor, and everything under its ceiling stays
+        const up = st.f * c;
+        const low = o.top + (Math.min(o.top, o.low + up) - o.top) * e;
+        const roomH = o.top + (Math.min(o.top, Math.max(o.low, ROOM_TOP) + (st.f > 0 ? st.f - 0.5 : 0) * c) - o.top) * e;
         f = low;
         b = low + (roomH - low) * c;
         n = b;

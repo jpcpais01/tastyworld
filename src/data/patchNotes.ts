@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.2',
+    date: '2026-10-31',
+    title: 'Fits your phone',
+    items: [
+      'Menus, popups and the HUD now scale down to fit phones, in portrait and in landscape, so nothing runs off the edge of the screen.',
+      'On a phone held sideways, the destination picker sits beside the globe instead of covering it, and every city shows at once instead of being cut off.',
+      'Pins on the globe stay compact on small screens so city names no longer pile on top of each other.',
+      'The new-stamp card and the travel diary take up much less of a landscape screen.',
+    ],
+  },
+  {
     version: '0.16.1',
     date: '2026-10-31',
     title: 'Ferries and anglers',

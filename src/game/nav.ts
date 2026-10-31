@@ -8,7 +8,12 @@ export const PLAYER_R = 0.13;
 const TIGHT_COST = 2.5; // extra A* cost for squeezing through cells without clearance
 const NUDGE = [0.4, 0.8, 1.2]; // radians to deflect around an obstacle before giving up
 const POCKET = 4000; // biggest separate walkable region (cells) a drop may land in: garden terraces, not open hillside
-const DROP_COST = 4; // extra A* cost for hopping down a ledge, so stairs still win when they are close
+/**
+ * Extra A* cost (in 25 cm cells) for hopping down a ledge: a flat 40 m of walking plus 2 m per voxel of fall.
+ * Auto-walks take the stairs or a ramp whenever one is within a few dozen metres, and only jump when there is
+ * no sensible way round (or no way round at all).
+ */
+const DROP_COST = 160, DROP_COST_PER_VOX = 8;
 
 /** How far a character may step up and drop down between neighbouring cells, in voxels. */
 export interface Reach { up: number; down: number }
@@ -316,7 +321,7 @@ export class Nav {
         if (drop && (-rise > reach.down || dx && dz || !this.mainAt(ni))) continue;
         if (dx && dz && (!this.pass[cz * sx + nx] || !this.pass[nz * sx + cx])) continue;
         // narrow gaps are allowed but cost more, so open ground is still preferred
-        const ng = this.g[cur] + cost * (this.clear[ni] ? 1 : TIGHT_COST) + (drop ? DROP_COST : 0);
+        const ng = this.g[cur] + cost * (this.clear[ni] ? 1 : TIGHT_COST) + (drop ? DROP_COST - rise * DROP_COST_PER_VOX : 0);
         if (mark[ni] === OPEN && ng >= this.g[ni]) continue;
         this.g[ni] = ng;
         this.came[ni] = cur;

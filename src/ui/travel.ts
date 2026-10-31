@@ -12,6 +12,7 @@ import { G } from './glyphs';
 
 type LatLon = { lat: number; lon: number };
 import { FLAGS, icon } from './emblems';
+import { arrivalVeil } from './arrival';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -39,24 +40,6 @@ function localTime(tz: string): { text: string; day: boolean } {
     const hh = Number(parts.find((p) => p.type === 'hour')?.value ?? 12), mm = parts.find((p) => p.type === 'minute')?.value ?? '00';
     return { text: `${String(hh).padStart(2, '0')}:${mm}`, day: hh >= 6 && hh < 19 };
   } catch { return { text: '', day: true }; }
-}
-
-/** Blocky clouds that roll in over everything, hide the switch from map to city, then part. */
-function cloudVeil(): { cover(): Promise<void>; part(): void } {
-  const v = h('div', 'veil');
-  const cols = 4, rows = 4;
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const x = ((c + 0.5 + (Math.random() - 0.5) * 0.5) / cols) * 100, y = ((r + 0.5 + (Math.random() - 0.5) * 0.5) / rows) * 100;
-    const len = Math.hypot(x - 50, y - 50) || 1;
-    const p = h('div', 'puff', '<i></i><i></i><i></i>');
-    p.style.cssText = `--x:${x.toFixed(1)}%;--y:${y.toFixed(1)}%;--s:${(46 + Math.random() * 22).toFixed(0)}vmax;--dx:${(((x - 50) / len) * 70).toFixed(1)}vmax;--dy:${(((y - 50) / len) * 70).toFixed(1)}vmax;--d:${(Math.random() * 0.22).toFixed(2)}s`;
-    v.appendChild(p);
-  }
-  $('app').appendChild(v);
-  return {
-    cover: async () => { void v.offsetWidth; v.classList.add('on'); await sleep(1150); },
-    part: () => { v.classList.add('out'); setTimeout(() => v.remove(), 1400); },
-  };
 }
 
 /** Cap and jacket colours a traveller can pick for co-op trips. */
@@ -340,8 +323,9 @@ export class Travel {
     this.pending = null;
     trip.querySelector('.bp-wrap')?.remove();
     await this.flight(trip, from, d, d.local, d.city, 'Arrived');
-    // then down through the clouds and into the streets
-    const veil = cloudVeil();
+    // then down into the streets, through a veil dressed for the city (clouds where there is none yet)
+    const hour = this.hooks.arrivalHour();
+    const veil = arrivalVeil($('app'), d.id, hour < 6 || hour >= 19);
     this.audio.play('whoosh');
     void this.map?.diveIn(1500);
     await veil.cover();
@@ -406,7 +390,7 @@ export class Travel {
       map.focus(from, true);
       await sleep(250);
       await this.flight(trip, from, this.home, '', this.home.city, 'Welcome home');
-      const veil = cloudVeil();
+      const veil = arrivalVeil($('app'), 'home', false);
       this.audio.play('whoosh');
       void map.diveIn(1500);
       await veil.cover();

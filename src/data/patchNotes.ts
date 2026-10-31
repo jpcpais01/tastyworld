@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.45',
+    date: '2026-10-31',
+    title: 'Arrivals dressed for the city',
+    items: [
+      'Landing in Tokyo, you now step into the streets through an indigo noren curtain with a cherry blossom crest. Paper lanterns swing in front of it, petals blow past, and the curtain parts as you walk through. After dark the lanterns glow.',
+      'Landing in Amalfi, lemon boughs and bougainvillea sweep in on the sea mist, then brush aside to show the town.',
+      'Landing in Istanbul, a wall of blue and white İznik tiles turns over, tile by tile from the middle out, and the gulls fly out past you into the city.',
+      'Cities still to come keep the clouds.',
+    ],
+  },
+  {
     version: '0.16.44',
     date: '2026-10-31',
     title: 'End your trip',

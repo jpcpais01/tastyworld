@@ -77,6 +77,8 @@ button:focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
 #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
 .hidden { display: none !important; }
 .g { width: 22px; height: 22px; display: block; flex: none; }
+.g .t { fill: currentColor; fill-opacity: 0.18; }
+.flag { display: block; flex: none; width: 21px; height: 14px; border-radius: 3px; }
 .jp { font-family: var(--jp); }
 .eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
 
@@ -960,3 +962,34 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .guide.edge .arr { display: block; position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
 .guide.edge .arr::after { content: ''; position: absolute; left: 30px; top: -7px; border: 7px solid transparent; border-left: 10px solid var(--sun); filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.3)); }
 @media (max-width: 560px) { .compass { height: 40px; } .compass .dial { width: 32px; height: 32px; } }
+
+/* ---------------------------------------------------------------- emblems (the game's own icons, in place of emoji) */
+#prompt .pk .g { width: 24px; height: 24px; color: #ffd6a0; }
+.toast .ti .g { width: 26px; height: 26px; color: #ffd6a0; }
+.toast.gold .ti .g { color: #ffd98a; }
+.bubble.icon { padding: 6px 9px; }
+.bubble.icon .g { width: 22px; height: 22px; color: var(--tomato); }
+.dish-card .dimg .emo { color: var(--tomato); }
+.dish-card .dimg .emo .g { width: 52px; height: 52px; stroke-width: 1.7; }
+.mission .mi { color: var(--tomato); }
+.mission .mi .g { width: 23px; height: 23px; }
+.mission .rw .rwi { display: inline-flex; gap: 4px; align-items: center; }
+.mission .rw .rwi .g { width: 15px; height: 15px; color: var(--tomato); }
+.item .ii { color: var(--tomato); }
+.item .ii .g { width: 28px; height: 28px; }
+.finds p { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.finds p > span { display: inline-flex; gap: 6px; align-items: center; }
+.finds p .g { width: 18px; height: 18px; color: var(--tomato); }
+.cap span .g { width: 28px; height: 28px; margin: 1px auto; }
+.cap.got span { color: var(--tomato); }
+.cap.rare.got span { color: var(--sun-deep, #d9a12b); }
+.ing .e { color: var(--ink-2); }
+.ing.ok .e { color: var(--matcha); }
+.ing .e .g { width: 34px; height: 34px; margin: 0 auto; stroke-width: 1.8; }
+.slots-row span .g { width: 28px; height: 28px; color: var(--matcha); }
+.big-tap .g { width: 21px; height: 21px; }
+.dc-menu span { display: inline-flex; gap: 5px; align-items: center; }
+.dc-menu span .g { width: 15px; height: 15px; }
+.dc-flag .flag { width: 42px; height: 28px; border-radius: 5px; }
+@media (max-width: 899px) { .dc-flag .flag { width: 36px; height: 24px; } }
+.bp-city span .flag { display: inline-block; vertical-align: -2px; width: 18px; height: 12px; margin-left: 2px; }

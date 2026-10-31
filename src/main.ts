@@ -408,7 +408,7 @@ class Game {
       this.vendors.push({ actor: act, stall: st, ang: sa.vendor[2], waveT: 0 });
       this.interactables.push({
         key: `stall-${st.id}`, x: sa.stand[0], z: sa.stand[1], stand: sa.stand, pick: [sa.label[0], 1.4, sa.label[2]], r: 1.5, inside: false,
-        prompt: () => ['🍢', st.name, `Talk to ${st.vendor}`],
+        prompt: () => ['stall', st.name, `Talk to ${st.vendor}`],
         act: () => this.openStall(st, act, [sa.vendor[0], sa.vendor[1]]),
       });
     }
@@ -418,7 +418,7 @@ class Game {
     a.darumas.forEach((d, i) => {
       this.interactables.push({
         key: `daruma-${i}`, x: d[0], z: d[2], stand: [d[0], d[2]], pick: [d[0], d[1] + 0.3, d[2]], r: 1.4, inside: false,
-        prompt: () => this.s.darumas.includes(i) ? ['🔴', 'Daruma', 'One eye painted, one to go'] : ['✨', 'Something small and red', 'Take a closer look'],
+        prompt: () => this.s.darumas.includes(i) ? ['daruma', 'Daruma', 'One eye painted, one to go'] : ['sparkle', 'Something small and red', 'Take a closer look'],
         act: () => this.findDaruma(i),
       });
     });
@@ -428,12 +428,12 @@ class Game {
       this.setShelf(!!this.s.flags.shelfOpen);
       this.interactables.push({
         key: 'shelf', x: sec.shelf[0], z: sec.shelf[2], stand: sec.shelfStand, pick: sec.shelf, r: 1.5, inside: false,
-        prompt: () => this.s.flags.shelfOpen ? ['📚', 'Reading room', 'The shelf stands open'] : ['📕', 'A red book sticks out', 'Pull it'],
+        prompt: () => this.s.flags.shelfOpen ? ['book', 'Reading room', 'The shelf stands open'] : ['book', 'A red book sticks out', 'Pull it'],
         act: () => this.pullBook(),
       });
       this.interactables.push({
         key: 'note', x: sec.note[0], z: sec.note[2], stand: sec.noteStand, pick: sec.note, r: 1.5, inside: false,
-        prompt: () => this.s.flags.shelfOpen ? ['📜', 'An old recipe card', 'Read it'] : null,
+        prompt: () => this.s.flags.shelfOpen ? ['scroll', 'An old recipe card', 'Read it'] : null,
         act: () => {
           if (!this.s.flags.shelfOpen) return;
           this.audio.play('pop');
@@ -454,12 +454,12 @@ class Game {
     this.insideGroup.add(this.chef.root);
     this.interactables.push({
       key: 'chef', x: a.counterStand[0], z: a.counterStand[1], stand: a.counterStand, pick: [a.chef[0], 1.6, a.chef[2]], r: 1.6, inside: true,
-      prompt: () => ['🍣', 'Kakurega counter', 'Sit with Chef Sato'],
+      prompt: () => ['sushi', 'Kakurega counter', 'Sit with Chef Sato'],
       act: () => this.openStall(kak, this.chef, [a.chef[0], a.chef[2]]),
     });
     this.interactables.push({
       key: 'exit', x: a.interiorExit[0], z: a.interiorExit[1], stand: a.interiorExit, pick: [a.interiorExit[0], 1.2, a.interiorExit[1]], r: 1.3, inside: true,
-      prompt: () => ['🚪', 'Back to Lantern Alley', 'Slide the door open'],
+      prompt: () => ['door', 'Back to Lantern Alley', 'Slide the door open'],
       act: () => void this.teleport(false),
     });
 
@@ -477,7 +477,7 @@ class Game {
       this.idlers.push(entry);
       this.interactables.push({
         key: `idler-${id.id}`, x: id.pos[0], z: id.pos[2], stand: [id.pos[0], id.pos[2]], pick: [id.pos[0], 1.3, id.pos[2]], r: 1.5, inside: false,
-        prompt: () => ['💬', info.name, 'Chat'],
+        prompt: () => ['chat', info.name, 'Chat'],
         act: () => this.talk(entry),
       });
     }
@@ -522,7 +522,7 @@ class Game {
       this.cats.push(cat);
       this.interactables.push(cat.it = {
         key: `cat-${i}`, x: c[0], z: c[2], stand: [c[0], c[2]], pick: [c[0], 0.5, c[2]], r: 1.2, inside: false,
-        prompt: () => ['🐈', 'Neighbourhood cat', 'Pet the cat'],
+        prompt: () => ['cat', 'Neighbourhood cat', 'Pet the cat'],
         act: () => {
           const p = cat.actor.position;
           this.audio.play('meow');
@@ -539,7 +539,7 @@ class Game {
     a.manekis.forEach((m, i) => {
       this.interactables.push({
         key: `maneki-${i}`, x: m[0], z: m[2], stand: [m[0], m[2]], pick: [m[0], 0.6, m[2]], r: 1.4, inside: false,
-        prompt: () => this.s.manekis.includes(i) ? ['🐱', 'Maneki-neko', 'It waves at you, as always'] : ['✨', 'A glinting lucky cat', 'Take a closer look'],
+        prompt: () => this.s.manekis.includes(i) ? ['cat', 'Maneki-neko', 'It waves at you, as always'] : ['sparkle', 'A glinting lucky cat', 'Take a closer look'],
         act: () => this.findManeki(i),
       });
     });
@@ -547,7 +547,7 @@ class Game {
     a.vending.forEach((v, i) => {
       this.interactables.push({
         key: `vend-${i}`, x: v[0], z: v[2], stand: [v[0], v[2]], pick: [v[0], 1.4, v[2]], r: 1.3, inside: false,
-        prompt: () => ['🥤', 'Vending machine', 'Buy a drink · ¥130'],
+        prompt: () => ['can', 'Vending machine', 'Buy a drink · ¥130'],
         act: () => this.vend(),
       });
     });
@@ -555,7 +555,7 @@ class Game {
     const hd = a.hiddenDoor;
     this.interactables.push({
       key: 'door', x: hd.stand[0], z: hd.stand[1], stand: hd.stand, pick: hd.label, r: 1.5, inside: false,
-      prompt: () => this.s.manekis.length >= 3 ? ['🏮', 'A door with no sign', 'Step inside'] : ['🧱', 'A plain wooden wall', 'Look closer'],
+      prompt: () => this.s.manekis.length >= 3 ? ['lantern', 'A door with no sign', 'Step inside'] : ['wall', 'A plain wooden wall', 'Look closer'],
       act: () => {
         if (this.s.manekis.length >= 3) void this.teleport(true);
         else {
@@ -589,7 +589,7 @@ class Game {
         // the keeper serves from the counter: one stop to chat and buy
         this.interactables.push({
           key: `room-${rm.id}`, x: buy.pos[0], z: buy.pos[2], stand: buy.stand, pick: [n.pos[0], 1.6, n.pos[2]], r: 1.7, inside: false,
-          prompt: () => [place.buy[0]?.icon ?? '💬', name, `Talk to ${info.name}`],
+          prompt: () => [place.buy[0]?.icon ?? 'chat', name, `Talk to ${info.name}`],
           act: () => {
             this.faceEachOther(act, n.sit);
             this.server = act;
@@ -604,7 +604,7 @@ class Game {
         const stand: [number, number] = [n.pos[0], n.pos[2]];
         this.interactables.push({
           key: `npc-${rm.id}-${i}`, x: n.pos[0], z: n.pos[2], stand, pick: [n.pos[0], 1.25, n.pos[2]], r: 1.5, inside: false,
-          prompt: () => ['💬', keeper ? info.name : 'A regular', keeper ? name : 'Chat'],
+          prompt: () => ['chat', keeper ? info.name : 'A regular', keeper ? name : 'Chat'],
           act: () => {
             this.faceEachOther(act, n.sit);
             this.audio.play('pop');
@@ -620,7 +620,7 @@ class Game {
       if (sp.kind !== 'gacha') continue;
       this.interactables.push({
         key: `gacha-${rm.id}`, x: sp.pos[0], z: sp.pos[2], stand: sp.stand, pick: [sp.pos[0], 1.0, sp.pos[2]], r: 1.4, inside: false,
-        prompt: () => ['🎰', 'Gachapon', `Turn the handle · ¥${GACHA_PRICE}`],
+        prompt: () => ['capsule', 'Gachapon', `Turn the handle · ¥${GACHA_PRICE}`],
         act: () => this.gacha(sp.pos),
       });
     }
@@ -645,7 +645,7 @@ class Game {
   }
 
   private gacha(pos: V3): void {
-    if (this.s.yen < GACHA_PRICE) { this.audio.play('fail'); this.ui.toast('👛', 'Not enough yen', `A capsule costs ¥${GACHA_PRICE}.`); return; }
+    if (this.s.yen < GACHA_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough yen', `A capsule costs ¥${GACHA_PRICE}.`); return; }
     this.s.yen -= GACHA_PRICE;
     // the golden shrimp is rare; everything else is equally likely
     const roll = Math.random();
@@ -674,8 +674,8 @@ class Game {
     this.audio.play('chime');
     this.player.flash = 1;
     const n = this.s.darumas.length;
-    if (n < 8) this.ui.toast('🔴', `Daruma ${n} / 8`, n === 1 ? 'A tiny daruma doll with one eye painted in. Someone has hidden these around the shops.' : 'Another one, tucked away where only the curious look.', true);
-    else { this.ui.toast('🎉', 'All eight daruma found!', 'Claim your reward in the Food Passport.', true); this.cam.shake = 0.12; }
+    if (n < 8) this.ui.toast('daruma', `Daruma ${n} / 8`, n === 1 ? 'A tiny daruma doll with one eye painted in. Someone has hidden these around the shops.' : 'Another one, tucked away where only the curious look.', true);
+    else { this.ui.toast('confetti', 'All eight daruma found!', 'Claim your reward in the Food Passport.', true); this.cam.shake = 0.12; }
     this.afterChange();
   }
 
@@ -694,7 +694,7 @@ class Game {
     this.audio.play('door');
     this.cam.shake = 0.12;
     this.setShelf(true);
-    this.ui.toast('📚', 'A hidden room!', 'The bookshelf swings aside. Behind it: a tiny reading room nobody has dusted in years.', true);
+    this.ui.toast('book', 'A hidden room!', 'The bookshelf swings aside. Behind it: a tiny reading room nobody has dusted in years.', true);
     this.afterChange();
   }
 
@@ -883,7 +883,7 @@ class Game {
     if (r.title) this.s.title = r.title;
     this.audio.play('coin');
     const it = r.item ? ITEMS[r.item] : null;
-    this.ui.toast(it?.icon ?? '💴', `${m.name} claimed`, [r.yen ? `+¥${r.yen.toLocaleString('en-US')}` : '', it ? it.name : '', r.title ? `Title: ${r.title}` : ''].filter(Boolean).join(' · '), true);
+    this.ui.toast(it?.icon ?? 'coin', `${m.name} claimed`, [r.yen ? `+¥${r.yen.toLocaleString('en-US')}` : '', it ? it.name : '', r.title ? `Title: ${r.title}` : ''].filter(Boolean).join(' · '), true);
     this.player.flash = 1;
     this.afterChange();
   }
@@ -896,7 +896,7 @@ class Game {
         this.notified.add(m.id);
         setTimeout(() => {
           this.audio.play('success');
-          this.ui.toast('🎯', `Mission complete: ${m.name}`, 'Claim your reward in the Food Passport.', true);
+          this.ui.toast('target', `Mission complete: ${m.name}`, 'Claim your reward in the Food Passport.', true);
         }, 900);
       }
     }
@@ -941,9 +941,9 @@ class Game {
     this.audio.play('chime');
     this.player.flash = 1;
     const n = this.s.manekis.length;
-    if (n < 3) this.ui.toast('🐱', `Lucky cat ${n} / 3`, n === 1 ? 'A tiny maneki-neko, beckoning with its paw. There must be others.' : 'Another one! Its paw points toward Lantern Alley.', true);
+    if (n < 3) this.ui.toast('cat', `Lucky cat ${n} / 3`, n === 1 ? 'A tiny maneki-neko, beckoning with its paw. There must be others.' : 'Another one! Its paw points toward Lantern Alley.', true);
     else {
-      this.ui.toast('🏮', 'All three lucky cats found!', 'Their paws all point to a nameless passage off Lantern Alley…', true);
+      this.ui.toast('lantern', 'All three lucky cats found!', 'Their paws all point to a nameless passage off Lantern Alley…', true);
       this.setDoor(true);
       this.cam.shake = 0.15;
     }
@@ -951,9 +951,9 @@ class Game {
   }
 
   private vend(): void {
-    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('👛', 'Not enough yen', 'Even a can of tea costs ¥130.'); return; }
+    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough yen', 'Even a can of tea costs ¥130.'); return; }
     this.s.yen -= 130;
-    const drinks = [['🍵', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['🧋', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['🥤', 'Ramune soda', 'Pop the marble to open it!'], ['☕', 'Canned coffee', 'Tokyo runs on canned coffee.']];
+    const drinks = [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
     const d = drinks[Math.floor(Math.random() * drinks.length)];
     this.audio.play('coin');
     this.ui.toast(d[0], d[1], d[2]);
@@ -978,7 +978,7 @@ class Game {
     try { localStorage.setItem(VIEW_KEY, on ? 'fp' : 'iso'); } catch { /* storage blocked */ }
     if (!quiet) {
       this.audio.play('whoosh');
-      if (on) this.ui.toast('👀', 'First-person view', this.r.isMobile
+      if (on) this.ui.toast('eye', 'First-person view', this.r.isMobile
         ? 'Drag on the left to walk, on the right to look around. Tap the eye to switch back.'
         : 'Click to look around with the mouse, WASD to walk. Press V to switch back.');
     }
@@ -1024,7 +1024,7 @@ class Game {
         this.s.hiddenFound = true;
         this.coop?.sendEvent({ k: 'secret' });
         this.ui.removeLabel('door');
-        setTimeout(() => this.ui.toast('🚪', 'Kakurega · 隠れ家', 'You found the hidden counter. Eight seats, no sign, no menu.', true), 700);
+        setTimeout(() => this.ui.toast('door', 'Kakurega · 隠れ家', 'You found the hidden counter. Eight seats, no sign, no menu.', true), 700);
         this.afterChange();
       }
       this.chef.anim = 'bow';
@@ -1067,10 +1067,10 @@ class Game {
     coop.onJoin = (p) => {
       if (!this.started) return;
       this.audio.play('chime');
-      this.ui.toast('🛬', `${p.name} joined the trip!`, p.inWorld ? 'They just landed in Tokyo. Look for their name tag.' : 'They are at the gate and will land any moment.');
+      this.ui.toast('plane', `${p.name} joined the trip!`, p.inWorld ? 'They just landed in Tokyo. Look for their name tag.' : 'They are at the gate and will land any moment.');
     };
     coop.onLeave = (p) => {
-      if (this.started) this.ui.toast('👋', `${p.name} left the trip`, 'Their ticket still works if they want to come back.');
+      if (this.started) this.ui.toast('wave', `${p.name} left the trip`, 'Their ticket still works if they want to come back.');
       this.dropRemote(p.id);
     };
     coop.onEvent = (p, e) => this.coopEvent(p, e);
@@ -1094,14 +1094,14 @@ class Game {
     if (e.k === 'wave') {
       if (rm) {
         const q = rm.actor.position;
-        this.ui.bubble(`wave-${p.id}`, '👋', [q.x, q.y + 2.05, q.z], 1.6);
+        this.ui.bubble(`wave-${p.id}`, 'Hi!', [q.x, q.y + 2.05, q.z], 1.6, 'wave');
       }
       this.audio.play('pop');
     } else if (e.k === 'stamp') {
       const d = DISHES.find((x) => x.id === e.dish);
-      if (d) this.ui.toast(this.ui.icons[d.id] ?? '🍽️', `${p.name} tasted ${d.name}`, this.s.tasted[d.id] ? 'You have that stamp too. Compare notes!' : 'You haven\'t tried that one yet…');
+      if (d) this.ui.toast(this.ui.icons[d.id] ?? 'bowl', `${p.name} tasted ${d.name}`, this.s.tasted[d.id] ? 'You have that stamp too. Compare notes!' : 'You haven\'t tried that one yet…');
     } else if (e.k === 'secret') {
-      this.ui.toast('🏮', `${p.name} found a hidden counter!`, this.s.hiddenFound ? 'You know the one. Eight seats, no sign.' : 'Somewhere off Lantern Alley… the lucky cats know the way.');
+      this.ui.toast('lantern', `${p.name} found a hidden counter!`, this.s.hiddenFound ? 'You know the one. Eight seats, no sign.' : 'Somewhere off Lantern Alley… the lucky cats know the way.');
     }
   }
 
@@ -1200,7 +1200,7 @@ class Game {
       this.ui.compass(ang(0, -1), ang(next[0] - px, next[1] - pz), here ? 'here' : walk < 1000 ? `${Math.max(1, Math.round(walk))} m` : `${(walk / 1000).toFixed(1)} km`);
       if (here && !this.inside && !this.ui.busy) {
         this.audio.play('chime');
-        this.ui.toast('📍', pin.name === 'Pinned spot' ? 'You made it' : `You made it to ${pin.name}`, 'Your pin has been taken off the map.');
+        this.ui.toast('pin', pin.name === 'Pinned spot' ? 'You made it' : `You made it to ${pin.name}`, 'Your pin has been taken off the map.');
         this.setPin(null);
       }
     } else this.ui.compass(ang(0, -1), null, '');

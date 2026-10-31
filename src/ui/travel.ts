@@ -6,6 +6,7 @@ import { DISHES } from '../data/dishes';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { WorldMap } from './worldmap';
 import { G } from './glyphs';
+import { FLAGS, icon } from './emblems';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -124,7 +125,7 @@ export class Travel {
     const homePin = h('div', 'pin home', `<span class="pin-tag">${G.home}${esc(this.home.city)}</span><span class="pin-dot"></span>`);
     map.addPin(homePin, this.home);
     for (const d of DESTINATIONS) {
-      const p = h('button', `pin ${d.open ? 'open' : 'soon'}`, `<span class="pin-tag"><span class="fl">${d.flag}</span><span class="nm">${esc(d.city)}</span>${d.open ? '' : '<em>Soon</em>'}</span><span class="pin-dot"></span>`);
+      const p = h('button', `pin ${d.open ? 'open' : 'soon'}`, `<span class="pin-tag"><span class="fl">${FLAGS[d.id] ?? ''}</span><span class="nm">${esc(d.city)}</span>${d.open ? '' : '<em>Soon</em>'}</span><span class="pin-dot"></span>`);
       p.setAttribute('aria-label', `${d.city}${d.open ? '' : ', coming soon'}`);
       p.onclick = () => { this.audio.play('click'); select(d); };
       pins.set(d.id, p);
@@ -134,7 +135,7 @@ export class Travel {
     // the sheet: destination picker, details, the big button
     const strip = h('div', 'dest-strip');
     for (const d of DESTINATIONS) {
-      const c = h('button', `dchip${d.open ? '' : ' soon'}`, `<span class="fl">${d.flag}</span>${esc(d.city)}`);
+      const c = h('button', `dchip${d.open ? '' : ' soon'}`, `<span class="fl">${FLAGS[d.id] ?? ''}</span>${esc(d.city)}`);
       c.dataset.id = d.id;
       c.onclick = () => { this.audio.play('click'); select(d); };
       strip.appendChild(c);
@@ -151,12 +152,12 @@ export class Travel {
       const isHere = here?.id === d.id;
       card.innerHTML = `
         <div class="dc-head">
-          <span class="dc-flag">${d.flag}</span>
+          <span class="dc-flag">${FLAGS[d.id] ?? ''}</span>
           <div class="dc-name"><h3>${esc(d.city)}<span class="jp">${esc(d.local)}</span></h3><p>${esc(d.country)} · ${d.code}</p></div>
           ${isHere ? `<span class="badge red">${G.pin}You are here</span>` : d.open ? `<span class="badge">${G.check}Open</span>` : '<span class="badge gold">Coming soon</span>'}
         </div>
         <p class="dc-blurb">${esc(d.blurb)}</p>
-        <div class="dc-menu">${d.menu.map(([e, n]) => `<span>${e} ${esc(n)}</span>`).join('')}</div>`;
+        <div class="dc-menu">${d.menu.map(([e, n]) => `<span>${icon(e)}${esc(n)}</span>`).join('')}</div>`;
       cta.innerHTML = '';
       if (!d.open) {
         const b = h('button', 'btn btn-hero', `${G.clock}Coming soon`);
@@ -287,7 +288,7 @@ export class Travel {
     } catch (e) {
       console.error(e);
       wait.remove();
-      this.hooks.toast('📡', 'No signal at the airport', 'Could not set up a co-op trip. Check your connection and try again.');
+      this.hooks.toast('signal', 'No signal at the airport', 'Could not set up a co-op trip. Check your connection and try again.');
     }
   }
 
@@ -377,7 +378,7 @@ export class Travel {
           <div class="bp-route">
             <div class="bp-city"><small>From</small><b>${esc(this.home.code)}</b><span>${esc(this.home.city)}</span></div>
             <div class="bp-line"><i></i>${G.plane}<i></i></div>
-            <div class="bp-city to"><small>To</small><b>${dest.code}</b><span>${esc(dest.city)} ${dest.flag}</span></div>
+            <div class="bp-city to"><small>To</small><b>${dest.code}</b><span>${esc(dest.city)} ${FLAGS[dest.id] ?? ''}</span></div>
           </div>
           <div class="bp-grid">
             <label class="bp-field name"><small>Passenger</small><input id="bp-name" maxlength="16" placeholder="Your name" autocomplete="nickname" spellcheck="false"></label>
@@ -432,7 +433,7 @@ export class Travel {
       coop.onPeers = () => { prev?.(); crew(); };
       // copy + share
       const copy = async () => {
-        try { await navigator.clipboard.writeText(link); this.hooks.toast('🎫', 'Ticket copied', `Send it to a friend. They can also type ${code} under "Got a ticket?".`); } catch { this.hooks.toast('🎫', `Your code: ${code}`, 'Ask your friend to open "Got a ticket?" and type it in.'); }
+        try { await navigator.clipboard.writeText(link); this.hooks.toast('ticket', 'Ticket copied', `Send it to a friend. They can also type ${code} under "Got a ticket?".`); } catch { this.hooks.toast('ticket', `Your code: ${code}`, 'Ask your friend to open "Got a ticket?" and type it in.'); }
       };
       (bp.querySelector('#bp-copy') as HTMLElement).onclick = () => { this.audio.play('click'); void copy(); };
       (bp.querySelector('#bp-send') as HTMLElement).onclick = async () => {

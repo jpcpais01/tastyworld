@@ -1,8 +1,9 @@
+import type { IconName } from '../ui/emblems';
 import type { RoomKind } from '../world/interiors';
 import { randomLook, Look } from '../world/characters';
 
 /** Something small a shop sells over the counter. */
-export interface Buyable { icon: string; name: string; price: number; text: string; snack?: boolean; }
+export interface Buyable { icon: IconName; name: string; price: number; text: string; snack?: boolean; }
 
 export interface PlaceKind {
   label: string;
@@ -37,9 +38,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Somebody keeps hiding little red daruma in the shops around here. I found one behind my boxes once. Good luck, they say!',
     ],
     buy: [
-      { icon: '🧣', name: 'Tenugui towel', price: 600, text: 'A printed cotton towel with little goldfish. Locals use them for everything.' },
-      { icon: '🥢', name: 'Lacquer chopsticks', price: 800, text: 'Red lacquer with a gold sakura petal. Rest them on the holder, never stick them upright in rice.' },
-      { icon: '🎐', name: 'Glass wind chime', price: 900, text: 'A fūrin. Its ring is meant to make a hot summer day feel cooler.' },
+      { icon: 'towel', name: 'Tenugui towel', price: 600, text: 'A printed cotton towel with little goldfish. Locals use them for everything.' },
+      { icon: 'chopsticks', name: 'Lacquer chopsticks', price: 800, text: 'Red lacquer with a gold sakura petal. Rest them on the holder, never stick them upright in rice.' },
+      { icon: 'chime', name: 'Glass wind chime', price: 900, text: 'A fūrin. Its ring is meant to make a hot summer day feel cooler.' },
     ],
   },
   cafe: {
@@ -53,9 +54,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Sit as long as you like. Cafés here are a living room for people with tiny apartments.',
     ],
     buy: [
-      { icon: '☕', name: 'Hand-drip coffee', price: 480, text: 'Slow-poured, light and fruity. You can taste the patience.', snack: true },
-      { icon: '🧋', name: 'Iced matcha latte', price: 560, text: 'Bitter green tea, sweet milk, lots of ice.', snack: true },
-      { icon: '🍞', name: 'Thick toast set', price: 520, text: 'Four centimetres of fluffy shokupan with butter and ogura red bean.', snack: true },
+      { icon: 'coffee', name: 'Hand-drip coffee', price: 480, text: 'Slow-poured, light and fruity. You can taste the patience.', snack: true },
+      { icon: 'latte', name: 'Iced matcha latte', price: 560, text: 'Bitter green tea, sweet milk, lots of ice.', snack: true },
+      { icon: 'toast', name: 'Thick toast set', price: 520, text: 'Four centimetres of fluffy shokupan with butter and ogura red bean.', snack: true },
     ],
   },
   izakaya: {
@@ -70,9 +71,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Kanpai! Wait for everyone to have a glass before you drink, that is the only rule.',
     ],
     buy: [
-      { icon: '🍵', name: 'Oolong tea', price: 300, text: 'Iced oolong in a tall glass. The non-drinker\'s kanpai.', snack: true },
-      { icon: '🫛', name: 'Edamame', price: 350, text: 'Salted green soybeans, popped straight from the pod.', snack: true },
-      { icon: '🥒', name: 'Pickles platter', price: 400, text: 'Tsukemono: crunchy cucumber, yellow takuan and pink ginger.', snack: true },
+      { icon: 'tea', name: 'Oolong tea', price: 300, text: 'Iced oolong in a tall glass. The non-drinker\'s kanpai.', snack: true },
+      { icon: 'edamame', name: 'Edamame', price: 350, text: 'Salted green soybeans, popped straight from the pod.', snack: true },
+      { icon: 'pickles', name: 'Pickles platter', price: 400, text: 'Tsukemono: crunchy cucumber, yellow takuan and pink ginger.', snack: true },
     ],
   },
   konbini: {
@@ -87,10 +88,10 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'The capsule machines by the door? Kids love them. Adults too, honestly.',
     ],
     buy: [
-      { icon: '🍙', name: 'Tuna-mayo onigiri', price: 160, text: 'Pull tab 1, then corners 2 and 3. The nori stays crisp. Genius.', snack: true },
-      { icon: '🥟', name: 'Nikuman bun', price: 180, text: 'A fluffy steamed bun stuffed with pork, from the warmer by the till.', snack: true },
-      { icon: '🥪', name: 'Egg sando', price: 280, text: 'Soft white bread, crustless, full of creamy egg salad. A konbini legend.', snack: true },
-      { icon: '🍗', name: 'Hot-case karaage', price: 220, text: 'Five crispy fried chicken bites in a paper cup, with a tiny toothpick.', snack: true },
+      { icon: 'onigiri', name: 'Tuna-mayo onigiri', price: 160, text: 'Pull tab 1, then corners 2 and 3. The nori stays crisp. Genius.', snack: true },
+      { icon: 'nikuman', name: 'Nikuman bun', price: 180, text: 'A fluffy steamed bun stuffed with pork, from the warmer by the till.', snack: true },
+      { icon: 'sando', name: 'Egg sando', price: 280, text: 'Soft white bread, crustless, full of creamy egg salad. A konbini legend.', snack: true },
+      { icon: 'chicken', name: 'Hot-case karaage', price: 220, text: 'Five crispy fried chicken bites in a paper cup, with a tiny toothpick.', snack: true },
     ],
   },
   florist: {
@@ -104,8 +105,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Never give four flowers. Shi, four, sounds like the word for death.',
     ],
     buy: [
-      { icon: '🌻', name: 'A single sunflower', price: 300, text: 'Wrapped in brown paper with a twist of raffia.' },
-      { icon: '💐', name: 'Seasonal posy', price: 700, text: 'Small, careful and perfectly balanced. Ikebana for your backpack.' },
+      { icon: 'flower', name: 'A single sunflower', price: 300, text: 'Wrapped in brown paper with a twist of raffia.' },
+      { icon: 'posy', name: 'Seasonal posy', price: 700, text: 'Small, careful and perfectly balanced. Ikebana for your backpack.' },
     ],
   },
   books: {
@@ -119,8 +120,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'People here read standing in the shop for hours. Tachiyomi, we call it. I do not mind.',
     ],
     buy: [
-      { icon: '📕', name: 'Old Edo cookbook', price: 1200, text: 'A woodblock-printed book of recipes from 1802. Mostly tofu, a hundred ways.' },
-      { icon: '🔖', name: 'Washi bookmark', price: 250, text: 'Handmade paper with a pressed maple leaf.' },
+      { icon: 'book', name: 'Old Edo cookbook', price: 1200, text: 'A woodblock-printed book of recipes from 1802. Mostly tofu, a hundred ways.' },
+      { icon: 'bookmark', name: 'Washi bookmark', price: 250, text: 'Handmade paper with a pressed maple leaf.' },
     ],
   },
   fish: {
@@ -134,8 +135,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Kohada, aji, saba... the shiny "hikarimono" fish are the true taste of Edomae sushi.',
     ],
     buy: [
-      { icon: '🍢', name: 'Chikuwa fish cake', price: 200, text: 'A grilled tube of fish paste. Kids eat them straight from the bag.', snack: true },
-      { icon: '🐟', name: 'Grilled salted saba', price: 450, text: 'Mackerel with crackling skin, wrapped to go.', snack: true },
+      { icon: 'chikuwa', name: 'Chikuwa fish cake', price: 200, text: 'A grilled tube of fish paste. Kids eat them straight from the bag.', snack: true },
+      { icon: 'fish', name: 'Grilled salted saba', price: 450, text: 'Mackerel with crackling skin, wrapped to go.', snack: true },
     ],
   },
   bakery: {
@@ -149,9 +150,9 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Anpan was invented in Tokyo in 1874, for the Emperor himself. Sweet bean paste in soft bread.',
     ],
     buy: [
-      { icon: '🍈', name: 'Melon pan', price: 220, text: 'Crackly cookie crust, fluffy inside, still warm from the oven.', snack: true },
-      { icon: '🍛', name: 'Curry pan', price: 250, text: 'A deep-fried bun full of thick Japanese curry. Crunchy, then spicy.', snack: true },
-      { icon: '🥯', name: 'Anpan', price: 200, text: 'Soft bun with sweet red bean paste and a sprinkle of sesame.', snack: true },
+      { icon: 'melonpan', name: 'Melon pan', price: 220, text: 'Crackly cookie crust, fluffy inside, still warm from the oven.', snack: true },
+      { icon: 'currypan', name: 'Curry pan', price: 250, text: 'A deep-fried bun full of thick Japanese curry. Crunchy, then spicy.', snack: true },
+      { icon: 'anpan', name: 'Anpan', price: 200, text: 'Soft bun with sweet red bean paste and a sprinkle of sesame.', snack: true },
     ],
   },
   pharmacy: {
@@ -164,8 +165,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
       'Feeling tired from walking? Try one of the little vitamin drinks. Salarymen swear by them.',
     ],
     buy: [
-      { icon: '🧃', name: 'Vitamin drink', price: 250, text: 'A tiny brown bottle with a big promise. You feel energetic. Probably.', snack: true },
-      { icon: '🩹', name: 'Cute plasters', price: 300, text: 'Bandages printed with tiny shiba dogs.' },
+      { icon: 'vitamin', name: 'Vitamin drink', price: 250, text: 'A tiny brown bottle with a big promise. You feel energetic. Probably.', snack: true },
+      { icon: 'plaster', name: 'Cute plasters', price: 300, text: 'Bandages printed with tiny shiba dogs.' },
     ],
   },
   kissa: { label: 'Kissaten', names: [['Kissa Komorebi', '喫茶 木漏れ日']], keepers: ['Master Kuroda'], keeperLook: {}, lines: [], buy: [] },
@@ -186,22 +187,22 @@ export const GUEST_LINES: string[] = [
   'The master here has made the same dish for forty years. Why change something perfect?',
 ];
 
-export interface Capsule { id: string; name: string; icon: string; rare?: boolean; }
+export interface Capsule { id: string; name: string; icon: IconName; rare?: boolean; }
 
 /** Gachapon capsule charms: tiny food keychains. */
 export const CAPSULES: Capsule[] = [
-  { id: 'takoyaki', name: 'Mini takoyaki', icon: '🐙' },
-  { id: 'taiyaki', name: 'Tiny taiyaki', icon: '🐟' },
-  { id: 'ramen', name: 'Pocket ramen', icon: '🍜' },
-  { id: 'onigiri', name: 'Onigiri buddy', icon: '🍙' },
-  { id: 'dango', name: 'Dango trio', icon: '🍡' },
-  { id: 'sushi', name: 'Salmon nigiri', icon: '🍣' },
-  { id: 'melonpan', name: 'Melon pan', icon: '🍈' },
-  { id: 'gyoza', name: 'Gyoza pal', icon: '🥟' },
-  { id: 'lantern', name: 'Red lantern', icon: '🏮' },
-  { id: 'maneki', name: 'Maneki-neko', icon: '🐱' },
-  { id: 'daruma', name: 'Daruma', icon: '🔴' },
-  { id: 'golden', name: 'Golden shrimp tempura', icon: '🍤', rare: true },
+  { id: 'takoyaki', name: 'Mini takoyaki', icon: 'takoyaki' },
+  { id: 'taiyaki', name: 'Tiny taiyaki', icon: 'fish' },
+  { id: 'ramen', name: 'Pocket ramen', icon: 'ramen' },
+  { id: 'onigiri', name: 'Onigiri buddy', icon: 'onigiri' },
+  { id: 'dango', name: 'Dango trio', icon: 'dango' },
+  { id: 'sushi', name: 'Salmon nigiri', icon: 'sushi' },
+  { id: 'melonpan', name: 'Melon pan', icon: 'melonpan' },
+  { id: 'gyoza', name: 'Gyoza pal', icon: 'gyoza' },
+  { id: 'lantern', name: 'Red lantern', icon: 'lantern' },
+  { id: 'maneki', name: 'Maneki-neko', icon: 'cat' },
+  { id: 'daruma', name: 'Daruma', icon: 'daruma' },
+  { id: 'golden', name: 'Golden shrimp tempura', icon: 'shrimp', rare: true },
 ];
 
 export const GACHA_PRICE = 200;

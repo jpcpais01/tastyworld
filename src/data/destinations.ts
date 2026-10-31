@@ -1,3 +1,5 @@
+import type { IconName } from '../ui/emblems';
+
 /** Places the traveller can fly to. Only open ones are playable; the rest show up on the map as "coming soon". */
 export interface Destination {
   id: string;
@@ -7,51 +9,50 @@ export interface Destination {
   local: string;
   /** Airport-style code printed on boarding passes. */
   code: string;
-  flag: string;
   lat: number;
   lon: number;
   open: boolean;
   /** One line about the streets you'll explore. */
   blurb: string;
-  /** A taste of the menu: [emoji, dish]. */
-  menu: [string, string][];
+  /** A taste of the menu: [icon, dish]. */
+  menu: [IconName, string][];
 }
 
 export const DESTINATIONS: Destination[] = [
   {
-    id: 'tokyo', city: 'Tokyo', country: 'Japan', local: '東京', code: 'TYO', flag: '🇯🇵', lat: 35.68, lon: 139.69, open: true,
+    id: 'tokyo', city: 'Tokyo', country: 'Japan', local: '東京', code: 'TYO', lat: 35.68, lon: 139.69, open: true,
     blurb: 'Lantern-lit alleys, yatai carts and a canal lined with cherry trees.',
-    menu: [['🐙', 'Takoyaki'], ['🍜', 'Ramen'], ['🍡', 'Dango'], ['🍣', 'Omakase']],
+    menu: [['octopus', 'Takoyaki'], ['ramen', 'Ramen'], ['dango', 'Dango'], ['sushi', 'Omakase']],
   },
   {
-    id: 'seoul', city: 'Seoul', country: 'South Korea', local: '서울', code: 'SEL', flag: '🇰🇷', lat: 37.57, lon: 126.98, open: false,
+    id: 'seoul', city: 'Seoul', country: 'South Korea', local: '서울', code: 'SEL', lat: 37.57, lon: 126.98, open: false,
     blurb: 'Steamy night markets under neon, from Gwangjang to Myeongdong.',
-    menu: [['🌶️', 'Tteokbokki'], ['🥞', 'Hotteok'], ['🍙', 'Gimbap']],
+    menu: [['chili', 'Tteokbokki'], ['pancake', 'Hotteok'], ['onigiri', 'Gimbap']],
   },
   {
-    id: 'bangkok', city: 'Bangkok', country: 'Thailand', local: 'กรุงเทพฯ', code: 'BKK', flag: '🇹🇭', lat: 13.75, lon: 100.5, open: false,
+    id: 'bangkok', city: 'Bangkok', country: 'Thailand', local: 'กรุงเทพฯ', code: 'BKK', lat: 13.75, lon: 100.5, open: false,
     blurb: 'Woks roaring on Yaowarat Road and boats selling noodles on the canals.',
-    menu: [['🍤', 'Pad thai'], ['🥭', 'Mango sticky rice'], ['🍢', 'Moo ping']],
+    menu: [['shrimp', 'Pad thai'], ['mango', 'Mango sticky rice'], ['skewer', 'Moo ping']],
   },
   {
-    id: 'istanbul', city: 'Istanbul', country: 'Türkiye', local: 'İstanbul', code: 'IST', flag: '🇹🇷', lat: 41.01, lon: 28.98, open: false,
+    id: 'istanbul', city: 'Istanbul', country: 'Türkiye', local: 'İstanbul', code: 'IST', lat: 41.01, lon: 28.98, open: false,
     blurb: 'Simit carts, fish boats on the Bosphorus and the spice bazaar.',
-    menu: [['🥯', 'Simit'], ['🐟', 'Balık ekmek'], ['🥙', 'Döner']],
+    menu: [['simit', 'Simit'], ['fish', 'Balık ekmek'], ['wrap', 'Döner']],
   },
   {
-    id: 'naples', city: 'Naples', country: 'Italy', local: 'Napoli', code: 'NAP', flag: '🇮🇹', lat: 40.85, lon: 14.27, open: false,
+    id: 'naples', city: 'Naples', country: 'Italy', local: 'Napoli', code: 'NAP', lat: 40.85, lon: 14.27, open: false,
     blurb: 'Laundry over narrow vicoli and pizza folded to eat on the go.',
-    menu: [['🍕', 'Pizza fritta'], ['🥐', 'Sfogliatella'], ['🦑', 'Cuoppo']],
+    menu: [['pizza', 'Pizza fritta'], ['croissant', 'Sfogliatella'], ['squid', 'Cuoppo']],
   },
   {
-    id: 'lisbon', city: 'Lisbon', country: 'Portugal', local: 'Lisboa', code: 'LIS', flag: '🇵🇹', lat: 38.72, lon: -9.14, open: false,
+    id: 'lisbon', city: 'Lisbon', country: 'Portugal', local: 'Lisboa', code: 'LIS', lat: 38.72, lon: -9.14, open: false,
     blurb: 'Tiled hills, yellow trams and sardines on the grill in June.',
-    menu: [['🥧', 'Pastel de nata'], ['🥪', 'Bifana'], ['🐟', 'Sardinhas']],
+    menu: [['tart', 'Pastel de nata'], ['sando', 'Bifana'], ['fish', 'Sardinhas']],
   },
   {
-    id: 'mexico', city: 'Mexico City', country: 'Mexico', local: 'CDMX', code: 'MEX', flag: '🇲🇽', lat: 19.43, lon: -99.13, open: false,
+    id: 'mexico', city: 'Mexico City', country: 'Mexico', local: 'CDMX', code: 'MEX', lat: 19.43, lon: -99.13, open: false,
     blurb: 'Taquerías on every corner and elote carts ringing their bells.',
-    menu: [['🌮', 'Tacos al pastor'], ['🌽', 'Elote'], ['🫔', 'Tamales']],
+    menu: [['taco', 'Tacos al pastor'], ['corn', 'Elote'], ['tamale', 'Tamales']],
   },
 ];
 

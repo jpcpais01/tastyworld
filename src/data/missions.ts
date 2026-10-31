@@ -1,3 +1,4 @@
+import type { IconName } from '../ui/emblems';
 import type { SaveState } from '../game/state';
 import { DISH, DISHES } from './dishes';
 import { CAPSULES } from './places';
@@ -62,13 +63,13 @@ export function missionStalls(m: Mission, s: SaveState): string[] {
   }
 }
 
-export const ITEMS: Record<string, { name: string; icon: string; desc: string }> = {
-  headband: { name: 'Hachimaki headband', icon: '🎌', desc: 'A red-and-white headband worn by festival cooks. Now you look the part.' },
-  happi: { name: 'Happi coat', icon: '🧥', desc: 'A festival jacket in indigo. Vendors nod at you with respect.' },
-  charm: { name: 'Lantern charm', icon: '🏮', desc: 'A tiny red lantern for your backpack. It glows at night.' },
-  secret: { name: 'A whisper', icon: '🐾', desc: 'The lucky cats all point down a nameless passage off Lantern Alley...' },
-  chefhat: { name: 'Itamae\'s blessing', icon: '🔪', desc: 'Chef Sato let you help behind the counter. A rare honour.' },
-  daruma: { name: 'Lucky daruma', icon: '🔴', desc: 'All eight found. Paint in the second eye, and your wish comes true.' },
-  noren: { name: 'Regular\'s noren', icon: '🎏', desc: 'The masters at Komorebi and Kikyō now greet you by name.' },
-  gold: { name: 'Gold stamp', icon: '🥇', desc: 'Your Japan passport is complete. Seoul is calling.' },
+export const ITEMS: Record<string, { name: string; icon: IconName; desc: string }> = {
+  headband: { name: 'Hachimaki headband', icon: 'headband', desc: 'A red-and-white headband worn by festival cooks. Now you look the part.' },
+  happi: { name: 'Happi coat', icon: 'coat', desc: 'A festival jacket in indigo. Vendors nod at you with respect.' },
+  charm: { name: 'Lantern charm', icon: 'lantern', desc: 'A tiny red lantern for your backpack. It glows at night.' },
+  secret: { name: 'A whisper', icon: 'paw', desc: 'The lucky cats all point down a nameless passage off Lantern Alley...' },
+  chefhat: { name: 'Itamae\'s blessing', icon: 'knife', desc: 'Chef Sato let you help behind the counter. A rare honour.' },
+  daruma: { name: 'Lucky daruma', icon: 'daruma', desc: 'All eight found. Paint in the second eye, and your wish comes true.' },
+  noren: { name: 'Regular\'s noren', icon: 'noren', desc: 'The masters at Komorebi and Kikyō now greet you by name.' },
+  gold: { name: 'Gold stamp', icon: 'medal', desc: 'Your Japan passport is complete. Seoul is calling.' },
 };

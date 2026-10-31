@@ -12,7 +12,7 @@ import { G } from './glyphs';
 
 type LatLon = { lat: number; lon: number };
 import { FLAGS, icon } from './emblems';
-import { arrivalVeil } from './arrival';
+import { arrivalVeil, nightAt, endLanding } from './arrival';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -57,6 +57,8 @@ export interface TravelHooks {
   home(): void;
   /** The hour on the clock in the city when the plane lands. */
   arrivalHour(): number;
+  /** Resolves once the city on screen is streamed in and running smoothly: time to lift the veil. */
+  settled(): Promise<void>;
   /** The map covers the whole screen: the 3D view can rest. */
   cover(on: boolean): void;
   notes(): void;
@@ -129,11 +131,13 @@ export class Travel {
       return;
     }
     if (resume && 'board' in resume && DEST[resume.board]) {
-      // the flight already landed on the page before: straight into the streets
+      // the flight already landed on the page before, and its veil is still up (boot.ts): straight into the streets
       t.classList.add('hidden');
       this.hooks.board(DEST[resume.board], null);
+      void this.hooks.settled().then(endLanding);
       return;
     }
+    endLanding();
     if (resume && 'ticket' in resume) { this.join(resume.ticket); return; }
     // a shared link carries the ticket: go straight to check-in
     const params = new URLSearchParams(location.search);
@@ -323,8 +327,7 @@ export class Travel {
     this.pending = null;
     trip.querySelector('.bp-wrap')?.remove();
     // the veil dressed for the city (clouds where there is none yet) gets ready while the plane is in the air
-    const hour = this.hooks.arrivalHour();
-    const veil = arrivalVeil($('app'), d.id, hour < 6 || hour >= 19);
+    const veil = arrivalVeil($('app'), d.id, nightAt(this.hooks.arrivalHour()));
     await this.flight(trip, from, d, d.local, d.city, 'Arrived');
     // then down into the streets through it
     this.audio.play('whoosh');
@@ -333,7 +336,10 @@ export class Travel {
     this.hooks.close();
     $('title').classList.add('hidden');
     this.hooks.board(d, coop);
-    await sleep(350);
+    // another city is built on its own page: this one leaves with the veil still covering, the next puts it back up
+    if (d.id !== CITY && isCity(d.id)) return;
+    // the veil keeps playing until the streets are in and running smoothly, then parts
+    await this.hooks.settled();
     veil.part();
   }
 
@@ -398,7 +404,7 @@ export class Travel {
       done = true;
       this.hooks.close();
       this.hooks.home();
-      await sleep(350);
+      await this.hooks.settled();
       veil.part();
     })();
   }

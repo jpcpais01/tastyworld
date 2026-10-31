@@ -1,3 +1,4 @@
+import { TIP_PER_STAR } from '../data/money';
 import { TEXT } from '../data/cityText';
 import type { Recipe, Step, Ingredient } from '../data/stalls';
 import type { Audio } from '../game/audio';
@@ -379,7 +380,7 @@ export class CookingGame {
     this.stage.innerHTML = `<div class="result">
       ${this.icon ? `<img src="${this.icon}" alt="">` : ''}
       <div class="stars-big">${G.star.repeat(stars)}<span class="off" style="display:contents">${G.star.repeat(3 - stars)}</span></div>
-      <h3>${dish.name}</h3><p>${msgs[stars - 1]}<br>Tip earned: <b>${TEXT.money(stars * 150)}</b></p></div>`;
+      <h3>${dish.name}</h3><p>${msgs[stars - 1]}<br>Tip earned: <b>${TEXT.money(stars * TIP_PER_STAR)}</b></p></div>`;
     const b = h('button', 'btn btn-red btn-hero', 'Taste it!');
     b.onclick = () => { this.stop(); this.done(stars); };
     this.stage.querySelector('.result')!.appendChild(b);

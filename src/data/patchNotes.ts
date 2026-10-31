@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.52',
+    version: '0.17.2',
     date: '2026-10-31',
     title: 'Finer, friendlier people',
     items: [
@@ -16,6 +16,74 @@ export const PATCH_NOTES: PatchNote[] = [
       'Faces have shiny eyes, soft brows, little smiles and rosy cheeks. Ears, bangs and hair strands, tied ponytails and buns.',
       'Clothes got the small stuff: belts and buckles, cuffs and hems, jacket zips and pockets, suit ties and pocket squares, cardigan buttons, pleated skirts, yukata flowers, apron pockets, backpack straps, shoe soles and laces, and a pompom on every beanie.',
       'People further off keep their simpler look, and the detailed bodies are built in the background, so busy streets stay smooth.',
+    ],
+  },
+  {
+    version: '0.17.1',
+    date: '2026-10-31',
+    title: 'Amalfi\'s cliffs come down to the road',
+    items: [
+      'At both ends of Amalfi\'s seafront the hillside no longer stands over the road as a flat wall. Beside the tunnel towards Atrani the slope now comes down to the kerb in ledges of limestone with grass and scrub, the same rock as the headland across the road, so the road plainly cuts through one cliff.',
+      'The tunnel\'s portal is lower, its brow just over the arch, and the rock shoulders up to it on both sides.',
+      'Past the harbour, where the coast road leaves town towards Positano, the mountain slopes down to the road instead of ending in a sheer cut, and the road runs on in line with the seafront.',
+      'Houses on the slope above the road reach down to the rock instead of standing on bare walls.',
+    ],
+  },
+  {
+    version: '0.17.0',
+    date: '2026-10-31',
+    title: 'Real prices everywhere',
+    items: [
+      'Every price in the game now matches what things really cost in late 2026: street food, restaurants, cafés, shops, hotel rooms, vending machines and gachapon. A takoyaki is ¥700 and a bowl of ramen ¥1,100, a sfogliatella €3 and spaghetti alle vongole €24, a simit ₺20 and a balık ekmek ₺220.',
+      'Hotels cost what they should: ¥6,500 to ¥38,000 a night in Tokyo, €130 to €650 on the Amalfi Coast and ₺1,600 to ₺9,800 in Istanbul.',
+      'New travellers set off with ¥150,000 (about €830), enough for a week of eating well and sleeping somewhere nice. Mission rewards and cooking tips grew to match, and finishing a city\'s missions goes a long way toward the next trip.',
+      'Your wallet keeps one balance across the world at real exchange rates (€1 is ¥180, or ₺60). Wallets from earlier versions have been scaled up to the new prices, and never start below ¥150,000.',
+    ],
+  },
+  {
+    version: '0.16.56',
+    date: '2026-10-31',
+    title: 'Landings without the loading screen',
+    items: [
+      'Flying to another city no longer drops you onto the old loading screen after touchdown. The arrival curtain stays up while the city is built: Tokyo\'s noren sways in the breeze with its lanterns and petals, Amalfi\'s lemon boughs stir in the sea mist, and Istanbul\'s tile wall ripples out from its centre, with a thin thread along the bottom showing how far the city has got.',
+      'The curtain now parts only once the streets around you are loaded and running smoothly, so the city never first appears mid-hitch, whether you fly across the world or take a lap over the city you are in.',
+      'The trip now starts with the camera already behind you, instead of gliding over from the title view.',
+    ],
+  },
+  {
+    version: '0.16.55',
+    date: '2026-10-31',
+    title: 'Auto-walk takes the stairs',
+    items: [
+      'When you tap somewhere or follow a map pin, your traveller now goes round by the stairs or a ramp instead of jumping down walls and terrace edges, even when the way round is a few dozen metres longer. They still hop down when there is no other way.',
+      'Walking to a map pin and the route guide can now use those hops too, so a spot below a ledge no longer says there is no way there on foot.',
+    ],
+  },
+  {
+    version: '0.16.54',
+    date: '2026-10-31',
+    title: 'Clear cathedral steps',
+    items: [
+      'The lone lamp post standing in the middle of the stairway up to Amalfi\'s cathedral is gone. The pair of lamps framing the portico at the top still lights the steps at night.',
+    ],
+  },
+  {
+    version: '0.16.53',
+    date: '2026-10-31',
+    title: 'The Duomo\'s paintings and its crucifix',
+    items: [
+      'The paintings in Amalfi\'s Duomo are repainted at twice the detail, with real scenes from the saint\'s life. The altarpiece shows Andrew\'s martyrdom on his X-shaped cross, with soldiers below and an angel bringing his crown and palm. The ceiling shows him called from his fishing boat, his martyrdom, his relics coming ashore at Amalfi in 1208, his glory in heaven, and the Immaculata among cherubs. Apostles with their keys, sword, cup and cross stand in painted niches over the arches, and the side altars hold a Madonna and Child and Saint Andrew.',
+      'A great gilt crucifix now hangs over the presbytery facing the pews, and the cross on the high altar is turned to face the people too.',
+    ],
+  },
+  {
+    version: '0.16.52',
+    date: '2026-10-31',
+    title: 'A tidier settings menu',
+    items: [
+      'Settings now sit on four tabs (Graphics, Sky, Sound and Game), so every page fits on screen with no scrollbar, on phones too.',
+      'Each setting has its own icon and a short line saying what it does, and sliders show their value in a badge as you drag.',
+      'The menu keeps the same size as you switch tabs and opens on the tab you used last.',
     ],
   },
   {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
 import { farHouses, type FarLot, type FarTower } from './farhouses';
-import { hillY, shoreY, headlandY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
+import { hillY, footY, shoreY, headlandY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
 
 /**
  * The Amalfi Coast past the edges of the playable map. The Lattari mountains climb from the town's two flanks to
@@ -42,6 +42,9 @@ export function coastX(z: number): number {
   const cove = 52 * Math.exp(-(((z + 265) / 42) ** 2));
   return 36 - t * 0.08 + 10 * Math.sin(t * 0.017) * smooth(0, 80, t) - cove;
 }
+
+/** The middle of the coast road west of the town (x), beyond the map: it leaves the map down the middle of the shore road. */
+const roadX = (z: number) => coastX(z) - 15;
 
 /** Valley floors carved into the mountains: the Mulini behind Amalfi, the Dragone behind Atrani. */
 function valley(x: number, z: number, h: number): number {
@@ -118,7 +121,7 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
   // height where the far ground meets the map: what the map itself has at its edge, so the seam is a step at most
   const edgeY = (x: number, z: number) => {
     const ex = Math.max(x0, Math.min(x1, x)), ez = Math.max(z0, Math.min(z1, z));
-    if (ex < ROAD_X0) return hillY(ex, ez) - 0.4;
+    if (ex < ROAD_X0) return Math.min(hillY(ex, ez), footY(ex, ez)) - 0.4;
     if (ex <= ROAD_X1) return ez < -52 ? hillY(ex, ez) + 4 : 1.6;
     return Math.max(shoreY(ex, ez), headlandY(ex, ez));
   };
@@ -126,9 +129,15 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
     const o = outside(x, z);
     const far = farHeight(x, z), t = smooth(0, 130, o);
     let h = edgeY(x, z) * (1 - t) + far * t;
-    // the coast road carries on out of the map, cut into the cliff a little way above the sea
-    const rd = Math.abs(x - (coastX(z) - 10));
-    if (z > z1 && rd < 4.5) h = Math.min(h, 1.6 + Math.max(0, z - z1) * 0.12);
+    // the coast road carries on out of the map a little way above the sea: the mountain comes down to it in crags,
+    // as the town's hillside does (gently by the map, as steep as the sea cliffs further on), and below it the
+    // rocks fall to the water
+    if (z > z1) {
+      const rx = roadX(z), ry = 1.6 + (z - z1) * 0.12;
+      if (x < rx - 4) h = Math.min(h, ry + 0.5 + (rx - 4 - x) * (1.6 + 0.8 * smooth(z1, z1 + 80, z)) + (fbm(x * 0.06, z * 0.06) - 0.5) * 5 * smooth(0, 4, rx - 4 - x));
+      else if (x <= rx + 4) h = Math.min(h, ry);
+      else h = Math.min(h, ry - (x - rx - 4) * 1.2);
+    }
     return h;
   };
 
@@ -149,8 +158,8 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
     const d = coastX(cz) - cx;
     let kd: Kind;
     if (h < -0.3) kd = Kind.Seabed;
-    else if (h < 2.2 && d < 14 && slope < 0.5) kd = Math.abs(d - 10) < 4.5 && cz > z1 ? Kind.Road : Kind.Beach;
-    else if (cz > z1 && Math.abs(cx - (coastX(cz) - 10)) < 4 && h < 40) kd = Kind.Road;
+    else if (h < 2.2 && d < 19 && slope < 0.5) kd = Math.abs(cx - roadX(cz)) < 4.5 && cz > z1 ? Kind.Road : Kind.Beach;
+    else if (cz > z1 && Math.abs(cx - roadX(cz)) < 4 && h < 40) kd = Kind.Road;
     // bare rock only on the sea cliffs and the sheerest crags: everything else wears scrub, woods or terraces
     else if (slope > 3 || (d < 45 && slope > 1.5)) kd = Kind.Rock;
     else if (h < 420 && slope < 1.1 && fbm(cx * 0.02, cz * 0.02) > 0.42) kd = Kind.Terrace;

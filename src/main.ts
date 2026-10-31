@@ -38,12 +38,14 @@ import { DISHES, ALL_DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
-import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity } from './world/cityId';
+import { TIP_PER_STAR } from './data/money';
+import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
+import { nightAt, dropLanding } from './ui/arrival';
 import { farCoast } from './engine/farcoast';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
-import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable } from './data/places';
+import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, VENDING_PRICE, roomName, keeperOf, Buyable } from './data/places';
 import type { RoomAnchor } from './world/interiors';
 import type { HotelAnchor, HotelRoomAnchor } from './world/hotels';
 import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo, byStairs } from './data/hotels';
@@ -130,6 +132,8 @@ class Game {
   coop: Coop | null = null;
   /** The travel map covers the screen, so the 3D world can rest. */
   private covered = false;
+  /** Veils waiting to lift until the view is streamed in and running smoothly (see settled()). */
+  private calm: { t0: number; run: number; done: () => void }[] = [];
   private remotes = new Map<string, Remote>();
   private cityMap!: CityMap;
   private beacon!: Beacon;
@@ -284,6 +288,7 @@ class Game {
       board: (d, coop) => this.start(d, coop),
       home: () => this.goHome(),
       arrivalHour: () => this.tod.hour,
+      settled: () => this.settled(),
       cover: (on) => { this.covered = on; },
       notes: () => this.ui.notes(),
       coop: () => this.coop,
@@ -311,7 +316,8 @@ class Game {
   }
 
   // ------------------------------------------------------------------ loading
-  async load(): Promise<void> {
+  /** Build the city. `boarding`: the page reloaded into it mid-landing, so stream the streets the trip starts in. */
+  async load(boarding = false): Promise<void> {
     // each worker builds the whole city but keeps only its strip of chunk rows; fewer on phones to save memory
     const cores = navigator.hardwareConcurrency || 2;
     const parts = Math.max(1, Math.min(this.r.isMobile ? 2 : 4, cores - 1));
@@ -341,9 +347,9 @@ class Game {
     this.ui.loading(0.82, TEXT.loading[0]);
     await sleep(16);
     this.buildScene();
-    // stream in what the title screen shows before lifting the curtain
+    // stream in what shows first (the title screen, or the street the plane has landed you in) before lifting the curtain
     this.ui.loading(0.86, TEXT.loading[1]);
-    this.titleView();
+    if (boarding) this.boardView(); else this.titleView();
     this.updateCamera(0.016);
     const done = this.streamer.ready();
     const tick = setInterval(() => this.streamer.update(0.05, this.streamView()), 50);
@@ -717,7 +723,7 @@ class Game {
     a.vending.forEach((v, i) => {
       this.interactables.push({
         key: `vend-${i}`, x: v[0], z: v[2], stand: [v[0], v[2]], pick: [v[0], 1.4, v[2]], r: 1.3, inside: false,
-        prompt: () => ['can', 'Vending machine', `Buy a drink · ${TEXT.money(130)}`],
+        prompt: () => ['can', 'Vending machine', `Buy a drink · ${TEXT.money(VENDING_PRICE)}`],
         act: () => this.vend(),
       });
     });
@@ -1185,6 +1191,35 @@ class Game {
     this.cam.snap();
   }
 
+  /** The camera as a trip starts, right behind the traveller. It always happens under a veil, so it snaps there. */
+  private boardView(): void {
+    this.cam.setOrbit(0);
+    this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
+    this.cam.zoom = this.r.isMobile ? 15 : 17;
+    this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
+    this.cam.snap();
+  }
+
+  /**
+   * Resolves once what the camera sees is streamed in and frames come smoothly (shaders compiled, meshes uploaded,
+   * the crowd placed): the moment to lift a veil, so the city is never first seen hitching. Gives up waiting after
+   * 8 s, whatever the frames do.
+   */
+  settled(): Promise<void> {
+    return new Promise((done) => this.calm.push({ t0: performance.now(), run: 0, done }));
+  }
+
+  /** Ten frames in a row under 50 ms with the view streamed in, at least a quarter second after asking. */
+  private checkCalm(now: number, raw: number): void {
+    const smooth = !this.covered && raw < 50 && this.streamer.settled;
+    this.calm = this.calm.filter((c) => {
+      c.run = smooth && now - c.t0 > 250 ? c.run + 1 : 0;
+      if (c.run < 10 && now - c.t0 < 8000) return true;
+      c.done();
+      return false;
+    });
+  }
+
   title(): void {
     this.titleView();
     this.ui.loaded();
@@ -1203,7 +1238,7 @@ class Game {
         this.s.trip = null;
       }
       saveNow(this.s);
-      goToCity(dest.id, { board: dest.id });
+      goToCity(dest.id, { board: dest.id, night: nightAt(this.tod.hour) });
       return;
     }
     this.started = true;
@@ -1220,9 +1255,7 @@ class Game {
       this.setCoop(coop);
     }
     if (this.s.pin) this.setPin(this.s.pin);
-    this.cam.setOrbit(0);
-    this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
-    this.cam.zoom = this.r.isMobile ? 15 : 17;
+    this.boardView();
     this.ui.showHud(true);
     this.applySettings();
     let fp = false;
@@ -1369,7 +1402,7 @@ class Game {
 
   private cooked(d: FoodId, _st: StallInfo, stars: number): number {
     this.s.cooked[d] = Math.max(this.s.cooked[d] ?? 0, stars);
-    const tip = stars * 150;
+    const tip = stars * TIP_PER_STAR;
     this.s.yen += tip;
     const isNew = !this.s.tasted[d];
     this.eat(d);
@@ -1455,8 +1488,8 @@ class Game {
   }
 
   private vend(): void {
-    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(130)}.`); return; }
-    this.s.yen -= 130;
+    if (this.s.yen < VENDING_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(VENDING_PRICE)}.`); return; }
+    this.s.yen -= VENDING_PRICE;
     const drinks = [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
     const d = drinks[Math.floor(Math.random() * drinks.length)];
     this.audio.play('coin');
@@ -1750,7 +1783,7 @@ class Game {
     };
     const p0 = this.player.position;
     // across town the search is big, so it runs off the main thread; if the worker is busy, find it here
-    if (!this.paths.find(p0.x, p0.z, pin.x, pin.z, go)) go(this.nav.findPath(p0.x, p0.z, pin.x, pin.z, PLAYER_REACH));
+    if (!this.paths.find(p0.x, p0.z, pin.x, pin.z, go, PLAYER_REACH)) go(this.nav.findPath(p0.x, p0.z, pin.x, pin.z, PLAYER_REACH));
   }
 
   private reroute(): void {
@@ -1763,7 +1796,7 @@ class Game {
       this.route = r;
       // no way there (out over the water, say): just point at it rather than searching again and again
       if (!r) this.routeT = Infinity;
-    });
+    }, PLAYER_REACH);
     this.routeT = asked ? 2.5 : 0.2;
   }
 
@@ -2516,6 +2549,7 @@ class Game {
     requestAnimationFrame((t) => this.frame(t));
     const raw = now - this.last;
     this.last = now;
+    if (this.calm.length) this.checkCalm(now, raw);
     const dt = Math.min(0.05, raw / 1000);
     this.perf.begin(raw);
     const sh = this.r.shared;
@@ -2649,16 +2683,20 @@ async function boot() {
     game = new Game();
   } catch (e) {
     console.error(e);
+    dropLanding();
     document.getElementById('load-stage')!.textContent = `Your browser needs WebGL 2 to visit ${TEXT.name}. Try a recent Chrome, Safari or Firefox.`;
     return;
   }
   try {
-    await game.load();
+    // a reload into another city mid-landing (boot.ts has the veil back up): build the street the trip starts in
+    const resume = peekResume();
+    await game.load(!!resume && 'board' in resume);
     game.title();
     // ?debug exposes the game for automated screenshots and console poking
     if (new URLSearchParams(location.search).has('debug')) (window as unknown as { game: Game }).game = game;
   } catch (e) {
     console.error(e);
+    dropLanding();
     game.ui.loadError(`Something went wrong while building ${TEXT.name}.`);
   }
 }

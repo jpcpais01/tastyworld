@@ -8,11 +8,13 @@ import { MISSIONS, ITEMS, Mission, trackedMission, SECRET_MISSION } from '../dat
 import { ROOM_TYPE, roomNo, byStairs, type HotelInfo, type HotelRoomSpec } from '../data/hotels';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { TEXT, localName } from '../data/cityText';
+import { START_PURSE } from '../data/money';
 import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
 import { G } from './glyphs';
 import { icon, IconName } from './emblems';
 import { album, sharePhoto, canShareFiles, ALBUM_MAX, type Photo } from '../game/album';
+import { landing } from './arrival';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -162,6 +164,9 @@ export class UI {
 
   // ------------------------------------------------------------------ loading + title
   loading(f: number, stage: string): void {
+    // a reload into another city mid-landing shows the arrival veil instead, with its own thread of progress
+    // (the last stretch is the streets settling in after the build, so the thread stops short of full)
+    landing()?.progress(f * 0.92);
     ($('load-fill') as HTMLElement).style.width = `${Math.max(3, Math.min(100, f * 100)).toFixed(1)}%`;
     $('load-stage').textContent = stage;
   }
@@ -184,7 +189,7 @@ export class UI {
       </div>
       <div class="hud-tr">
         <div class="glass bar">
-          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${TEXT.startPurse}</span></div>
+          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${TEXT.money(START_PURSE).slice(1)}</span></div>
           <span class="sep"></span>
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
@@ -923,23 +928,49 @@ export class UI {
   }
 
   // settings + notes ----------------------------------------------------------------------
+  /** Settings tab last shown, so reopening lands where the player left off. */
+  private setTab: 'graphics' | 'sky' | 'sound' | 'game' = 'graphics';
+
   settings(): void {
-    const p = this.panel();
+    const p = this.panel('panel settings');
     this.head(p, 'Settings', TEXT.panels.settings, '', G.gear);
-    const body = h('div', 'panel-body');
     const st = this.s.settings;
-    const group = (name: string) => {
-      body.appendChild(h('div', 'eyebrow set-label', name));
-      const g = h('div', 'set-group');
-      body.appendChild(g);
-      return g;
+    // tabs keep every page short enough to fit without scrolling
+    const tabs = h('div', 'set-tabs');
+    const seg = h('div', 'seg');
+    seg.setAttribute('role', 'tablist');
+    tabs.appendChild(seg);
+    p.appendChild(tabs);
+    const body = h('div', 'panel-body set-pages');
+    const names: [typeof this.setTab, string, string][] = [['graphics', 'Graphics', G.monitor], ['sky', 'Sky', G.sunset], ['sound', 'Sound', G.speaker], ['game', 'Game', G.sparkle]];
+    const pages: Partial<Record<typeof this.setTab, HTMLElement>> = {};
+    const show = (t: typeof this.setTab) => {
+      this.setTab = t;
+      for (const b of seg.children) {
+        const on = (b as HTMLElement).dataset.t === t;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-selected', String(on));
+      }
+      for (const [k, pg] of Object.entries(pages)) pg!.classList.toggle('on', k === t);
     };
-    const row = (g: HTMLElement, icon: string, label: string, ctl: HTMLElement) => {
-      const r = h('div', 'set-row', `<span class="sl">${icon}${label}</span>`);
+    for (const [k, n, ic] of names) {
+      const b = h('button', '', `${ic}<span>${n}</span>`);
+      b.dataset.t = k;
+      b.setAttribute('role', 'tab');
+      b.onclick = () => { if (this.setTab !== k) { this.audio.play('click'); show(k); } };
+      seg.appendChild(b);
+      const pg = h('div', 'set-page set-group');
+      pg.setAttribute('role', 'tabpanel');
+      pages[k] = pg;
+      body.appendChild(pg);
+    }
+    const row = (g: HTMLElement, icon: string, label: string, hint: string, ctl: HTMLElement) => {
+      const r = h('div', 'set-row', `<span class="sl"><i class="si">${icon}</i><span class="st"><b>${label}</b>${hint ? `<small>${hint}</small>` : ''}</span></span>`);
       r.appendChild(ctl);
       g.appendChild(r);
+      return r;
     };
-    const seg = (opts: [string, string][], cur: string, set: (v: string) => void) => {
+    const seg2 = (opts: [string, string][], cur: string, set: (v: string) => void) => {
       const sg = h('div', 'seg');
       for (const [v, n] of opts) {
         const b = h('button', v === cur ? 'on' : '', n);
@@ -955,20 +986,8 @@ export class UI {
       return sg;
     };
     const sw = (on: boolean, set: (v: boolean) => void) => toggle(on, (v) => { set(v); this.audio.play('click'); this.hooks.settingsChanged(); });
-    const look = group('Look');
-    row(look, G.monitor, 'Graphics', seg([['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], st.quality, (v) => { st.quality = v as typeof st.quality; }));
-    row(look, G.eye, 'Miniature focus', sw(st.tilt, (v) => { st.tilt = v; }));
-    const tods: [string, string][] = [['auto', 'Cycle'], ['6.4', 'Dawn'], ['12', 'Day'], ['18.2', 'Sunset'], ['22', 'Night']];
-    row(look, G.sunset, 'Time of day', seg(tods, st.timeOfDay === null ? 'auto' : String(st.timeOfDay), (v) => {
-      st.timeOfDay = v === 'auto' ? null : Number(v);
-      dayRow.classList.toggle('off', st.timeOfDay !== null);
-    }));
-    if (this.skyFromLeader) look.lastElementChild!.querySelector('.sl')!.appendChild(h('small', 'set-note', 'Your trip leader sets the sky'));
-    row(look, G.clock, 'Day length', seg([['360', '6 min'], ['720', '12 min'], ['1440', '24 min']], String(st.dayLength), (v) => { st.dayLength = Number(v); }));
-    const dayRow = look.lastElementChild as HTMLElement;
-    dayRow.classList.toggle('off', st.timeOfDay !== null);
-    // sliders that show their value next to the label while dragging and apply on release
-    const ranged = (icon: string, label: string, v0: number, text: (v: number) => string, put: (v: number) => void) => {
+    // sliders show their value as a badge while dragging and apply on release
+    const ranged = (g: HTMLElement, icon: string, label: string, hint: string, v0: number, text: (v: number) => string, put: (v: number) => void) => {
       const val = h('span', 'set-val', text(v0));
       const ctl = slider(v0, (v, done) => {
         val.textContent = text(v);
@@ -977,12 +996,16 @@ export class UI {
         this.hooks.settingsChanged();
         this.audio.play('click');
       });
-      row(look, icon, label, ctl);
-      look.lastElementChild!.querySelector('.sl')!.appendChild(val);
-      return { ctl: ctl as HTMLInputElement, val };
+      const wrap = h('div', 'set-slide');
+      wrap.append(ctl, val);
+      row(g, icon, label, hint, wrap);
+      return { ctl: ctl as HTMLInputElement, val, wrap };
     };
+
+    const gfx = pages.graphics!;
+    row(gfx, G.monitor, 'Quality', 'Auto picks for this device', seg2([['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], st.quality, (v) => { st.quality = v as typeof st.quality; }));
     const tier = st.quality === 'auto' ? (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high') : st.quality;
-    const vd = ranged(G.map, 'View distance', st.viewDist ?? VIEW_DEFAULT[tier], (v) => `${viewMetres(v)} m`, (v) => { st.viewDist = v; });
+    const vd = ranged(gfx, G.map, 'View distance', 'How far the city draws', st.viewDist ?? VIEW_DEFAULT[tier], (v) => `${viewMetres(v)} m`, (v) => { st.viewDist = v; });
     // very far: a small pill beside the slider pins the distance past its top end; off, the slider's own value comes back
     const far = h('button', 'far-pill', `${G.horizon}<span>${VERY_FAR} m</span>`);
     far.title = 'Very far view distance';
@@ -997,39 +1020,59 @@ export class UI {
       pin();
       this.hooks.settingsChanged();
     };
-    const vwrap = h('div', 'view-ctl');
-    vd.ctl.replaceWith(vwrap);
-    vwrap.append(vd.ctl, far);
+    vd.wrap.classList.add('view');
+    vd.wrap.appendChild(far);
     pin();
     const fovOf = (v: number) => Math.round(50 + v * 50);
-    ranged(G.eye, 'First-person FOV', (st.fov - 50) / 50, (v) => `${fovOf(v)}°`, (v) => { st.fov = fovOf(v); });
-    row(look, G.clock, 'Performance overlay', sw(st.perf, (v) => { st.perf = v; }));
-    const sound = group('Sound');
-    const vol = (get: () => number, put: (v: number) => void) => slider(get(), (v, done) => {
-      put(v);
-      this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol); // live while dragging; saved on release
-      if (!done) return;
-      this.hooks.settingsChanged();
-      this.audio.play('click');
-    });
-    row(sound, G.music, 'Music', vol(() => st.musicVol, (v) => { st.musicVol = v; }));
-    row(sound, G.wind, 'Ambience', vol(() => st.ambVol, (v) => { st.ambVol = v; }));
-    row(sound, G.speaker, 'Effects', vol(() => st.sfxVol, (v) => { st.sfxVol = v; }));
-    const more = group('More');
-    const nb = h('button', 'btn btn-soft', `v${PATCH_NOTES[0].version} notes`);
+    ranged(gfx, G.eye, 'First-person FOV', 'Field of view on foot', (st.fov - 50) / 50, (v) => `${fovOf(v)}°`, (v) => { st.fov = fovOf(v); });
+    row(gfx, G.focus, 'Miniature focus', 'Soft tilt-shift blur at the edges', sw(st.tilt, (v) => { st.tilt = v; }));
+
+    const sky = pages.sky!;
+    const tods: [string, string][] = [['auto', 'Cycle'], ['6.4', 'Dawn'], ['12', 'Day'], ['18.2', 'Sunset'], ['22', 'Night']];
+    row(sky, G.sunset, 'Time of day', this.skyFromLeader ? '<em>Your trip leader sets the sky</em>' : 'Let it cycle or hold one hour', seg2(tods, st.timeOfDay === null ? 'auto' : String(st.timeOfDay), (v) => {
+      st.timeOfDay = v === 'auto' ? null : Number(v);
+      dayRow.classList.toggle('off', st.timeOfDay !== null);
+    })).classList.add('wide');
+    const dayRow = row(sky, G.clock, 'Day length', 'One full day and night', seg2([['360', '6 min'], ['720', '12 min'], ['1440', '24 min']], String(st.dayLength), (v) => { st.dayLength = Number(v); }));
+    dayRow.classList.toggle('off', st.timeOfDay !== null);
+
+    const sound = pages.sound!;
+    const vol = (icon: string, label: string, hint: string, get: () => number, put: (v: number) => void) => {
+      const val = h('span', 'set-val', `${Math.round(get() * 100)}%`);
+      const ctl = slider(get(), (v, done) => {
+        put(v);
+        val.textContent = `${Math.round(v * 100)}%`;
+        this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol); // live while dragging; saved on release
+        if (!done) return;
+        this.hooks.settingsChanged();
+        this.audio.play('click');
+      });
+      const wrap = h('div', 'set-slide');
+      wrap.append(ctl, val);
+      row(sound, icon, label, hint, wrap);
+    };
+    vol(G.music, 'Music', 'Songs that follow the hour', () => st.musicVol, (v) => { st.musicVol = v; });
+    vol(G.wind, 'Ambience', 'Crowds, birds, wind and water', () => st.ambVol, (v) => { st.ambVol = v; });
+    vol(G.speaker, 'Effects', 'Steps, sizzles and taps', () => st.sfxVol, (v) => { st.sfxVol = v; });
+
+    const game = pages.game!;
+    const nb = h('button', 'btn btn-soft', `v${PATCH_NOTES[0].version}`);
     nb.onclick = () => { this.audio.play('click'); this.notes(); };
-    row(more, G.sparkle, "What's new", nb);
+    row(game, G.sparkle, "What's new", 'Patch notes for every update', nb);
+    row(game, G.gauge, 'Performance overlay', 'Frame rate in the corner', sw(st.perf, (v) => { st.perf = v; }));
     const rb = h('button', 'btn btn-soft', 'Reset');
     let armed = false;
     rb.onclick = () => {
       this.audio.play('click');
-      if (!armed) { armed = true; rb.textContent = 'Tap again to erase'; rb.className = 'btn btn-red'; return; }
+      if (!armed) { armed = true; rb.textContent = 'Tap again'; rb.className = 'btn btn-red'; return; }
       this.hooks.reset();
       this.close();
     };
-    row(more, G.trash, 'Reset progress', rb);
-    body.appendChild(h('p', 'set-foot', `Tasty World v${PATCH_NOTES[0].version} · Progress is saved on this device.`));
+    row(game, G.trash, 'Reset progress', 'Start your passport over', rb);
+
+    body.appendChild(h('p', 'set-foot', `Tasty World v${PATCH_NOTES[0].version} · Progress is saved on this device`));
     p.appendChild(body);
+    show(this.setTab);
   }
 
   notes(): void {

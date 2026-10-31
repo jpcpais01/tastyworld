@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.9',
+    date: '2026-10-31',
+    title: 'Flags, washing and windows',
+    items: [
+      'Turkish flags fly in Istanbul: a big one over Sirkeci station, and one on a pole by the door of every hotel, swinging round its pole in the wind.',
+      'Washing on the lines over the lanes is now shirts, towels and the odd long sheet, each two blocks wide, instead of thin strips.',
+      'Sirkeci station\'s front on the avenue, the Süleymaniye\'s prayer hall and its precinct wall had come out blank. Their tall windows, rows of arched windows and iron grilles are back.',
+    ],
+  },
+  {
     version: '0.16.8',
     date: '2026-10-31',
     title: 'Crown gates',

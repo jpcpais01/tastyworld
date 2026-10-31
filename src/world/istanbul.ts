@@ -57,7 +57,7 @@ function istanbulColors(b: Builder) {
     carpetRed: a(0x9a2a2a, 0.06), carpetBlue: a(0x2a3a6a, 0.06), carpetCream: a(0xe6d8b8, 0.05), carpetGold: a(0xc8963a, 0.06),
     lampRed: a(0xe84a3a, 0.03, { emit: 0.9 }), lampBlue: a(0x4a8ae8, 0.03, { emit: 0.9 }), lampGreen: a(0x4ac87a, 0.03, { emit: 0.9 }), lampAmber: a(0xf2a640, 0.03, { emit: 0.9 }),
     copper: a(0xb8693a, 0.06), brass: a(0xc8a04a, 0.05), tea: a(0xa83a1a, 0.05, { emit: 0.1 }), simit: a(0xb8743a, 0.08), simitDark: a(0x8a4a22, 0.08), sesame: a(0xe8d8a8, 0.08),
-    cartRed: a(0xc8302a, 0.03), cartGlass: a(0xe8f0f2, 0.02, { glass: true }), chrome: a(0xb8bec4, 0.03), tramWhite: a(0xf2f2ee, 0.02), tramRed: a(0xc8282a, 0.03), rail: a(0x8a8580, 0.05), sleeper: a(0x5a4636, 0.06),
+    cartRed: a(0xc8302a, 0.03), flagRed: a(0xd8202a, 0.02), cartGlass: a(0xe8f0f2, 0.02, { glass: true }), chrome: a(0xb8bec4, 0.03), tramWhite: a(0xf2f2ee, 0.02), tramRed: a(0xc8282a, 0.03), rail: a(0x8a8580, 0.05), sleeper: a(0x5a4636, 0.06),
     lampGlow: a(0xffd89a, 0.03, { emit: 0.9, night: true }), lampGlowAlways: a(0xffd89a, 0.03, { emit: 0.85 }), ember: a(0xff7a2a, 0.05, { emit: 0.9 }),
     nazarBlue: a(0x1f4fb8, 0.03, { emit: 0.15 }), nazarLight: a(0x7ab8f0, 0.03), nazarWhite: a(0xf8f8f4, 0.02), nazarDark: a(0x14141a, 0.02),
   };
@@ -71,6 +71,9 @@ type IC2 = ReturnType<typeof istanbulColors>;
  * A lot seen from its street: a runs along the front (0..W-1), d goes in from the front wall (0..D-1).
  * `out` is the direction from the front into the street.
  */
+/** v mod m, never negative: world voxel coordinates run below zero west and south of the origin. */
+const pm = (v: number, m: number) => ((v % m) + m) % m;
+
 class Frame {
   W: number; D: number; out: [number, number];
   constructor(readonly lt: LotPlan) {
@@ -394,6 +397,25 @@ function vapur(c: IC2): Prop {
   for (let x = 16; x < 120; x += 14) for (const z of [Math.round(cz - half(x)), Math.round(cz + half(x))]) { p.set(x, 10, z, c.hullRed); p.set(x, 11, z, c.white); }
   p.box(3, 12, 16, 3, 24, 16, c.white);
   p.box(4, 20, 16, 10, 24, 16, (x, y) => (Math.hypot(x - 6.5, y - 22) < 1.4 && x < 7 ? c.white : c.hullRed));
+  return p;
+}
+
+/**
+ * The Turkish flag on its pole: red, the white crescent and star near the hoist, swinging round the pole in the
+ * wind. Eighth-metre voxels, six metres of pole, the flag two and a quarter metres across. Flies along +x.
+ */
+function turkishFlag(c: IC2): Prop {
+  const W = 19, H = 49, F0 = 36;
+  const p = new Prop(W, H, 1);
+  p.box(0, 0, 0, 0, H - 2, 0, c.chrome);
+  p.set(0, H - 1, 0, c.gold);
+  for (let y = F0; y < F0 + 12; y++) for (let x = 1; x < W; x++) {
+    const cy = F0 + 5.5, dy = y - cy;
+    const outer = Math.hypot(x - 6, dy) <= 3.6, inner = Math.hypot(x - 7, dy) <= 2.9;
+    const star = (x === 10 && Math.abs(dy) <= 1.5) || (Math.abs(x - 10) <= 1.5 && Math.abs(dy) <= 0.5);
+    p.set(x, y, 0, (outer && !inner) || star ? c.white : c.flagRed);
+  }
+  p.sway(SWAY.flag, [0.5, F0, 0.5], [0, 1, 0], (x, y) => x >= 1 && y >= F0);
   return p;
 }
 
@@ -1151,6 +1173,9 @@ function hotel(ctx: Ctx, f: Frame, lt: LotPlan, index: number, touched: boolean)
     f.box(g, 1, base + 11, -1, W - 2, base + 12, -1, (a, yy) => ((a + yy) % 3 === 0 && a > 2 && a < W - 3 ? c.gold : c.signBlue));
     f.box(g, da - 2, base + 9, -1, da + 5, base + 9, -5, c.signBlue);
     for (const a of [da - 2, da + 5]) f.box(g, a, base, -5, a, base + 8, -5, c.brass);
+    // the flag on its pole by the door, flying along the front
+    const [px, pz] = f.m(Math.max(1, da - 5), -1.5);
+    b.place(turkishFlag(c), px, y, pz, f.turnOut);
     // the desk, the keys behind it, a sofa for waiting
     f.box(g, A0 + 3, base, D0 + 6, A0 + 5, base + 3, D0 + 12, c.woodDark);
     f.box(g, A0 + 3, base + 4, D0 + 6, A0 + 5, base + 4, D0 + 12, c.marble);
@@ -1167,6 +1192,7 @@ function hotel(ctx: Ctx, f: Frame, lt: LotPlan, index: number, touched: boolean)
     const [ex, ez] = f.m(da + 1.5, -3);
     b.lamp(ex, y + 2.1, ez, WARM, 5, 0.7);
   }
+  { const [px, pz] = f.m(Math.max(1, da - 5), -1.5); b.block(px - 0.12, pz - 0.12, px + 0.12, pz + 0.12); }
   const [rx0, rz0] = f.m(A0 - 0.5, D0 - 0.5), [rx1, rz1] = f.m(A1 + 0.5, D1 + 0.5);
   const nth = b.roomCount.hotel = (b.roomCount.hotel ?? -1) + 1;
   const deskKeeper = f.m(A0 + 1.5, D0 + 9.5);
@@ -1483,7 +1509,7 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
       if (!edge) return c.limeDark;
       const u = x === X0 || x === X1 ? z : x;
       const row = yy - Y;
-      const win = ((row >= 6 && row <= 14) || (row >= 22 && row <= 30)) && u % 8 >= 3 && u % 8 <= 5;
+      const win = ((row >= 6 && row <= 14) || (row >= 22 && row <= 30)) && pm(u, 8) >= 3 && pm(u, 8) <= 5;
       if (win) return row === 14 || row === 30 ? c.limeLight : c.glassLit;
       if (row === H || row === H - 1 || row === 18) return c.limeLight;
       return (row >> 1) % 4 === 0 ? c.limeDark : c.lime;
@@ -1647,7 +1673,7 @@ function suleymaniye(ctx: Ctx): void {
       const mx = (x + 0.5) * V, mz = (z + 0.5) * V;
       const gate = (x === X1 && Math.abs(mz + 10) < 2.5) || (z === Z1 && Math.abs(mx + 137) < 2.5) || (z === Z1 && Math.abs(mx + 120) < 2) ;
       if (gate) continue;
-      g.box(x, plan.walk[col(x, z)], z, x, Y + 9, z, (xx, y, zz) => (y === Y + 9 ? c.lead : y > Y + 3 && y < Y + 7 && (xx + zz) % 12 < 4 ? c.iron : c.lime));
+      g.box(x, plan.walk[col(x, z)], z, x, Y + 9, z, (xx, y, zz) => (y === Y + 9 ? c.lead : y > Y + 3 && y < Y + 7 && pm(xx + zz, 12) < 4 ? (y === Y + 4 || pm(xx + zz + y, 2) === 0 ? c.iron : 0) : c.lime));
       b.block(mx - 0.13, mz - 0.13, mx + 0.13, mz + 0.13);
     }
   }
@@ -1699,8 +1725,8 @@ function station(ctx: Ctx): void {
     const edge = x === X0 || x === X1 || z === Z0 || z === Z1;
     if (!edge) return c.brickDark;
     const row = y - Y, u = x === X0 || x === X1 ? z : x;
-    if (row >= 6 && row <= 16 && u % 10 >= 3 && u % 10 <= 6) return row > 14 ? c.limeLight : c.glassLit;
-    if (row >= 21 && row <= 28 && u % 10 >= 4 && u % 10 <= 5) return c.glass;
+    if (row >= 6 && row <= 16 && pm(u, 10) >= 3 && pm(u, 10) <= 6) return row > 14 ? c.limeLight : c.glassLit;
+    if (row >= 21 && row <= 28 && pm(u, 10) >= 4 && pm(u, 10) <= 5) return c.glass;
     return (row >> 1) % 3 === 0 ? c.limeLight : c.brick;
   });
   g.box(X0, Y + 35, Z0, X1, Y + 35, Z1, c.leadDark);
@@ -1716,6 +1742,8 @@ function station(ctx: Ctx): void {
     for (let y = 0; y < 10; y++) g.box(X0 - 1 + y / 2, Y + 51 + y, tz - 4 + y / 2, X0 + 7 - y / 2, Y + 51 + y, tz + 4 - y / 2, c.lead);
   }
   b.lamp(sx0 - 1, QUAY_Y + 3, (sz0 + sz1) / 2, WARM, 8, 0.8);
+  // the flag over the station, flying out over the avenue
+  b.place(turkishFlag(c), (sx0 + sx1) / 2, QUAY_Y + 36 * V, (sz0 + sz1) / 2, 2);
 }
 
 // ------------------------------------------------------------------------------------------- water, bridge, square
@@ -1967,18 +1995,25 @@ function washingLines(ctx: Ctx): void {
       const Y = Math.min(hi, Math.max(lo, layerOf(y + 4.3 + r() * 0.8)));
       const span = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(span / (V * 0.5));
       const ax2 = (x1 - x0) / span, az2 = (z1 - z0) / span;
-      let last = -1;
+      // the cells the line runs through, then the washing pegged along it: shirts and towels two cells wide with
+      // a gap between, a long sheet now and then, each swinging on its own from the line
+      const cells: [number, number][] = [];
       for (let i = 0; i <= n; i++) {
         const k = i / n, vx = Math.floor((x0 + (x1 - x0) * k) / V), vz = Math.floor((z0 + (z1 - z0) * k) / V);
-        const key = vx * 4096 + vz;
-        if (key === last) continue;
-        last = key;
-        if (!g.get(vx, Y, vz)) g.set(vx, Y, vz, c.iron);
-        if (i % 4 === 2 && hash3(vx, Y, vz) < 0.75 && i > 2 && i < n - 2 && g.touches(vx, vz, vx, vz)) {
-          const drop = hash3(vz, Y, vx) < 0.25 ? 5 : 3;
-          const cl = cols[Math.floor(hash3(vx, 3, vz) * cols.length)];
-          const id = b.addSway({ ...SWAY.laundry, pivot: [(vx + 0.5) * V, (Y + 0.5 - G) * V, (vz + 0.5) * V], axis: [ax2, 0, az2], reach: 0 });
-          for (let yy = Y - drop; yy < Y; yy++) if (!g.get(vx, yy, vz)) { g.set(vx, yy, vz, cl); b.swayCell(vx, yy, vz, id); }
+        const lc = cells[cells.length - 1];
+        if (!lc || lc[0] !== vx || lc[1] !== vz) cells.push([vx, vz]);
+      }
+      for (const [vx, vz] of cells) if (!g.get(vx, Y, vz)) g.set(vx, Y, vz, c.iron);
+      for (let j = 2; j + 1 < cells.length - 2; j += 3) {
+        const [vx, vz] = cells[j];
+        if (hash3(vx, Y, vz) > 0.75 || !g.touches(vx, vz, vx, vz)) continue;
+        const h = hash3(vz, Y, vx), sheet = h < 0.2;
+        const cl = cols[Math.floor(hash3(vx, 3, vz) * cols.length)];
+        const id = b.addSway({ ...SWAY.laundry, pivot: [(vx + 0.5) * V, (Y + 0.5 - G) * V, (vz + 0.5) * V], axis: [ax2, 0, az2], reach: 0 });
+        for (const [w, [cx2, cz2]] of [cells[j], cells[j + 1]].entries()) {
+          // a shirt's sleeves are a row shorter than its body; a towel and a sheet hang square
+          const drop = sheet ? 6 : h < 0.55 ? 4 - w : 3;
+          for (let yy = Y - drop; yy < Y; yy++) if (!g.get(cx2, yy, cz2)) { g.set(cx2, yy, cz2, (yy === Y - 1 && h > 0.85) ? c.white : cl); b.swayCell(cx2, yy, cz2, id); }
         }
       }
       b.wires.push([x0, z0, x1, z1, (Y + 1 - G) * V, 0.05]);

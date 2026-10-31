@@ -25,7 +25,7 @@ export function foodColors(pal: Palette) {
     shrimp: a(0xf28a5a, 0.05), shrimpStripe: a(0xfbe2d2, 0.03), tamago: a(0xf6cf4a, 0.05), tamagoDark: a(0xd9a62a, 0.06),
     ikura: a(0xff6a2a, 0.1, 0.15), geta: a(0xc99a62, 0.05), getaDark: a(0x8a6038, 0.05), wasabi: a(0x8cbf4a, 0.06), ginger: a(0xf4b6b0, 0.05),
     paper: a(0xf6efe0, 0.03), paperRed: a(0xc8372d, 0.04), shiso: a(0x3f8a3a, 0.08),
-    custard: a(0xf6d878, 0.04), caramel: a(0x8a4a1a, 0.06), cream: a(0xfbf6ec, 0.02), cherry: a(0xd8202a, 0.04), glass: a(0xdcecf2, 0.02),
+    custard: a(0xf6d878, 0.04), caramel: a(0x8a4a1a, 0.06), cream: a(0xfbf6ec, 0.02), cherry: a(0xd8202a, 0.04), glass: pal.add(0xdcecf2, { glass: true }),
     pasta: a(0xe8823a, 0.08), pastaHi: a(0xf2a050, 0.06), pepper: a(0x4a9a3a, 0.08), sausage: a(0xc0504a, 0.06), onion: a(0xf3ecd8, 0.04), parmesan: a(0xf8f0d0, 0.04),
     zaru: a(0xc9a46a, 0.05), zaruDark: a(0x9a7a48, 0.05), sobaN: a(0x9c8a72, 0.07), sobaHi: a(0xb4a28a, 0.06), tsuyu: a(0x3a2010, 0.04), choko: a(0x2b3a62, 0.03), negi: a(0x9ccf6a, 0.08),
     tempura: a(0xf0c878, 0.12), tempuraHi: a(0xf8dc9a, 0.1), tail: a(0xe8603a, 0.05), shiso2: a(0x2f7a32, 0.08), daikon: a(0xf4f1e8, 0.04),

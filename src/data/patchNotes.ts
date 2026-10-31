@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.12',
+    date: '2026-10-31',
+    title: 'Glass',
+    items: [
+      'Tokyo\'s windows are real glass now: they mirror the sky and its drifting clouds, catch the sun, and show a dim room behind them. At night the lit ones still glow.',
+      'Each pane leans a hair, so glass towers break the sky into a shimmering mosaic, and the reflections slide past as you walk.',
+      'Shopfronts, konbini windows, the station and the glass office towers, vending machines, corner mirrors, shop display cases and drink glasses all got the same glass.',
+    ],
+  },
+  {
     version: '0.15.11',
     date: '2026-10-31',
     title: 'Lucciole',

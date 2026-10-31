@@ -78,14 +78,14 @@ export interface ShopFloorOpts {
 }
 
 export function interiorColors(pal: Palette) {
-  const a = (hex: number, vary = 0.05, o: { emit?: number; night?: boolean } = {}) => pal.add(hex, { vary, ...o });
+  const a = (hex: number, vary = 0.05, o: { emit?: number; night?: boolean; glass?: boolean } = {}) => pal.add(hex, { vary, ...o });
   return {
     plank: a(0xa8744a, 0.08), plankB: a(0x93613c, 0.08), plankDark: a(0x5e3b26, 0.07), plankLight: a(0xc9a172, 0.07),
     tileW: a(0xeeece6, 0.03), tileG: a(0xc9ccc9, 0.03), tileTerra: a(0xc0704a, 0.06), tileCream: a(0xe8d6b0, 0.05),
     checkB: a(0x2e2a2c, 0.03), checkW: a(0xf0ece2, 0.03), doma: a(0x7a736c, 0.08), domaB: a(0x6a635d, 0.08),
     plaster: a(0xeee4cf, 0.03), sage: a(0xcfdcc4, 0.03), paperWall: a(0xe2d2ae, 0.04), wain: a(0x6e4630, 0.06), wainDark: a(0x4a2e20, 0.06),
     velvet: a(0xa8323a, 0.05), velvetDark: a(0x7e2229, 0.05), brick: a(0x9a4a32, 0.08), brickB: a(0x86402c, 0.08),
-    fridge: a(0xe9f5fb, 0.02, { emit: 0.7 }), case: a(0xd6eef5, 0.02, { emit: 0.35 }), oven: a(0xff8a3a, 0.05, { emit: 0.9 }),
+    fridge: a(0xe9f5fb, 0.02, { emit: 0.7 }), case: a(0xd6eef5, 0.02, { emit: 0.35, glass: true }), oven: a(0xff8a3a, 0.05, { emit: 0.9 }),
     ice: a(0xdff1f6, 0.05), styro: a(0xf3f3ee, 0.02), fishA: a(0xa8b4bc, 0.08), fishB: a(0xd9604a, 0.06), fishC: a(0x4a5560, 0.06), tank: a(0x4f8fb0, 0.03, { emit: 0.3 }),
     flowerR: a(0xe0473f, 0.08), flowerY: a(0xf5cf3a, 0.08), flowerP: a(0x8d5fc0, 0.08), flowerW: a(0xfbf8f0, 0.04), flowerO: a(0xf29a3c, 0.08), flowerK: a(0xf3a6b9, 0.06),
     stem: a(0x4f8a3a, 0.12), stemDark: a(0x35662c, 0.12), bucket: a(0x9aa6b0, 0.04),

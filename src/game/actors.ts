@@ -74,6 +74,9 @@ const FIDGETS = 5;
  * drop as the stance leg swings, the weight shifts over the standing foot and the arms swing
  * against the legs. Other actions cross-fade from whatever pose the actor was in.
  */
+/** Hands each body its own slot in the animation stagger (see Actor.step). */
+let nextSlot = 0;
+
 export class Actor {
   /** Called whenever a foot touches the ground in the walk or run cycle (footstep sounds). */
   static onStep: ((a: Actor, run: boolean) => void) | null = null;
@@ -234,6 +237,22 @@ export class Actor {
     this.uCharLamp.value.set(tmpL[2], tmpL[3], tmpL[4]);
     this.writeLight();
   }
+
+  /**
+   * Animates every `every`-th frame (staggered across bodies so the work spreads evenly), catching up on
+   * the time skipped. Far people in a big crowd move just as far, their limbs are posed less often.
+   * Returns whether it posed this frame. A body not built yet always poses, so it appears at once.
+   */
+  step(dt: number, every: number, frame: number): boolean {
+    this.lag += dt;
+    if (every > 1 && this.body >= 0 && (frame + this.lodSlot) % every !== 0) return false;
+    const t = Math.min(this.lag, 0.1);
+    this.lag = 0;
+    this.update(t);
+    return true;
+  }
+  private lag = 0;
+  private readonly lodSlot = nextSlot++;
 
   update(dt: number): void {
     this.ensure();

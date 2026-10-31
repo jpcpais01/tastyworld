@@ -83,6 +83,10 @@ interface Walker {
   greetCool: number;
   /** Carries something to sell and calls it out (Istanbul's simit sellers). */
   hawker: boolean;
+  /** A nook this walker means to stop at, waiting on its route. */
+  nook: Taken | null;
+  /** The junction a neighbourhood regular lives by and keeps near (-1: ranges across town). */
+  home: number;
   nearT: number;
   stuck: number;
   stuckRef: V2;
@@ -136,6 +140,7 @@ const SNACK_ROOMS: RoomKind[] = ['bakery', 'cafe', 'konbini'];
 const NO_RIDE = new Set(['ginza', 'park', 'midori', 'inari', 'yokocho', 'passage', 'station', 'plaza', 'kaminari', 'canal', 'farbank']);
 const BIKE_SEAT = 0.42, SCOOTER_SEAT = 0.3; // rider origin above the ground
 const CELL = 2;
+const ROUTE_CACHE = 8000;
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -233,6 +238,15 @@ export class Crowd {
   private sento: { door: V2; front: V2 } | null;
   private jog: V2[];
   private parkNode = -1;
+  /** Corners off the street graph (alley mouths, doorsteps, courtyards, lane ends) where people stop a while. */
+  private nooks: Taken[] = [];
+  /** Per graph node: the nooks within a short walk of it. */
+  private nookNear: number[][] = [];
+  /** Walkable ground per district (m²), and how much each district draws wanderers to even the crowd out. */
+  private zoneArea = new Map<string, number>();
+  private zoneBal = new Map<string, number>();
+  /** Walkable ground closest to each graph node (m²): people live where the ground is, not where junctions bunch up. */
+  private nodeArea: Float32Array = new Float32Array(0);
   private viewR = 40;
   private pl: CrowdPlayer = { x: 0, z: 0, speed: 0, running: false, eating: false, facing: 0 };
   private boats: Boats | SeaBoats | null = null;
@@ -298,6 +312,7 @@ export class Crowd {
     this.gates = sp.gates.filter((g) => this.free(g.front[0], g.front[1]) && this.free(g.back[0], g.back[1]));
     this.meet = taken(sp.meet.filter(ok));
     this.windows = taken(sp.windows.filter((s) => ok(s) && facade(s)));
+    this.survey();
     this.sento = this.free(sp.sento.front[0], sp.sento.front[1]) ? sp.sento : null;
     this.jog = sp.jog.filter(([x, z]) => this.free(x, z));
     if (this.jog.length < 10) this.jog = [];
@@ -307,6 +322,107 @@ export class Crowd {
       this.exercise = new Exercise(sp.exercise, make, (x, z) => this.free(x, z, 0.3), (x, z) => this.nav.heightAt(x, z));
       if (sp.beach) this.beach = new Beach(sp.beach, (x, z) => this.nav.heightAt(x, z));
     }
+  }
+
+  /**
+   * Walks the whole walkable map once: how much ground each district has (so a crowd spreads over all
+   * of it, not just the avenues), and the nooks off the street graph where people loiter, so the side
+   * lanes, courtyards and alley ends have someone in them too.
+   */
+  private survey(): void {
+    const N = this.nodes, E = this.a.graph.edges;
+    if (!N.length) return;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const [x, z] of N) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
+    x0 -= 12; z0 -= 12; x1 += 12; z1 += 12;
+    const inRoom = (x: number, z: number) => this.a.rooms.some((r) => x >= r.rect[0] - 0.4 && x <= r.rect[2] + 0.4 && z >= r.rect[1] - 0.4 && z <= r.rect[3] + 0.4);
+    const toEdge = (x: number, z: number) => {
+      let best = Infinity;
+      for (const [i, j] of E) {
+        const [ax, az] = N[i], [bx, bz] = N[j], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+        best = Math.min(best, Math.hypot(ax + dx * t - x, az + dz * t - z));
+      }
+      return best;
+    };
+    const busy: V2[] = [
+      ...this.a.rooms.map((r): V2 => [r.door[0], r.door[1]]),
+      ...this.a.stalls.flatMap((s): V2[] => [[s.stand[0], s.stand[1]], [s.vendor[0], s.vendor[1]]]),
+      ...this.a.benches.map(([x, z]): V2 => [x, z]),
+      ...this.a.stools.map(([x, z]): V2 => [x, z]),
+    ];
+    const S = 2;
+    this.nodeArea = new Float32Array(N.length);
+    for (let x = x0; x <= x1; x += S) for (let z = z0; z <= z1; z += S) {
+      if (!this.free(x, z)) continue;
+      const zn = zoneAt(x, z)?.id ?? '';
+      this.zoneArea.set(zn, (this.zoneArea.get(zn) ?? 0) + S * S);
+      let bi = 0, bd = Infinity;
+      for (let i = 0; i < N.length; i++) { const d = (N[i][0] - x) ** 2 + (N[i][1] - z) ** 2; if (d < bd) { bd = d; bi = i; } }
+      if (bd < 30 * 30) this.nodeArea[bi] += S * S;
+      // nooks: on a 4 m lattice, off the street graph, outside shops and clear of doors, stalls and seats
+      if ((Math.round(x / S) + Math.round(z / S)) % 2 || inRoom(x, z) || !this.free(x, z, 0.4)) continue;
+      const de = toEdge(x, z);
+      if (de < 2.2 || de > 26 || busy.some(([bx, bz]) => Math.hypot(bx - x, bz - z) < 1.8)) continue;
+      // face whatever is close (a wall, a doorway, a shop window), else look out over the lane
+      let face = Math.random() * Math.PI * 2;
+      for (let k = 0; k < 8; k++) {
+        const f = (k / 8) * Math.PI * 2;
+        if (!this.nav.canStand(x + Math.sin(f) * 0.9, z + Math.cos(f) * 0.9, this.nav.standHeightVox(x, z), 0.1)) { face = Math.random() < 0.5 ? f : f + Math.PI; break; }
+      }
+      this.nooks.push({ x: x + rnd(-0.4, 0.4), z: z + rnd(-0.4, 0.4), face, taken: null });
+    }
+    this.nookNear = N.map(([nx, nz]) => this.nooks.flatMap((s, i) => (Math.hypot(s.x - nx, s.z - nz) < 24 ? [i] : [])));
+  }
+
+  /** Once a second: districts with fewer people than their share of the ground draw more of the wanderers. */
+  private balance(): void {
+    let total = 0, out = 0;
+    for (const a of this.zoneArea.values()) total += a;
+    const count = new Map<string, number>();
+    for (const w of this.walkers) {
+      if (w.hidden) continue;
+      out++;
+      const p = w.actor.position, zn = zoneAt(p.x, p.z)?.id ?? '';
+      count.set(zn, (count.get(zn) ?? 0) + 1);
+    }
+    if (!total || out < 10) return;
+    for (const [zn, a] of this.zoneArea) {
+      const want = a / total, have = (count.get(zn) ?? 0) / out;
+      this.zoneBal.set(zn, Math.max(0.3, Math.min(3, Math.sqrt(want / Math.max(have, want * 0.1)))));
+    }
+  }
+
+  private bal(zone: string): number {
+    return this.zoneBal.get(zone) ?? 1;
+  }
+
+  /** Stopping a while somewhere off the main street: a call, a smoke-break stare, a photo, a look at a door. */
+  private loiter(w: Walker): boolean {
+    const near = this.nookNear[w.node];
+    if (!near?.length) return false;
+    for (let k = 0; k < 4 && near.length; k++) {
+      // a nook picked last time whose route was still being found is tried first
+      const ni = Math.floor(Math.random() * near.length);
+      const s = k === 0 && w.nook ? w.nook : this.nooks[near[ni]];
+      w.nook = null;
+      if (s.taken || this.obstacles.some(([ox, oz]) => Math.hypot(ox - s.x, oz - s.z) < 1)) continue;
+      const long = w.persona === 'elder' ? 1.6 : w.persona === 'commuter' ? 0.6 : 1;
+      const steps: Step[] = [{ anim: 'idle', t: rnd(1, 3) * long }];
+      const r = Math.random();
+      if (w.persona === 'tourist' && r < 0.5) steps.push({ anim: 'photo', t: 2.5 }, { anim: 'idle', t: rnd(2, 4) }, { anim: 'photo', t: 2.5 });
+      else if (r < 0.4) steps.push({ anim: 'phone', t: rnd(6, 16) * long, hold: 'phone' });
+      else if (r < 0.7) steps.push({ anim: 'browse', t: rnd(3, 8) * long });
+      else steps.push({ anim: 'idle', t: rnd(5, 12) * long, face: s.face + Math.PI });
+      steps.push({ anim: 'idle', t: rnd(0.5, 2) });
+      if (this.planSeq(w, s, steps)) return true;
+      const key = `${w.node}>spot:${s.x.toFixed(2)},${s.z.toFixed(2)}`;
+      // the route is still being worked out: wait a moment and come back to this nook
+      if (this.asking.has(key)) { w.nook = s; w.doing = { k: 'wait', t: 0.3, anim: 'idle' }; return true; }
+      // out of reach from this junction (a roof, a walled yard): never try it from here again
+      if (this.routes.get(key)?.length === 0) { const i = near.indexOf(this.nooks.indexOf(s)); if (i >= 0) near.splice(i, 1); }
+    }
+    return false;
   }
 
   private free(x: number, z: number, r = 0.16): boolean {
@@ -330,7 +446,16 @@ export class Crowd {
     if (!this.make) return;
     const mk = this.make;
     const n = this.nodes.length;
-    const startNode = (ride = false) => { for (;;) { const i = Math.floor(Math.random() * n); if (!ride || this.rideOk[i]) return i; } };
+    // everyone lives somewhere: spread over the city by how much ground each junction has around it
+    let areaSum = 0;
+    for (let i = 0; i < n; i++) areaSum += this.nodeArea[i] ?? 0;
+    const startNode = (ride = false) => {
+      for (;;) {
+        let i = Math.floor(Math.random() * n);
+        if (areaSum > 0) { let r = Math.random() * areaSum; for (i = 0; i < n - 1 && (r -= this.nodeArea[i]) > 0; i++); }
+        if (!ride || this.rideOk[i]) return i;
+      }
+    };
     let prev: Walker | null = null;
     for (let i = 0; i < size.walkers; i++) {
       const look = lookFor(seed + i * 7, null);
@@ -338,6 +463,8 @@ export class Crowd {
       if (ISTANBUL && i % 10 === 3) Object.assign(look, { tray: true, hat: 'none', topStyle: 'vest', top: 0xf4f1ea, accent: 0x8a2e2a, skirt: false, moustache: i % 20 === 3 });
       const pair = i % 5 === 4 && prev && !prev.mate;
       prev = this.add(mk.person(look), look, pair ? prev!.node : startNode(), pair ? prev! : undefined);
+      // locals and elders keep mostly to their own few streets; everyone else ranges across town
+      if (prev.persona === 'local' || prev.persona === 'elder') prev.home = prev.node;
     }
     for (let i = 0; i < size.joggers; i++) {
       const look = lookFor(seed + 5000 + i * 11, 'jogger');
@@ -373,7 +500,7 @@ export class Crowd {
       food: 0, hidden: false, wantHome: false, lead: null, mate: null, mateSeat: null,
       chatCool: rnd(5, 25), greetCool: rnd(0, 20), nearT: 0, stuck: 0, stuckRef: [0, 0], run: mode === 'jog', ghost: 0, from: null, hideT: 0,
       dest: -1, place: null, ring: -1, laps: 0, pet: null, ride: null, out: Math.random(), dist: 0, unseen: 0, acc: Math.random() * 0.25,
-      hawker: !!look.tray,
+      hawker: !!look.tray, nook: null, home: -1,
     };
     const [nx, nz] = this.nodes[node];
     actor.position.set(nx + rnd(-1, 1), this.nav.heightAt(nx, nz), nz + rnd(-1, 1));
@@ -452,7 +579,7 @@ export class Crowd {
       const l = this.grid.get(k);
       if (l) l.push(w); else this.grid.set(k, [w]);
     }
-    const nearR = viewR + 10;
+    const nearR = viewR + 10, midR = Math.max(20, viewR * 0.5);
     for (const w of ws) {
       if (w.hidden) continue;
       // far from the player: a few cheap ticks a second
@@ -460,9 +587,11 @@ export class Crowd {
       const near = w.dist < nearR;
       // going home: slip away as soon as nobody can see
       if (w.wantHome && !w.lead && w.dist > viewR + 4 && !w.doing) { this.hide(w); if (w.mate) this.hide(w.mate); continue; }
-      if (!near) {
+      // out at the edge of the view: still smooth to the eye at 40 steps a second
+      const tick = !near ? 0.25 : w.dist > midR ? 1 / 40 : 0;
+      if (tick > 0) {
         w.acc += dt;
-        if (w.acc < 0.25) continue;
+        if (w.acc < tick) continue;
         step = Math.min(w.acc, 0.5);
         w.acc = 0;
       }
@@ -521,14 +650,20 @@ export class Crowd {
     const r = this.routes.get(key);
     if (r) return r;
     if (this.router) {
-      if (!this.asking.has(key) && this.router.find(ax, az, bx, bz, (p) => { this.asking.delete(key); this.routes.set(key, arrive(p, bx, bz)); })) this.asking.add(key);
+      if (!this.asking.has(key) && this.router.find(ax, az, bx, bz, (p) => { this.asking.delete(key); this.remember(key, arrive(p, bx, bz)); })) this.asking.add(key);
       return undefined;
     }
     if (this.budget <= 0) return undefined;
     this.budget--;
     const p = arrive(this.nav.findPath(ax, az, bx, bz), bx, bz);
-    this.routes.set(key, p);
+    this.remember(key, p);
     return p;
+  }
+
+  /** Keeps a found route, forgetting the oldest once there are plenty (nooks make for a great many). */
+  private remember(key: string, p: V2[]): void {
+    if (this.routes.size >= ROUTE_CACHE) this.routes.delete(this.routes.keys().next().value!);
+    this.routes.set(key, p);
   }
 
   private setPath(w: Walker, path: V2[], goal: Goal): void {
@@ -717,6 +852,7 @@ export class Crowd {
   private choose(w: Walker, hour: number): void {
     if (w.mode === 'jog') { this.chooseJog(w, hour); return; }
     if (w.mode === 'ride') { this.chooseRide(w, hour); return; }
+    if (w.nook) { if (!w.nook.taken && this.loiter(w)) return; w.nook = null; }
     // on the way somewhere: keep going, or do the thing on arrival
     if (w.dest >= 0) {
       if (w.node === w.dest) {
@@ -784,6 +920,11 @@ export class Crowd {
             return this.plan(w, `room:${r.id}:${sx.toFixed(2)}`, [sx, sz], { k: 'shop', room: r, face: angTo(sx, sz, buy.pos[0], buy.pos[2]) });
           },
         });
+      }
+      // off down a side lane or into a courtyard to stop a while
+      if (within(hour, 6, 23.5) && this.nookNear[w.node]?.length) {
+        const like = { elder: 1.7, local: 1.5, tourist: 1.1, student: 1.2, commuter: 0.35, dogwalker: 0.8 } as Partial<Record<Persona, number>>;
+        opts.push({ w: like[w.persona] ?? 0.4, go: () => this.loiter(w) });
       }
       // a look in a shop window on the way
       if (within(hour, 9.5, 23) && !w.pet) {
@@ -857,7 +998,14 @@ export class Crowd {
       }
     } else {
       let total = 0;
-      const ws = nb.map((v) => { const x = zoneDraw(this.zones[v], hour) * (v === w.prev && nb.length > 1 ? 0.15 : 1); total += x; return x; });
+      const hn = w.home >= 0 ? this.nodes[w.home] : null;
+      const ws = nb.map((v) => {
+        // a regular strays a block or two from home, then drifts back
+        const tether = hn ? (Math.hypot(this.nodes[v][0] - hn[0], this.nodes[v][1] - hn[1]) > 40 ? 0.15 : 1) : 1;
+        const x = zoneDraw(this.zones[v], hour) * this.bal(this.zones[v]) * tether * (v === w.prev && nb.length > 1 ? 0.15 : 1);
+        total += x;
+        return x;
+      });
       let roll = Math.random() * total;
       for (let i = 0; i < nb.length; i++) { roll -= ws[i]; if (roll <= 0) { next = nb[i]; break; } }
       if (next < 0) next = nb[nb.length - 1];
@@ -1349,18 +1497,20 @@ export class Crowd {
     w.tgt = null;
     w.wantHome = false;
     w.food = 0;
-    w.dest = -1; w.place = null; w.ring = -1;
+    w.dest = -1; w.place = null; w.ring = -1; w.nook = null;
     w.actor.hold = 'none';
     for (const s of this.seats) if (s.taken === w) s.taken = null;
     for (const l of this.stallSpots.values()) for (const q of l) if (q.taken === w) q.taken = null;
-    for (const l of [this.pray, this.purify, this.meet, this.windows]) for (const q of l) if (q.taken === w) q.taken = null;
+    for (const l of [this.pray, this.purify, this.meet, this.windows, this.nooks]) for (const q of l) if (q.taken === w) q.taken = null;
   }
 
   /** People come out (from the station, a doorway, round a corner out of sight) and go home by the hour. */
   private population(dt: number, hour: number, pl: CrowdPlayer): void {
     if ((this.popT -= dt) > 0) return;
     this.popT = 1;
-    let spawns = 4, homes = 4;
+    this.balance();
+    // a big city fills (and empties) at the same pace as a small one
+    let spawns = Math.max(4, Math.ceil(this.walkers.length / 60)), homes = spawns;
     const order = this.walkers.slice().sort(() => Math.random() - 0.5);
     for (const w of order) {
       if (w.lead) continue;
@@ -1381,7 +1531,20 @@ export class Crowd {
     // out of a shop or home doorway
     else if (w.mode === 'foot' && roll < 0.7 && this.a.rooms.length) {
       const doors = this.a.rooms.filter((r) => Math.hypot(r.door[0] - pl.x, r.door[1] - pl.z) > 10);
-      if (doors.length) at = pick(doors).door;
+      // out of a doorway in a district that could do with more people
+      let best: RoomAnchor | null = null, bs = -1;
+      for (let k = 0; k < 6 && doors.length; k++) {
+        const r = pick(doors), sc = this.bal(zoneAt(r.door[0], r.door[1])?.id ?? '') * Math.random();
+        if (sc > bs) { bs = sc; best = r; }
+      }
+      if (best) at = best.door;
+    }
+    // out of a side door or a courtyard gate down a lane
+    if (!at && w.mode === 'foot' && this.nooks.length && Math.random() < 0.5) {
+      for (let k = 0; k < 6 && !at; k++) {
+        const s = pick(this.nooks);
+        if (Math.hypot(s.x - pl.x, s.z - pl.z) > 10 && Math.random() < this.bal(zoneAt(s.x, s.z)?.id ?? '') / 1.5) at = [s.x, s.z];
+      }
     }
     if (!at && w.mode === 'foot' && this.sento && within(hour, 16, 23.5) && Math.random() < 0.15) at = this.sento.door;
     // round a corner out of sight

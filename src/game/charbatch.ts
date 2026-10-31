@@ -4,7 +4,7 @@ import { voxelMaterial, type SharedUniforms } from '../engine/renderer';
 import { voxelDepthMaterial, SHADOW_DYNAMIC } from '../engine/shadows';
 
 /** Bodies the batch can hold at once (crowd bodies far away are released, so this is never near). */
-const MAX_BODIES = 1536;
+const MAX_BODIES = 2048;
 /** Texels per body in the pose texture; the layout is in POSE. */
 const ROW = 32;
 /** Pose texture width: 64 bodies side by side per texture row (so a frame's upload is a few row-sized copies). */

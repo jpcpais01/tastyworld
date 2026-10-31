@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.17.2',
+    version: '0.17.4',
     date: '2026-10-31',
     title: 'Every step you can climb',
     items: [
@@ -16,6 +16,27 @@ export const PATCH_NOTES: PatchNote[] = [
       'Amalfi\'s garden terraces and Istanbul\'s raised yards have their own little flights of steps from the lane beside them, cut into the terrace or built up against the wall, so you can walk up onto ground you can see.',
       'The ground in front of the Grand Bazaar\'s walls is no longer a ledge you can\'t climb: steps lead up to it along the street.',
       'On Tokyo\'s Inari Hill the treetops and bushes no longer count as ground.',
+    ],
+  },
+  {
+    version: '0.17.3',
+    date: '2026-10-31',
+    title: 'Finer, friendlier people',
+    items: [
+      'Everyone up close is now built from voxels half the size: you, the sellers and the people around you. Softer rounded heads, shoulders, hands and shoes.',
+      'Faces have shiny eyes, soft brows, little smiles and rosy cheeks. Ears, bangs and hair strands, tied ponytails and buns.',
+      'Clothes got the small stuff: belts and buckles, cuffs and hems, jacket zips and pockets, suit ties and pocket squares, cardigan buttons, pleated skirts, yukata flowers, apron pockets, backpack straps, shoe soles and laces, and a pompom on every beanie.',
+      'People further off keep their simpler look, and the detailed bodies are built in the background, so busy streets stay smooth.',
+    ],
+  },
+  {
+    version: '0.17.2',
+    date: '2026-10-31',
+    title: 'Christ in glory over the Duomo altar',
+    items: [
+      'The painting over Amalfi Duomo\'s high altar is new: Christ in glory, standing on the clouds in a blaze of gold, his right hand raised in blessing, the orb of the world in his left, with angels kneeling at his feet.',
+      'It is painted in voxels twice as fine as the other canvases, so his face, hands and halo read clearly from the nave.',
+      'The altar candles now keep it softly lit after dark, so it no longer sinks into the blue night shadows of the apse.',
     ],
   },
   {

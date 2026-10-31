@@ -1911,6 +1911,21 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
           if ((bay === 6 || bay === 7) && row >= 11 && row <= 13) return row === 13 ? c.marble : c.glassLit;
           return row < 2 ? c.limeDark : (row >> 1) % 4 === 0 ? c.limeLight : c.lime;
         });
+        // the wall in relief, one stone proud of it: pilasters on the piers with their capitals, a moulded frame
+        // and sill round each window under its arch, a string course and the eave along the top
+        const ox = x === CX0 ? -1 : x === CX1 ? 1 : 0, oz = ox ? 0 : z === CZ0 ? -1 : 1;
+        const px = x + ox, pz = z + oz;
+        for (let row = 0; row <= 16; row++) {
+          let v = 0;
+          if (row === 16) v = c.leadDark;
+          else if (row === 14) v = c.limeLight;
+          else if (bay === 0 || bay === AD - 1) v = row === 13 ? c.marble : row < 2 ? c.limeDark : c.lime;
+          else if (row === 3 && bay >= 4 && bay <= 9) v = c.marble;
+          else if ((bay === 4 || bay === 9) && row >= 4 && row <= 9) v = c.marbleGrey;
+          else if (row === 10 && bay >= 5 && bay <= 8) v = (bay + row) % 2 ? c.marble : c.paintRed;
+          else if (row === 11 && (bay === 6 || bay === 7)) v = c.marbleGrey;
+          if (v && !g.get(px, Y + row, pz)) g.set(px, Y + row, pz, v);
+        }
         continue;
       }
       // columns at the inner edge every 14 voxels, the arcade roof of little domes above
@@ -1985,7 +2000,18 @@ function suleymaniye(ctx: Ctx): void {
       const mx = (x + 0.5) * V, mz = (z + 0.5) * V;
       const gate = (x === X1 && Math.abs(mz + 10) < 2.5) || (z === Z1 && Math.abs(mx + 137) < 2.5) || (z === Z1 && Math.abs(mx + 120) < 2) ;
       if (gate) continue;
-      g.box(x, plan.walk[col(x, z)], z, x, Y + 9, z, (xx, y, zz) => (y === Y + 9 ? c.lead : y > Y + 3 && y < Y + 7 && pm(xx + zz, 12) < 4 ? (y === Y + 4 || pm(xx + zz + y, 2) === 0 ? c.iron : 0) : c.lime));
+      // grilled openings in marble frames under red and white arches, a string course, a coping of lead
+      g.box(x, plan.walk[col(x, z)], z, x, Y + 10, z, (xx, y, zz) => {
+        const u = pm(xx + zz, 12), row = y - Y;
+        if (row === 10) return c.lead;
+        if (row === 9) return c.limeLight;
+        if (row > 3 && row < 7 && u < 4) return row === 4 || pm(xx + zz + y, 2) === 0 ? c.iron : 0;
+        if ((row === 3 || row === 7) && u < 4) return c.marble;
+        if ((u === 4 || u === 11) && row >= 3 && row <= 7) return c.marble;
+        if (row === 8 && (u < 4 || u === 4 || u === 11)) return (u + row) % 2 ? c.brick : c.marble;
+        if (row === 1) return c.limeLight;
+        return row < 1 ? c.limeDark : u === 8 ? c.limeLight : c.lime;
+      });
       b.block(mx - 0.13, mz - 0.13, mx + 0.13, mz + 0.13);
     }
   }

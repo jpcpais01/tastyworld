@@ -8,6 +8,25 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.0',
+    date: '2026-10-31',
+    title: 'Amalfi',
+    items: [
+      'A second city is open: Amalfi, on the Italian coast. Pick it on the globe and fly there. Your wallet, wardrobe and passport stamps come with you, and each city keeps its own secrets and diary.',
+      'This time the ground is not flat. The town tumbles down a steep valley to the sea: stairways, ramps, terraces and switchback lanes climb from the beach past the cathedral all the way up to the lemon terraces, more than thirty metres above the harbour.',
+      'Under the houses run vaulted passages: Porta della Marina through the old sea wall, the covered Ruga dei Mercanti behind the cathedral, and the coast road tunnel through the headland.',
+      'Sant\'Andrea cathedral stands at the top of its long flight of steps, with a striped front, gold mosaic gables, bronze doors and a majolica bell tower. Behind it, the Cloister of Paradise.',
+      'Below: Piazza Duomo with its fountain and café tables, Via Lorenzo d\'Amalfi climbing the valley to Piazza dei Dogi, a pebble beach with umbrellas and sunbeds, the harbour with painted gozzi boats, the ferry and a lighthouse on the pier.',
+      'Six new stalls and twelve new dishes for the passport: sfogliatella and delizia al limone, a paper cone of fried seafood and a frittatina, pizza a portafoglio and montanara, lemon and pistachio gelato and granita, limoncello and torta caprese.',
+      'Somewhere in town are three majolica lemons. Nonna Assunta by the fountain knows more. Find them all and a door opens to a kitchen in the rock.',
+      'Twelve Amalfi missions, from your first taste to reaching the lemon terraces and becoming Master of Amalfi.',
+      'Beyond the town the coast goes on: the Lattari mountains rising over a kilometre high, Atrani in its cove behind the headland, Ravello on the ridge above, and the coast road winding away towards Positano. The sea runs all the way to the horizon, with surf breaking on the beach.',
+      'Prices on the coast are in euros. Locals greet you in Italian, wear linen and straw hats, and nobody rides a bike up these stairs.',
+      'Tap to walk now finds the ground on slopes and stairs, and sun shadows follow you up the hill.',
+      'Your passport keeps the stamps from every city: the ones from your last trip sit on their own page after this city\'s.',
+    ],
+  },
+  {
     version: '0.14.0',
     date: '2026-10-31',
     title: 'Fly around the world',

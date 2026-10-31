@@ -1,6 +1,7 @@
 import type { IconName } from '../ui/emblems';
 import type { FoodId } from '../world/food';
 import type { Look } from '../world/characters';
+import { AMALFI } from '../world/cityId';
 
 export type StepKind = 'pick' | 'mix' | 'heat' | 'chop' | 'order' | 'flip';
 
@@ -38,7 +39,7 @@ export interface StallInfo {
 
 const I = (name: string, icon: IconName): Ingredient => ({ name, icon });
 
-export const STALLS: StallInfo[] = [
+const TOKYO_STALLS: StallInfo[] = [
   {
     id: 'kimura', name: 'Kimura Ningyō-yaki', jp: '木村家 人形焼', street: 'Kaminari Lane', vendor: 'Kimura-san',
     vendorLook: { skin: 0xeec39f, hair: 0xb9b6b0, hairStyle: 'short', top: 0xf2efe7, topStyle: 'apron', accent: 0x23345e, bottom: 0x3a3a40, shoes: 0x2a2a2e, hat: 'headband', hatColor: 0xd8372b },
@@ -156,4 +157,91 @@ export const STALLS: StallInfo[] = [
   },
 ];
 
+/** Amalfi's vendors (`jp` holds the Italian sign). */
+const AMALFI_STALLS: StallInfo[] = [
+  {
+    id: 'pansa', name: 'Pasticceria Santa Rosa', jp: 'Pasticceria', street: 'Piazza Duomo', vendor: 'Signora Lucia',
+    vendorLook: { skin: 0xe8b894, hair: 0x2a1d17, hairStyle: 'bun', top: 0xf4f1ea, topStyle: 'apron', accent: 0x2f63a8, bottom: 0x2f2f35, shoes: 0x2a2a2e },
+    greeting: ['Buongiorno! Sfogliatelle straight from the oven. Listen to them crackle.', 'My grandmother made these for the bishop himself. Prego, prego!'],
+    dishes: ['sfogliatella', 'delizia'],
+    recipe: {
+      dish: 'sfogliatella',
+      steps: [
+        { kind: 'pick', title: 'Make the filling', hint: 'Pick what goes inside a sfogliatella.', items: [I('Ricotta', 'cheese'), I('Semolina', 'flour'), I('Sugar', 'sugar'), I('Candied peel', 'sprinkle'), I('Egg', 'egg')], decoys: [I('Soy sauce', 'soy'), I('Garlic', 'garlic'), I('Tomato', 'tomato')] },
+        { kind: 'order', title: 'Shape the shell', hint: 'Stretch, roll, slice, then push each slice into a cone.', items: [I('Stretch the dough', 'flour'), I('Roll the log', 'mixbowl'), I('Slice', 'knife'), I('Fill the cone', 'cheese')] },
+        { kind: 'heat', title: 'Bake until it crackles', hint: 'Stop the needle in the golden zone.', rounds: 2, speed: 1.2, label: 'Golden' },
+      ],
+    },
+  },
+  {
+    id: 'cuoppo', name: 'Friggitoria del Porto', jp: 'Friggitoria', street: 'The Harbour', vendor: 'Gennaro',
+    vendorLook: { skin: 0xc98f6a, hair: 0x1d1a1c, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'tee', accent: 0x2f63a8, bottom: 0x2b3a62, shoes: 0x2a2a2e, hat: 'cap', hatColor: 0x2f63a8 },
+    greeting: ['Uè! The boats came in at six. Everything you see swam this morning.', 'A cuoppo? Calamari, gamberi, alici. And lemon, always lemon.'],
+    dishes: ['cuoppo', 'frittatina'],
+    recipe: {
+      dish: 'cuoppo',
+      steps: [
+        { kind: 'chop', title: 'Slice the calamari', hint: 'Tap when the knife is over each line.', rounds: 4, speed: 1.1 },
+        { kind: 'pick', title: 'Into the cone', hint: 'Only the catch of the day goes in.', items: [I('Calamari', 'squid'), I('Prawns', 'shrimp'), I('Anchovies', 'fish'), I('Lemon', 'drop')], decoys: [I('Chocolate', 'chocolate'), I('Pineapple', 'pineapple'), I('Red bean', 'bean')] },
+        { kind: 'heat', title: 'Fry in hot oil', hint: 'Lift the basket when it turns golden. Twice.', rounds: 2, speed: 1.5, label: 'Crisp' },
+      ],
+    },
+  },
+  {
+    id: 'portafoglio', name: "Pizzeria 'O Vicolo", jp: 'Pizzeria', street: "Via Lorenzo d'Amalfi", vendor: 'Salvatore',
+    vendorLook: { skin: 0xe0ac86, hair: 0x3b2a20, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'tee', accent: 0xc8321e, bottom: 0x3a3a40, shoes: 0x2a2a2e, hat: 'chef', hatColor: 0xf4f1ea },
+    greeting: ['Pizza a portafoglio! Folded like a wallet, easier on the wallet too.', 'Forty-eight hours of rise. You can taste the patience.'],
+    dishes: ['portafoglio', 'montanara'],
+    recipe: {
+      dish: 'portafoglio',
+      steps: [
+        { kind: 'mix', title: 'Knead the dough', hint: 'Steady circles. The dough should feel like an earlobe.', rounds: 6 },
+        { kind: 'order', title: 'Dress the pizza', hint: 'Tomato, mozzarella, basil, oil. In that order.', items: [I('Tomato', 'tomato'), I('Mozzarella', 'cheese'), I('Basil', 'leek'), I('Olive oil', 'drop')] },
+        { kind: 'heat', title: 'Ninety seconds in the oven', hint: 'Pull it out when the crust is blistered, not burnt.', rounds: 1, speed: 1.7, label: 'Blistered' },
+      ],
+    },
+  },
+  {
+    id: 'gelato', name: 'Gelateria del Molo', jp: 'Gelateria', street: 'Lungomare dei Cavalieri', vendor: 'Chiara',
+    vendorLook: { skin: 0xf6d2b4, hair: 0x8a5a36, hairStyle: 'ponytail', top: 0xbfd2d8, topStyle: 'apron', accent: 0xf4f1ea, bottom: 0x2b3a62, shoes: 0xf2efe7 },
+    greeting: ['Ciao! Lemon from the terraces up there, pistachio from Bronte.', 'A granita to cool down? The sea breeze only does so much.'],
+    dishes: ['gelato', 'granita'],
+    recipe: {
+      dish: 'granita',
+      steps: [
+        { kind: 'pick', title: 'Lemon granita', hint: 'Just four things. Nothing else.', items: [I('Lemon juice', 'drop'), I('Zest', 'sprinkle'), I('Sugar', 'sugar'), I('Water', 'milk')], decoys: [I('Soy sauce', 'soy'), I('Cheese', 'cheese'), I('Garlic', 'garlic')] },
+        { kind: 'mix', title: 'Scrape the ice', hint: 'Rake the freezing juice into flakes.', rounds: 5 },
+      ],
+    },
+  },
+  {
+    id: 'limonaia', name: 'La Limonaia', jp: 'Limonaia', street: 'Piazza dei Dogi', vendor: 'Zio Peppe',
+    vendorLook: { skin: 0xc98f6a, hair: 0xb9b6b0, hairStyle: 'short', top: 0xf2d98c, topStyle: 'vest', accent: 0x6e4a32, bottom: 0x5a4a3a, shoes: 0x6b4630, hat: 'straw', hatColor: 0xd9c08a },
+    greeting: ['These lemons grew on my terraces, four hundred steps up. Smell that!', 'A little limoncello? Or the caprese, my wife\'s recipe. She won\'t tell me the secret either.'],
+    dishes: ['limoncello', 'caprese'],
+    recipe: {
+      dish: 'limoncello',
+      steps: [
+        { kind: 'chop', title: 'Peel the lemons', hint: 'Only the yellow, never the bitter white.', rounds: 4, speed: 1.0 },
+        { kind: 'order', title: 'Make the limoncello', hint: 'Steep, sweeten, bottle, chill.', items: [I('Peel in alcohol', 'drop'), I('Add syrup', 'sugar'), I('Bottle it', 'sake'), I('Into the freezer', 'chime')] },
+      ],
+    },
+  },
+  {
+    id: 'grotta', name: 'La Grotta', jp: 'La Grotta', street: 'Vicoli di Ponente', vendor: 'Zia Carmela', hidden: true,
+    vendorLook: { skin: 0xe0ac86, hair: 0x6b6b70, hairStyle: 'bun', top: 0x2f2f35, topStyle: 'apron', accent: 0xf4f1ea, bottom: 0x2f2f35, shoes: 0x2a2a2e },
+    greeting: ['...The three lemons brought you, eh? Sit. There is no menu. I cook what the sea gave us.', 'Scialatielli tonight. My husband cut them this morning.'],
+    dishes: ['scialatielli', 'totani'],
+    recipe: {
+      dish: 'scialatielli',
+      steps: [
+        { kind: 'pick', title: 'The dough', hint: 'Scialatielli have milk and basil in them.', items: [I('Flour', 'flour'), I('Milk', 'milk'), I('Egg', 'egg'), I('Basil', 'leek'), I('Pecorino', 'cheese')], decoys: [I('Soy sauce', 'soy'), I('Chocolate', 'chocolate'), I('Red bean', 'bean')] },
+        { kind: 'chop', title: 'Cut the ribbons', hint: 'Short and thick, by hand.', rounds: 5, speed: 1.2 },
+        { kind: 'heat', title: 'Toss with the shellfish', hint: 'Stop when the shells open.', rounds: 2, speed: 1.4, label: 'Open' },
+      ],
+    },
+  },
+];
+
+export const STALLS: StallInfo[] = AMALFI ? AMALFI_STALLS : TOKYO_STALLS;
 export const STALL = Object.fromEntries(STALLS.map((s) => [s.id, s])) as Record<string, StallInfo>;

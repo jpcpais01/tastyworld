@@ -3,6 +3,7 @@
 // the nav grid before using it, so a spot a later prop happens to cover is simply dropped.
 import { STREETS } from './city';
 import { V } from './layout';
+import { AMALFI } from './cityId';
 
 type V2 = [number, number];
 /** A place to stand and the direction to face while there. */
@@ -14,6 +15,7 @@ const N = Math.PI, S = 0, E = Math.PI / 2, W = -Math.PI / 2;
 
 /** The kind of new-city street at (x, z), with its centre line and direction, or null in the old district. */
 export function streetAt(x: number, z: number): { kind: StreetKind; ew: boolean; centre: number; half: number } | null {
+  if (AMALFI) return null;
   for (const s of STREETS) {
     if (x < s.x0 * V || x > (s.x1 + 1) * V || z < s.z0 * V || z > (s.z1 + 1) * V) continue;
     const a = s.ew ? s.z0 : s.x0, b = (s.ew ? s.z1 : s.x1) + 1;
@@ -70,7 +72,26 @@ export interface CrowdSpots {
   boats: { cx: number; cz: number; rx: number; rz: number; y: number; dock: V2 };
 }
 
+/** Amalfi: friends meet at the fountain in the piazza and joggers run the seafront and back. */
+function amalfiSpots(): CrowdSpots {
+  const meet: Spot[] = [];
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2, r = 2.6 + (i % 3) * 0.9;
+    meet.push({ x: 10 + Math.cos(a) * r, z: 12 + Math.sin(a) * r, face: Math.atan2(-Math.cos(a), -Math.sin(a)) + 0.6 });
+  }
+  const jog: V2[] = [];
+  for (let z = -44; z <= 74; z += 6) jog.push([33.4, z]);
+  for (let z = 74; z >= -44; z -= 6) jog.push([34.3, z]);
+  return {
+    pray: [], purify: [], gates: [], meet,
+    sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
+    windows: [], jog, exercise: [],
+    boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
+  };
+}
+
 export function crowdSpots(): CrowdSpots {
+  if (AMALFI) return amalfiSpots();
   const pray: Spot[] = [];
   for (let x = -41.3; x <= -38.8; x += 0.8) pray.push({ x, z: -38.3, face: N });
   pray.push({ x: -49.4, z: 95.85, face: S }, { x: -48.6, z: 95.85, face: S });

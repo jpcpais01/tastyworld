@@ -24,3 +24,31 @@ export const CITY: CityId = (() => {
 })();
 
 export const AMALFI = CITY === 'amalfi';
+
+export const isCity = (id: string): id is CityId => known(id) !== null;
+
+/** What to pick up after the page reloads into another city: board straight away, host a co-op trip, or join one. */
+export type Resume = { board: CityId } | { host: CityId } | { ticket: string };
+const RESUME_KEY = 'tastyworld.resume';
+
+/** Reload the page into another city (the caller saves first), carrying on with `then` once it has loaded. */
+export function goToCity(id: CityId, then: Resume): void {
+  try {
+    localStorage.setItem(CITY_KEY, id);
+    sessionStorage.setItem(RESUME_KEY, JSON.stringify(then));
+  } catch { /* storage blocked: ?city= still works */ }
+  const q = new URLSearchParams(location.search);
+  q.set('city', id);
+  location.replace(`${location.pathname}?${q}${location.hash}`);
+}
+
+/** The step carried over from the page that sent us here, read once. */
+export function takeResume(): Resume | null {
+  try {
+    const raw = sessionStorage.getItem(RESUME_KEY);
+    sessionStorage.removeItem(RESUME_KEY);
+    return raw ? JSON.parse(raw) as Resume : null;
+  } catch {
+    return null;
+  }
+}

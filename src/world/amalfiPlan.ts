@@ -93,7 +93,7 @@ export function hillY(x: number, z: number): number {
 }
 
 /** Height of the sea bed and the shore (m), seaward of the road. */
-function shoreY(x: number, z: number): number {
+export function shoreY(x: number, z: number): number {
   // pebble beach in front of the town, a stone quay along the harbour, cliffs under the headland
   if (z < TUNNEL_Z + 2) return -9;
   const bed = -1.2 - (x - 40) * 0.12;
@@ -110,8 +110,8 @@ interface N { x: number; z: number; y?: number }
 function network(): { nodes: Record<string, N>; edges: [string, string, number, K, number?][] } {
   const n: Record<string, N> = {
     // the shore road, its pavement and the tunnel through the headland
-    r0: { x: 31, z: 80, y: ROAD_Y }, r1: { x: 31, z: 40, y: ROAD_Y }, r2: { x: 31, z: 9, y: ROAD_Y }, r3: { x: 31, z: -20, y: ROAD_Y },
-    r4: { x: 31, z: TUNNEL_Z, y: ROAD_Y }, r5: { x: 31, z: -80, y: ROAD_Y },
+    r0: { x: 31, z: 79, y: ROAD_Y }, r1: { x: 31, z: 40, y: ROAD_Y }, r2: { x: 31, z: 9, y: ROAD_Y }, r3: { x: 31, z: -20, y: ROAD_Y },
+    r4: { x: 31, z: TUNNEL_Z, y: ROAD_Y }, r5: { x: 31, z: -79, y: ROAD_Y },
     // Porta della Marina: an arch through the old sea wall from the road into the piazza
     g0: { x: 25.5, z: 9, y: ROAD_Y + 0.25 }, g1: { x: 19.5, z: 9, y: PIAZZA_Y },
     // the piazza (painted as a plaza below; these are the crowd's crossing points)
@@ -128,7 +128,7 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     // Ruga dei Mercanti, the covered market passage behind the cathedral's east wall
     u0: { x: -4.5, z: 2, y: PIAZZA_Y }, u1: { x: -18, z: 1.5 }, u2: { x: -34, z: 1 }, u3: { x: -46, z: -3 },
     // the beach and the harbour
-    b0: { x: 39, z: 9, y: 1.55 }, b1: { x: 42, z: -10, y: 1.15 }, b2: { x: 42, z: 34, y: 1.15 },
+    b0: { x: 39, z: 9, y: 1.55 }, b1: { x: 39.5, z: -9, y: 1.15 }, b2: { x: 42, z: 34, y: 1.15 },
     h0: { x: 40, z: 46, y: 1.0 }, h1: { x: 40, z: 66, y: 1.0 }, h2: { x: 51, z: 51, y: 1.0 }, h3: { x: 78, z: 51, y: 1.0 },
   };
   const e: [string, string, number, K, number?][] = [
@@ -150,9 +150,9 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
       const zv = valleyZ(x);
       for (let d = 0; d < 90; d += 0.25) {
         const z = zv + side * d;
-        if (hillY(x, z) >= y) return z;
+        if (hillY(x, z) >= y) return Math.max(-77, Math.min(77, z));
       }
-      return zv + side * 90;
+      return Math.max(-77, Math.min(77, zv + side * 90));
     };
     let prev: string[] = [];
     levels.forEach((y, li) => {
@@ -179,15 +179,24 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
   };
   flank(1, [8, 15.5, 23, 30.5], -104, 18, 'w');
   flank(-1, [8, 15.5, 23], -100, 14, 'e');
+  // the cathedral stands on its terrace cut into the western flank: the lanes stop on either side of it
+  for (const [id, p] of Object.entries(n)) if (id.startsWith('w') && p.x > -63 && p.x < -23 && p.z > 0 && p.z < 29.5) delete n[id];
+  // and the lowest eastern lane gives way to the Ruga, which already runs along that foot of the slope
+  for (const [id, p] of Object.entries(n)) if ((id.startsWith('e0_') || id.startsWith('w0_')) && p.x > -51 && p.x < -4 && Math.abs(p.z) < 4.5) delete n[id];
   // the feet of both flanks: steps down to the main street and to the shore road
   const near = (tag: string, x: number) => {
     let best = '', bd = 1e9;
     for (const [id, p] of Object.entries(n)) if (id.startsWith(tag) && Math.abs(p.x - x) < bd) { bd = Math.abs(p.x - x); best = id; }
     return best;
   };
+  const nearest = (tag: string, x: number, z: number) => {
+    let best = '', bd = 1e9;
+    for (const [id, p] of Object.entries(n)) if (id.startsWith(tag) && Math.hypot(p.x - x, p.z - z) < bd) { bd = Math.hypot(p.x - x, p.z - z); best = id; }
+    return best;
+  };
   for (const x of [-96, -68, -40, -12]) e.push([near('m', x), near('w0_', x), 2.4, K.Stair], [near('m', x + 8), near('e0_', x + 8), 2.4, K.Stair]);
-  e.push(['p6', near('w0_', 10), 2.4, K.Stair], ['r1', near('w0_', 18), 2.4, K.Stair], ['r3', near('e0_', 14), 2.4, K.Stair], ['c1', near('w1_', -40), 2.4, K.Stair]);
-  return { nodes: n, edges: e };
+  e.push(['p6', near('w0_', 10), 2.4, K.Stair], ['r1', near('w0_', 18), 2.4, K.Stair], ['r3', near('e0_', 14), 2.4, K.Stair], ['c1', nearest('w', -38, 36), 2.4, K.Stair]);
+  return { nodes: n, edges: e.filter(([a, b]) => n[a] && n[b]) };
 }
 
 // ------------------------------------------------------------------------------------------- plan
@@ -225,6 +234,10 @@ export function amalfiPlan(): Plan {
   }));
   // paint the paths: each column takes the height of the closest path over it, uniformly graded along it
   for (const s of segs) paintSeg(s, walk, kind, best);
+  // the cathedral steps and the vaulted passages keep their own grade whatever lane runs close by
+  const own = new Float32Array(n).fill(1e9);
+  for (const s of segs) if (s.kind === K.Steps || s.kind === K.Covered) paintSeg(s, walk, kind, own);
+  for (let i = 0; i < n; i++) if (own[i] < 1e9) best[i] = -1;
   // the piazza, the cathedral terrace and the cloister are open squares
   rect(-4, -6, 21, 30, PIAZZA_Y, K.Piazza, walk, kind, best);
   rect(-26, 2, -20, 26, DUOMO_Y, K.Piazza, walk, kind, best);

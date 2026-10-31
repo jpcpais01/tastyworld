@@ -692,6 +692,7 @@ uniform float uSaturation;
 uniform float uVignette;
 uniform float uFade;
 uniform vec4 uWaterBounds;
+uniform float uSea;         // 1: open sea (no current, long swell, foam on the beach), 0: Tokyo's canal
 uniform sampler2D tShore;   // signed distance to the water's edge (see computeShore)
 uniform vec4 uShoreRect;    // origin x, z and 1 / extent x, z (metres)
 in vec2 vUv;
@@ -727,6 +728,8 @@ vec3 waterNormal(vec2 p, float t) {
 // signed distance to the shoreline in metres, positive over open water
 float shoreDist(vec2 xz) {
   vec2 uv = (xz - uShoreRect.xy) * uShoreRect.zw;
+  // past the map the sea goes on: open water wherever there is water at all
+  if (uSea > 0.5 && (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0)) return 8.0;
   return (texture(tShore, uv).r * 255.0 - 128.0) * 0.015625;
 }
 
@@ -784,9 +787,12 @@ void main() {
     sg /= max(length(sg), 1e-3);
     float dEdge = max(sd, 0.0);
     // waves drift downstream; the banks see slack water and small waves lapping in toward the stone
-    vec3 nrm = waterNormal(sp.xz - FLOW * uTime, uTime);
-    float flowLine = vnoise(vec2((sp.x - FLOW.x * uTime * 1.3) * 0.9, sp.z * 5.5));
-    nrm.z += (flowLine - 0.5) * 0.06;
+    vec2 flow = FLOW * (1.0 - uSea);
+    // the sea: a longer swell rolling in towards the beach, and no current lines
+    vec3 nrm = waterNormal(mix(sp.xz - flow * uTime, sp.xz * 0.55, uSea), uTime * mix(1.0, 0.8, uSea));
+    float flowLine = vnoise(vec2((sp.x - flow.x * uTime * 1.3) * 0.9, sp.z * 5.5));
+    nrm.z += (flowLine - 0.5) * 0.06 * (1.0 - uSea);
+    nrm.xz *= 1.0 + 0.5 * uSea;
     float lapA = exp(-dEdge * 2.2) * 0.09;
     nrm.xz += sg * cos(dEdge * 13.0 + uTime * 2.4) * lapA;
     nrm = normalize(nrm);
@@ -805,11 +811,13 @@ void main() {
     float cs = caustic(cpos, uTime) * exp(-vDepth * 0.9) * length(uSunColor) * 0.55;
     floorCol *= 1.0 + cs;
     // absorption + scattering
-    vec3 absorb = vec3(0.55, 0.16, 0.10) * 1.15;
+    // the canal is green and murky; the Tyrrhenian is clear and turns ultramarine as it deepens
+    vec3 absorb = mix(vec3(0.55, 0.16, 0.10) * 1.15, vec3(0.5, 0.12, 0.055), uSea);
     vec3 trans = exp(-absorb * pathLen);
     vec3 scatterLight = uWaterScatter * (0.35 + 0.65 * clamp(length(uSunColor), 0.0, 1.5));
     vec3 under = floorCol * trans + scatterLight * (1.0 - exp(-pathLen * 0.85));
-    under = mix(under, uWaterDeep, 1.0 - exp(-pathLen * 0.45));
+    vec3 deep = mix(uWaterDeep, uWaterDeep * vec3(0.5, 0.95, 1.55) + vec3(0.0, 0.004, 0.012), uSea);
+    under = mix(under, deep, 1.0 - exp(-pathLen * mix(0.45, 0.3, uSea)));
     // volumetric light shafts: march through the water column
     if (uShafts > 0.0) {
       float shaft = 0.0;
@@ -859,10 +867,16 @@ void main() {
     float slow = smoothstep(0.0, 1.6, dEdge);
     vec3 lightF = uSunColor * (0.35 + 0.65 * max(uSunDir.y, 0.0)) + uSkyHorizon * 0.6 + uSkyTop * 0.25;
     // cherry petals floating downstream
-    vec2 pp = (sp.xz - FLOW * uTime * (0.4 + 0.6 * slow)) * 2.3;
+    vec2 pp = (sp.xz - flow * uTime * (0.4 + 0.6 * slow)) * 2.3;
     vec2 cell = floor(pp);
     float hp = hash12(cell);
-    if (hp > 0.9) {
+    if (uSea > 0.5) {
+      // surf: a ribbon of foam where the swell breaks on the pebbles, pulled back and forth
+      float run = dEdge * 6.0 - uTime * 1.1 + vnoise(sp.xz * 0.4) * 3.0;
+      float foam = exp(-dEdge * 2.6) * smoothstep(0.55, 0.95, sin(run) * 0.5 + 0.5 + (vnoise(sp.xz * 3.0 + uTime * 0.3) - 0.5) * 0.6);
+      foam += exp(-dEdge * 9.0) * 0.6 * vnoise(sp.xz * 4.0 - uTime * 0.5);
+      water = mix(water, clamp(lightF, 0.08, 1.6) * 0.95, clamp(foam, 0.0, 0.85) * smoothstep(0.0, 0.25, dEdge));
+    } else if (hp > 0.9) {
       vec2 f = fract(pp) - 0.5 - (vec2(hash12(cell + 7.1), hash12(cell + 3.3)) - 0.5) * 0.5;
       float a = hp * 40.0 + uTime * 0.4;
       f = mat2(cos(a), -sin(a), sin(a), cos(a)) * f;

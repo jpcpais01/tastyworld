@@ -2,11 +2,13 @@ import { SaveState, viewMetres, VIEW_DEFAULT } from '../game/state';
 import type { Audio } from '../game/audio';
 import type { FoodId } from '../world/food';
 import type { StallInfo } from '../data/stalls';
-import { DISHES, DISH } from '../data/dishes';
+import { DISHES, DISH, OTHER_MENUS } from '../data/dishes';
 import { STALL } from '../data/stalls';
-import { MISSIONS, ITEMS, Mission, trackedMission } from '../data/missions';
+import { MISSIONS, ITEMS, Mission, trackedMission, SECRET_MISSION } from '../data/missions';
 import { ROOM_TYPE, roomNo, type HotelInfo, type HotelRoomSpec } from '../data/hotels';
 import { PATCH_NOTES } from '../data/patchNotes';
+import { TEXT } from '../data/cityText';
+import { AMALFI } from '../world/cityId';
 import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
 import { G } from './glyphs';
@@ -21,7 +23,7 @@ const h = (tag: string, cls = '', html = ''): HTMLElement => {
   return e;
 };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-const yen = (n: number) => `¥${n.toLocaleString('en-US')}`;
+const yen = TEXT.money;
 const clock = (hr: number) => { const m = Math.floor((((hr % 24) + 24) % 24) * 60); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 const stars = (n: number, of = 3) => G.star.repeat(n) + (of > n ? `<span class="off">${G.star.repeat(of - n)}</span>` : '');
 const touch = () => matchMedia('(pointer: coarse)').matches;
@@ -174,7 +176,7 @@ export class UI {
       </div>
       <div class="hud-tr">
         <div class="glass bar">
-          <div class="yen" id="h-yenchip" title="Your yen"><span class="coin">¥</span><span id="h-yen">3,000</span></div>
+          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${AMALFI ? '30.00' : '3,000'}</span></div>
           <span class="sep"></span>
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
@@ -314,7 +316,7 @@ export class UI {
 
   /** Re-render yen, the mission tracker and the passport notification dot. */
   refresh(): void {
-    this.yenEl.textContent = this.s.yen.toLocaleString('en-US');
+    this.yenEl.textContent = TEXT.money(this.s.yen).slice(1);
     if (this.lastYen >= 0 && this.s.yen !== this.lastYen) {
       this.yenChip.classList.remove('bump');
       void this.yenChip.offsetWidth;
@@ -676,14 +678,14 @@ export class UI {
   // passport ------------------------------------------------------------------------------
   passport(tab: 'stamps' | 'missions' | 'items' | 'album' | 'tokyo' = 'stamps'): void {
     const p = this.panel('panel passport');
-    const got = Object.keys(this.s.tasted).length;
-    this.head(p, 'Food Passport', '日本', `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
+    const got = DISHES.filter((d) => this.s.tasted[d.id]).length;
+    this.head(p, 'Food Passport', AMALFI ? 'Italia' : '日本', `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
     const tabs = h('div', 'pp-tabs');
     const seg = h('div', 'seg');
     seg.setAttribute('role', 'tablist');
     tabs.appendChild(seg);
     const page = h('div', 'pp-page');
-    const names: [typeof tab, string, string][] = [['stamps', 'Stamps', G.bowl], ['missions', 'Missions', G.target], ['items', 'Bag', G.bag], ['album', 'Album', G.image], ['tokyo', 'Tokyo', G.book]];
+    const names: [typeof tab, string, string][] = [['stamps', 'Stamps', G.bowl], ['missions', 'Missions', G.target], ['items', 'Bag', G.bag], ['album', 'Album', G.image], ['tokyo', TEXT.name, G.book]];
     const render = (t: typeof tab) => {
       seg.innerHTML = '';
       for (const [k, n, ic] of names) {
@@ -706,8 +708,8 @@ export class UI {
   }
 
   private ppStamps(page: HTMLElement) {
-    const got = Object.keys(this.s.tasted).length;
-    page.innerHTML = `<div class="pp-cover"><div class="pp-flag"><i></i></div><div><b>Tokyo <span class="jp" style="font-weight:400;font-size:15px">東京</span></b><p>Collect a stamp for every dish you taste or cook.</p><div class="pbar"><span><i style="width:${(got / DISHES.length) * 100}%"></i></span>${got}/${DISHES.length}</div></div></div>`;
+    const got = DISHES.filter((d) => this.s.tasted[d.id]).length;
+    page.innerHTML = `<div class="pp-cover"><div class="pp-flag${AMALFI ? ' it' : ''}"><i></i></div><div><b>${esc(TEXT.name)} ${AMALFI ? '' : `<span class="jp" style="font-weight:400;font-size:15px">${TEXT.local}</span>`}</b><p>Collect a stamp for every dish you taste or cook.</p><div class="pbar"><span><i style="width:${(got / DISHES.length) * 100}%"></i></span>${got}/${DISHES.length}</div></div></div>`;
     const grid = h('div', 'stamps');
     for (const d of DISHES) {
       const has = !!this.s.tasted[d.id];
@@ -722,11 +724,25 @@ export class UI {
       slot.onclick = () => {
         this.audio.play('click');
         if (has) this.taste(d.id, false);
-        else this.toast('compass', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? 'Some say the lucky cats know the way.' : `${st?.street ?? 'Somewhere in Tokyo'}.`);
+        else this.toast('compass', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? (AMALFI ? 'Some say the majolica lemons know the way.' : 'Some say the lucky cats know the way.') : `${st?.street ?? `Somewhere in ${TEXT.name}`}.`);
       };
       grid.appendChild(slot);
     }
     page.appendChild(grid);
+    // stamps from the other cities, a page further on: just the tally and the dishes collected there
+    for (const m of OTHER_MENUS) {
+      const had = m.dishes.filter((d) => this.s.tasted[d.id]);
+      if (!had.length) continue;
+      const row = h('div', 'pp-other', `<div class="pp-cover"><div class="pp-flag${m.flag ? ` ${m.flag}` : ''}"><i></i></div><div><b>${esc(m.name)}</b><p>Stamped on an earlier trip.</p><div class="pbar"><span><i style="width:${(had.length / m.dishes.length) * 100}%"></i></span>${had.length}/${m.dishes.length}</div></div></div>`);
+      const g2 = h('div', 'stamps small');
+      for (const d of had) {
+        const slot = h('button', 'slot got', `${this.icons[d.id] ? `<img src="${this.icons[d.id]}" alt="">` : ''}<div class="sn">${esc(d.name)}</div>`);
+        slot.onclick = () => { this.audio.play('click'); this.taste(d.id, false); };
+        g2.appendChild(slot);
+      }
+      row.appendChild(g2);
+      page.appendChild(row);
+    }
   }
 
   private ppMissions(page: HTMLElement, rerender: () => void) {
@@ -736,7 +752,7 @@ export class UI {
       const [a, b] = m.progress(this.s);
       const claimed = this.s.claimed.includes(m.id);
       const done = a >= b;
-      const secret = m.id === 'secret' && !this.s.hiddenFound && !done;
+      const secret = m.id === SECRET_MISSION && !this.s.hiddenFound && !done;
       const rw = [m.reward.yen ? yen(m.reward.yen) : '', m.reward.item ? `<span class="rwi">${icon(ITEMS[m.reward.item].icon)}${esc(ITEMS[m.reward.item].name)}</span>` : '', m.reward.title ? `“${m.reward.title}”` : ''].filter(Boolean).join('<br>');
       const row = h('div', 'mission' + (claimed ? ' done' : done ? ' ready' : ''), `
         <div class="mi">${claimed ? G.check : icon(MISSION_ICONS[m.id] ?? 'target')}</div>
@@ -825,7 +841,7 @@ export class UI {
     const url = URL.createObjectURL(ph.blob);
     this.closeHook = () => URL.revokeObjectURL(url);
     const when = new Date(ph.t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-    this.head(p, esc(ph.place), '', `${esc(ph.clock)} in Tokyo · taken ${when}`, G.camera, () => this.passport('album'));
+    this.head(p, esc(ph.place), '', `${esc(ph.clock)} in ${esc(TEXT.name)} · taken ${when}`, G.camera, () => this.passport('album'));
     const fig = h('div', 'pv-pic', `<img src="${url}" alt="Photo at ${esc(ph.place)}" style="aspect-ratio:${ph.w}/${ph.h}">`);
     const step = (d: number) => { this.audio.play('click'); this.photoView(photos, (i + d + photos.length) % photos.length); };
     if (photos.length > 1) {
@@ -869,6 +885,14 @@ export class UI {
   }
 
   private ppTokyo(page: HTMLElement) {
+    if (AMALFI) {
+      page.innerHTML = `
+      <div class="sec fact"><h4>Amalfi</h4>${esc(TEXT.passport.fact)}</div>
+      <div class="sec fact"><h4>Scale e limoni</h4>The town has more stairs than streets. Lanes climb from the piazza through tunnels and under houses to the terraces, where lemons grow under chestnut pergolas and are still carried down by hand.</div>
+      <div class="sec fact"><h4>Etiquette</h4><ul>${TEXT.passport.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
+      <div class="sec fact"><h4>Words to know</h4><div class="words"><b>Buongiorno</b><span>Good morning</span><b>Buonissimo</b><span>Delicious</span><b>Un cuoppo</b><span>A paper cone of fried things</span><b>Salute</b><span>Cheers</span></div></div>`;
+      return;
+    }
     page.innerHTML = `
       <div class="sec fact"><h4>Tokyo · 東京</h4>Once the fishing village of Edo, Tokyo became the shogun's capital in 1603 and grew into the largest city on Earth. Its food culture was born on the street: sushi, tempura and soba all started as quick snacks sold from stalls to busy workers.</div>
       <div class="sec fact"><h4>Yatai &amp; yokochō</h4>Yatai are portable food carts that appear at dusk. Yokochō are narrow alleys packed with tiny counters, many dating from the post-war markets of the 1940s.</div>

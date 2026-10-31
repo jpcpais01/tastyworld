@@ -59,22 +59,27 @@ const TOKYO_ZONES: StreetZone[] = [
 
 /** Amalfi's quarters, streets and stairways (see world/amalfi.ts); `jp` holds the Italian name. */
 const AMALFI_ZONES: StreetZone[] = [
-  { id: 'marina', name: 'Marina Grande', jp: 'la spiaggia', rect: [-14, 38, 46, 56] },
-  { id: 'molo', name: 'The Harbour', jp: 'il porto', rect: [-80, 34, -14, 96] },
-  { id: 'lungomare', name: 'Lungomare dei Cavalieri', jp: 'il lungomare', rect: [-80, 28, 80, 38] },
-  { id: 'porta', name: 'Porta della Marina', jp: 'la porta', rect: [4, 22, 14, 30] },
-  { id: 'piazza', name: 'Piazza Duomo', jp: 'piazza del Duomo', rect: [-6, -4, 34, 24] },
-  { id: 'scalinata', name: 'The Duomo Steps', jp: 'la scalinata', rect: [-7, -21, 7, -3] },
-  { id: 'duomo', name: "Sant'Andrea Cathedral", jp: 'il Duomo', rect: [-16, -52, 16, -21] },
-  { id: 'chiostro', name: 'Cloister of Paradise', jp: 'chiostro del Paradiso', rect: [-34, -52, -16, -34] },
-  { id: 'lorenzo', name: "Via Lorenzo d'Amalfi", jp: 'la via principale', rect: [16, -96, 32, -4] },
-  { id: 'ruga', name: 'Ruga dei Mercanti', jp: 'la ruga coperta', rect: [9, -60, 15, -6] },
-  { id: 'genova', name: 'Piazza dei Dogi', jp: 'piazza dei Dogi', rect: [16, -64, 34, -50] },
-  { id: 'ovest', name: 'Vicoli di Ponente', jp: 'i vicoli di ponente', rect: [-80, -96, -16, 28] },
-  { id: 'est', name: 'Salita dei Mulini', jp: 'la salita', rect: [34, -96, 80, 28] },
-  { id: 'limoni', name: 'The Lemon Terraces', jp: 'i limoneti', rect: [-80, -96, -40, -50] },
-  { id: 'torre', name: 'Torre Saracena', jp: 'la torre', rect: [56, 4, 80, 28] },
-  { id: 'galleria', name: 'Coast Road Tunnel', jp: 'la galleria', rect: [58, 28, 80, 38] },
+  // the shore, from the beach round to the harbour and the headland
+  { id: 'marina', name: 'Marina Grande', jp: 'la spiaggia', rect: [36, -16, 60, 39] },
+  { id: 'molo', name: 'The Harbour', jp: 'il porto', rect: [36, 39, 88, 80] },
+  { id: 'lungomare', name: 'Lungomare dei Cavalieri', jp: 'la marina', rect: [27, -52, 36, 80] },
+  { id: 'galleria', name: 'Coast Road Tunnel', jp: 'la galleria', rect: [24, -80, 38, -52] },
+  { id: 'capo', name: 'Capo di Atrani', jp: 'il capo', rect: [-40, -80, 24, -40] },
+  // the old town round the cathedral
+  { id: 'porta', name: 'Porta della Marina', jp: 'la porta', rect: [17, 3, 27, 15] },
+  { id: 'piazza', name: 'Piazza Duomo', jp: 'la piazza', rect: [-4, -7, 21, 30] },
+  { id: 'scalinata', name: 'The Duomo Steps', jp: 'la scalinata', rect: [-20, 8, -4, 20] },
+  { id: 'duomo', name: "Sant'Andrea Cathedral", jp: 'il Duomo', rect: [-60, 3, -20, 27] },
+  { id: 'chiostro', name: 'Cloister of Paradise', jp: 'il chiostro', rect: [-47, 28, -31, 44] },
+  { id: 'ruga', name: 'Ruga dei Mercanti', jp: 'la ruga', rect: [-47, -1, -4, 3] },
+  // up the valley
+  { id: 'lorenzo', name: "Via Lorenzo d'Amalfi", jp: 'la via', rect: [-112, -14, -4, -1] },
+  { id: 'dogi', name: 'Piazza dei Dogi', jp: 'i Dogi', rect: [-69, -16, -51, 0] },
+  // the two flanks of the valley
+  { id: 'ponente', name: 'Vicoli di Ponente', jp: 'i vicoli', rect: [-112, 3, 27, 80] },
+  { id: 'mulini', name: 'Salita dei Mulini', jp: 'la salita', rect: [-112, -80, 24, -14] },
+  { id: 'limoni', name: 'The Lemon Terraces', jp: 'i limoneti', rect: [-112, 44, -40, 80] },
+  { id: 'limoni2', name: 'The Lemon Terraces', jp: 'i limoneti', rect: [-112, -80, -60, -40] },
   { id: 'grotta', name: 'La Grotta · Hidden Kitchen', jp: 'la grotta', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
 ];
 

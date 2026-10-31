@@ -29,13 +29,24 @@ export function foodColors(pal: Palette) {
     pasta: a(0xe8823a, 0.08), pastaHi: a(0xf2a050, 0.06), pepper: a(0x4a9a3a, 0.08), sausage: a(0xc0504a, 0.06), onion: a(0xf3ecd8, 0.04), parmesan: a(0xf8f0d0, 0.04),
     zaru: a(0xc9a46a, 0.05), zaruDark: a(0x9a7a48, 0.05), sobaN: a(0x9c8a72, 0.07), sobaHi: a(0xb4a28a, 0.06), tsuyu: a(0x3a2010, 0.04), choko: a(0x2b3a62, 0.03), negi: a(0x9ccf6a, 0.08),
     tempura: a(0xf0c878, 0.12), tempuraHi: a(0xf8dc9a, 0.1), tail: a(0xe8603a, 0.05), shiso2: a(0x2f7a32, 0.08), daikon: a(0xf4f1e8, 0.04),
+    // Amalfi
+    pastry: a(0xe0a050, 0.1), pastryDark: a(0xb86e2c, 0.1), pastryLight: a(0xf2c47a, 0.08), sugar: a(0xfbf8f2, 0.02), ricotta: a(0xf6eccd, 0.04),
+    sponge: a(0xf2d27a, 0.06), lemonCream: a(0xf6e08a, 0.04), lemonPeel: a(0xf2c81e, 0.05), conePaper: a(0xc9a46e, 0.05), conePaperDark: a(0x9a7a4c, 0.05),
+    fry: a(0xe2b25a, 0.12), fryDark: a(0xbf8638, 0.1), calamari: a(0xf6ecd2, 0.05), anchovy: a(0x8a96a2, 0.08), dough: a(0xf0d8a0, 0.06), crust: a(0xc98a44, 0.1),
+    tomato: a(0xc8321e, 0.06), mozzarella: a(0xfbf7ec, 0.02), basil: a(0x3f8a32, 0.08), wafer: a(0xd4964c, 0.06), waferDark: a(0xa86c30, 0.06),
+    pistachio: a(0xa6c46a, 0.05), lemonGelato: a(0xf8ee9a, 0.04), stracciatella: a(0xf6f0e2, 0.03), granita: a(0xf6f2c6, 0.05), limoncello: a(0xf2e04a, 0.03, 0.12),
+    chocolate: a(0x4a2a1a, 0.06), chocolateDark: a(0x2e1a10, 0.05), mussel: a(0x23263a, 0.06), musselIn: a(0xe8964a, 0.06), clam: a(0xd9cfc0, 0.06),
+    squid: a(0xf0e6d6, 0.05), potato: a(0xe9cf86, 0.06), parsley: a(0x3a8a2e, 0.1), ceramicBlue: a(0x2f63a8, 0.04), ceramicYellow: a(0xe9c23a, 0.04), ceramicWhite: a(0xf5f1e6, 0.02),
+    scialatielli: a(0xf0dc9a, 0.06), scialatielliHi: a(0xf8eab8, 0.05), oil: a(0xd9b84a, 0.04),
   };
 }
 
 export type FoodId =
   | 'takoyaki' | 'monjayaki' | 'ningyoyaki' | 'dango' | 'taiyaki' | 'dorayaki'
   | 'yakitori' | 'karaage' | 'ramen' | 'gyoza' | 'nigiri' | 'tamagoyaki'
-  | 'purin' | 'napolitan' | 'zarusoba' | 'tempura';
+  | 'purin' | 'napolitan' | 'zarusoba' | 'tempura'
+  | 'sfogliatella' | 'delizia' | 'cuoppo' | 'frittatina' | 'portafoglio' | 'montanara' | 'gelato' | 'granita'
+  | 'limoncello' | 'caprese' | 'scialatielli' | 'totani';
 
 type FC = ReturnType<typeof foodColors>;
 
@@ -58,6 +69,18 @@ export function buildFood(id: FoodId, pal: Palette): Prop {
     case 'napolitan': return napolitan(c);
     case 'zarusoba': return zarusoba(c);
     case 'tempura': return tempura(c);
+    case 'sfogliatella': return sfogliatella(c);
+    case 'delizia': return delizia(c);
+    case 'cuoppo': return cuoppo(c);
+    case 'frittatina': return frittatina(c);
+    case 'portafoglio': return portafoglio(c);
+    case 'montanara': return montanara(c);
+    case 'gelato': return gelato(c);
+    case 'granita': return granita(c);
+    case 'limoncello': return limoncello(c);
+    case 'caprese': return caprese(c);
+    case 'scialatielli': return scialatielli(c);
+    case 'totani': return totani(c);
   }
 }
 
@@ -354,5 +377,174 @@ function tempura(c: FC): Prop {
   for (let y = 1; y <= 3; y++) p.cylY(21.5, 15, 2.6, y, y, c.choko);
   p.cylY(21.5, 15, 1.8, 3, 3, c.tsuyu);
   p.ellipsoid(21.5, 4, 15, 1.2, 0.8, 1.2, c.daikon);
+  return p;
+}
+
+// ---------------------------------------------------------------------------------------------- Amalfi
+
+/** A plate in the coast's hand-painted majolica: white with a blue and yellow rim. */
+function majolica(p: Prop, c: FC, cx: number, cz: number, r: number): void {
+  p.cylY(cx, cz, r, 0, 0, c.ceramicWhite);
+  p.cylY(cx, cz, r, 1, 1, (x, _y, z) => (Math.hypot(x + 0.5 - cx, z + 0.5 - cz) > r - 1.2 ? ((x + z) % 3 ? c.ceramicBlue : c.ceramicYellow) : c.ceramicWhite));
+  p.cylY(cx, cz, r - 1.2, 1, 1, 0);
+}
+
+function sfogliatella(c: FC): Prop {
+  const p = new Prop(22, 12, 20, S);
+  p.box(1, 0, 1, 20, 0, 18, c.paper);
+  // the shell: a fan of crisp layers, ridged, closing to a point at the back
+  for (let z = 3; z <= 16; z++)
+    for (let x = 3; x <= 18; x++) {
+      const t = (x - 3) / 15;
+      const half = 6.6 * Math.sin(Math.PI * (0.25 + t * 0.75)) ;
+      if (Math.abs(z - 9.5) > half) continue;
+      const h = 2 + Math.round((1 - Math.abs(z - 9.5) / Math.max(1, half)) * 5 * (0.4 + t * 0.6));
+      for (let y = 1; y <= h; y++) p.set(x, y, z, x % 2 === 0 ? c.pastryDark : y === h ? c.pastryLight : c.pastry);
+    }
+  for (let k = 0; k < 30; k++) { const x = 5 + (k * 7) % 13, z = 5 + (k * 5) % 10; let y = 9; while (y > 1 && !p.get(x, y - 1, z)) y--; p.set(x, y, z, c.sugar); }
+  return p;
+}
+
+function delizia(c: FC): Prop {
+  const p = new Prop(22, 14, 22, S);
+  majolica(p, c, 11, 11, 10.5);
+  // a dome of lemon sponge soaked and glazed in lemon cream
+  p.ellipsoid(11, 2, 11, 7, 9, 7, (_x, y) => (y > 2 ? c.lemonCream : c.sponge));
+  for (let x = 4; x <= 18; x++) for (let z = 4; z <= 18; z++) if (!p.get(x, 2, z) && Math.hypot(x - 10.5, z - 10.5) < 7.2) p.set(x, 2, z, c.lemonCream);
+  p.box(10, 11, 10, 12, 11, 12, c.cream);
+  p.box(10, 12, 11, 12, 12, 11, c.lemonPeel);
+  p.set(11, 12, 10, c.basil);
+  return p;
+}
+
+function cuoppo(c: FC): Prop {
+  const p = new Prop(16, 24, 16, S);
+  // a cone of brown paper standing in a holder, brimming with fried squid rings, prawns and anchovies
+  for (let y = 0; y < 16; y++) p.cylY(8, 8, 1.5 + y * 0.42, y, y, (x, yy, z) => ((x + z + yy) % 7 === 0 ? c.conePaperDark : c.conePaper));
+  for (let y = 2; y < 16; y++) p.cylY(8, 8, 0.7 + y * 0.42, y, y, 0);
+  const r = rng(51);
+  for (let k = 0; k < 18; k++) {
+    const a = r() * Math.PI * 2, d = r() * 4.5, y = 14 + r() * 5;
+    const x = 8 + Math.cos(a) * d, z = 8 + Math.sin(a) * d;
+    const kind = k % 3;
+    if (kind === 0) for (let t = 0; t < 8; t++) { const aa = (t / 8) * Math.PI * 2; p.set(Math.round(x + Math.cos(aa) * 1.6), Math.round(y), Math.round(z + Math.sin(aa) * 1.6), r() < 0.4 ? c.fryDark : c.fry); }
+    else if (kind === 1) p.ellipsoid(x, y, z, 1.6, 1.1, 1.1, () => (r() < 0.3 ? c.fryDark : c.fry));
+    else { p.box(Math.round(x) - 2, Math.round(y), Math.round(z), Math.round(x) + 2, Math.round(y), Math.round(z), c.anchovy); }
+  }
+  p.box(11, 16, 6, 12, 19, 7, c.lemon);
+  return p;
+}
+
+function frittatina(c: FC): Prop {
+  const p = new Prop(20, 10, 20, S);
+  p.box(1, 0, 1, 18, 0, 18, c.paper);
+  // a golden disc of fried bucatini and béchamel, broken open
+  p.cylY(10, 10, 7.5, 1, 6, (x, y, z) => (y === 6 || Math.hypot(x + 0.5 - 10, z + 0.5 - 10) > 6.6 ? ((x + z) % 3 ? c.fry : c.fryDark) : c.batterLight));
+  for (let x = 4; x <= 16; x++) for (let y = 2; y <= 5; y++) if ((x + y) % 2 === 0) p.set(x, y, 3, c.pastaHi);
+  return p;
+}
+
+function portafoglio(c: FC): Prop {
+  const p = new Prop(22, 12, 18, S);
+  p.box(0, 0, 0, 21, 0, 17, c.paper);
+  p.box(0, 1, 0, 21, 5, 0, c.paper);
+  // the "wallet": a small pizza folded in four, tomato and mozzarella showing at the open edge
+  for (let x = 3; x <= 18; x++) for (let z = 2; z <= 14; z++) {
+    const h = Math.round(7 - Math.abs(z - 8) * 0.5);
+    for (let y = 1; y <= h; y++) p.set(x, y, z, y === h ? (x % 5 === 0 ? c.crust : c.dough) : c.dough);
+  }
+  for (let x = 4; x <= 17; x++) { p.set(x, 4, 15, c.tomato); p.set(x, 5, 15, x % 3 ? c.mozzarella : c.tomato); p.set(x, 3, 15, c.crust); }
+  p.box(9, 8, 7, 10, 8, 8, c.basil);
+  return p;
+}
+
+function montanara(c: FC): Prop {
+  const p = new Prop(22, 9, 22, S);
+  majolica(p, c, 11, 11, 10.5);
+  p.cylY(11, 11, 8, 1, 3, (x, y, z) => (Math.hypot(x + 0.5 - 11, z + 0.5 - 11) > 7 || y < 3 ? c.fry : c.tomato));
+  const r = rng(53);
+  for (let k = 0; k < 16; k++) p.set(6 + Math.floor(r() * 10), 4, 6 + Math.floor(r() * 10), r() < 0.5 ? c.parmesan : c.mozzarella);
+  p.box(10, 4, 10, 12, 4, 11, c.basil);
+  return p;
+}
+
+function gelato(c: FC): Prop {
+  const p = new Prop(14, 26, 14, S);
+  // a waffle cone with lemon and pistachio
+  for (let y = 0; y < 14; y++) p.cylY(7, 7, 0.8 + y * 0.36, y, y, (x, yy, z) => ((x + yy + z) % 3 === 0 ? c.waferDark : c.wafer));
+  p.ellipsoid(7, 16, 7, 5, 3.6, 5, c.pistachio);
+  p.ellipsoid(7, 20.5, 7, 4.4, 3.4, 4.4, c.lemonGelato);
+  p.box(6, 24, 6, 7, 24, 7, c.lemonPeel);
+  return p;
+}
+
+function granita(c: FC): Prop {
+  const p = new Prop(14, 18, 14, S);
+  for (let y = 0; y < 12; y++) p.cylY(7, 7, 4.2 + y * 0.18, y, y, c.glass);
+  p.cylY(7, 7, 4, 1, 11, 0);
+  const r = rng(54);
+  for (let y = 1; y <= 13; y++) p.cylY(7, 7, y > 11 ? 5.5 - (y - 11) * 1.6 : 4, y, y, () => (r() < 0.25 ? c.lemonGelato : c.granita));
+  p.box(9, 10, 6, 9, 17, 6, c.cherry);
+  p.box(5, 14, 7, 6, 14, 7, c.lemonPeel);
+  return p;
+}
+
+function limoncello(c: FC): Prop {
+  const p = new Prop(20, 14, 16, S);
+  majolica(p, c, 10, 8, 7.5);
+  // a frosted little glass and the bottle beside it
+  p.cylY(7, 8, 2.2, 1, 6, c.glass);
+  p.cylY(7, 8, 1.6, 2, 6, c.limoncello);
+  p.cylY(15, 8, 2.8, 0, 8, (_x, y) => (y >= 3 && y <= 5 ? c.ceramicYellow : c.limoncello));
+  p.cylY(15, 8, 1.2, 9, 12, c.glass);
+  p.box(14, 13, 7, 15, 13, 8, c.geta);
+  p.box(10, 1, 12, 12, 2, 14, c.lemon);
+  return p;
+}
+
+function caprese(c: FC): Prop {
+  const p = new Prop(22, 10, 22, S);
+  majolica(p, c, 11, 11, 10.5);
+  // a wedge of flourless chocolate and almond cake under icing sugar
+  for (let x = 4; x <= 18; x++) for (let z = 5; z <= 16; z++) {
+    if (Math.abs(z - 10.5) > (x - 3) * 0.42) continue;
+    for (let y = 1; y <= 6; y++) p.set(x, y, z, y === 6 ? c.sugar : y === 1 ? c.chocolateDark : c.chocolate);
+  }
+  p.ellipsoid(6, 2.5, 15, 2.2, 1.4, 2.2, c.cream);
+  return p;
+}
+
+function scialatielli(c: FC): Prop {
+  const p = new Prop(26, 10, 26, S);
+  majolica(p, c, 13, 13, 12.5);
+  const r = rng(55);
+  // thick short ribbons of fresh pasta tossed with clams, mussels and cherry tomatoes
+  for (let y = 2; y <= 6; y++) p.cylY(13, 13, 9 - (y - 2) * 1.5, y, y, () => (r() < 0.35 ? c.scialatielliHi : c.scialatielli));
+  for (let k = 0; k < 9; k++) {
+    const a = r() * Math.PI * 2, d = 3 + r() * 6;
+    const x = Math.round(13 + Math.cos(a) * d), z = Math.round(13 + Math.sin(a) * d);
+    let y = 8; while (y > 2 && !p.get(x, y - 1, z)) y--;
+    if (k % 3 === 0) { p.box(x, y, z, x + 2, y, z + 1, c.mussel); p.set(x + 1, y, z, c.musselIn); }
+    else if (k % 3 === 1) p.box(x, y, z, x + 1, y, z + 1, c.clam);
+    else p.ellipsoid(x, y + 0.5, z, 1.2, 1.2, 1.2, c.tomato);
+  }
+  for (let k = 0; k < 14; k++) p.set(8 + Math.floor(r() * 10), 7, 8 + Math.floor(r() * 10), c.parsley);
+  return p;
+}
+
+function totani(c: FC): Prop {
+  const p = new Prop(24, 10, 24, S);
+  // a deep bowl of squid rings and potatoes stewed with tomato and parsley
+  for (let y = 0; y <= 6; y++) p.cylY(12, 12, 7 + y * 0.7, y, y, c.ceramicYellow);
+  p.cylY(12, 12, 10.5, 1, 6, 0);
+  p.cylY(12, 12, 10, 1, 4, c.tomato);
+  const r = rng(56);
+  for (let k = 0; k < 16; k++) {
+    const a = r() * Math.PI * 2, d = r() * 7.5;
+    const x = 12 + Math.cos(a) * d, z = 12 + Math.sin(a) * d;
+    if (k % 2) p.ellipsoid(x, 5, z, 1.4, 1.2, 1.4, c.potato);
+    else for (let t = 0; t < 8; t++) { const aa = (t / 8) * Math.PI * 2; p.set(Math.round(x + Math.cos(aa) * 1.6), 5, Math.round(z + Math.sin(aa) * 1.6), c.squid); }
+  }
+  for (let k = 0; k < 10; k++) p.set(7 + Math.floor(r() * 10), 6, 7 + Math.floor(r() * 10), c.parsley);
   return p;
 }

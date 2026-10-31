@@ -114,7 +114,8 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
           const kk = k + dk, jj = j + dj;
           if (kk < 0 || jj < 0 || kk >= g.sx || jj >= g.sz) continue;
           const cc = jj * g.sx + kk;
-          if (!seen[cc] && !id[cc] && tall(cc)) { seen[cc] = 1; comp.push(cc); }
+          // on a hillside a mass never spans terraces, or its cut would shave the upper ones down to the lowest
+          if (!seen[cc] && !id[cc] && tall(cc) && (!gr || Math.abs(gr[cc] - gr[c]) <= 2)) { seen[cc] = 1; comp.push(cc); }
         }
       }
       if (comp.length < MASS_MIN) continue;

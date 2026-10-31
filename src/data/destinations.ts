@@ -42,6 +42,11 @@ export const DESTINATIONS: Destination[] = [
     menu: [['simit', 'Simit'], ['fish', 'Balık ekmek'], ['wrap', 'Döner']],
   },
   {
+    id: 'amalfi', city: 'Amalfi', country: 'Italy', local: 'Amalfi', code: 'AMF', lat: 40.63, lon: 14.6, tz: 'Europe/Rome', open: true,
+    blurb: 'A town stacked up the cliffs: stairways, lemon terraces and fried fish by the harbour.',
+    menu: [['croissant', 'Sfogliatella'], ['squid', 'Cuoppo di mare'], ['pizza', 'Pizza a portafoglio'], ['vanilla', 'Gelato al limone']],
+  },
+  {
     id: 'naples', city: 'Naples', country: 'Italy', local: 'Napoli', code: 'NAP', lat: 40.85, lon: 14.27, tz: 'Europe/Rome', open: false,
     blurb: 'Laundry over narrow vicoli and pizza folded to eat on the go.',
     menu: [['pizza', 'Pizza fritta'], ['croissant', 'Sfogliatella'], ['squid', 'Cuoppo']],

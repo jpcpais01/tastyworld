@@ -1,4 +1,5 @@
 import type { Quality } from '../engine/renderer';
+import { CITY } from '../world/cityId';
 
 export interface Settings {
   quality: Quality | 'auto';
@@ -33,7 +34,7 @@ export interface SaveState {
   claimed: string[];
   items: string[];
   wear: Record<string, boolean>;
-  flags: { ateAtNight?: boolean; introSeen?: boolean; lastPatch?: string; metFumiko?: boolean; shelfOpen?: boolean };
+  flags: { ateAtNight?: boolean; introSeen?: boolean; lastPatch?: string; metFumiko?: boolean; shelfOpen?: boolean; climbed?: boolean; photosA?: number };
   /** Indices of the hidden daruma found. */
   darumas: number[];
   /** Gachapon capsule ids collected. */
@@ -55,6 +56,25 @@ export interface SaveState {
   playTime: number;
   /** Photos taken in photo mode (the pictures themselves live in the album, game/album.ts). */
   photos: number;
+  /** The city-bound parts of the save (see LOCAL) for every city but the one being played, by city id. */
+  cities?: Record<string, Partial<SaveState>>;
+}
+
+/**
+ * What belongs to one city: its hidden things, the rooms and stalls found, tonight's bed, the map pin and the
+ * diary's flags. The wallet, the passport stamps, wardrobe and settings travel with you. Tokyo's are kept at the
+ * top level of the save, as they were before there was a second city; the city being played is always there in
+ * memory and the others wait under `cities`.
+ */
+const LOCAL = ['manekis', 'hiddenFound', 'darumas', 'rooms', 'seen', 'hotel', 'pin', 'flags'] as const;
+type LocalKey = (typeof LOCAL)[number];
+/** Tokyo's city-bound fields while another city is in memory, to write back where old saves expect them. */
+let home: Partial<SaveState> | null = null;
+
+function pickLocal(s: Partial<SaveState>): Partial<SaveState> {
+  const o: Partial<Record<LocalKey, unknown>> = {};
+  for (const k of LOCAL) if (s[k] !== undefined) o[k] = k === 'flags' ? { ...(s.flags ?? {}), lastPatch: undefined } : s[k];
+  return o as Partial<SaveState>;
 }
 
 const KEY = 'tastyworld.save.v1';
@@ -77,18 +97,35 @@ export function loadState(): SaveState {
     if (old.music === false && old.musicVol === undefined) old.musicVol = 0;
     if (old.sfx === false && old.sfxVol === undefined) { old.sfxVol = 0; old.ambVol = 0; }
     delete old.music; delete old.sfx;
-    return { ...d, ...s, settings: { ...d.settings, ...old }, flags: { ...d.flags, ...(s.flags ?? {}) }, profile: { ...d.profile, ...(s.profile ?? {}) } } as SaveState;
+    const lastPatch = s.flags?.lastPatch;
+    if (CITY !== 'tokyo') {
+      home = pickLocal(s);
+      const here = s.cities?.[CITY] ?? {};
+      for (const k of LOCAL) delete s[k];
+      Object.assign(s, here);
+    }
+    return { ...d, ...s, settings: { ...d.settings, ...old }, flags: { ...d.flags, ...(s.flags ?? {}), lastPatch }, profile: { ...d.profile, ...(s.profile ?? {}) } } as SaveState;
   } catch {
     return defaultState();
   }
 }
 
+/** The save as it goes to storage: the city being played filed under `cities` unless it is Tokyo. */
+function stored(s: SaveState): SaveState {
+  if (CITY === 'tokyo') return s;
+  return { ...s, ...(home ?? {}), flags: { ...(home?.flags ?? {}), lastPatch: s.flags.lastPatch }, cities: { ...(s.cities ?? {}), [CITY]: pickLocal(s) } };
+}
+
 let pending = 0;
 export function saveState(s: SaveState): void {
   clearTimeout(pending);
-  pending = window.setTimeout(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage unavailable */ }
-  }, 250);
+  pending = window.setTimeout(() => saveNow(s), 250);
+}
+
+/** Write the save straight away (before the page reloads into another city). */
+export function saveNow(s: SaveState): void {
+  clearTimeout(pending);
+  try { localStorage.setItem(KEY, JSON.stringify(stored(s))); } catch { /* storage unavailable */ }
 }
 
 export function resetState(): SaveState {

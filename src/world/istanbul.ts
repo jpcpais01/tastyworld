@@ -14,6 +14,7 @@ import { halls, bazaarShop, bazaarKeeper, bazaarShoppers, hallFloor, WARM_ZONES 
 import {
   istanbulPlan, K, col, layerOf, inMap, hillY, isPath, shoreDist, type LotPlan, type Plan, type PathSeg,
   QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, STATION, GRAND, beyond, BRIDGE_GATE_Z,
+  COAST, LANDINGS, PONTOONS, PONTOON_Y, landingStep, pontoonAt, seaBed, type Rect,
 } from './istanbulPlan';
 
 /**
@@ -27,7 +28,7 @@ import {
 function istanbulColors(b: Builder) {
   const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
   const F = { leaf: true }, GL = { glass: true };
-  return {
+  const c = {
     // stone: grey limestone of the mosques, the pinkish Küfeki stone of the hans, Ottoman brick, granite setts
     lime: a(0xd6d0c4, 0.05), limeDark: a(0xb9b2a4, 0.06), limeLight: a(0xe8e3d8, 0.04), kufeki: a(0xd8c7a8, 0.06), kufekiDark: a(0xbfac8a, 0.06),
     brick: a(0xa65a3e, 0.08), brickDark: a(0x8a4630, 0.08), mortar: a(0xcdbfa6, 0.05), granite: a(0x8b8781, 0.08), graniteB: a(0x77736d, 0.08),
@@ -72,7 +73,18 @@ function istanbulColors(b: Builder) {
     cartRed: a(0xc8302a, 0.03), flagRed: a(0xd8202a, 0.02), cartGlass: a(0xe8f0f2, 0.02, { glass: true }), chrome: a(0xb8bec4, 0.03), tramWhite: a(0xf2f2ee, 0.02), tramRed: a(0xc8282a, 0.03), rail: a(0x8a8580, 0.05), sleeper: a(0x5a4636, 0.06),
     lampGlow: a(0xffd89a, 0.03, { emit: 0.9, night: true }), lampGlowAlways: a(0xffd89a, 0.03, { emit: 0.85 }), ember: a(0xff7a2a, 0.05, { emit: 0.9 }),
     nazarBlue: a(0x1f4fb8, 0.03, { emit: 0.15 }), nazarLight: a(0x7ab8f0, 0.03), nazarWhite: a(0xf8f8f4, 0.02), nazarDark: a(0x14141a, 0.02),
+    // the small things on a block's walls: zinc downpipes, satellite dishes, the roller shutters' housings
+    zinc: a(0x8e9498, 0.04), zincDark: a(0x6e7478, 0.04), dish: a(0xe6e4de, 0.03), kepenk: a(0x9a9c9e, 0.04),
   };
+  // each wall's weathered shades: the damp that rises from the street, the streaks the rain leaves under a sill
+  const shade = (i: number, k: number, warm = 0) => {
+    const f = (v: number, w: number) => Math.max(0, Math.min(255, Math.round(v * k + w)));
+    return (f(b.pal.r[i], warm) << 16) | (f(b.pal.g[i], warm * 0.6) << 8) | f(b.pal.b[i], 0);
+  };
+  const walls = [...new Set([...PLASTER(c), ...GROUND_WALLS(c), c.brick])];
+  const dirt = new Map(walls.map((i) => [i, a(shade(i, 0.84, -4), 0.07)] as const));
+  const damp = new Map(walls.map((i) => [i, a(shade(i, 0.91, 2), 0.08)] as const));
+  return { ...c, dirt, damp };
 }
 
 export type IC2 = ReturnType<typeof istanbulColors>;
@@ -443,6 +455,83 @@ function vapur(c: IC2): Prop {
 }
 
 /**
+ * A Bosphorus tour boat (Boğaz turu), 18 m: a navy hull with a white gunwale, a glazed saloon, an open top deck
+ * of slatted benches under a striped awning, the wheelhouse forward and the flag at the stern. Bow towards +x.
+ */
+function tourBoat(c: IC2): Prop {
+  const L = 72, W = 16, cz = 7.5;
+  const p = new Prop(L, 30, W, 0.25);
+  const half = (x: number) => 7.5 * Math.min(1, Math.sin(Math.PI * Math.min(1, (x / (L - 1)) * 0.93 + 0.07)) ** 0.35);
+  for (let x = 0; x < L; x++) {
+    const h = half(x);
+    for (let z = 0; z < W; z++) {
+      const dz = Math.abs(z - cz);
+      if (dz > h) continue;
+      const edge = dz > h - 1.2;
+      for (let y = Math.round((dz / Math.max(1, h)) * 2); y <= 7; y++) {
+        if (!edge && y > 1 && y < 6) continue;
+        p.set(x, y, z, y < 4 ? c.hullRed : y < 6 ? c.ferryBand : y === 6 ? (edge ? c.white : c.deck) : edge ? c.white : 0);
+      }
+      if (edge && x % 3 === 0) p.set(x, 8, z, c.white);
+      if (edge) p.set(x, 9, z, c.white);
+    }
+  }
+  // the saloon, glazed all round, its roof the top deck
+  p.box(10, 7, 3, 56, 12, 12, (x, y, z) => {
+    const side = z === 3 || z === 12 || x === 10 || x === 56;
+    if (!side) return 0;
+    return y >= 9 && y <= 11 && (x + z) % 4 !== 0 ? c.glass : y === 12 ? c.ferryBand : c.hullWhite;
+  });
+  p.box(10, 13, 2, 56, 13, 13, c.deck);
+  for (let x = 10; x <= 56; x++) for (const z of [2, 13]) { if (x % 3 === 0) p.set(x, 14, z, c.white); p.set(x, 15, z, c.white); }
+  // benches on the top deck, back to back down the middle
+  for (let x = 14; x <= 50; x += 4) for (const z of [4, 11]) { p.box(x, 14, z, x + 2, 14, z, c.woodBare); p.box(x, 15, z + (z < 7 ? -1 : 1), x + 2, 16, z + (z < 7 ? -1 : 1), c.woodBare); }
+  // the striped awning on its posts
+  for (const x of [12, 30, 48]) for (const z of [2, 13]) p.box(x, 14, z, x, 20, z, c.white);
+  for (let x = 11; x <= 50; x++) for (let z = 2; z <= 13; z++) p.set(x, 21 + (z > 4 && z < 11 ? 1 : 0), z, (x >> 1) % 2 ? c.awnBlue : c.white);
+  // the wheelhouse forward, the flag aft, life rings along the rails
+  p.box(56, 13, 4, 63, 19, 11, (x, y, z) => (y === 19 ? c.white : y >= 16 && y <= 18 && (x === 63 || z === 4 || z === 11) ? c.glass : c.hullWhite));
+  p.box(60, 20, 7, 60, 23, 7, c.iron);
+  p.box(2, 8, 7, 2, 19, 7, c.white);
+  p.box(3, 15, 7, 7, 18, 7, (x, y) => (x === 4 && y >= 16 && y <= 17 ? c.white : c.flagRed));
+  for (let x = 14; x < 56; x += 10) for (const z of [Math.round(cz - half(x)), Math.round(cz + half(x))]) { p.set(x, 8, z, c.hullRed); p.set(x, 9, z, c.white); }
+  return p;
+}
+
+/** A cast-iron bollard at the quay's edge, a turn of mooring rope round it. */
+function bollard(c: IC2, rope: boolean): Prop {
+  const p = new Prop(3, 5, 3);
+  p.box(0, 0, 0, 2, 0, 2, c.iron);
+  p.box(1, 1, 1, 1, 3, 1, c.iron);
+  p.box(0, 4, 0, 2, 4, 2, c.iron);
+  if (rope) { p.set(0, 2, 1, c.rope); p.set(2, 2, 1, c.rope); p.set(1, 2, 0, c.rope); p.set(1, 2, 2, c.rope); }
+  return p;
+}
+
+/** The lifebuoy (can simidi) on its white post by the stairs and the landing stages, red and white. Faces +z. */
+function lifebuoy(c: IC2): Prop {
+  const p = new Prop(7, 13, 2);
+  p.box(3, 0, 1, 3, 12, 1, c.white);
+  for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
+    const d = Math.hypot(x - 3, y - 3);
+    if (d > 2 && d < 3.6) p.set(x, y + 5, 0, (Math.floor(Math.atan2(y - 3, x - 3) / (Math.PI / 2) + 4) % 2) ? c.white : c.hullRed);
+  }
+  return p;
+}
+
+/** A round planter of quay stone round the foot of a tree, a ring of grass and clover inside. */
+function planter(c: IC2): Prop {
+  const p = new Prop(14, 4, 14);
+  for (let z = 0; z < 14; z++) for (let x = 0; x < 14; x++) {
+    const d = Math.hypot(x - 6.5, z - 6.5);
+    if (d > 6.9) continue;
+    if (d > 5.6) p.box(x, 0, z, x, 3, z, (_x, y) => (y === 3 ? c.quayEdge : c.granite));
+    else p.box(x, 0, z, x, 2, z, (_x, y) => (y < 2 ? c.soil : hash3(x, 5, z) < 0.6 ? c.grass : c.clover));
+  }
+  return p;
+}
+
+/**
  * The Turkish flag on its pole: red, the white crescent and star near the hoist, swinging round the pole in the
  * wind. Eighth-metre voxels, six metres of pole, the flag two and a quarter metres across. Flies along +x.
  */
@@ -726,7 +815,7 @@ export function buildIstanbul(win?: Window): BuildResult {
       { id: 'imam', pos: [0, 0, 33] },
       { id: 'cayci', pos: [-126, 0, 18] },
       { id: 'halici', pos: [-126, 0, -61.2] },
-      { id: 'kaptan', pos: [36, 0, -4] },
+      { id: 'kaptan', pos: [39.3, 0, -6] },
     ],
     benches: b.benches.filter(([x, z]) => !beyond(x, z)),
     stools: b.stools.filter(([x, z]) => !beyond(x, z)),
@@ -869,13 +958,42 @@ function blockWall(c: IC2, x: number, y: number, z: number): number {
   return hash3((x + off) / 5 | 0, course, (z + off) / 5 | 0) < 0.5 ? c.granite : c.graniteB;
 }
 
+const inside = (r: Rect, x: number, z: number) => x >= r[0] && x < r[2] && z >= r[1] && z < r[3];
+
+/**
+ * Where boats tie up along the quay, so its rail is left out and bollards stand at the edge instead: the fish
+ * boats' basin by the bridge, the ferry piers on the Bosphorus and the Horn, and the rowing boats in the little bay.
+ */
+const MOORINGS: Rect[] = [[-12, 42, 11.2, 45], [27, -50, 33, -42], [-56, 42, -48, 45], [33, 12.8, 35, 14.4], [33, 23.6, 35.5, 25.4]];
+const moored = (x: number, z: number) => MOORINGS.some((r) => inside(r, x, z));
+
+/** The solid floor of a column: the deck, except under a landing stage riding on the water (the sea bed). */
+function floorOf(plan: Plan, x: number, z: number): number {
+  const ci = col(x, z);
+  return plan.kind[ci] === K.Pontoon && shoreDist((x + 0.5) * V, (z + 0.5) * V) < 0 ? seaBed((x + 0.5) * V, (z + 0.5) * V) : plan.walk[ci];
+}
+
+/** Quay paving: big flags of grey limestone and granite in running bond, each its own tone. */
+function quayFlag(c: IC2, x: number, z: number): number {
+  const row = Math.floor(z / 4), fx = Math.floor((x + (row & 1) * 4) / 8), t = hash3(fx, 23, row);
+  return t < 0.45 ? c.slab : t < 0.8 ? c.slabB : t < 0.93 ? c.kerb : c.granite;
+}
+
+/** The front edge of a landing step: the next column down the stairs is lower. */
+function isNosing(plan: Plan, x: number, z: number): boolean {
+  const s = landingStep((x + 0.5) * V, (z + 0.5) * V);
+  if (!s) return false;
+  const [dx, dz] = s.dir === 'n' ? [0, 1] : [1, 0];
+  return inMap(x + dx, z + dz) && plan.walk[col(x + dx, z + dz)] < plan.walk[col(x, z)];
+}
+
 function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): void {
   const { b, c, plan } = ctx;
   const g = b.grid;
   for (let bz = wz0; bz < wz1; bz += 8)
     for (let bx = wx0; bx < wx1; bx += 8) {
       let lo = 255;
-      for (let z = bz; z < bz + 8; z++) for (let x = bx; x < bx + 8; x++) lo = Math.min(lo, plan.walk[col(x, z)]);
+      for (let z = bz; z < bz + 8; z++) for (let x = bx; x < bx + 8; x++) lo = Math.min(lo, floorOf(plan, x, z));
       const full = (lo - 4) & ~7;
       if (full > 0) g.box(bx, 0, bz, bx + 7, full - 1, bz + 7, c.granite);
     }
@@ -888,13 +1006,31 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
       if (kd === K.Ground) for (let k = 1; k <= 12 && !hallSide; k++) for (const [dx, dz] of [[k, 0], [-k, 0], [0, k], [0, -k]]) {
         if (inMap(x + dx, z + dz) && plan.kind[col(x + dx, z + dz)] === K.Covered && Math.abs(plan.walk[col(x + dx, z + dz)] - w) <= 2) { hallSide = true; break; }
       }
+      const floor = floorOf(plan, x, z);
+      if (floor !== w) {
+        // a landing stage riding on the water: the sea bed under it, then a steel hull with a black rubber
+        // fender round its top and a deck of planks; a gangway is a single steel beam under its planks
+        g.box(x, Math.max(0, ((floor - 4) & ~7) - 8), z, x, floor - 1, z, (xx, y, zz) => (y === floor - 1 && hash3(xx, y, zz) < 0.5 ? c.seaBedB : c.seaBed));
+        const deck = pontoonAt((x + 0.5) * V, (z + 0.5) * V)?.deck;
+        g.box(x, deck ? layerOf(-0.85) : w - 2, z, x, w - 1, z, (xx, y, zz) => {
+          if (y === w - 1) return pm(deck ? xx : zz, 2) === 0 ? c.deck : c.woodBare;
+          if (!deck) return c.iron;
+          return y === w - 2 ? c.funnelBlack : y >= layerOf(-0.6) ? c.hullDark : c.algae;
+        });
+        continue;
+      }
       g.box(x, y0, z, x, w - 1, z, (xx, y, zz) => {
         const d = w - 1 - y;
         switch (kd) {
           case K.Sea: return d === 0 ? (hash3(xx, y, zz) < 0.5 ? c.seaBed : c.seaBedB) : c.seaBed;
-          case K.Quay: case K.Pier:
-            if (d === 0) return (xx + zz) % 8 === 0 ? c.slabB : c.slab;
+          case K.Quay: case K.Pier: case K.Pontoon:
+            if (d === 0) return quayFlag(c, xx, zz);
             return y < G - 1 ? (y < G - 3 ? c.algae : c.wet) : blockWall(c, xx, y, zz);
+          case K.Landing:
+            // granite treads, a pale nosing on each, green and slick below the tide line
+            if (y < G - 1) return y < G - 3 || d > 0 ? c.algae : c.wet;
+            if (d === 0) return isNosing(plan, xx, zz) ? c.quayEdge : hash3(xx, 21, zz) < 0.5 ? c.granite : c.graniteB;
+            return c.granite;
           case K.Bridge: return d === 0 ? c.asphalt : blockWall(c, xx, y, zz);
           case K.Square: case K.Court:
             if (d === 0) return (xx % 12 === 0 || zz % 12 === 0) ? c.marbleGrey : hash3(xx >> 1, 2, zz >> 1) < 0.5 ? c.slab : c.slabB;
@@ -945,15 +1081,21 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
           if (plan.walk[nc] < w - 3) drop = true;
         }
         const mx = x * V, mz = z * V;
-        if (sea && kd !== K.Quay) {
-          // piers and the bridge: an iron railing along the edge
-          g.box(x, w, z, x, w + 3, z, (_x, y) => (y === w + 3 ? c.iron : (x + z) % 4 === 0 ? c.iron : 0));
+        const step = kd === K.Landing || (kd === K.Quay && landingStep(mx + V / 2, mz + V / 2)?.cheek);
+        if (step) {
+          // the stairs into the water: open to it, but the last step is under the tide and nobody stands there,
+          // and the cheek walls either side are built by the waterfront
+          if (sea && w < G) b.block(mx, mz, mx + V * 0.99, mz + V * 0.99);
+        } else if (sea && kd !== K.Quay) {
+          // piers, the bridge and the landing stages: an iron railing along the edge, left open on a landing
+          // stage's boarding side, where the boats lie alongside and the crew hand the passengers across
+          const open = kd === K.Pontoon && PONTOONS.some((p) => inside(p.board, mx + V / 2, mz + V / 2));
+          if (!open) g.box(x, w, z, x, w + 3, z, (_x, y) => (y === w + 3 ? c.iron : (x + z) % 4 === 0 ? c.iron : 0));
           b.block(mx, mz, mx + V * 0.99, mz + V * 0.99);
         } else if (sea) {
           // the quay's edge: a kerb of white stone and a low iron rail, broken where the boats tie up
-          const gap = (mz > HORN_Z - 3 && mx > -12 && mx < 12) || (mx > BOS_X - 3 && Math.abs(mz + 2) < 4) || (mx > BOS_X - 3 && Math.abs(mz + 46) < 4) || (mz > HORN_Z - 3 && Math.abs(mx + 52) < 4);
           g.set(x, w, z, c.quayEdge);
-          if (!gap && (x + z) % 2 === 0) g.box(x, w + 1, z, x, w + 3, z, (_x, y) => (y === w + 3 || (x + z) % 8 === 0 ? c.iron : 0));
+          if (!moored(mx, mz) && (x + z) % 2 === 0) g.box(x, w + 1, z, x, w + 3, z, (_x, y) => (y === w + 3 || (x + z) % 8 === 0 ? c.iron : 0));
           b.block(mx, mz, mx + V * 0.99, mz + V * 0.99);
         } else if (drop) {
           g.box(x, w, z, x, w + 3, z, (xx, y, zz) => (y === w + 3 ? c.kerb : blockWall(c, xx, y, zz)));
@@ -1083,8 +1225,11 @@ function yardWalls(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number)
 
 // ------------------------------------------------------------------------------------------- buildings
 
-const PLASTER = (c: IC2) => [c.cream, c.ochre, c.apricot, c.rose, c.salmon, c.mint, c.powder, c.lilac, c.stone, c.grey, c.white, c.yellow,
+type Keys<K extends string> = Record<K, number>;
+const PLASTER = (c: Keys<'cream' | 'ochre' | 'apricot' | 'rose' | 'salmon' | 'mint' | 'powder' | 'lilac' | 'stone' | 'grey' | 'white' | 'yellow' | 'terraPlaster' | 'sage' | 'sky' | 'blush' | 'sand' | 'pistachioP' | 'deepOchre' | 'warmGrey' | 'oxblood' | 'tealP'>) => [c.cream, c.ochre, c.apricot, c.rose, c.salmon, c.mint, c.powder, c.lilac, c.stone, c.grey, c.white, c.yellow,
   c.terraPlaster, c.sage, c.sky, c.blush, c.sand, c.pistachioP, c.deepOchre, c.warmGrey, c.oxblood, c.tealP];
+/** The tones a ground floor is painted in, under a plaster block of another colour. */
+const GROUND_WALLS = (c: Keys<'limeDark' | 'stone' | 'warmGrey' | 'oxblood' | 'sand' | 'grey' | 'terraPlaster'>) => [c.limeDark, c.stone, c.warmGrey, c.oxblood, c.sand, c.grey, c.terraPlaster];
 const WOOD = (c: IC2) => [c.woodRed, c.woodOchre, c.woodBlue, c.woodGreen, c.woodGrey, c.woodCream, c.woodBare, c.woodRed, c.woodTeal, c.woodYellow, c.woodPink, c.woodGrey];
 /** Painted trims: window frames, string courses, cornices. Light ones on dark walls, dark ones on pale walls. */
 const TRIM_LIGHT = (c: IC2) => [c.cornice, c.trim, c.limeLight, c.paintCream, c.stone];
@@ -1126,7 +1271,7 @@ function lookOf(c: IC2, lt: LotPlan, wooden: boolean, han: boolean): Look {
   return {
     mode,
     ground: mode === 'plaster' ? (g < 0.24 ? 'rustic' : g < 0.42 ? 'tone' : 'same') : mode === 'brick' && g < 0.4 ? 'rustic' : 'same',
-    groundWall: pick([c.limeDark, c.stone, c.warmGrey, c.oxblood, c.sand, c.grey, c.terraPlaster]),
+    groundWall: pick(GROUND_WALLS(c)),
     win: pick(kinds),
     bay: 5 + Math.floor(r() * 4),
     quoins: mode !== 'wood' && r() < 0.35,
@@ -1288,6 +1433,17 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
         const lit = hash3(a, yb, lt.seed) < 0.35;
         const pane = lit ? c.glassLit : c.glass;
         fr.box(g, a, sy0, 0, a + 2, sy1, 0, pane);
+        // upstairs the glass sits back in the thickness of the wall, so the reveal throws its shadow (the ground
+        // floor and any building with rooms upstairs keep it flush: their rooms are hollowed out after this)
+        if (fl > 0 && !o.room) for (let aa = a; aa <= a + 2; aa++) for (let y = sy0; y <= sy1; y++) {
+          const [bx, bz] = fr.xz(aa, 1);
+          const behind = g.get(bx, y, bz);
+          if (!behind || behind === c.glass || behind === c.glassLit) continue;
+          g.set(bx, y, bz, pane);
+          const [fx, fz] = fr.xz(aa, 0);
+          g.set(fx, y, fz, 0);
+        }
+        const face = (aa: number, y: number) => { const [fx, fz] = fr.xz(aa, 0); return g.get(fx, y, fz); };
         if (o.han) { fr.box(g, a, sy1 + 1, 0, a + 2, sy1 + 1, 0, c.brick); fr.box(g, a + 1, sy1 + 2, 0, a + 1, sy1 + 2, 0, c.brick); continue; }
         // the sill, then the window's own surround
         if (kind !== 'french') fr.box(g, a - 1, sy0 - 1, -1, a + 3, sy0 - 1, -1, o.trim);
@@ -1295,7 +1451,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
           fr.box(g, a - 1, sy0, 0, a - 1, sy1, 0, o.trim); fr.box(g, a + 3, sy0, 0, a + 3, sy1, 0, o.trim);
           fr.box(g, a - 1, sy1 + 1, 0, a + 3, sy1 + 1, 0, o.trim);
           // upstairs, the kafes lattice over the lower half of the sash on some houses
-          if (lk.kafes && fl > 0) fr.box(g, a, sy0, 0, a + 2, sy0 + 2, 0, (aa, y) => ((aa + y) % 2 ? c.kafes : pane));
+          if (lk.kafes && fl > 0) fr.box(g, a, sy0, 0, a + 2, sy0 + 2, 0, (aa, y) => ((aa + y) % 2 ? c.kafes : face(aa, y)));
         } else if (kind === 'shutter') {
           if (fl > 0) {
             fr.box(g, a - 1, sy1 + 1, -1, a + 3, sy1 + 1, -1, o.trim); // a pediment over the window
@@ -1341,7 +1497,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
               return y === sy0 ? (k < 0.55 ? bloom : c.leafLight) : k < 0.35 ? bloom : 0;
             });
             for (let aa = a - 1; aa <= a + 3; aa++) { const k = hash3(aa, yb, lt.seed + 9); if (k < 0.45) fr.box(g, aa, sy0 - 3 - (k < 0.15 ? 1 : 0), -2, aa, sy0 - 3, -2, c.ivy); }
-          } else if (h > 0.9 && !o.wooden) {
+          } else if (h > 0.84 && !o.wooden) {
             fr.box(g, a, sy0 - 4, -1, a + 2, sy0 - 2, -2, (aa, y, d) => (d === -2 && aa === a + 1 && y === sy0 - 3 ? c.grey : c.white));
             fr.box(g, a + 2, sy0 - 5, -1, a + 2, sy0 - 5, -1, c.grey);
           }
@@ -1365,6 +1521,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
         }
       }
     }
+    if (!o.wooden && !o.han) weather(ctx, fr, lt, o, ground, front, bays, floors);
     // the wooden houses' cumba: a closed bay window jutting out over the street on the upper floors
     if (o.wooden && front && floors >= 2 && fr.W >= 16) {
       const a0 = Math.floor(fr.W / 2) - 5, a1 = a0 + 9;
@@ -1390,6 +1547,11 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       const frameC = [c.woodDark, c.ironGreen, c.trimOx, c.iron, c.trimBlue, c.woodBare, c.trimGreen][Math.floor(hash3(lt.seed, 2, 2) * 7)];
       const bar = 4 + Math.floor(hash3(lt.seed, 2, 3) * 4);
       fr.box(g, a0, yb, 0, a1, yb + 9, 0, (a, y) => (y === yb + 9 ? o.trim : pm(a - a0, bar) === 0 || a === a1 ? frameC : y < yb + 2 ? frameC : c.shopGlass));
+      // the roller shutter's housing over the glass, rolled up for the day, and its guide rails down the sides
+      if (hash3(lt.seed, 2, 4) < 0.7) {
+        fr.box(g, a0, yb + 9, -1, a1, yb + 9, -1, (a, y, d) => { const [x, z] = fr.xz(a, d); return g.get(x, y, z) || c.kepenk; });
+        for (const a of [a0, a1]) fr.box(g, a, yb + 2, 0, a, yb + 8, 0, c.kepenk);
+      }
       signBoard(c, g, fr, a0, a1, yb + 10, lt.seed);
       if (lk.tiles >= 0 && top - base > 20) fr.box(g, 1, top - 6, 0, fr.W - 2, top - 3, 0, (a, y) => izTile(c, lk.tiles, a, y - (top - 6)));
       const [lx, lz] = fr.m(fr.W / 2, -1.5);
@@ -1407,6 +1569,78 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       if (hash3(lt.seed, 7, 7) < 0.6) fr.box(g, da + 1, yb + 5, 0, da + 2, yb + 5, 0, c.brass);
       const [lx, lz] = fr.m(da + 1.5, -0.4);
       if (hash3(lt.seed, 3, 3) < 0.5) { b.place(wallLantern(c), lx, (yb - G) * V + 2.4, lz, fr.turnOut); b.lamp(lx, (yb - G) * V + 2.4, lz, WARM, 4.5, 0.6); }
+    }
+  }
+}
+
+/**
+ * The wear of a century on a block's walls, and the things a household fixes to them: damp creeping up from the
+ * paving, rain streaks down from the cornice and the sills, plaster fallen away to show the brick behind, a zinc
+ * downpipe at a corner and now and then a satellite dish. Repaints only cells still in the wall's own colour, and
+ * sticks out only into empty air above head height.
+ */
+function weather(ctx: Ctx, fr: Frame, lt: LotPlan, o: { wall: number; trim: number; lk: Look; shopFront: boolean }, ground: (a: number) => number, front: boolean, bays: number[], floors: number): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  const { base, top, seed } = lt;
+  const lk = o.lk;
+  const own = (v: number) => v === o.wall || (lk.ground !== 'same' && v === lk.groundWall);
+  const shadeOf = (m: Map<number, number>, v: number) => m.get(v) ?? m.get(o.wall) ?? v;
+  const paint = (a: number, y: number, m: Map<number, number>) => {
+    const [x, z] = fr.xz(a, 0), v = g.get(x, y, z);
+    if (own(v)) g.set(x, y, z, shadeOf(m, v));
+  };
+  const H = (k: number, a = 0, y = 0) => hash3(seed * 7 + a, y, k);
+  const plaster = lk.mode === 'plaster';
+  // damp, rising in a soft wave from the street where the wall meets the paving
+  for (let a = 0; a < fr.W; a++) {
+    const gl = ground(a);
+    if (gl > base + 2 || gl < base - 6) continue;
+    const y0 = Math.max(base + 2, gl);
+    const wave = Math.sin(a * 0.5 + seed) + Math.sin(a * 0.19 + seed * 0.7);
+    const h = Math.max(0, Math.round((plaster ? 1.6 : 0.8) + wave * 1.4));
+    for (let y = y0; y < y0 + h; y++) paint(a, y, c.damp);
+  }
+  // rain streaks down from the cornice, and under the upstairs sills
+  for (let a = 1; a < fr.W - 1; a++) {
+    const h = H(61, a);
+    if (h < 0.08) for (let y = top - 2; y >= top - 3 - Math.floor(h * 90); y--) paint(a, y, c.dirt);
+  }
+  for (let fl = 1; fl < floors; fl++) for (const a of bays) {
+    const h = H(62, a, fl);
+    if (h < 0.35) for (let y = base + fl * 12 + 1; y >= base + fl * 12 - Math.floor(h * 12); y--) paint(a + 1, y, c.dirt);
+  }
+  // plaster fallen away from the brick under it, in ragged patches
+  if (plaster) {
+    const n = Math.floor(H(63) * 3.6);
+    for (let i = 0; i < n && fr.W > 8 && top - base > 14; i++) {
+      const ha = H(64, i), hy = H(65, i);
+      const pa = 1 + Math.floor(ha * (fr.W - 7)), py = base + 3 + Math.floor(hy * hy * (top - base - 9));
+      const pw = 3 + (Math.floor(ha * 17) % 4), ph = 2 + (Math.floor(hy * 13) % 3);
+      for (let u = 0; u < pw; u++) for (let v = 0; v < ph; v++) {
+        if ((u === 0 || u === pw - 1) && (v === 0 || v === ph - 1)) continue;
+        const [x, z] = fr.xz(pa + u, 0), cur = g.get(x, py + v, z);
+        if (own(cur)) g.set(x, py + v, z, (py + v) % 3 === 2 ? c.mortar : (pa + u + ((py + v) % 6 < 3 ? 0 : 2)) % 4 === 0 ? c.mortar : c.brick);
+      }
+    }
+  }
+  // a zinc downpipe from the gutter to the street at one front corner, its joints banded
+  if (front && H(66) < 0.6 && fr.W >= 10) {
+    const a = H(67) < 0.5 ? 0 : fr.W - 1;
+    const gl = ground(a);
+    if (gl <= base + 2 && gl >= base - 6) for (let y = gl; y < top; y++) {
+      const [x, z] = fr.xz(a, -1);
+      if (!g.get(x, y, z)) g.set(x, y, z, (y - gl) % 12 === 11 ? c.zincDark : c.zinc);
+    }
+  }
+  // a satellite dish beside an upstairs window, on one block in eight
+  if (floors >= 2 && bays.length && H(68) < 0.14) {
+    const a = bays[Math.floor(H(69) * bays.length)] + 4, fl = 1 + Math.floor(H(70) * (floors - 1));
+    const y = base + fl * 12 + 6;
+    const [ax, az] = fr.xz(a, -1), [dx, dz] = fr.xz(a, -2), [ex, ez] = fr.xz(a + 1, -2);
+    if (a + 1 < fr.W - 1 && ground(a) + 10 < y && !g.get(ax, y, az) && !g.get(dx, y, dz) && !g.get(ex, y, ez) && !g.get(dx, y + 1, dz) && !g.get(ex, y + 1, ez)) {
+      g.set(ax, y, az, c.zincDark);
+      for (const [x, z] of [[dx, dz], [ex, ez]]) { g.set(x, y, z, c.dish); g.set(x, y + 1, z, c.dish); }
     }
   }
 }
@@ -2413,24 +2647,132 @@ function waterfront(ctx: Ctx): void {
       if (u > 12) g.set(xx, Y + 12, zz, c.ferryBand);
     }
   };
-  pier(32, -2, 'x'); pier(32, -46, 'x'); pier(-52, 46, 'z');
+  // the Eminönü terminal sits astride the quay and the root of the jetty out to its landing stage
+  pier(26.75, -2, 'x'); pier(32, -46, 'x'); pier(-52, 46, 'z');
   b.place(vapur(c), 44.5, -2.0, -11.5, 1);
   b.place(vapur(c), 44.5, -2.0, -55.5, 1);
   b.place(vapur(c), -43, -2.0, 57.5, 0);
   // rowing boats along the Horn
   for (let i = 0; i < 9; i++) { const x = -150 + i * 9 + (i % 3); if (Math.abs(x + 52) < 6 || Math.abs(x + 100) < 3) continue; b.place(kayik(c, i), x, -0.6, HORN_Z + 1.1, 0); }
   // lamps and benches along both quays, bollards at the edge
-  for (let x = -154; x < 20; x += 9) {
-    if (x > -20 && x < 14) continue;
+  for (let x = -154; x < -20; x += 9) {
     b.place(lampPost(c), x, QUAY_Y, HORN_Z - 1.2); b.lamp(x, QUAY_Y + 3.8, HORN_Z - 1.2, WARM, 7, 0.8);
     b.place(bench(b.k), x + 4.5, QUAY_Y, HORN_Z - 1.4, 2); b.benches.push([x + 4.5, HORN_Z - 1.4, 0, QUAY_Y]);
     b.block(x + 3.6, HORN_Z - 1.8, x + 5.4, HORN_Z - 1);
   }
-  for (let z = -106; z < 36; z += 9) {
-    if (Math.abs(z + 2) < 6 || Math.abs(z + 46) < 6) continue;
+  for (let z = -106; z < -12; z += 9) {
+    if (Math.abs(z + 46) < 6) continue;
     b.place(lampPost(c), BOS_X - 1.2, QUAY_Y, z); b.lamp(BOS_X - 1.2, QUAY_Y + 3.8, z, WARM, 7, 0.8);
     b.place(bench(b.k), BOS_X - 1.4, QUAY_Y, z + 4.5, 1); b.benches.push([BOS_X - 1.4, z + 4.5, Math.PI / 2, QUAY_Y]);
     b.block(BOS_X - 1.8, z + 3.6, BOS_X - 1, z + 5.4);
+  }
+  promenade(ctx);
+}
+
+/** Things already standing near the promenade (m), that its lamps, benches and trees keep their distance from. */
+const SQUARE_THINGS: [number, number][] = [[24.5, 12], [24.5, 26], [24, 32], [17, 28], [22, 24], [23.2, 8], [14, 33], [11, 35], [22.5, -0.5], [18, 36]];
+
+/**
+ * The promenade round Eminönü's point (see COAST): lamps every nine metres a step back from the edge and benches
+ * between them looking out over the water, plane trees in round planters, bollards where the boats tie up, the
+ * stairs' cheek walls and lifebuoys, rowing boats at the stairs, and the landing stages with their gangways, the
+ * tour boat at the Horn stage and its shelter.
+ */
+function promenade(ctx: Ctx): void {
+  const { b, c, plan } = ctx;
+  const g = b.grid;
+  const Q = layerOf(QUAY_Y);
+  const taken: [number, number, number][] = SQUARE_THINGS.map(([x, z]) => [x, z, 1.5]);
+  const free = (x: number, z: number, r: number) => taken.every(([tx, tz, tr]) => Math.hypot(tx - x, tz - z) >= r + tr);
+  const quayAt = (x: number, z: number) => {
+    const ci = col(Math.floor(x / V), Math.floor(z / V)), k = plan.kind[ci];
+    return (k === K.Quay || k === K.Square) && plan.walk[ci] === Q && !landingStep(x, z);
+  };
+  const clearOf = (x: number, z: number, m: number) =>
+    !LANDINGS.some(({ rect: [x0, z0, x1, z1] }) => x > x0 - m && x < x1 + m && z > z0 - m && z < z1 + m) &&
+    !PONTOONS.some(({ gang: [x0, z0, x1, z1] }) => x > x0 - m && x < x1 + m && z > z0 - m - 1 && z < z1 + m) &&
+    !(x > 26 && z > -7 && z < 3.5);
+  // the planters first: plane trees at the point and down the Bosphorus side
+  for (const [x, z, seed] of [[31, 44.2, 71], [33, 34, 72], [31.2, 27.2, 73], [30.4, 6.4, 74]] as const) {
+    if (!quayAt(x, z) || !free(x, z, 1.2)) continue;
+    b.place(planter(c), x, QUAY_Y, z);
+    b.place(planeTree(c, seed, true), x, QUAY_Y + 0.25, z);
+    b.block(x - 0.85, z - 0.85, x + 0.85, z + 0.85);
+    taken.push([x, z, 1.6]);
+  }
+  // lamps and benches, walking the outline from the landing stairs round the point to Sirkeci
+  let run = 0, next = 1.5;
+  for (let i = 3; i + 1 < COAST.length && COAST[i][1] > -14; i++) {
+    const [ax, az] = COAST[i], [bx, bz] = COAST[i + 1], len = Math.hypot(bx - ax, bz - az);
+    const ux = (bx - ax) / len, uz = (bz - az) / len, nx = uz, nz = -ux; // n points inland
+    for (; next < run + len; next += 0.5) {
+      const t = next - run, px = ax + ux * t, pz = az + uz * t;
+      const phase = ((next % 9) + 9) % 9;
+      if (phase < 0.25 || phase >= 8.75) {
+        const x = px + nx * 1.2, z = pz + nz * 1.2;
+        if (!quayAt(x, z) || !clearOf(x, z, 0.8) || !free(x, z, 1.4)) continue;
+        b.place(lampPost(c), x, QUAY_Y, z); b.lamp(x, QUAY_Y + 3.8, z, WARM, 7, 0.8);
+        b.block(x - 0.2, z - 0.2, x + 0.2, z + 0.2);
+        taken.push([x, z, 0.4]);
+      } else if (phase >= 4.25 && phase < 4.75) {
+        const x = px + nx * 1.7, z = pz + nz * 1.7;
+        if (!quayAt(x, z) || !clearOf(x, z, 1.2) || !free(x, z, 1.3)) continue;
+        // the bench faces the water: along whichever axis the shore faces more
+        const north = Math.abs(nz) >= Math.abs(nx), turns = north ? (nz < 0 ? 2 : 0) : nx < 0 ? 1 : 3;
+        const face = north ? (nz < 0 ? 0 : Math.PI) : nx < 0 ? Math.PI / 2 : -Math.PI / 2;
+        b.place(bench(b.k), x, QUAY_Y, z, turns); b.benches.push([x, z, face, QUAY_Y]);
+        if (north) b.block(x - 0.9, z - 0.4, x + 0.9, z + 0.4); else b.block(x - 0.4, z - 0.9, x + 0.4, z + 0.9);
+        taken.push([x, z, 1]);
+      }
+    }
+    run += len;
+  }
+  // bollards along the fish boats' basin, and at the rowing boats' moorings in the bay
+  // (on the kerb, a voxel up, where they stand on the edge row)
+  const kerb = (x: number, z: number) => {
+    const vx = Math.floor(x / V), vz = Math.floor(z / V);
+    return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => plan.kind[col(vx + dx, vz + dz)] === K.Sea) ? V : 0;
+  };
+  const moor = (x: number, z: number, rope: boolean) => { b.place(bollard(c, rope), x, QUAY_Y + kerb(x, z), z); b.block(x - 0.2, z - 0.2, x + 0.2, z + 0.2); };
+  for (let x = -10.6; x < 11; x += 2.4) moor(x, HORN_Z - 0.15, Math.abs(x - 1) % 7 < 2.4);
+  for (const [x, z] of [[33.8, 13.4], [34.6, 24.6]] as const) if (quayAt(x - 0.3, z)) moor(x, z, true);
+  // the stairs into the water: granite cheek walls either side, a lifebuoy at the top, a rowing boat at the foot
+  for (const { rect: [x0, z0, x1, z1], dir } of LANDINGS) {
+    const cheeks: Rect[] = dir === 'n' ? [[x0, z0, x0 + 0.5, z1], [x1 - 0.5, z0, x1, z1]] : [[x0, z0, x1, z0 + 0.5], [x0, z1 - 0.5, x1, z1]];
+    for (const [cx0, cz0, cx1, cz1] of cheeks) {
+      const X0 = Math.round(cx0 / V), Z0 = Math.round(cz0 / V), X1 = Math.round(cx1 / V) - 1, Z1 = Math.round(cz1 / V) - 1;
+      if (g.touches(X0, Z0, X1, Z1)) g.box(X0, Q, Z0, X1, Q + 2, Z1, (xx, y, zz) => (y === Q + 2 ? c.quayEdge : blockWall(c, xx, y, zz)));
+      b.block(cx0, cz0, cx1, cz1);
+    }
+    const [lx, lz] = dir === 'n' ? [x0 - 0.5, z0 - 0.4] : [x0 - 0.4, z0 - 0.5];
+    b.place(lifebuoy(c), lx, QUAY_Y, lz, dir === 'n' ? 0 : 1); b.block(lx - 0.3, lz - 0.2, lx + 0.3, lz + 0.2);
+  }
+  b.place(kayik(c, 11), 16.8, -0.6, HORN_Z + 3.2, 0);
+  b.place(kayik(c, 12), 34.9, -0.6, 17.6, 1);
+  b.place(kayik(c, 13), 35.0, -0.6, 21.4, 1);
+  // the landing stages: lifebuoys at the corners, the Horn stage's shelter, and the tour boat alongside it
+  for (const { deck: [x0, z0, x1, z1], dir } of PONTOONS) {
+    const pts: [number, number][] = dir === 'n' ? [[x0 + 0.4, z0 + 0.35], [x1 - 0.4, z0 + 0.35]] : [[x0 + 0.35, z0 + 0.4], [x0 + 0.35, z1 - 0.4]];
+    for (const [x, z] of pts) { b.place(lifebuoy(c), x, PONTOON_Y, z, dir === 'n' ? 2 : 3); b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3); }
+  }
+  {
+    const [x0, z0, x1, z1] = PONTOONS[0].deck, Y = layerOf(PONTOON_Y);
+    // a canopy on iron posts over the middle of the stage, its fascia in the city lines' blue, a bench under it
+    const X0 = Math.round(21.5 / V), X1 = Math.round(27.5 / V) - 1, Z0 = Math.round((z0 + 0.25) / V), Z1 = Math.round((z1 - 0.25) / V) - 1;
+    if (g.touches(X0, Z0, X1, Z1)) {
+      for (const x of [X0, X1]) for (const z of [Z0, Z1]) g.box(x, Y, z, x, Y + 10, z, c.ironGreen);
+      g.box(X0 - 1, Y + 11, Z0 - 1, X1 + 1, Y + 11, Z1 + 1, (xx, _y, zz) => (xx === X0 - 1 || xx === X1 + 1 || zz === Z0 - 1 || zz === Z1 + 1 ? c.ferryBand : c.leadLight));
+      g.box(X0 + 2, Y + 12, Z0 + 1, X1 - 2, Y + 12, Z1 - 1, c.leadLight);
+    }
+    b.place(bench(b.k), 24.5, PONTOON_Y, z0 + 0.7, 2); b.benches.push([24.5, z0 + 0.7, 0, PONTOON_Y]); b.block(23.6, z0 + 0.3, 25.4, z0 + 1.1);
+    b.lamp(24.5, PONTOON_Y + 2.6, (z0 + z1) / 2, WARM, 6, 0.8);
+    b.place(tourBoat(c), (x0 + x1) / 2, -1.5, z1 + 2.05, 0);
+    for (const x of [x0 + 0.6, x1 - 0.6]) { b.place(bollard(c, true), x, PONTOON_Y, z1 - 0.3); b.block(x - 0.2, z1 - 0.5, x + 0.2, z1 - 0.1); }
+  }
+  {
+    const [, z0, x1, z1] = PONTOONS[1].deck;
+    for (const z of [z0 + 0.8, z1 - 0.8]) { b.place(bollard(c, true), x1 - 0.3, PONTOON_Y, z); b.block(x1 - 0.5, z - 0.2, x1 - 0.1, z + 0.2); }
+    b.lamp(39.2, PONTOON_Y + 2.6, -2, WARM, 6, 0.7);
   }
 }
 
@@ -2479,7 +2821,7 @@ function rodSpots(): RodSpot[] {
   const q = rng(57);
   for (let z0 = -106; z0 < 36; z0 += 9) for (const dz of [2.2, 7.0]) {
     const z = z0 + dz;
-    if (Math.abs(z + 2) < 7 || Math.abs(z + 46) < 7 || z > 34 || q() < 0.35) continue;
+    if (Math.abs(z + 46) < 7 || z > -14 || q() < 0.35) continue;
     out.push({ x: BOS_X - 0.6, y: QUAY_Y, z, side: 1, tone: Math.floor(q() * 3), angler: q() < 0.7 });
   }
   return out;

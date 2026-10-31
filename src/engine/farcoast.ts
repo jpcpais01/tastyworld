@@ -197,23 +197,29 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
   /** The ground (without the canopy) at a point, for what stands on it. */
   const groundAt = (x: number, z: number) => { const n = find(x, z); return n >= 0 ? base[n] : H(x, z); };
 
-  interface Buf { pos: number[]; info: number[]; tops: number[]; idx: number[]; lo: [number, number, number]; hi: [number, number, number] }
+  interface Buf { pos: number[]; info: number[]; cells: number[]; idx: number[]; lo: [number, number, number]; hi: [number, number, number] }
   const tiles = new Map<number, Buf>();
   const tileOf = (x: number, z: number) => {
     const k = Math.floor((x - RX0) / TILE) * 1000 + Math.floor((z - RZ0) / TILE);
     let t = tiles.get(k);
-    if (!t) tiles.set(k, (t = { pos: [], info: [], tops: [], idx: [], lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9] }));
+    if (!t) tiles.set(k, (t = { pos: [], info: [], cells: [], idx: [], lo: [1e9, 1e9, 1e9], hi: [-1e9, -1e9, -1e9] }));
     return t;
   };
-  const quad = (b: Buf, c: number[][], n: number, kd: number, hs: number, fl: number, ty: number) => {
-    // wind the quad to face its normal
-    const N = NRM[n];
-    const ux = c[1][0] - c[0][0], uy = c[1][1] - c[0][1], uz = c[1][2] - c[0][2];
-    const vx = c[2][0] - c[0][0], vy = c[2][1] - c[0][1], vz = c[2][2] - c[0][2];
+  /**
+   * One face of a block. `own` is the middle of the block (x, z); `nb` the middle of the block whose top a side's
+   * foot stands on. In the iso view each block squats by the amount for its own middle, so its top stays flat and
+   * level and every side runs from one block's top to the other's: the ground stays boxes, never a smooth slope.
+   */
+  const quad = (b: Buf, c: number[][], n: number, kd: number, hs: number, fl: number, ty: number, own: [number, number], nb = own) => {
+    // wind the quad to face its normal (a side is wound as if its foot were lower than its top, even when level)
+    const N = NRM[n], foot = (i: number) => (n > 0 && (i === 0 || i === 3) ? 1 : 0);
+    const ux = c[1][0] - c[0][0], uy = c[1][1] - c[0][1] + foot(0), uz = c[1][2] - c[0][2];
+    const vx = c[2][0] - c[0][0], vy = c[2][1] - c[0][1] + foot(0), vz = c[2][2] - c[0][2];
     const dot = (uy * vz - uz * vy) * N[0] + (uz * vx - ux * vz) * N[1] + (ux * vy - uy * vx) * N[2];
     const o = b.pos.length / 3;
-    for (const p of dot < 0 ? [c[0], c[3], c[2], c[1]] : c) {
-      b.pos.push(p[0], p[1], p[2]); b.info.push(n, kd, hs, fl); b.tops.push(ty);
+    for (const i of dot < 0 ? [0, 3, 2, 1] : [0, 1, 2, 3]) {
+      const p = c[i], m = foot(i) ? nb : own;
+      b.pos.push(p[0], p[1], p[2]); b.info.push(n, kd, hs, fl); b.cells.push(ty, m[0], m[1]);
       for (let a = 0; a < 3; a++) { b.lo[a] = Math.min(b.lo[a], p[a]); b.hi[a] = Math.max(b.hi[a], p[a]); }
     }
     b.idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
@@ -222,17 +228,20 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
     const x = lx[n], z = lz[n], s = ls[n], t = top[n], kd = kinds[n], fl = flags[n];
     const hs = Math.floor(hash(x * 0.71 + 3, z * 0.29 - 1) * 255);
     const b = tileOf(x + s / 2, z + s / 2);
-    quad(b, [[x, t, z], [x, t, z + s], [x + s, t, z + s], [x + s, t, z]], 0, kd, hs, fl, t);
+    const own: [number, number] = [x + s / 2, z + s / 2];
+    quad(b, [[x, t, z], [x, t, z + s], [x + s, t, z + s], [x + s, t, z]], 0, kd, hs, fl, t, own);
     // the sides, down to each neighbour that is lower (a neighbour is never less than half this block's size)
     const k = s >= 4 ? 2 : 1, seg = s / k;
     for (let f = 1; f <= 4; f++) {
       const alongZ = f <= 2, X = f === 1 ? x + s : x, Z = f === 3 ? z + s : z;
       let prev = -3, lo = 0, from = 0;
       const flush = (until: number) => {
-        if (prev === -2 || lo >= t) return;
+        // (a neighbour level with this block still gets a side, from one of the two, flat until the two squat apart)
+        if (prev === -2 || lo > t || (lo === t && (t <= 0 || f === 2 || f === 4))) return;
         const a = from * seg, e = until * seg;
-        if (alongZ) quad(b, [[X, lo, z + a], [X, t, z + a], [X, t, z + e], [X, lo, z + e]], f, kd, hs, fl, t);
-        else quad(b, [[x + a, lo, Z], [x + a, t, Z], [x + e, t, Z], [x + e, lo, Z]], f, kd, hs, fl, t);
+        const nb: [number, number] = prev >= 0 ? [lx[prev] + ls[prev] / 2, lz[prev] + ls[prev] / 2] : own;
+        if (alongZ) quad(b, [[X, lo, z + a], [X, t, z + a], [X, t, z + e], [X, lo, z + e]], f, kd, hs, fl, t, own, nb);
+        else quad(b, [[x + a, lo, Z], [x + a, t, Z], [x + e, t, Z], [x + e, lo, Z]], f, kd, hs, fl, t, own, nb);
       };
       for (let q = 0; q < k; q++) {
         const u = (q + 0.5) * seg;
@@ -284,13 +293,15 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
     glslVersion: THREE.GLSL3,
     uniforms: u,
     vertexShader: /* glsl */ `
-      in vec4 aInfo; in float aTop;
+      in vec4 aInfo; in vec3 aCell;
       ${SQUASH}
       out vec3 vWorld; out float vTop; flat out vec4 vInfo; flat out vec3 vN;
       const vec3 NRM[5] = vec3[5](vec3(0, 1, 0), vec3(1, 0, 0), vec3(-1, 0, 0), vec3(0, 0, 1), vec3(0, 0, -1));
       void main() {
-        float s = squash(position.xz);
+        // squat by the amount for the middle of the block this height belongs to: tops stay level
+        float s = squash(aCell.yz);
         vec3 p = vec3(position.x, position.y > 0.0 ? position.y * s : position.y, position.z);
+        float aTop = aCell.x;
         // squatted ground loses its relief too: no cliffs or canopy painted on a flattened hill
         float keep = smoothstep(0.45, 0.95, s);
         vWorld = vec3(position.x, mix(min(position.y, 0.0), position.y, keep), position.z);
@@ -304,12 +315,14 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
       ${HAZE}
       uniform vec3 uSkyColor, uGroundColor, uSunColor, uSunDir, uWindowColor;
       uniform float uNight, uLamp;
-      uniform vec2 uOrigin;
+      uniform vec2 uOrigin; uniform vec3 uCamFwd;
       in vec3 vWorld; in float vTop; flat in vec4 vInfo; flat in vec3 vN;
       layout(location = 0) out vec4 outColor;
       vec3 lin(float r, float g, float b) { return srgb2lin(vec3(r, g, b)); }
       void main() {
         vec3 n = vN;
+        // a side whose lower neighbour squatted less than its own block now faces the other way
+        if (n.y < 0.5 && dot(n, uCamFwd) > 0.0) n = -n;
         float k = vInfo.y, cellH = vInfo.z / 255.0;
         float lvl = mod(vInfo.w, 8.0), sz = exp2(lvl);
         bool proud = vInfo.w > 7.5, top = n.y > 0.5;
@@ -396,7 +409,7 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(b.pos), 3));
     g.setAttribute('aInfo', new THREE.BufferAttribute(new Uint8Array(b.info), 4));
-    g.setAttribute('aTop', new THREE.BufferAttribute(new Float32Array(b.tops), 1));
+    g.setAttribute('aCell', new THREE.BufferAttribute(new Float32Array(b.cells), 3));
     g.setIndex(b.pos.length / 3 > 65535 ? new THREE.BufferAttribute(new Uint32Array(b.idx), 1) : new THREE.BufferAttribute(new Uint16Array(b.idx), 1));
     // bounds reach down to the sea: in the iso view a hill on the camera's side squats to the ground
     g.boundingBox = new THREE.Box3(new THREE.Vector3(b.lo[0], Math.min(b.lo[1], -1), b.lo[2]), new THREE.Vector3(...b.hi));

@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.6',
+    date: '2026-10-31',
+    title: 'The cloister and the Ruga dei Mercanti',
+    items: [
+      'The Cloister of Paradise beside Amalfi\'s cathedral is rebuilt as a real cloister. Slender twin columns carry white pointed arches that cross one another, the Arab-Norman interlace, under a tiled roof round a garden of palms, lemon trees, oleander and box hedges, with an old well-head where the paths meet. Roman sarcophagi and faded frescoes of saints line the walks.',
+      'The hillside round it is no longer bare cut rock: it rises as house fronts with windows, shutters, balconies and bougainvillea, and a parapet runs along the lane at the top, where you can look down into the garden. The bell tower\'s foot is whole again.',
+      'The Ruga dei Mercanti, the covered street behind the cathedral, climbs gently instead of going up a long stair and down again, and no longer runs through someone\'s living room. Its whitewashed vault rests on stone arches, lanterns burn on its walls day and night, and little shops are let into both walls: Vietri ceramics, lemons and limoncello, Amalfi paper, linen and a grocer.',
+      'Both covered ways open under striped stone portals with a majolica plaque over the arch.',
+    ],
+  },
+  {
     version: '0.17.5',
     date: '2026-10-31',
     title: 'Paving that holds up from afar',

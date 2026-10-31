@@ -1,5 +1,6 @@
 import type { Quality } from '../engine/renderer';
 import { CITY } from '../world/cityId';
+import { ECONOMY, OLD_WALLET_SCALE, START_PURSE } from '../data/money';
 
 export interface Settings {
   quality: Quality | 'auto';
@@ -32,7 +33,10 @@ export const VIEW_DEFAULT: Record<Quality, number> = { low: 0.3, medium: 0.45, h
 
 export interface SaveState {
   v: 1;
+  /** The wallet, in yen wherever you are (data/money.ts). */
   yen: number;
+  /** The price scale the wallet was saved under (ECONOMY); older saves had pocket-money prices. */
+  econ?: number;
   tasted: Record<string, number>;
   cooked: Record<string, number>;
   manekis: number[];
@@ -92,7 +96,7 @@ const KEY = 'tastyworld.save.v1';
 
 export function defaultState(): SaveState {
   return {
-    v: 1, yen: 3000, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [], stays: [], hotel: null,
+    v: 1, yen: START_PURSE, econ: ECONOMY, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [], stays: [], hotel: null,
     settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, veryFar: false, fov: 72, perf: false }, profile: { name: '', color: 0xe9573f }, playTime: 0, photos: 0,
   };
 }
@@ -109,6 +113,12 @@ export function loadState(): SaveState {
     if (old.sfx === false && old.sfxVol === undefined) { old.sfxVol = 0; old.ambVol = 0; }
     delete old.music; delete old.sfx;
     const lastPatch = s.flags?.lastPatch;
+    if ((s.econ ?? 1) < ECONOMY) {
+      // real prices arrived (v0.17.0): scale the old pocket money up, never below a new traveller's purse
+      s.yen = Math.max(START_PURSE, Math.round((s.yen ?? 0) * OLD_WALLET_SCALE));
+      s.econ = ECONOMY;
+      if (s.trip) s.trip = { ...s.trip, yen: s.yen };
+    }
     if (CITY !== 'tokyo') {
       home = pickLocal(s);
       const here = s.cities?.[CITY] ?? {};

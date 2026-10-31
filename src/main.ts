@@ -37,13 +37,14 @@ import { DISHES, ALL_DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
+import { TIP_PER_STAR } from './data/money';
 import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
 import { nightAt, dropLanding } from './ui/arrival';
 import { farCoast } from './engine/farcoast';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
-import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable } from './data/places';
+import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, VENDING_PRICE, roomName, keeperOf, Buyable } from './data/places';
 import type { RoomAnchor } from './world/interiors';
 import type { HotelAnchor, HotelRoomAnchor } from './world/hotels';
 import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo, byStairs } from './data/hotels';
@@ -718,7 +719,7 @@ class Game {
     a.vending.forEach((v, i) => {
       this.interactables.push({
         key: `vend-${i}`, x: v[0], z: v[2], stand: [v[0], v[2]], pick: [v[0], 1.4, v[2]], r: 1.3, inside: false,
-        prompt: () => ['can', 'Vending machine', `Buy a drink · ${TEXT.money(130)}`],
+        prompt: () => ['can', 'Vending machine', `Buy a drink · ${TEXT.money(VENDING_PRICE)}`],
         act: () => this.vend(),
       });
     });
@@ -1373,7 +1374,7 @@ class Game {
 
   private cooked(d: FoodId, _st: StallInfo, stars: number): number {
     this.s.cooked[d] = Math.max(this.s.cooked[d] ?? 0, stars);
-    const tip = stars * 150;
+    const tip = stars * TIP_PER_STAR;
     this.s.yen += tip;
     const isNew = !this.s.tasted[d];
     this.eat(d);
@@ -1459,8 +1460,8 @@ class Game {
   }
 
   private vend(): void {
-    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(130)}.`); return; }
-    this.s.yen -= 130;
+    if (this.s.yen < VENDING_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(VENDING_PRICE)}.`); return; }
+    this.s.yen -= VENDING_PRICE;
     const drinks = [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
     const d = drinks[Math.floor(Math.random() * drinks.length)];
     this.audio.play('coin');

@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.10',
+    date: '2026-10-31',
+    title: 'The ferry and the steps',
+    items: [
+      'The ferry at Amalfi\'s pier is a proper ship now: red below the waterline and a blue band with portholes, a saloon with its windows and a promenade rail, a sun deck with benches and life-raft drums, the bridge looking over the bow, a striped funnel, a radar mast, lifebuoys and the stern ramp raised.',
+      'People sit along both sides of the cathedral steps, looking down over Piazza Duomo.',
+      'Fixed people sitting on Amalfi\'s benches and café stools sinking into the ground: they now sit on the seat, whatever level of the hillside it is on.',
+    ],
+  },
+  {
     version: '0.15.9',
     date: '2026-10-31',
     title: 'A day at the beach',

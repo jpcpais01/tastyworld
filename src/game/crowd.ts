@@ -253,22 +253,28 @@ export class Crowd {
       for (let j = 0; j < n; j++) { const d = ik + this.dist[k * n + j]; if (d < this.dist[i * n + j]) this.dist[i * n + j] = d; }
     }
     // two seats per bench, each with a walkable spot to sit down from
-    a.benches.forEach(([bx, bz, f], bi) => {
+    a.benches.forEach(([bx, bz, f, ground = 0], bi) => {
       const fz = Math.cos(f), fx = Math.sin(f);
       // seats sit across the bench (perpendicular to the way a sitter faces)
       for (const sx of [-0.38, 0.38]) {
         const ox = sx * fz, oz = -sx * fx;
         const cand: V2[] = [[bx + ox + fx * 0.75, bz + oz + fz * 0.75], [bx + ox + fx * 0.62, bz + oz + fz * 0.62], [bx + Math.sign(sx) * 1.2 * fz + fx * 0.3, bz - Math.sign(sx) * 1.2 * fx + fz * 0.3]];
         const ap = cand.find(([x, z]) => this.free(x, z));
-        if (ap) this.seats.push({ x: bx + ox - fx * 0.04, z: bz + oz - fz * 0.04, y: 0.5, face: f, approach: ap, bench: bi, taken: null });
+        // the seat is half a metre above the ground the bench stands on (a hillside town's benches are not all at sea level)
+        if (ap) this.seats.push({ x: bx + ox - fx * 0.04, z: bz + oz - fz * 0.04, y: ground + 0.5, face: f, approach: ap, bench: bi, taken: null });
       }
     });
     // café terrace stools: one seat each, sat down onto from the open side
-    a.stools.forEach(([sx, sz, f], i) => {
+    a.stools.forEach(([sx, sz, f, ground = 0], i) => {
       const fx = Math.sin(f), fz = Math.cos(f);
       const cand: V2[] = [[sx - fx * 0.55, sz - fz * 0.55], [sx - fz * 0.55, sz + fx * 0.55], [sx + fz * 0.55, sz - fx * 0.55]];
       const ap = cand.find(([x, z]) => this.free(x, z));
-      if (ap) this.seats.push({ x: sx, z: sz, y: 0.5, face: f, approach: ap, bench: -1 - i, taken: null });
+      if (ap) this.seats.push({ x: sx, z: sz, y: ground + 0.5, face: f, approach: ap, bench: -1 - i, taken: null });
+    });
+    // steps to sit on, stepped onto from the one below
+    (a.stepSeats ?? []).forEach(([sx, sz, f], i) => {
+      const ap: V2 = [sx + Math.sin(f) * 0.55, sz + Math.cos(f) * 0.55];
+      if (this.free(sx, sz) && this.free(ap[0], ap[1])) this.seats.push({ x: sx, z: sz, y: this.nav.heightAt(sx, sz), face: f, approach: ap, bench: -10000 - i, taken: null });
     });
     // customers queue beside the player's spot at each stall, never on it
     for (const s of a.stalls) {

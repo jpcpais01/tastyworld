@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.42',
+    date: '2026-10-31',
+    title: 'Smoother looks on the way',
+    items: [
+      'Looking around during an auto-walk is smooth now: the view glides after your mouse, finger or Q and E instead of jumping.',
+      'You can look up to 90 degrees either side of the way you\'re walking. Push a little past it and the view gives a bit, then eases back to the edge when you let go. The view keeps turning with the path, so your glance stays put as the street bends.',
+    ],
+  },
+  {
     version: '0.16.41',
     date: '2026-10-31',
     title: 'Flags on the travel map',

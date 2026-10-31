@@ -8,6 +8,11 @@ const PHOTO_PITCH: [number, number] = [THREE.MathUtils.degToRad(22), THREE.MathU
 const EYE_H = 1.4;
 const MAX_PITCH = 1.3;
 
+/** Auto-walk free look: up to 90 degrees either side of the way you walk... */
+const WALK_LOOK = Math.PI / 2;
+/** ...plus a rubbery 10 degrees past it that springs back once you let go. */
+const WALK_OVER = THREE.MathUtils.degToRad(10);
+
 const wrapAngle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 
 /**
@@ -32,12 +37,15 @@ export class IsoCamera {
   /** First-person mode: look direction (yaw matches actor facing, atan2(x, z)) and pitch. */
   fp = false;
   fpYaw = 0;
-  /** Set when the player looks around by hand; while it holds, auto-walking leaves the view alone. */
-  lookedByHand = false;
   fpPitch = 0;
   /** Player ground speed, for a gentle head bob. */
   fpSpeed = 0;
   private fpTurn = 0;
+  /**
+   * Auto-walk look: the view rides the (eased) walking heading plus a hand-set offset. off is where the
+   * hand wants it, offCur eases after it; isoOff does the same for the iso view around its starting angle.
+   */
+  private walk: { base: number; off: number; offCur: number; pitch: number; isoBase: number; isoOff: number; idle: number } | null = null;
   /** Eases the first-person eye back and up a little (metres), e.g. to see your own hands while eating. */
   fpBack = 0;
   private fpBackCur = 0;
@@ -60,6 +68,7 @@ export class IsoCamera {
   setFirstPerson(on: boolean, facing: number): void {
     if (on === this.fp) return;
     this.fp = on;
+    this.walk = null;
     this.fpTurn = 0;
     if (on) {
       this.fpYaw = facing;
@@ -72,14 +81,52 @@ export class IsoCamera {
 
   /** Mouse or drag look, in radians. */
   look(dYaw: number, dPitch: number): void {
+    const w = this.walk;
+    if (w) {
+      w.off = stretch(w.off, -dYaw);
+      w.pitch = THREE.MathUtils.clamp(w.pitch - dPitch, -MAX_PITCH, MAX_PITCH);
+      w.idle = 0;
+      return;
+    }
     this.fpYaw = wrapAngle(this.fpYaw - dYaw);
-    if (dYaw || dPitch) this.lookedByHand = true;
     this.fpPitch = THREE.MathUtils.clamp(this.fpPitch - dPitch, -MAX_PITCH, MAX_PITCH);
   }
 
   /** Ease the first-person view toward a heading (used while auto-walking a path). */
   turnToward(yaw: number, dt: number): void {
     this.fpYaw = wrapAngle(this.fpYaw + wrapAngle(yaw - this.fpYaw) * (1 - Math.exp(-dt * 3.5)));
+  }
+
+  /** Iso drag during an auto-walk: turn the view, within the same limits as first person. */
+  walkTurn(dYaw: number): void {
+    const w = this.walk;
+    if (!w) { this.orbitBy(dYaw, 0); return; }
+    w.isoOff = stretch(w.isoOff, dYaw);
+    w.idle = 0;
+  }
+
+  /** Each frame of an auto-walk, with the walking heading: the view follows it, keeping the player's look offset. */
+  autoWalk(heading: number, dt: number): void {
+    const w = this.walk ??= { base: this.fpYaw, off: 0, offCur: 0, pitch: this.fpPitch, isoBase: this.yaw, isoOff: 0, idle: 1 };
+    w.idle += dt;
+    if (w.idle > 0.12) {
+      // let go past the limit: spring back to it
+      const k = 1 - Math.exp(-dt * 9);
+      w.off -= (w.off - THREE.MathUtils.clamp(w.off, -WALK_LOOK, WALK_LOOK)) * k;
+      w.isoOff -= (w.isoOff - THREE.MathUtils.clamp(w.isoOff, -WALK_LOOK, WALK_LOOK)) * k;
+    }
+    w.base = wrapAngle(w.base + wrapAngle(heading - w.base) * (1 - Math.exp(-dt * 3.5)));
+    const e = 1 - Math.exp(-dt * 12);
+    w.offCur += (w.off - w.offCur) * e;
+    if (this.fp) {
+      this.fpYaw = wrapAngle(w.base + w.offCur);
+      this.fpPitch += (w.pitch - this.fpPitch) * e;
+    } else this.yaw = w.isoBase + w.isoOff; // yawCur already eases after it
+  }
+
+  /** The auto-walk is over: the view stays where it is and looking is direct again. */
+  endWalk(): void {
+    this.walk = null;
   }
 
   snap(): void {
@@ -91,7 +138,12 @@ export class IsoCamera {
   }
 
   rotate(dir: number): void {
-    if (this.fp) { this.fpTurn -= (dir * Math.PI) / 4; this.lookedByHand = true; }
+    const w = this.walk;
+    if (w) {
+      if (this.fp) w.off = stretch(w.off, -(dir * Math.PI) / 4);
+      else w.isoBase += (dir * Math.PI) / 2;
+      w.idle = 0;
+    } else if (this.fp) this.fpTurn -= (dir * Math.PI) / 4;
     else this.yaw += (dir * Math.PI) / 2;
   }
 
@@ -239,4 +291,11 @@ export class IsoCamera {
     out.set((p.x * 0.5 + 0.5) * window.innerWidth, (-p.y * 0.5 + 0.5) * window.innerHeight);
     return p.z > -1 && p.z < 1;
   }
+}
+
+/** Add a look delta to an auto-walk offset: free within the limit, stiffening through the extra 10 degrees. */
+function stretch(off: number, d: number): number {
+  const over = Math.abs(off) - WALK_LOOK;
+  if (over > 0 && Math.sign(d) === Math.sign(off)) d *= Math.max(0, 1 - over / WALK_OVER) ** 2;
+  return THREE.MathUtils.clamp(off + d, -WALK_LOOK - WALK_OVER, WALK_LOOK + WALK_OVER);
 }

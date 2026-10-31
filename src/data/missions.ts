@@ -36,6 +36,7 @@ export const MISSIONS: Mission[] = [
   { id: 'hotels', name: 'Hotel Hopper', desc: 'Spend a night in three different hotels.', progress: (s) => [Math.min(3, s.stays.length), 3], reward: { yen: 1500, title: 'Seasoned Traveller' } },
   { id: 'ryokan', name: 'Futon and Tatami', desc: 'Sleep on a futon at a traditional ryokan.', progress: (s) => [s.stays.includes('hinode') ? 1 : 0, 1], reward: { yen: 500, item: 'yukata' } },
   { id: 'daruma', name: 'Daruma Hunt', desc: 'Find the eight tiny daruma hidden inside the shops.', progress: (s) => [s.darumas.length, 8], reward: { yen: 2000, item: 'daruma' } },
+  { id: 'photos', name: 'Say Cheese', desc: 'Take five photos in photo mode. The camera button sits by the view switch.', progress: (s) => [Math.min(5, s.photos ?? 0), 5], reward: { yen: 600 } },
   { id: 'master', name: 'Master of Tokyo', desc: `Collect all ${DISHES.length} food passport stamps.`, progress: (s) => [tasted(s).length, DISHES.length], reward: { yen: 3000, title: 'Tokyo Gourmet', item: 'gold' } },
 ];
 

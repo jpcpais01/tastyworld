@@ -11,6 +11,7 @@ import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
 import { G } from './glyphs';
 import { icon, IconName } from './emblems';
+import { album, sharePhoto, canShareFiles, ALBUM_MAX, type Photo } from '../game/album';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -44,7 +45,7 @@ function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: n
 
 const MISSION_ICONS: Record<string, IconName> = {
   'first-bite': 'chopsticks', trio: 'dango', sweet: 'honey', apprentice: 'chef', alley: 'lantern', night: 'moon', cats: 'cat', secret: 'door', stars: 'star', master: 'trophy',
-  browse: 'bag', tables: 'bowl', gacha: 'capsule', 'gacha-all': 'crown', shelf: 'book', daruma: 'daruma', hotel: 'bed', hotels: 'suitcase', ryokan: 'yukata',
+  browse: 'bag', tables: 'bowl', gacha: 'capsule', 'gacha-all': 'crown', shelf: 'book', daruma: 'daruma', hotel: 'bed', hotels: 'suitcase', ryokan: 'yukata', photos: 'camera',
 };
 /** Items that can be worn by the traveller. */
 export const WEARABLE = ['headband', 'happi', 'charm', 'chefhat', 'yukata'];
@@ -134,6 +135,7 @@ export class UI {
   onMap: (() => void) | null = null;
   onParty: (() => void) | null = null;
   onWave: (() => void) | null = null;
+  onPhoto: (() => void) | null = null;
   open: string | null = null;
   /** On a co-op trip as a guest: the leader's sky is shared, so the time of day setting waits. */
   skyFromLeader = false;
@@ -185,12 +187,13 @@ export class UI {
       <div class="hud-bl">
         <div class="controls" id="h-keys">
           <button class="glass kb" id="h-kb" title="Controls" aria-label="Show controls">${G.keyboard}</button>
-          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span></div>
+          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span></div>
         </div>
       </div>
       <div class="hud-br">
         <div class="glass bar">
           <button id="h-wave" class="hidden" title="Wave (G)" aria-label="Wave to your friends">${G.wave}</button>
+          <button id="h-photo" title="Photo mode (C)" aria-label="Photo mode">${G.camera}</button>
           <button id="h-view" title="First-person view (V)" aria-label="First-person view" aria-pressed="false">${G.eye}</button>
           <button id="h-rl" title="Rotate left (Q)" aria-label="Rotate left">${G.rotL}</button>
           <button id="h-rr" title="Rotate right (E)" aria-label="Rotate right">${G.rotR}</button>
@@ -209,6 +212,7 @@ export class UI {
     tap('h-rl', () => this.onRotate?.(-1));
     tap('h-rr', () => this.onRotate?.(1));
     tap('h-view', () => this.onView?.());
+    tap('h-photo', () => this.onPhoto?.());
     tap('h-track', () => (this.goalInfo ? this.map() : this.passport('missions')));
     tap('h-kb', () => this.showKeys(!$('h-keys').classList.contains('open')));
     for (const el of this.hud.querySelectorAll('button')) el.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -670,7 +674,7 @@ export class UI {
   }
 
   // passport ------------------------------------------------------------------------------
-  passport(tab: 'stamps' | 'missions' | 'items' | 'tokyo' = 'stamps'): void {
+  passport(tab: 'stamps' | 'missions' | 'items' | 'album' | 'tokyo' = 'stamps'): void {
     const p = this.panel('panel passport');
     const got = Object.keys(this.s.tasted).length;
     this.head(p, 'Food Passport', '日本', `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
@@ -679,7 +683,7 @@ export class UI {
     seg.setAttribute('role', 'tablist');
     tabs.appendChild(seg);
     const page = h('div', 'pp-page');
-    const names: [typeof tab, string, string][] = [['stamps', 'Stamps', G.bowl], ['missions', 'Missions', G.target], ['items', 'Bag', G.bag], ['tokyo', 'Tokyo', G.book]];
+    const names: [typeof tab, string, string][] = [['stamps', 'Stamps', G.bowl], ['missions', 'Missions', G.target], ['items', 'Bag', G.bag], ['album', 'Album', G.image], ['tokyo', 'Tokyo', G.book]];
     const render = (t: typeof tab) => {
       seg.innerHTML = '';
       for (const [k, n, ic] of names) {
@@ -693,6 +697,7 @@ export class UI {
       if (t === 'stamps') this.ppStamps(page);
       else if (t === 'missions') this.ppMissions(page, () => render('missions'));
       else if (t === 'items') this.ppItems(page);
+      else if (t === 'album') this.ppAlbum(page);
       else this.ppTokyo(page);
     };
     p.appendChild(tabs);
@@ -777,6 +782,90 @@ export class UI {
       items.appendChild(card);
     }
     page.appendChild(items);
+  }
+
+  /** Object URLs of the album thumbnails on screen, let go when the page changes. */
+  private albumUrls: string[] = [];
+
+  private ppAlbum(page: HTMLElement) {
+    for (const u of this.albumUrls) URL.revokeObjectURL(u);
+    this.albumUrls = [];
+    page.innerHTML = `<div class="empty">Opening the album…</div>`;
+    album.list().then((photos) => {
+      if (!page.isConnected) return;
+      page.innerHTML = '';
+      if (!photos.length) {
+        page.appendChild(h('div', 'empty', `<div class="ei">${G.camera}</div>No photos yet.<br>Tap the camera by the view switch${touch() ? '' : ' (or press C)'} to frame a shot of the city.`));
+        return;
+      }
+      const cover = h('div', 'pp-cover album-cover', `<div class="pp-flag ph">${G.camera}</div><div><b>Travel photos</b><p>${photos.length} of ${ALBUM_MAX} pages filled. Tap a photo to see it big, share it or save it.</p></div>`);
+      const take = h('button', 'btn btn-red', `${G.camera}Take a photo`);
+      take.onclick = () => { this.audio.play('click'); this.close(); this.onPhoto?.(); };
+      cover.appendChild(take);
+      page.appendChild(cover);
+      const grid = h('div', 'album');
+      photos.forEach((p, i) => {
+        const url = URL.createObjectURL(p.thumb);
+        this.albumUrls.push(url);
+        const b = h('button', 'snap', `<img src="${url}" alt="" loading="lazy"><small>${esc(p.place)}</small>`);
+        b.setAttribute('aria-label', `Photo at ${p.place}, ${p.clock}`);
+        b.onclick = () => { this.audio.play('click'); this.photoView(photos, i); };
+        grid.appendChild(b);
+      });
+      page.appendChild(grid);
+    }).catch(() => {
+      page.innerHTML = `<div class="empty"><div class="ei">${G.camera}</div>The album could not be opened.<br>Your browser may be blocking site storage.</div>`;
+    });
+  }
+
+  /** One photo, big, with share, save and delete; arrows step through the album. */
+  private photoView(photos: Photo[], i: number): void {
+    const p = this.panel('panel photo-view', () => this.passport('album'));
+    const ph = photos[i];
+    const url = URL.createObjectURL(ph.blob);
+    this.closeHook = () => URL.revokeObjectURL(url);
+    const when = new Date(ph.t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    this.head(p, esc(ph.place), '', `${esc(ph.clock)} in Tokyo · taken ${when}`, G.camera, () => this.passport('album'));
+    const fig = h('div', 'pv-pic', `<img src="${url}" alt="Photo at ${esc(ph.place)}" style="aspect-ratio:${ph.w}/${ph.h}">`);
+    const step = (d: number) => { this.audio.play('click'); this.photoView(photos, (i + d + photos.length) % photos.length); };
+    if (photos.length > 1) {
+      for (const [d, cls, g] of [[-1, 'prev', G.back], [1, 'next', G.arrow]] as const) {
+        const b = h('button', `pv-step ${cls}`, g);
+        b.setAttribute('aria-label', d < 0 ? 'Newer photo' : 'Older photo');
+        b.onclick = () => step(d);
+        fig.appendChild(b);
+      }
+    }
+    p.appendChild(fig);
+    const foot = h('div', 'pv-foot');
+    const share = canShareFiles();
+    if (share) {
+      const sb = h('button', 'btn btn-red', `${G.share}Share`);
+      sb.onclick = () => { this.audio.play('click'); void sharePhoto(ph); };
+      foot.appendChild(sb);
+    }
+    const save = h('button', share ? 'btn btn-soft' : 'btn btn-red', `${G.download}Save`);
+    save.onclick = () => { this.audio.play('click'); void sharePhoto(ph, false); };
+    foot.appendChild(save);
+    const del = h('button', 'btn btn-soft pv-del', `${G.trash}Delete`);
+    del.onclick = () => {
+      // a second tap confirms
+      if (!del.classList.contains('sure')) { del.classList.add('sure'); del.innerHTML = `${G.trash}Tap again to delete`; this.audio.play('click'); return; }
+      this.audio.play('rustle');
+      void album.remove(ph.id).then(() => {
+        photos.splice(i, 1);
+        if (photos.length) this.photoView(photos, Math.min(i, photos.length - 1));
+        else this.passport('album');
+      });
+    };
+    foot.appendChild(del);
+    p.appendChild(foot);
+    const keys = (e: KeyboardEvent) => {
+      if (!p.isConnected) { window.removeEventListener('keydown', keys); return; }
+      if (e.code === 'ArrowLeft') step(-1);
+      else if (e.code === 'ArrowRight') step(1);
+    };
+    if (photos.length > 1) window.addEventListener('keydown', keys);
   }
 
   private ppTokyo(page: HTMLElement) {

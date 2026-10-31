@@ -44,6 +44,8 @@ export interface MeshData {
   shell?: number;
   /** Bounds of those room contents. */
   innerBounds?: [number, number, number, number, number, number];
+  /** Set by orderFaces: where each segment of FACE_SEGMENTS starts in the indices, plus the end. */
+  segs?: Uint32Array;
 }
 
 /** Per-vertex lighting callback: p in world metres + normal; fills out[0]=sun,out[1]=sky,out[2..4]=lamp rgb. */
@@ -397,4 +399,44 @@ export function splitInner(md: MeshData, boxes: number[][]): MeshData {
   const shell = o;
   for (const i of inner) { out.set(indices.subarray(i, i + 6), o); o += 6; }
   return { ...md, indices: out, shell, innerBounds: ib };
+}
+
+/**
+ * The face directions (FACE_N order) in the order orderFaces lays them out. Some appear twice so that every
+ * set a camera can need is one contiguous run: all six (the first six), and +Y with one X and one Z side
+ * (any iso view, and most distant chunks in first person). See FACE_WINDOW.
+ */
+export const FACE_SEGMENTS = [3, 0, 4, 2, 1, 5, 2, 0];
+
+/** For each 6-bit set of face directions, the shortest run of FACE_SEGMENTS [first, last] that holds them all. */
+export const FACE_WINDOW: [number, number][] = Array.from({ length: 64 }, (_, mask) => {
+  let best: [number, number] = [0, 5];
+  for (let a = 0; a < FACE_SEGMENTS.length; a++)
+    for (let b = a; b < FACE_SEGMENTS.length; b++) {
+      let have = 0;
+      for (let k = a; k <= b; k++) have |= 1 << FACE_SEGMENTS[k];
+      if ((have & mask) === mask && b - a < best[1] - best[0]) best = [a, b];
+    }
+  return best;
+});
+
+/**
+ * Lays the faces before `md.shell` (all of them when it is unset) out by direction in FACE_SEGMENTS order,
+ * so a draw can submit only the faces that can face the camera. The room contents after `shell` keep their place.
+ */
+export function orderFaces(md: MeshData): MeshData {
+  const { indices, attrs } = md, end = md.shell ?? indices.length;
+  const byFace: number[][] = [[], [], [], [], [], []];
+  for (let i = 0; i < end; i += 6) byFace[attrs[indices[i] * STRIDE] & 7].push(i);
+  let n = indices.length - end;
+  for (const f of FACE_SEGMENTS) n += byFace[f].length * 6;
+  const out = new Uint32Array(n), segs = new Uint32Array(FACE_SEGMENTS.length + 1);
+  let o = 0;
+  FACE_SEGMENTS.forEach((f, k) => {
+    segs[k] = o;
+    for (const i of byFace[f]) { out.set(indices.subarray(i, i + 6), o); o += 6; }
+  });
+  segs[FACE_SEGMENTS.length] = o;
+  out.set(indices.subarray(end), o);
+  return { ...md, indices: out, segs, shell: md.shell === undefined ? undefined : o };
 }

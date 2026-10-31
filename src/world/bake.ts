@@ -1,6 +1,6 @@
 import { Grid, SparseGrid } from './grid';
 import { LightField, Lamp } from './lighting';
-import { meshGrid, mergeMeshes, splitInner, MeshData, LightFn } from './mesher';
+import { meshGrid, mergeMeshes, splitInner, orderFaces, MeshData, LightFn } from './mesher';
 import { Palette } from './palette';
 import { buildTokyo, Anchors, PlacedProp, BuildResult } from './tokyo';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
@@ -394,9 +394,12 @@ export class WorldPart {
   /** Mesh of chunk (ix, iz): full detail with props (lod 0), or coarse at half (1) or quarter (2) resolution. */
   mesh(ix: number, iz: number, lod: number): MeshData | null {
     const x0 = VX0 + ix * CHUNK, z0 = VZ0 + iz * CHUNK;
-    if (lod) return meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, lod === 1 ? 2 : 4);
+    if (lod) {
+      const md = meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, lod === 1 ? 2 : 4);
+      return md && orderFaces(md);
+    }
     const md = meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase, this.owners);
-    return md && splitInner(md, this.rooms.filter((b) => b[0] < (x0 + CHUNK) * V && b[3] > x0 * V && b[2] < (z0 + CHUNK) * V && b[5] > z0 * V));
+    return md && orderFaces(splitInner(md, this.rooms.filter((b) => b[0] < (x0 + CHUNK) * V && b[3] > x0 * V && b[2] < (z0 + CHUNK) * V && b[5] > z0 * V)));
   }
 }
 

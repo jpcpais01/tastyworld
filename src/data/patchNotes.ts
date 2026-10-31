@@ -8,13 +8,43 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.9',
+    version: '0.16.12',
     date: '2026-10-31',
     title: 'Flags, washing and windows',
     items: [
       'Turkish flags fly in Istanbul: a big one over Sirkeci station, and one on a pole by the door of every hotel, swinging round its pole in the wind.',
       'Washing on the lines over the lanes is now shirts, towels and the odd long sheet, each two blocks wide, instead of thin strips.',
       'Sirkeci station\'s front on the avenue, the Süleymaniye\'s prayer hall and its precinct wall had come out blank. Their tall windows, rows of arched windows and iron grilles are back.',
+    ],
+  },
+  {
+    version: '0.16.11',
+    date: '2026-10-31',
+    title: 'Vetri',
+    items: [
+      'Amalfi\'s windows are glass now, like Tokyo\'s: the house windows between their shutters, the shop and café fronts, the pastry cases, the ferry\'s saloon and bridge, and the Duomo\'s rose window mirror the sky, catch the sun off the sea and glow warm at night.',
+    ],
+  },
+  {
+    version: '0.16.10',
+    date: '2026-10-31',
+    title: 'Flower boxes held up',
+    items: [
+      'The last few window sills and geranium boxes that hung in the air inside Amalfi\'s covered passages are gone: houses no longer open windows onto the vaults.',
+    ],
+  },
+  {
+    version: '0.16.9',
+    date: '2026-10-31',
+    title: 'Amalfi among the mountains',
+    items: [
+      'The coast around Amalfi is built of voxels now, like the town: the Lattari mountains climb inland in blocks, wooded with holm oak and chestnut, terraced with lemon groves, breaking into limestone crags over the sea, with the Valle dei Mulini winding up behind the town and Atrani and Ravello on their slopes.',
+      'Two thousand trees stand on the slopes near town: umbrella pines, holm oaks, cypresses, chestnuts and lemon trees heavy with fruit.',
+      'New lemon trees all over town: a gnarled trunk forking into leafy crowns, lemons studding the leaves and hanging underneath.',
+      'The lemon pergolas are rebuilt: chestnut poles every two metres and round the rim, beams along the rows, black nets drawn over part of each grove, lemons hanging under the leaves and the trees rising through the roof.',
+      'The cathedral is dressed for its feast: gilded capitals on the portico columns, a little arcade and merlons along its top, a marble portal with a gold mosaic lunette over the bronze doors, a band of green and yellow lozenges, a rose window between two lancets, pinnacles and a gold cross on the gables, and blind arches down both sides of the nave.',
+      'The lanes feel lived in: wayside shrines to the Madonna with flowers and a red lamp, majolica street plaques, Vespas parked along the wider streets and terracotta downpipes on the houses.',
+      'Nothing floats any more: awnings, stair rails, chandeliers, washing lines, rooftop pergolas and hanging salami are all fixed to something.',
     ],
   },
   {

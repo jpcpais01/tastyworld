@@ -19,7 +19,7 @@ import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y,
  */
 
 function amalfiColors(b: Builder) {
-  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
+  const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
   const F = { leaf: true };
   return {
     // stone of the coast: pale limestone cliffs, tufa walls, grey basalt paving
@@ -35,7 +35,7 @@ function amalfiColors(b: Builder) {
     ochre: a(0xe0ae66, 0.04), peach: a(0xefc4a2, 0.04), pink: a(0xe8b2a6, 0.04), rose: a(0xd9917f, 0.04), terracotta: a(0xc47a58, 0.05), sky: a(0xbfd2d8, 0.04),
     sage: a(0xc9d1b4, 0.04), plasterOld: a(0xd9cbb0, 0.06), plinth: a(0x9e968a, 0.05),
     shutterGreen: a(0x3d6b4b, 0.04), shutterDeep: a(0x2e5541, 0.04), shutterBrown: a(0x6e4a32, 0.04), shutterBlue: a(0x4f6f86, 0.04),
-    glass: a(0x3d4c58, 0.04), glassLit: a(0xffcf8a, 0.04, { emit: 0.7, night: true }), shopLit: a(0xffd9a0, 0.04, { emit: 0.55 }),
+    glass: a(0x3d4c58, 0.04, { glass: true }), glassLit: a(0xffcf8a, 0.04, { emit: 0.7, night: true, glass: true }), shopLit: a(0xffd9a0, 0.04, { emit: 0.55 }),
     door: a(0x5a3a26, 0.06), doorGreen: a(0x31503c, 0.05), sill: a(0xe2dccf, 0.03), iron: a(0x2b2a2a, 0.04),
     roofWhite: a(0xf4f1ea, 0.03), roofTile: a(0xb5603f, 0.07), roofTileB: a(0x9c4f33, 0.07), terraceTile: a(0xc58a64, 0.06),
     // the cathedral: striped stone, gold mosaic, green and yellow majolica
@@ -61,18 +61,65 @@ type AC = ReturnType<typeof amalfiColors>;
 
 // ------------------------------------------------------------------------------------------- props
 
+/**
+ * A lemon tree: a short gnarled trunk forking into three or four limbs, each carrying a lumpy clump of glossy
+ * leaves, sunlit on top and dark underneath, with the big pointed Amalfi lemons studding the crown and hanging
+ * under it. Everything is joined to the trunk: no leaf floats.
+ */
 function lemonTree(c: AC, seed: number, big = false): Prop {
   const r = rng(seed);
-  const s = big ? 1.4 : 1;
-  const p = new Prop(Math.round(13 * s), Math.round(18 * s), Math.round(13 * s));
-  const cx = p.sx / 2, cz = p.sz / 2;
-  p.box(Math.floor(cx), 0, Math.floor(cz), Math.floor(cx), Math.round(7 * s), Math.floor(cz), c.trunk);
-  p.ellipsoid(cx, 11 * s, cz, 5.6 * s, 5.4 * s, 5.6 * s, (x, y, z) => {
-    const n = hash3(x + seed, y, z);
-    return n < 0.09 ? c.lemon : n < 0.12 ? c.lemonDeep : n < 0.5 ? c.leaf : n < 0.8 ? c.leafDark : c.leafLight;
-  });
-  for (let i = 0; i < 30; i++) if (r() < 0.5) p.set(Math.floor(r() * p.sx), Math.floor(6 * s + r() * 9 * s), Math.floor(r() * p.sz), 0);
-  p.sway(SWAY.bush, [cx, 7 * s, cz]);
+  const s = big ? 1.25 : 1;
+  const W = Math.round(30 * s);
+  const p = new Prop(W, W, W);
+  const cx = W / 2, cz = W / 2;
+  const fork = Math.round((5 + r() * 2) * s);
+  let tx = Math.floor(cx) - 1, tz = Math.floor(cz) - 1;
+  const lx = r() < 0.5 ? 1 : -1, lz = r() < 0.5 ? 1 : -1;
+  for (let y = 0; y <= fork; y++) {
+    if (y === Math.floor(fork * 0.6)) { tx += lx; if (r() < 0.5) tz += lz; }
+    p.box(tx, y, tz, tx + 1, y, tz + 1, c.trunk);
+  }
+  const line = (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => {
+    const n = Math.ceil(Math.max(Math.abs(bx - ax), Math.abs(by - ay), Math.abs(bz - az)) * 2);
+    for (let i = 0; i <= n; i++) { const t = i / n; p.set(ax + (bx - ax) * t, ay + (by - ay) * t, az + (bz - az) * t, c.trunk); }
+  };
+  const clumps: [number, number, number, number, number][] = [];
+  const limbs = 3 + (r() < 0.5 ? 1 : 0), a0 = r() * Math.PI * 2;
+  for (let i = 0; i < limbs; i++) {
+    const a = a0 + (i / limbs) * Math.PI * 2 + (r() - 0.5) * 0.7;
+    const reach = (4.5 + r() * 2.5) * s, up = (5 + r() * 4) * s;
+    const ex = cx + Math.cos(a) * reach, ez = cz + Math.sin(a) * reach, ey = fork + up;
+    line(tx + 1, fork, tz + 1, ex, ey, ez);
+    clumps.push([ex, ey + 1.5, ez, (4 + r() * 1.5) * s, (3.4 + r() * 1.2) * s]);
+  }
+  clumps.push([cx, fork + 9 * s, cz, 5.5 * s, 4.2 * s]);
+  for (const [qx, qy, qz, rx, ry] of clumps)
+    for (let y = Math.floor(qy - ry); y <= Math.ceil(qy + ry); y++)
+      for (let z = Math.floor(qz - rx); z <= Math.ceil(qz + rx); z++)
+        for (let x = Math.floor(qx - rx); x <= Math.ceil(qx + rx); x++) {
+          const dx = (x + 0.5 - qx) / rx, dy = (y + 0.5 - qy) / ry, dz = (z + 0.5 - qz) / rx;
+          // lumps of leaves three voxels across break up the outline
+          const lump = hash3(Math.floor((x + seed) / 3), Math.floor(y / 3), Math.floor(z / 3));
+          if (dx * dx + dy * dy + dz * dz > 1 - 0.3 * lump) continue;
+          const n = hash3(x + seed, y, z), t = dy;
+          p.set(x, y, z, t > 0.35 ? (n < 0.55 ? c.leafLight : c.leaf) : t < -0.35 ? (n < 0.6 ? c.leafDark : c.leaf) : n < 0.45 ? c.leaf : n < 0.75 ? c.leafDark : c.leafLight);
+        }
+  // lemons on the outside of the crown and hanging under it, one voxel each, now and then two for a long one
+  const leafy = (v: number) => v === c.leaf || v === c.leafDark || v === c.leafLight;
+  const fruit: [number, number, number, number][] = [];
+  for (let y = 1; y < p.sy - 1; y++)
+    for (let z = 1; z < p.sz - 1; z++)
+      for (let x = 1; x < p.sx - 1; x++) {
+        if (!leafy(p.get(x, y, z))) continue;
+        const h = hash3(x * 3 + seed, y * 5, z * 7);
+        if (!p.get(x, y - 1, z) && y > fork + 2) {
+          if (h < 0.12) fruit.push([x, y - 1, z, c.lemon]);
+          if (h < 0.025 && !p.get(x, y - 2, z)) fruit.push([x, y - 2, z, c.lemonDeep]);
+        } else if (h < 0.05 && (!p.get(x + 1, y, z) || !p.get(x - 1, y, z) || !p.get(x, y, z + 1) || !p.get(x, y, z - 1))) fruit.push([x, y, z, h < 0.012 ? c.lemonDeep : c.lemon]);
+      }
+  for (const [x, y, z, v] of fruit) p.set(x, y, z, v);
+  p.keepConnected(tx, 0, tz);
+  p.sway(SWAY.bush, [cx, fork, cz], [0, 0, 0], (_x, y) => y >= fork);
   return p;
 }
 
@@ -479,6 +526,7 @@ export function buildAmalfi(win?: Window): BuildResult {
   shore(b, c, plan);
   gardens(b, c, plan, inWin);
   lanes(b, c, plan);
+  laneDress(b, c, plan);
   shopfronts(b, c, plan);
   washingLines(b, c, plan);
   const stalls = foodStalls(b, c, plan);
@@ -840,6 +888,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
         const [ox, oz] = f.out(a + 1);
         const ground = outside(ox, oz);
         if (ground > yb + 3) continue; // buried in the hill or against the neighbour
+        if (ox >= VX0 && oz >= VZ0 && ox < VX0 + SX && oz < VZ0 + SZ && plan.kind[col(ox, oz)] === K.Covered) continue; // onto a covered passage: its vault and the house over it
         const [wx, wz] = f.at(a), [wx2, wz2] = f.at(a + 2);
         const groundFloor = fl === 0 || ground > yb - 6;
         // shops on the piazza and the main street open arches at street level instead
@@ -924,10 +973,23 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
       // pergola of chestnut poles under vines or bougainvillea
       const flower = r() < 0.5;
       for (let x = x0 + 2; x <= x1 - 2; x += 5) for (let z = z0 + 2; z <= z1 - 2; z += 5) g.box(x, top + 1, z, x, top + 9, z, c.pole);
-      g.box(x0 + 2, top + 10, z0 + 2, x1 - 2, top + 10, z1 - 2, (x, y, z) => {
-        const n = hash3(x, y, z);
-        return n < 0.25 ? 0 : flower && n < 0.55 ? (n < 0.4 ? c.bougain : c.bougainB) : n < 0.8 ? c.leaf : c.leafDark;
-      });
+      // beams along the rows of poles at 2.5 m, the leaves on them; a leaf the gaps leave on its own is dropped
+      const pw = x1 - x0 - 3, pd = z1 - z0 - 3;
+      const roof = new Int32Array(pw * pd);
+      for (let j = 0; j < pd; j++) for (let i = 0; i < pw; i++) {
+        const x = x0 + 2 + i, z = z0 + 2 + j, n = hash3(x, top + 10, z);
+        roof[j * pw + i] = i % 5 === 0 || j % 5 === 0 ? c.pole : n < 0.25 ? 0 : flower && n < 0.55 ? (n < 0.4 ? c.bougain : c.bougainB) : n < 0.8 ? c.leaf : c.leafDark;
+      }
+      const held = new Uint8Array(pw * pd), st: number[] = [];
+      for (let k = 0; k < roof.length; k++) if (roof[k] === c.pole) { held[k] = 1; st.push(k); }
+      while (st.length) {
+        const k = st.pop()!, i = k % pw, j = (k - i) / pw;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ii = i + di, jj = j + dj, kk = jj * pw + ii;
+          if (ii >= 0 && jj >= 0 && ii < pw && jj < pd && roof[kk] && !held[kk]) { held[kk] = 1; st.push(kk); }
+        }
+      }
+      for (let k = 0; k < roof.length; k++) if (held[k]) g.set(x0 + 2 + (k % pw), top + 10, z0 + 2 + Math.floor(k / pw), roof[k]);
     } else if (pr < 0.75) {
       for (let i = 0; i < 2; i++) b.place(potLemon(c, lt.seed + i), (x0 + 3 + i * (w - 6)) * V, (top + 1 - G) * V, (z0 + 3) * V);
     } else {
@@ -963,6 +1025,13 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
       const len = 6 + Math.floor(hash3(ox, 3, oz) * 18);
       for (let y = top - 1; y > Math.max(gl + 4, top - 1 - len); y--) if (hash3(ox, y, oz) < 0.8) g.set(ox, y, oz, hash3(ox, y + 1, oz) < 0.6 ? c.bougain : c.leaf);
     }
+  }
+  // a terracotta downpipe from the gutter to the ground at a corner of the front, clipped to the wall
+  if (r() < 0.7) {
+    const f = faces.find((q) => q.side === lt.side) ?? faces[0];
+    const [ox, oz] = f.out(r() < 0.5 ? 1 : f.n - 2);
+    const gl = outside(ox, oz);
+    if (gl < top - 6) for (let y = gl; y < top; y++) if (!g.get(ox, y, oz)) g.set(ox, y, oz, (y - gl) % 10 === 9 ? c.iron : c.terracotta);
   }
 }
 
@@ -1011,15 +1080,17 @@ function duomo(b: Builder, c: AC): void {
     }
     // bronze doors cast in Constantinople, 1060
     const zc = (Z0 + Z1) >> 1;
-    g.box(FX, Y, zc - 4, FX, Y + 16, zc + 3, c.bronzeDoor);
-    g.box(FX, Y + 17, zc - 5, FX, Y + 17, zc + 4, c.mosaicGold);
-    for (const zz of [zc - 18, zc + 14]) g.box(FX, Y, zz, FX, Y + 12, zz + 3, c.door);
+    // (on the face of the screen, under the portico)
+    g.box(FX + 3, Y, zc - 4, FX + 3, Y + 16, zc + 3, c.bronzeDoor);
+    g.box(FX + 3, Y + 17, zc - 5, FX + 3, Y + 17, zc + 4, c.mosaicGold);
+    for (const zz of [zc - 18, zc + 14]) g.box(FX + 3, Y, zz, FX + 3, Y + 12, zz + 3, c.door);
     b.lamp(-23, DUOMO_Y + 4, zc * V, WHITEWARM, 9, 0.9);
     b.lamp(-23, DUOMO_Y + 4, FW0 * V + 2, WARM, 5, 0.6);
     b.lamp(-23, DUOMO_Y + 4, FW1 * V - 2, WARM, 5, 0.6);
     // floodlights on the front at night, from the foot of the steps
     b.lamp(-6, PIAZZA_Y + 1, 9, [1, 0.86, 0.66], 8, 0.7);
     b.lamp(-6, PIAZZA_Y + 1, 19, [1, 0.86, 0.66], 8, 0.7);
+    duomoDress(g, c, { Y, H, X0, X1, Z0, Z1, FX, FW0, FW1, zc });
   }
   // the bell tower (1180), finished with a drum of interlaced arches and green and yellow tiles
   const TX0 = -40 / V, TZ0 = 25 / V, TS = 22;
@@ -1057,6 +1128,89 @@ function duomo(b: Builder, c: AC): void {
   for (const x of [-5.6, -10.8, -15.7]) {
     const y = PIAZZA_Y + (DUOMO_Y - PIAZZA_Y) * ((-4.5 - x) / 15.5);
     for (const z of [9.3, 18.7]) { b.place(lampPost(c), x, layerY(y), z); b.lamp(x, y + 3.4, z, WARM, 5, 0.7); }
+  }
+}
+
+/**
+ * The cathedral's finery, Arab-Norman by way of the nineteenth-century rebuilding: columns with gilded capitals and
+ * a little arcade along the top of the portico, a marble portal round the bronze doors with a gold lunette, a band of
+ * green and yellow lozenges, a rose window between two lancets, a corbel table under the gables, pinnacles and the
+ * cross, and blind arcades with a corbel frieze down both sides of the nave.
+ */
+function duomoDress(g: SparseGrid, c: AC, d: { Y: number; H: number; X0: number; X1: number; Z0: number; Z1: number; FX: number; FW0: number; FW1: number; zc: number }): void {
+  const { Y, H, X0, X1, Z0, Z1, FX, FW0, FW1, zc } = d;
+  // portico columns: a base, a gilded capital where the arches spring
+  for (let z = FW0; z <= FW1; z += 12) {
+    g.box(FX + 4, Y, z - 1, FX + 11, Y + 1, z + 2, c.marbleGrey);
+    g.box(FX + 4, Y + 12, z - 1, FX + 11, Y + 12, z + 2, c.mosaicGold);
+    g.box(FX + 4, Y + 13, z - 1, FX + 11, Y + 13, z + 2, c.marble);
+  }
+  // along the top of the portico: a cornice, a little arcade of colonnettes, and merlons
+  g.box(FX + 12, Y + 22, FW0, FX + 12, Y + 22, FW1, c.marble);
+  g.box(FX + 11, Y + 25, FW0, FX + 11, Y + 25, FW1, c.marble);
+  g.box(FX + 11, Y + 26, FW0, FX + 11, Y + 28, FW1, (_x, y, z) => ((z - FW0) % 4 === 0 ? c.marble : y === 28 && (z - FW0) % 4 === 2 ? c.stripeDark : 0));
+  g.box(FX + 11, Y + 28, FW0, FX + 11, Y + 28, FW1, (_x, _y, z) => ((z - FW0) % 4 === 2 ? c.stripeDark : c.marble));
+  g.box(FX + 11, Y + 29, FW0, FX + 11, Y + 30, FW1, (_x, _y, z) => (((z - FW0) >> 1) % 2 === 0 ? c.marble : 0));
+  // the portal round the bronze doors, a lunette of gold mosaic over them
+  g.box(FX + 1 + 3, Y, zc - 6, FX + 4, Y + 18, zc - 5, (_x, y) => ((y >> 1) % 2 ? c.stripeDark : c.marble));
+  g.box(FX + 1 + 3, Y, zc + 4, FX + 4, Y + 18, zc + 5, (_x, y) => ((y >> 1) % 2 ? c.stripeDark : c.marble));
+  for (let y = Y + 18; y <= Y + 23; y++)
+    for (let z = zc - 6; z <= zc + 5; z++) {
+      const r = Math.hypot(z + 0.5 - zc, (y - Y - 18) * 1.2);
+      if (r > 6) continue;
+      g.set(FX + 4, y, z, r > 5 ? c.marble : r > 4.2 ? c.stripeDark : hash3(z, y, 3) < 0.15 ? c.mosaicBlue : c.mosaicGold);
+    }
+  // a band of green and yellow lozenges across the front
+  g.box(FX + 4, Y + 44, FW0 + 1, FX + 4, Y + 47, FW1 - 1, (_x, y, z) => {
+    const q = Math.abs((((z % 6) + 6) % 6) - 3) + Math.abs(((y - Y - 44) % 4) - 1.5);
+    return q < 1.6 ? c.majolicaGreen : q < 2.6 ? c.majolicaYellow : c.marble;
+  });
+  // the rose window, a wheel of twelve spokes
+  const ry = Y + 57;
+  for (let y = ry - 9; y <= ry + 9; y++)
+    for (let z = zc - 9; z <= zc + 9; z++) {
+      const r = Math.hypot(z + 0.5 - zc, y + 0.5 - ry);
+      if (r > 9) continue;
+      if (r > 7.2) { g.set(FX + 4, y, z, (Math.floor(Math.atan2(y - ry, z - zc) * 6) & 1) ? c.stripeDark : c.marble); continue; }
+      const spoke = Math.abs(Math.sin(Math.atan2(y + 0.5 - ry, z + 0.5 - zc) * 6)) < 0.3;
+      g.set(FX + 3, y, z, r < 1.6 || (r > 3.2 && r < 4) || spoke ? c.marble : c.glassLit);
+    }
+  // two lancet windows either side, in striped frames
+  for (const z0 of [zc - 19, zc + 17]) {
+    const frame = (y: number) => ((y >> 1) % 2 ? c.stripeDark : c.marble);
+    for (let y = Y + 48; y <= Y + 60; y++) {
+      g.box(FX + 3, y, z0, FX + 3, y, z0 + 2, c.glassLit);
+      g.set(FX + 4, y, z0 - 1, frame(y)); g.set(FX + 4, y, z0 + 3, frame(y));
+    }
+    // the pointed head
+    g.set(FX + 3, Y + 61, z0 + 1, c.glassLit);
+    g.set(FX + 4, Y + 61, z0, frame(Y + 61)); g.set(FX + 4, Y + 61, z0 + 2, frame(Y + 61));
+    g.set(FX + 4, Y + 62, z0 + 1, c.marble);
+    g.box(FX + 4, Y + 47, z0 - 1, FX + 4, Y + 47, z0 + 3, c.marble);
+  }
+  // a corbel table under the gables
+  g.box(FX + 4, Y + H + 9, FW0, FX + 4, Y + H + 9, FW1, c.marble);
+  g.box(FX + 4, Y + H + 8, FW0, FX + 4, Y + H + 8, FW1, (_x, _y, z) => (z % 3 === 0 ? c.stripeDark : 0));
+  // the cross on the great gable, pinnacles on the small ones and at the corners
+  const top = Y + H + 10 + 30;
+  g.box(FX + 1, top + 1, zc, FX + 2, top + 7, zc, c.mosaicGold);
+  g.box(FX + 1, top + 5, zc - 2, FX + 2, top + 5, zc + 2, c.mosaicGold);
+  for (const [z, yb] of [[FW0 + 8, Y + H + 18], [FW1 - 8, Y + H + 18], [FW0, Y + H + 10], [FW1 - 1, Y + H + 10]] as const) {
+    g.box(FX + 1, yb + 1, z, FX + 2, yb + 5, z + 1, c.marble);
+    g.box(FX + 1, yb + 6, z, FX + 2, yb + 7, z + 1, c.majolicaGreen);
+    g.box(FX + 1, yb + 8, z, FX + 1, yb + 8, z, c.majolicaYellow);
+  }
+  // down the sides of the nave: blind arches on pilasters, a corbel frieze under the eaves
+  for (const z of [Z0 - 1, Z1 + 1]) {
+    for (let x = X0 + 2; x < X1 - 2; x += 12) {
+      g.boxIfEmpty(x, Y + 2, z, x + 1, Y + H - 6, z, c.stripeTufa);
+      for (let i = 0; i < 10; i++) {
+        const t = i / 9, rise = Math.round(Math.sin(t * Math.PI) * 4);
+        g.boxIfEmpty(x + 1 + i, Y + H - 9 + rise, z, x + 1 + i, Y + H - 8 + rise, z, c.stripeTufa);
+      }
+    }
+    g.boxIfEmpty(X0, Y + H - 1, z, X1, Y + H - 1, z, c.marble);
+    for (let x = X0; x <= X1; x += 2) g.boxIfEmpty(x, Y + H - 2, z, x, Y + H - 2, z, c.stripeDark);
   }
 }
 
@@ -1428,6 +1582,30 @@ function fireflySpots(plan: Plan): [number, number, number][] {
 /** Lemon pergolas on the terraces, olive and cypress higher up, a palm here and there. */
 function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) => boolean): void {
   const g = b.grid;
+  const RING = [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]];
+  /** A terrace column with the same level two cells all round (from the plan alone, so every strip agrees). */
+  const flatAt = (x: number, z: number) => {
+    const ci = col(x, z);
+    if (plan.kind[ci] !== K.Rock || x * V > ROAD_X0 || z * V < -44) return false;
+    const w = plan.walk[ci];
+    for (const [dx, dz] of RING) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== K.Rock || plan.walk[nc] !== w) return false; }
+    return true;
+  };
+  const zoneAt = (x: number, z: number) => hash3(Math.floor((x * V) / 11), 17, Math.floor((z * V) / 11));
+  const P = (x: number, z: number) => zoneAt(x, z) < 0.62 && flatAt(x, z);
+  /**
+   * A limonaia's roof only spreads where it can hang from a pole: along its row to the nearest line of poles (every
+   * 2 m), then along that line to a pole, one where the lines cross or one on the grove's rim.
+   */
+  const supported = (x: number, z: number) => {
+    const xa = Math.round(x / 8) * 8, sx = Math.sign(xa - x);
+    for (let xx = x; xx !== xa; xx += sx) if (!P(xx, z)) return false;
+    const za = Math.round(z / 8) * 8, dz = Math.sign(za - z) || 1;
+    for (let zz = z; ; zz += dz) {
+      if (!P(xa, zz)) return false;
+      if (zz % 8 === 0 || !P(xa, zz + dz)) return true;
+    }
+  };
   for (let z = VZ0 + 1; z < VZ0 + SZ - 1; z++)
     for (let x = VX0 + 1; x < VX0 + SX - 1; x++) {
       if (!inWin(x, z)) continue;
@@ -1436,20 +1614,37 @@ function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) =>
       const w = plan.walk[ci];
       const mx = x * V, mz = z * V;
       if (mx > ROAD_X0 || mz < -44) continue;
-      // the terrace is one level wide here: no pergola over the edge of a drop
-      let edge = false;
-      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]]) {
-        const nc = col(x + dx, z + dz);
-        if (plan.kind[nc] !== K.Rock || Math.abs(plan.walk[nc] - w) > 0) { edge = true; break; }
-      }
-      const zone = hash3(Math.floor(mx / 11), 17, Math.floor(mz / 11));
-      if (zone < 0.62 && !edge) {
-        // limonaia: chestnut posts every 2 m holding a roof of leaves and lemons at 2.4 m
-        if (x % 8 === 0 && z % 8 === 0) g.box(x, w, z, x, w + 9, z, c.pole);
+      const flat = flatAt(x, z), zone = zoneAt(x, z);
+      if (zone < 0.62 && flat) {
+        if (!supported(x, z)) continue;
+        // limonaia: chestnut poles every 2 m (and round the rim) carrying beams and a roof of lemon leaves at 2.5 m
+        const rimX = !P(x - 1, z) || !P(x + 1, z), rimZ = !P(x, z - 1) || !P(x, z + 1);
+        const post = (x % 8 === 0 && (z % 8 === 0 || rimZ)) || (z % 8 === 0 && rimX);
+        const beam = x % 8 === 0 || z % 8 === 0;
+        if (post) g.box(x, w, z, x, w + 9, z, c.pole);
+        else if (beam) g.set(x, w + 9, z, c.pole);
         const n = hash3(x, w, z);
-        g.set(x, w + 10, z, n < 0.08 ? c.lemon : n < 0.6 ? c.leaf : n < 0.85 ? c.leafDark : c.net);
-        if (n < 0.05) g.set(x, w + 9, z, c.lemon);
-      } else if (zone > 0.9 && !edge && x % 20 === 7 && z % 20 === 3) {
+        g.set(x, w + 10, z, n < 0.06 ? c.lemon : n < 0.55 ? c.leaf : n < 0.85 ? c.leafDark : c.leafLight);
+        // black nets drawn over part of the grove, leaves pushing through; elsewhere the leaves pile up in lumps
+        if (hash3(Math.floor(x / 20), 29, Math.floor(z / 14)) < 0.22) { if (hash3(x, 77, z) < 0.7) g.set(x, w + 11, z, c.net); }
+        else if (hash3(x, 78, z) < 0.3) g.set(x, w + 11, z, n < 0.5 ? c.leafLight : c.leaf);
+        // underneath: lemons hanging from the leaves, a long one now and then, and trailing shoots
+        if (!beam) {
+          const h = hash3(x, w + 9, z);
+          if (h < 0.1) { g.set(x, w + 9, z, c.lemon); if (h < 0.025) g.set(x, w + 8, z, c.lemonDeep); }
+          else if (h < 0.3) g.set(x, w + 9, z, c.leafDark);
+        }
+        // the trees themselves, every 4 m between the poles: a trunk rising into the roof, a crown gathered round it
+        if (((x % 16) + 16) % 16 === 4 && ((z % 16) + 16) % 16 === 4) {
+          g.box(x, w, z, x, w + 9, z, c.trunk);
+          for (let y = w + 6; y <= w + 9; y++)
+            for (let dz = -2; dz <= 2; dz++)
+              for (let dx = -2; dx <= 2; dx++) {
+                if ((dx || dz) && Math.hypot(dx, dz) <= (y - w - 5) * 0.7 + 0.6 && !g.get(x + dx, y, z + dz) && supported(x + dx, z + dz))
+                  g.set(x + dx, y, z + dz, hash3(x + dx, y, z + dz) < 0.12 ? c.lemon : y === w + 9 ? c.leaf : c.leafDark);
+              }
+        }
+      } else if (zone > 0.9 && flat && x % 20 === 7 && z % 20 === 3) {
         // a cypress
         for (let y = 0; y < 30; y++) {
           const rr = y < 3 ? 0 : 1.6 * Math.sin(Math.PI * Math.min(1, (y - 2) / 28)) ** 0.7;
@@ -1465,7 +1660,8 @@ function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) =>
     const ci = col(x, z);
     if (plan.kind[ci] !== K.Rock) continue;
     let flat = true;
-    for (let dz = -6; dz <= 6 && flat; dz += 3) for (let dx = -6; dx <= 6 && flat; dx += 3) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== K.Rock || plan.walk[nc] !== plan.walk[ci]) flat = false; }
+    // (a lemon tree spreads nearly 4 m: room for all of it on one level)
+    for (let dz = -8; dz <= 8 && flat; dz += 4) for (let dx = -8; dx <= 8 && flat; dx += 4) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== K.Rock || plan.walk[nc] !== plan.walk[ci]) flat = false; }
     if (!flat) continue;
     const y = (plan.walk[ci] - G) * V;
     if (x * V > ROAD_X0) continue;
@@ -1590,13 +1786,15 @@ function washingLines(b: Builder, c: AC, plan: Plan): void {
       const Y = Math.min(hi, Math.max(lo, layerOf(y + 4.3 + r() * 0.8)));
       const span = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(span / (V * 0.5));
       const ax2 = (x1 - x0) / span, az2 = (z1 - z0) / span;
-      let last = -1;
-      for (let i = 0; i <= n; i++) {
+      let lx = NaN, lz = NaN;
+      for (let i = -2; i <= n + 2; i++) {
+        // (two half-voxel steps past each end, into the walls the line is tied to)
         const k = i / n, vx = Math.floor((x0 + (x1 - x0) * k) / V), vz = Math.floor((z0 + (z1 - z0) * k) / V);
-        const key = vx * 4096 + vz;
-        if (key === last) continue;
-        last = key;
+        if (vx === lx && vz === lz) continue;
+        if (vx !== lx && vz !== lz && !Number.isNaN(lx) && !g.get(lx, Y, vz)) g.set(lx, Y, vz, c.iron); // a corner, not a diagonal
+        lx = vx; lz = vz;
         if (!g.get(vx, Y, vz)) g.set(vx, Y, vz, c.iron);
+        if (i < 0 || i > n) continue;
         // a shirt, a towel, a sheet now and then: every other cell along the line
         if (i % 4 === 2 && hash3(vx, Y, vz) < 0.75 && i > 2 && i < n - 2 && g.touches(vx, vz, vx, vz)) {
           const drop = hash3(vz, Y, vx) < 0.25 ? 5 : 3;
@@ -1643,6 +1841,92 @@ function lanes(b: Builder, c: AC, plan: Plan): void {
       if (r() < 0.5) b.place(geraniumPot(c, Math.floor(r() * 1e4)), ex, ey, ez);
       else if (r() < 0.4) b.place(potLemon(c, Math.floor(r() * 1e4)), ex, ey, ez);
     }
+  }
+}
+
+/** A wayside shrine: the Madonna in majolica in a marble niche under a little tiled roof, flowers and a red lamp on its ledge. Back to the wall at z = 0. */
+function shrine(c: AC, seed: number): Prop {
+  const p = new Prop(8, 14, 4);
+  p.box(0, 1, 0, 7, 12, 0, c.majolicaWhite);
+  // the picture: a blue mantle, a face, a gold halo, on yellow tiles in a blue border
+  p.box(1, 2, 0, 6, 10, 0, (x, y) => (x === 1 || x === 6 || y === 2 || y === 10 ? c.majolicaBlue : c.majolicaYellow));
+  p.box(2, 3, 0, 5, 7, 0, c.majolicaBlue);
+  p.box(3, 7, 0, 4, 8, 0, c.peach);
+  p.box(2, 9, 0, 5, 9, 0, c.mosaicGold); p.set(2, 8, 0, c.mosaicGold); p.set(5, 8, 0, c.mosaicGold);
+  // the marble surround and the ledge
+  p.box(0, 1, 1, 0, 11, 1, c.marble); p.box(7, 1, 1, 7, 11, 1, c.marble);
+  p.box(0, 0, 0, 7, 1, 3, c.marble);
+  p.box(0, 11, 1, 7, 11, 1, c.marble);
+  // a tiled hood
+  p.box(0, 12, 0, 7, 12, 2, c.terracotta); p.box(1, 13, 0, 6, 13, 1, c.terracotta);
+  // flowers either side, the lamp in the middle
+  const fl = seed % 2 ? c.geranium : c.bougain;
+  p.box(1, 2, 2, 1, 3, 2, c.majolicaWhite); p.box(1, 4, 2, 1, 4, 3, fl); p.set(1, 4, 1, c.leaf);
+  p.box(6, 2, 2, 6, 3, 2, c.majolicaWhite); p.box(6, 4, 2, 6, 4, 3, fl); p.set(6, 4, 1, c.leaf);
+  p.box(3, 2, 2, 4, 3, 2, c.lampGlowAlways);
+  return p;
+}
+
+/** A majolica street plaque: a white tile with a blue border and the name in dark letters. Back to the wall at z = 0. */
+function streetPlaque(c: AC, seed: number): Prop {
+  const p = new Prop(9, 5, 1);
+  p.box(0, 0, 0, 8, 4, 0, (x, y) => (x === 0 || x === 8 || y === 0 || y === 4 ? c.majolicaBlue : (y === 2 && hash3(x, seed, 3) < 0.7 ? c.stripeDark : c.majolicaWhite)));
+  p.set(1, 3, 0, c.majolicaYellow); p.set(7, 3, 0, c.majolicaYellow);
+  return p;
+}
+
+/**
+ * The lanes lived in: wayside shrines on the house walls, majolica plaques with the street names where lanes begin,
+ * and Vespas parked along the wider streets. Decided from the plan alone, so every worker dresses the same lanes.
+ */
+function laneDress(b: Builder, c: AC, plan: Plan): void {
+  const r = rng(6161);
+  const vespa = [c.hullRed, c.sky, c.majolicaYellow, c.whiteWarm, c.hullGreen];
+  for (const s of plan.segs) {
+    if (s.kind !== K.Lane && s.kind !== K.Street && s.kind !== K.Stair) continue;
+    const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 4) continue;
+    const ux = (bx - ax) / len, uz = (bz - az) / len, nx = -uz, nz = ux;
+    /** The house wall beside the lane at t on a side, if a house stands there (not a restaurant's or hotel's front). */
+    const wallAt = (t: number, side: number, depth: number, h0: number, h1: number) => {
+      const cx = ax + ux * t, cz = az + uz * t, y = ay + (by - ay) * (t / len);
+      // march out from the middle of the lane to the first voxel of a house
+      let d = s.w / 2 - 0.25, id = 0;
+      for (; d < s.w / 2 + 1.5 && !id; d += 0.125) id = plan.lot[col(Math.floor((cx + nx * side * d) / V), Math.floor((cz + nz * side * d) / V))];
+      if (!id) return null;
+      const lt = plan.lots[id - 1];
+      if (lt.food || lt.hotel || (lt.base - G) * V > y + h0 || (lt.top - G) * V < y + h1) return null;
+      // (d now sits one step inside the wall: back off to its face, then half the prop's depth)
+      const o = d - 0.125 - depth / 2;
+      return { x: cx + nx * o * side, z: cz + nz * o * side, y, turn: faceTurn(-nx * side, -nz * side) };
+    };
+    // the street's name where it starts
+    if (len > 10) {
+      const side = r() < 0.5 ? 1 : -1;
+      const w = wallAt(1.6, side, 0.125, 2.3, 3.3) ?? wallAt(1.6, -side, 0.125, 2.3, 3.3);
+      if (w) b.place(streetPlaque(c, Math.floor(r() * 1e4)), w.x, w.y + 2.5, w.z, w.turn);
+    }
+    // a shrine every so often, at eye height
+    for (let t = 6 + r() * 10; t < len - 3; t += 22 + r() * 16) {
+      const side = r() < 0.5 ? 1 : -1;
+      const w = wallAt(t, side, 0.5, 1.1, 3.2);
+      if (!w) continue;
+      b.place(shrine(c, Math.floor(r() * 1e4)), w.x, w.y + 1.3, w.z, w.turn);
+      b.lamp(w.x, w.y + 1.6, w.z, [1, 0.55, 0.35], 2.2, 0.45);
+    }
+    // Vespas against the wall of the wider streets, along the kerb
+    if (s.kind === K.Street && s.w >= 3.4)
+      for (let t = 4 + r() * 6; t < len - 3; t += 7 + r() * 9) {
+        if (r() < 0.4) continue;
+        const side = r() < 0.5 ? 1 : -1;
+        const off = s.w / 2 - 0.35;
+        const x = ax + ux * t + nx * off * side, z = az + uz * t + nz * off * side;
+        const y = floorAt(plan, x, z);
+        if (Math.abs(y - (ay + (by - ay) * (t / len))) > 0.3) continue;
+        b.place(scooter(k(b), vespa[Math.floor(r() * vespa.length)]), x, layerY(y), z, Math.abs(ux) > Math.abs(uz) ? 0 : 1);
+        b.block(x - 0.8, z - 0.8, x + 0.8, z + 0.8);
+      }
   }
 }
 
@@ -1915,7 +2199,7 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
   box(mid - 4, 11, -1, mid + 4, 12, -1, (a, y) => (a === mid - 4 || a === mid + 4 ? c.majolicaBlue : (a + y) % 3 === 0 ? c.majolicaYellow : c.majolicaWhite));
   // a striped awning the width of the front
   const [aw0, aw1] = [c[th.awning[0]], c[th.awning[1]]];
-  box(1, 10, -1, W - 2, 10, -1, (a) => ((a >> 1) % 2 ? aw0 : aw1));
+  box(1, 10, -1, W - 2, 10, -2, (a) => ((a >> 1) % 2 ? aw0 : aw1));
   box(1, 9, -2, W - 2, 9, -2, (a) => ((a >> 1) % 2 ? aw0 : aw1));
   box(1, 8, -2, W - 2, 8, -2, (a) => (a % 2 ? aw0 : 0));
   for (const s of [-1, 1]) {
@@ -1964,7 +2248,7 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
         // the hearth on the side wall, a ham and braids of onions
         box(W - 2, 1, 3, W - 2, 6, 7, c.tufaDark); box(W - 2, 1, 4, W - 2, 3, 6, ic.oven); box(W - 3, 1, 4, W - 3, 1, 6, c.tufaDark);
         lamp(W - 3, 4.5, 1.2, [1, 0.55, 0.25], 4, 1.1);
-        box(4, 8, 6, 4, 10, 6, ic.velvet); box(W - 6, 8, 8, W - 6, 10, 8, c.ochre);
+        box(4, 8, 6, 4, 11, 6, (_a, y) => (y === 11 ? c.iron : ic.velvet)); box(W - 6, 8, 8, W - 6, 11, 8, (_a, y) => (y === 11 ? c.iron : c.ochre));
         b.emitters.push({ kind: 'smoke', pos: [...((): [number, number, number] => { const [x, z] = L.P(W - 2.5, 5); return [x, L.floorY + 1.4, z]; })()], rate: 0.25 });
       }
       break;
@@ -1997,7 +2281,7 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
       // wine racks up both side walls, two barrels by the door, salami from the beam
       for (const a of [1, W - 2]) box(a, 1, 2, a, 9, D - 8, (_a, y, d) => (y % 3 === 0 ? c.door : (d + y) % 2 ? [ic.bottleA, ic.bottleB, ic.bottleD, c.hullRed][(d + y) % 4] : c.stripeDark));
       for (const a of [2, W - 3]) { box(a, 1, 1, a, 3, 1, (_a, y) => (y === 2 ? c.iron : c.door)); }
-      for (let a = 4; a < W - 4; a += 3) box(a, 9, D - 9, a, 10, D - 9, ic.velvetDark);
+      for (let a = 4; a < W - 4; a += 3) box(a, 9, D - 9, a, 11, D - 9, (_a, y) => (y === 11 ? c.iron : ic.velvetDark)); // (hooked to the ceiling)
       break;
     }
     case 'ruocco': {
@@ -2037,6 +2321,7 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
       // tall windows down the side walls, candles on the tables, a chandelier
       for (const a of [0, W - 1]) box(a, 3, 3, a, 9, D - 8, (_a, y, d) => (y === 3 || y === 9 || d % 4 === 0 ? c.white : c.glassLit));
       box(mid, 10, (D >> 1) - 1, mid + 1, 11, (D >> 1), ic.brass);
+      box(mid - 1, 10, (D >> 1) - 2, mid + 2, 10, (D >> 1) + 1, ic.brass); // the arms, the shades hanging from them
       box(mid - 1, 9, (D >> 1) - 2, mid + 2, 9, (D >> 1) + 1, (a, _y, d) => ((a + d) % 3 === 0 ? ic.shade : 0));
       lamp(mid + 1, (D >> 1), 2.3, WARM, 6, 1.0);
       break;
@@ -2278,8 +2563,14 @@ function hotelHouse(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   box(H.da0 + 1, 5, D - 2, H.da1, 9, D - 2, (a, y) => (y === 5 || y === 9 || a === H.da0 + 1 || a === H.da1 ? wood : (a + y) % 2 ? (y === 7 && a % 4 === 0 ? ic.brass : c.door) : c[th.wall]));
   // the stair up the right-hand wall: marble treads, an iron rail with a brass top
   for (let s = 0; s < 8; s++) box(W - 5, 1, H.st0 + s * 2, W - 2, 1 + s, H.st0 + s * 2 + 1, (_a, y) => (y === 1 + s ? c.marble : c.marbleGrey));
-  for (let s = 0; s < 8; s++) { box(W - 6, 2 + s, H.st0 + s * 2, W - 6, 3 + s, H.st0 + s * 2 + 1, (_a, y, d) => (y === 3 + s ? ic.brass : d % 2 ? c.iron : 0)); }
-  box(W - 6, 1, H.st0, W - 6, 3, H.st0, c.iron);
+  for (let s = 0; s < 8; s++) {
+    const d0 = H.st0 + s * 2;
+    box(W - 6, 1, d0, W - 6, 1 + s, d0 + 1, c.marbleGrey);
+    box(W - 6, 2 + s, d0 + 1, W - 6, 2 + s, d0 + 1, c.iron);
+    box(W - 6, 3 + s, d0, W - 6, 3 + s, d0 + 1, ic.brass);
+    if (s < 7) box(W - 6, 4 + s, d0 + 1, W - 6, 4 + s, d0 + 1, ic.brass);
+  }
+  box(W - 6, 1, H.st0 - 1, W - 6, 3, H.st0 - 1, c.iron); box(W - 6, 3, H.st0, W - 6, 3, H.st0, ic.brass);
   // guests' corner by the front window: a sofa, a low table, a lemon tree in a pot, a rug down the middle
   box(1, 1, 3, 2, 2, 8, ic.velvet); box(1, 3, 3, 1, 4, 8, ic.velvetDark);
   box(4, 1, 4, 5, 2, 7, (_a, y) => (y === 2 ? c.marble : wood));
@@ -2291,7 +2582,10 @@ function hotelHouse(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   box(0, 6, 3, 0, 9, 8, (_a, y, d) => (y === 6 || y === 9 || d === 3 || d === 8 ? c.mosaicGold : y < 8 ? c.umbrellaC : c.sky));
   // a chandelier in the palazzo, a ceiling lamp elsewhere
   box(mid, 10, (D >> 1) - 1, mid + 1, 11, D >> 1, ic.brass);
-  if (palazzo) box(mid - 1, 9, (D >> 1) - 2, mid + 2, 9, (D >> 1) + 1, (a, _y, d) => ((a + d) % 3 === 0 ? ic.shade : 0));
+  if (palazzo) {
+    box(mid - 1, 10, (D >> 1) - 2, mid + 2, 10, (D >> 1) + 1, ic.brass);
+    box(mid - 1, 9, (D >> 1) - 2, mid + 2, 9, (D >> 1) + 1, (a, _y, d) => ((a + d) % 3 === 0 ? ic.shade : 0));
+  }
   lamp(L, mid + 1, D >> 1, H.floorY + 2.4, WARM, 7, 1.0);
   lamp(L, H.deskMid, H.dd - 0.5, H.floorY + 2.4, WARM, 4.5, 0.8);
 

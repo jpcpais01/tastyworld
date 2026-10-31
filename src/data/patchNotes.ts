@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.13',
+    date: '2026-10-31',
+    title: 'The mountains above Amalfi, reshaped',
+    items: [
+      'The Lattari mountains behind Amalfi have real form now: spurs and deep gullies running down to the sea, ridges with peaks and saddles, and the Valle dei Mulini winding inland as a narrow gorge with steep wooded walls, its far end lost in blue haze.',
+      'The slopes climb in limestone bands, pale grey cliffs streaked dark by the rain with scrub on every ledge, instead of one huge speckled wall. Holm oak woods fill the gullies, chestnuts take over higher up, the maquis between has dark clumps and pale drifts of broom, and the lemon terraces gather round the villages.',
+      'Trees on the mountainside come in more kinds (scrub bushes, olives by the houses) and no two stand quite alike. They grow in groves, and the lemons stand in rows on their terraces.',
+      'The hillside villages sit properly on the slope: every house stands on a dry-stone terrace wall with a little terrace in front of its door, instead of hanging in the trees. Atrani is back on dry land in its cove.',
+      'Stepped mule paths climb from the edge of town up the Valle dei Mulini and in switchbacks up both flanks towards Pogerola, Pontone and Ravello.',
+    ],
+  },
+  {
     version: '0.17.12',
     date: '2026-10-31',
     title: 'More steps up the terraces',

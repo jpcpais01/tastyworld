@@ -23,7 +23,7 @@ const Q = 0.25;
 const snap = (v: number) => Math.round(v / Q) * Q;
 
 /** Part kinds (the shader's switch). */
-const enum P { Body, Parapet, Vault, Dome, Slab, Rail, Pergola, Pole, Hip, Tower, BodyWhite, Majolica }
+const enum P { Body, Parapet, Vault, Dome, Slab, Rail, Pergola, Pole, Hip, Tower, BodyWhite, Majolica, Stone }
 
 /** The town's stucco (sRGB), weighted as amalfi.ts PASTELS weights them. */
 const WALLS = [0xf2eee6, 0xf2eee6, 0xefe6d6, 0xf0e2c2, 0xf0e2c2, 0xf0d68a, 0xf2dc6a, 0xe0ae66, 0xefc4a2, 0xe8b2a6, 0xd9917f, 0xc47a58, 0xbfd2d8, 0xc9d1b4, 0xd9cbb0];
@@ -31,7 +31,10 @@ const TRIMS = [0xf2eee6, 0xf2eee6, 0xe2dccf];
 
 const rgb = (hex: number): [number, number, number] => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 
-export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: string, HAZE: string, lots: FarLot[], towers: FarTower[]): THREE.Mesh {
+/** A stone box laid on the ground (a path's tread or step): corners (m) and colour. */
+export type FarStone = [number, number, number, number, number, number, number];
+
+export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: string, HAZE: string, lots: FarLot[], towers: FarTower[], stones: FarStone[] = []): THREE.Mesh {
   const parts: number[] = [];
   // one box: corners (m), kind, colour, how soon it drops out (0 never, 1 near detail, 2 middle), and the house it
   // belongs to (its front ground level, which side is its front, a seed for its shutters, its own seed)
@@ -48,8 +51,10 @@ export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: stri
     const x0 = snap(lt.x - lt.w / 2), x1 = x0 + Math.max(4 * Q * 4, snap(lt.w));
     const z0 = snap(lt.z - lt.d / 2), z1 = z0 + Math.max(4 * Q * 4, snap(lt.d));
     const w = x1 - x0, d = z1 - z0;
-    const gy = snap(lt.lo);
-    const floors = Math.max(2, Math.ceil((lt.hi - lt.lo) / 3) + 1 + Math.floor(rnd() * 2.6));
+    // the house stands level with the ground on its uphill side; downhill it sits on a dry-stone terrace wall that
+    // carries a little terrace out in front of its door, as every house on these slopes does
+    const gy = snap(Math.max(lt.lo, lt.hi - 3));
+    const floors = 2 + Math.floor(rnd() * 1.8);
     const top = gy + floors * 3;
     house = [gy, lt.front, rnd(), rnd()];
     const wall = WALLS[Math.floor(rnd() * WALLS.length)], trim = TRIMS[Math.floor(rnd() * TRIMS.length)];
@@ -57,7 +62,15 @@ export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: stri
     const flat = roof >= 0.58;
     // (a hair wider or narrower per house, so two neighbours' walls on the same grid line never flicker)
     const e = 0.004 + house[3] * 0.012;
-    box(x0 - e, gy - 2, z0 - e, x1 + e, top, z1 + e, flat || (roof >= 0.33 && roof < 0.43) ? P.Body : P.BodyWhite, wall);
+    if (gy - lt.lo > 0.2) {
+      const tx0 = x0 - (lt.front === 1 ? 2 : 0), tx1 = x1 + (lt.front === 0 ? 2 : 0), tz0 = z0 - (lt.front === 3 ? 2 : 0), tz1 = z1 + (lt.front === 2 ? 2 : 0);
+      box(tx0 - e * 2, snap(lt.lo) - 1.5, tz0 - e * 2, tx1 + e * 2, gy, tz1 + e * 2, P.Stone, 0xb9b09e);
+      if (lt.front === 0) box(x1 + 2 - Q, gy, z0, x1 + 2, gy + 0.75, z1, P.Parapet, trim, 2);
+      else if (lt.front === 1) box(x0 - 2, gy, z0, x0 - 2 + Q, gy + 0.75, z1, P.Parapet, trim, 2);
+      else if (lt.front === 2) box(x0, gy, z1 + 2 - Q, x1, gy + 0.75, z1 + 2, P.Parapet, trim, 2);
+      else box(x0, gy, z0 - 2, x1, gy + 0.75, z0 - 2 + Q, P.Parapet, trim, 2);
+    }
+    box(x0 - e, gy - 0.5, z0 - e, x1 + e, top, z1 + e, flat || (roof >= 0.33 && roof < 0.43) ? P.Body : P.BodyWhite, wall);
 
     // balconies on the front, upper floors, on the shader's own window bays
     const alongZ = lt.front < 2, fw = alongZ ? d : w;
@@ -122,6 +135,10 @@ export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: stri
     box(x0, t.ground - 1, z0, x0 + s, top, z0 + s, P.Tower, t.color);
     [1, 0.7, 0.42].forEach((f, i) => { const h = snap((s * f) / 2); box(x0 + s / 2 - h, top + i * 0.75, z0 + s / 2 - h, x0 + s / 2 + h, top + (i + 1) * 0.75, z0 + s / 2 + h, P.Majolica, 0x2f8a5a); });
   }
+
+  // the paths' treads and steps
+  house = [0, 0, 0, 0.5];
+  for (const [ax, ay, az, bx, by, bz, c] of stones) box(ax, ay, az, bx, by, bz, P.Slab, c, 2);
 
   const n = parts.length / 16;
   const g = new THREE.InstancedBufferGeometry();
@@ -240,6 +257,12 @@ export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: stri
         } else if (kind == 1 || kind == 2 || kind == 3 || kind == 4) {
           alb *= 0.95 + 0.07 * tint;
           if (kind == 1 && n.y > 0.5) alb *= 1.04; // the parapet's coping
+        } else if (kind == 12) {
+          // a terrace wall of dry stone: courses of grey limestone blocks, their joints in shadow
+          vec2 st = wall ? vec2(u / 0.75 + floor(vWorld.y / 0.5) * 0.5, vWorld.y / 0.5) : vWorld.xz / 0.75;
+          float joint = max(step(fract(st.x), 0.1), step(fract(st.y), 0.14)) * fine;
+          alb *= (0.86 + 0.24 * hash12(floor(st) + hseed * 9.0)) * (1.0 - joint * 0.35);
+          if (!wall) alb = mix(alb, S(196.0, 140.0, 104.0), 0.6); // the terrace's tiles
         } else if (kind == 8) {
           alb = mod(vc.x + vc.y, 2.0) < 1.0 ? S(181.0, 96.0, 63.0) : S(156.0, 79.0, 51.0);
           alb *= 0.94 + 0.1 * tint;

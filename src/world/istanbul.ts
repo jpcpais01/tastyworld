@@ -37,6 +37,9 @@ function istanbulColors(b: Builder) {
     cream: a(0xeee2c8, 0.04), ochre: a(0xdcae6a, 0.04), apricot: a(0xe8b48a, 0.04), rose: a(0xd99a8a, 0.04), salmon: a(0xe3a07e, 0.04), mint: a(0xb9cfb6, 0.04),
     powder: a(0xb8c8d6, 0.04), lilac: a(0xc7b6c9, 0.04), stone: a(0xcfc4b0, 0.04), grey: a(0xb5b1aa, 0.04), white: a(0xf2eee6, 0.03), yellow: a(0xead08a, 0.04),
     woodRed: a(0x8e3b2c, 0.06), woodOchre: a(0xc88f4a, 0.06), woodBlue: a(0x6f8ea6, 0.05), woodGreen: a(0x6f8a68, 0.05), woodGrey: a(0x8c8478, 0.06), woodCream: a(0xe2d3b2, 0.05),
+    terraPlaster: a(0xc0634e, 0.04), sage: a(0xa9b892, 0.04), sky: a(0xa8c4d8, 0.04), blush: a(0xe6bcb2, 0.04), sand: a(0xdcc79c, 0.04), pistachioP: a(0xcfd8a6, 0.04),
+    deepOchre: a(0xc98d45, 0.04), warmGrey: a(0xc2b8a8, 0.04), oxblood: a(0x9a4a3e, 0.05), tealP: a(0x7fa8a0, 0.04), woodTeal: a(0x5f8c8a, 0.05), woodYellow: a(0xd8b45a, 0.05), woodPink: a(0xc98f86, 0.05),
+    trimGreen: a(0x3e5c48, 0.03), trimOx: a(0x7a3026, 0.03), trimBlue: a(0x3f5a78, 0.03), trimOchre: a(0xb8873e, 0.03), rusticA: a(0xd2c4a8, 0.05), rusticB: a(0xc4b597, 0.05),
     woodBare: a(0x7a5a3e, 0.08), woodDark: a(0x4e3424, 0.07), eave: a(0x5e4130, 0.06), trim: a(0xf1ece2, 0.03), trimDark: a(0x3d3532, 0.04), cornice: a(0xe5ddce, 0.03),
     shutter: a(0x4f6b4a, 0.04), shutterB: a(0x6b4a34, 0.04), shutterC: a(0x5a6e82, 0.04), kafes: a(0x5a3e2a, 0.05), iron: a(0x2b2a2a, 0.04), ironGreen: a(0x2f4a3a, 0.04),
     glass: a(0x51687a, 0.05, GL), glassDark: a(0x3e4f5c, 0.05, GL), glassLit: a(0x7d8fa0, 0.05, { emit: 0.8, night: true, glass: true }), shopGlass: a(0xe8dcc4, 0.03, { emit: 0.55, glass: true }),
@@ -122,6 +125,31 @@ export class Frame {
         for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) g.set(x, y, z, typeof c === 'number' ? c : c(a, y, d));
       }
   }
+}
+
+/**
+ * Whether the outside of the shell voxel (a, y, d) of a lot is hidden by a neighbouring building. Its walls are one
+ * voxel thick, so a room's finish (a tiled dado, a rail, a picture) painted into one shows on the street side as
+ * well; rooms paint only where the outside is backed by a neighbour, and leave the facade as the facade elsewhere.
+ */
+function backed(ctx: { plan: Plan }, f: Frame, a: number, y: number, d: number): boolean {
+  const na = a <= 0 ? a - 1 : a >= f.W - 1 ? a + 1 : a, nd = d >= f.D - 1 ? d + 1 : d <= 0 ? d - 1 : d;
+  if (na === a && nd === d) return true;
+  const [x, z] = f.xz(na, nd);
+  if (!inMap(x, z)) return false;
+  const li = ctx.plan.lot[col(x, z)];
+  if (!li || li === f.lt.id) return false;
+  const n = ctx.plan.lots[li - 1];
+  return y >= n.base - 1 && y < n.top;
+}
+
+/** A room-finish painter that keeps the shell voxel as it is wherever the outside of the wall is open. */
+function lined(ctx: { plan: Plan; b: Builder }, f: Frame, v: (a: number, y: number, d: number) => number): (a: number, y: number, d: number) => number {
+  return (a, y, d) => {
+    if (backed(ctx, f, a, y, d)) return v(a, y, d);
+    const [x, z] = f.xz(a, d);
+    return ctx.b.grid.get(x, y, z);
+  };
 }
 
 /** The turns that point a prop's front (+z as built) along a direction, to the nearest axis. */
@@ -1054,8 +1082,109 @@ function yardWalls(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number)
 
 // ------------------------------------------------------------------------------------------- buildings
 
-const PLASTER = (c: IC2) => [c.cream, c.cream, c.ochre, c.apricot, c.rose, c.salmon, c.mint, c.powder, c.lilac, c.stone, c.grey, c.white, c.yellow];
-const WOOD = (c: IC2) => [c.woodRed, c.woodOchre, c.woodBlue, c.woodGreen, c.woodGrey, c.woodCream, c.woodBare, c.woodRed];
+const PLASTER = (c: IC2) => [c.cream, c.ochre, c.apricot, c.rose, c.salmon, c.mint, c.powder, c.lilac, c.stone, c.grey, c.white, c.yellow,
+  c.terraPlaster, c.sage, c.sky, c.blush, c.sand, c.pistachioP, c.deepOchre, c.warmGrey, c.oxblood, c.tealP];
+const WOOD = (c: IC2) => [c.woodRed, c.woodOchre, c.woodBlue, c.woodGreen, c.woodGrey, c.woodCream, c.woodBare, c.woodRed, c.woodTeal, c.woodYellow, c.woodPink, c.woodGrey];
+/** Painted trims: window frames, string courses, cornices. Light ones on dark walls, dark ones on pale walls. */
+const TRIM_LIGHT = (c: IC2) => [c.cornice, c.trim, c.limeLight, c.paintCream, c.stone];
+const TRIM_DARK = (c: IC2) => [c.trimGreen, c.trimOx, c.trimBlue, c.trimOchre, c.warmGrey];
+
+type WinKind = 'shutter' | 'arch' | 'plain' | 'french' | 'segment' | 'pair';
+/**
+ * How one building is finished, so a street reads as many builders over two centuries rather than one: the wall
+ * (plaster in its colour, bare brick laced with stone, almaşık bands, painted timber), the ground floor (the same,
+ * rusticated stone or a second colour), the window type and rhythm, trims, string courses, quoins, pilasters and
+ * the cornice, and now and then (rarely) a panel of İznik tiles.
+ */
+interface Look {
+  mode: 'plaster' | 'brick' | 'banded' | 'wood' | 'han';
+  ground: 'same' | 'rustic' | 'tone';
+  groundWall: number;
+  win: WinKind;
+  bay: number;
+  quoins: boolean; courses: boolean; pilasters: boolean;
+  cornice: 0 | 1 | 2;
+  /** İznik motif for one panel on the front, or -1 (most buildings). */
+  tiles: number;
+  /** Share of shuttered windows with their shutters closed. */
+  closed: number;
+  board: boolean;
+  kafes: boolean;
+  doorC: number; fan: boolean;
+}
+
+function lookOf(c: IC2, lt: LotPlan, wooden: boolean, han: boolean): Look {
+  const r = rng(lt.seed * 7 + 13);
+  const pick = <T>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)];
+  const m = r();
+  const brick = lt.use === 'house' ? 0.1 : 0.16;
+  const mode = han ? 'han' : wooden ? 'wood' : m < brick ? 'brick' : m < brick + 0.06 ? 'banded' : 'plaster';
+  const g = r();
+  const kinds: WinKind[] = mode === 'brick' ? ['segment', 'segment', 'arch', 'plain', 'pair'] : ['shutter', 'shutter', 'arch', 'plain', 'french', 'segment', 'pair', 'plain'];
+  const t = r();
+  return {
+    mode,
+    ground: mode === 'plaster' ? (g < 0.24 ? 'rustic' : g < 0.42 ? 'tone' : 'same') : mode === 'brick' && g < 0.4 ? 'rustic' : 'same',
+    groundWall: pick([c.limeDark, c.stone, c.warmGrey, c.oxblood, c.sand, c.grey, c.terraPlaster]),
+    win: pick(kinds),
+    bay: 5 + Math.floor(r() * 4),
+    quoins: mode !== 'wood' && r() < 0.35,
+    courses: mode !== 'banded' && r() < 0.55,
+    pilasters: mode === 'plaster' && r() < 0.22,
+    cornice: mode === 'wood' ? 0 : (Math.floor(r() * 3) as 0 | 1 | 2),
+    tiles: mode !== 'wood' && t < 0.07 ? Math.floor(r() * 5) : -1,
+    closed: r() * 0.4,
+    board: mode === 'wood' && r() < 0.45,
+    kafes: mode === 'wood' && r() < 0.4,
+    doorC: pick([c.door, c.doorGreen, c.doorBlue, c.trimOx, c.woodBare, c.trimGreen, c.door]),
+    fan: r() < 0.35,
+  };
+}
+
+/** Rusticated stone: courses of dressed blocks with sunk joints, for the ground floor of a grander block. */
+function rustic(c: IC2, x: number, y: number, z: number, base: number): number {
+  const k = y - base - 2, course = Math.floor(k / 3);
+  if (pm(k, 3) === 2) return c.limeDark;
+  if (pm(x + z + (course & 1) * 3, 6) === 0) return c.limeDark;
+  return hash3(x >> 2, course, z >> 2) < 0.5 ? c.rusticA : c.rusticB;
+}
+
+/**
+ * A panel of İznik tiles, row 0 at the bottom: a few motifs, used sparingly (a building in fifteen or so),
+ * so they read as a treasure on a street rather than a pattern stamped on every front.
+ */
+function izTile(c: IC2, m: number, a: number, row: number): number {
+  switch (m) {
+    case 0: return row === 0 || row === 3 ? c.cobalt : pm(a, 4) === 1 ? (row === 2 ? c.iznikRed : c.iznikGreen) : c.iznikWhite; // tulips on white
+    case 1: return pm(a + row, 3) === 0 ? c.iznikBlue : pm(a + row, 3) === 1 ? c.iznikTeal : c.iznikWhite; // the saz leaf, running
+    case 2: return row === 0 || row === 3 ? c.iznikRed : pm(a, 3) === 1 && row === 2 ? c.iznikRed : pm(a, 3) !== 1 && row === 1 ? c.cobalt : c.iznikWhite; // çintamani
+    case 3: return row === 0 || row === 3 ? c.cobalt : c.turquoise; // a plain turquoise band in a cobalt frame
+    default: return pm(a, 4) === 1 || pm(row, 3) === 1 ? c.iznikTeal : c.iznikWhite; // the old cross, kept for one front in many
+  }
+}
+
+/** A shop's name over its front, in one of several hands: a painted band, a framed board, letters on the wall, or lit. */
+function signBoard(c: IC2, g: SparseGrid, f: Frame, a0: number, a1: number, y: number, seed: number): void {
+  const style = Math.floor(hash3(seed, 2, 5) * 4);
+  const ground = [c.signRed, c.signBlue, c.signGreen, c.sign, c.woodDark, c.trimOx, c.trimGreen, c.paintGold][Math.floor(hash3(seed, 1, 1) * 8)];
+  const ink = ground === c.sign || ground === c.paintGold ? c.trimDark : hash3(seed, 4, 4) < 0.3 ? c.paintGold : c.white;
+  const letter = (a: number, yy: number) => (a + yy) % 3 === 0 && hash3(a, yy, seed) < 0.7;
+  if (style === 0) f.box(g, a0, y, -1, a1, y + 1, -1, (a, yy) => (letter(a, yy) && a > a0 + 1 && a < a1 - 1 ? ink : ground));
+  else if (style === 1) {
+    // a framed board in the middle of the front
+    const w = Math.max(4, Math.floor((a1 - a0) * 0.6)), b0 = Math.floor((a0 + a1 - w) / 2), b1 = b0 + w;
+    f.box(g, b0 - 1, y - 1, -1, b1 + 1, y + 2, -1, (a, yy) => (a === b0 - 1 || a === b1 + 1 || yy === y - 1 || yy === y + 2 ? c.gilt : letter(a, yy) ? ink : ground));
+  } else if (style === 2) {
+    // the name painted straight on the wall
+    const col = hash3(seed, 6, 6) < 0.5 ? c.trimDark : c.signRed;
+    f.box(g, a0 + 2, y, 0, a1 - 2, y + 1, 0, (a, yy) => (letter(a, yy) ? col : g.get(...xzy(f, a, yy, 0))));
+  } else {
+    // a dark board with lit letters
+    const lit = [c.lampAmber, c.lampRed, c.lampBlue][Math.floor(hash3(seed, 7, 7) * 3)];
+    f.box(g, a0 + 1, y, -1, a1 - 1, y + 1, -1, (a, yy) => (letter(a, yy) ? lit : c.trimDark));
+  }
+}
+const xzy = (f: Frame, a: number, y: number, d: number): [number, number, number] => { const [x, z] = f.xz(a, d); return [x, y, z]; };
 
 function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
   const { b, c } = ctx;
@@ -1069,9 +1198,13 @@ function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
   const r = rng(lt.seed);
   const wooden = lt.use === 'house' && (lt.on === K.Lane || lt.on === K.Stair || lt.on === K.Ground) && r() < 0.75;
   const han = lt.use === 'han' || lt.use === 'bazaar' || (lt.use === 'shop' && r() < 0.18);
-  const wall = han ? c.kufeki : wooden ? WOOD(c)[Math.floor(r() * 8)] : PLASTER(c)[Math.floor(r() * 13)];
-  const shutter = [c.shutter, c.shutterB, c.shutterC][Math.floor(r() * 3)];
-  const trim = wooden ? c.woodCream : han ? c.limeLight : c.cornice;
+  const lk = lookOf(c, lt, wooden, han);
+  const wallPick = r(); // (drawn as before, so the rest of the lot's choices stay where they were)
+  const wall = han ? c.kufeki : wooden ? WOOD(c)[Math.floor(hash3(lt.seed, 8, 1) * 12)] : lk.mode === 'brick' ? c.brick : lk.mode === 'banded' ? c.kufeki : PLASTER(c)[Math.floor(wallPick * 22)];
+  const shutter = [c.shutter, c.shutterB, c.shutterC, c.trimOx, c.trimBlue, c.shutter][Math.floor(r() * 6)];
+  const dark = wall === c.oxblood || wall === c.terraPlaster || wall === c.brick || wall === c.deepOchre || wall === c.tealP;
+  const trim = wooden ? [c.woodCream, c.woodCream, c.trim, c.eave][Math.floor(hash3(lt.seed, 9, 2) * 4)] : han ? c.limeLight
+    : lk.mode !== 'plaster' ? c.limeLight : (dark ? TRIM_LIGHT(c) : hash3(lt.seed, 9, 3) < 0.6 ? TRIM_LIGHT(c) : TRIM_DARK(c))[Math.floor(hash3(lt.seed, 9, 4) * 5)];
   const hasRoom = !!use?.room || use?.hotel !== undefined;
   const shopFront = lt.use !== 'house' && lt.door === base;
   if (touched) {
@@ -1080,12 +1213,26 @@ function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
       if (han) return almasik(c, xx, y, zz);
       if (y < base + 2) return wooden ? blockWall(c, xx, y, zz) : c.limeDark;
       if (wooden && y < base + 12) return blockWall(c, xx, y, zz); // a stone ground floor under the timber
-      if (wooden) return (y & 1) === 0 && hash3(xx, y >> 1, zz) < 0.04 ? c.woodBare : wall;
+      const ex = Math.min(xx - x0, x1 - xx), ez = Math.min(zz - z0, z1 - zz), k = y - base;
+      if (wooden) {
+        // painted boards, laid level or upright with battens, corner posts and a girt at each floor in the trim
+        if (ex === 0 && ez === 0) return trim;
+        if (pm(k, 12) === 11) return trim;
+        if (lk.board) return pm(ex === 0 ? zz : xx, 4) === 0 ? c.eave : wall;
+        return (y & 1) === 0 && hash3(xx, y >> 1, zz) < 0.04 ? c.woodBare : wall;
+      }
+      if (y >= top - 1) return lk.cornice ? trim : wall;
+      if (lk.courses && pm(k, 12) === 11) return trim;
+      if (lk.quoins && ((ex === 0 && ez < ((k >> 1) & 1 ? 2 : 3)) || (ez === 0 && ex < ((k >> 1) & 1 ? 2 : 3)))) return lk.mode === 'brick' ? c.limeLight : c.rusticA;
+      if (k < 12 && lk.ground === 'rustic') return rustic(c, xx, y, zz, base);
+      if (k < 12 && lk.ground === 'tone') return lk.groundWall;
+      if (lk.mode === 'brick') return pm(k, 9) === 8 ? c.limeLight : hash3(xx, y, zz) < 0.12 ? c.brickDark : c.brick;
+      if (lk.mode === 'banded') return almasik(c, xx, y, zz);
       return wall;
     });
     if (bazaar) bazaarShop(ctx, f, lt, use);
     else {
-      facade(ctx, f, lt, { wall, shutter, trim, wooden, han, shopFront: shopFront && !hasRoom, room: hasRoom, r });
+      facade(ctx, f, lt, { wall, shutter, trim, wooden, han, shopFront: shopFront && !hasRoom, room: hasRoom, r, lk });
       roof(ctx, lt, { wall, wooden, han, r });
     }
   }
@@ -1101,7 +1248,7 @@ function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
 }
 
 /** Windows, balconies and the bay windows of the wooden houses, the shopfront downstairs. */
-function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: number; trim: number; wooden: boolean; han: boolean; shopFront: boolean; room: boolean; r: () => number }): void {
+function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: number; trim: number; wooden: boolean; han: boolean; shopFront: boolean; room: boolean; r: () => number; lk: Look }): void {
   const { b, c, plan } = ctx;
   const g = b.grid;
   const { base, top } = lt;
@@ -1119,9 +1266,15 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       if (plan.kind[ci] === K.Mosque) return 255;
       return plan.walk[ci];
     };
+    const lk = o.lk;
     const bays: number[] = [];
-    for (let a = 3; a + 4 < fr.W; a += 6 + (lt.seed % 2)) bays.push(a);
+    const step = o.han ? 6 + (lt.seed % 2) : lk.bay;
+    for (let a = 3; a + 4 < fr.W; a += step) bays.push(a);
     const doorA = Math.floor(fr.W / 2) - 2;
+    // pilasters between the bays of the upper floors, flush with the wall
+    if (lk.pilasters && step >= 7 && floors >= 2) for (const a of bays) if (a + 5 < fr.W - 2 && ground(a + 5) <= base + 14) fr.box(g, a + 5, base + 12, 0, a + 5, top - 2, 0, o.trim);
+    // the cornice: a moulded band at the top of the wall, on some a row of dentils under it
+    if (lk.cornice === 2 && !o.han) for (let a = 0; a < fr.W; a++) if (ground(a) < top - 3) { fr.box(g, a, top - 1, -1, a, top - 1, -1, o.trim); if (a % 2 === 0) fr.box(g, a, top - 2, -1, a, top - 2, -1, o.trim); }
     for (let fl = front && (o.shopFront || o.room) ? 1 : 0; fl < floors; fl++) {
       const yb = base + fl * 12;
       const balcony = !o.wooden && !o.han && fl > 0 && front && fr.W >= 18 && hash3(lt.seed, fl, 3) < 0.55;
@@ -1129,22 +1282,55 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
         if (ground(a + 1) > yb + 2) continue;
         if (front && fl === 0 && a + 3 >= doorA - 1 && a - 1 <= doorA + 4) continue; // the door has this bay
         const tall = o.han ? 5 : 6;
-        const sy0 = yb + 3, sy1 = yb + 3 + tall;
+        const kind: WinKind = lk.win === 'french' && fl === 0 ? 'plain' : lk.win;
+        const sy0 = yb + 3 - (kind === 'french' ? 2 : 0), sy1 = yb + 3 + tall + (kind === 'arch' ? 1 : 0);
         const lit = hash3(a, yb, lt.seed) < 0.35;
-        fr.box(g, a, sy0, 0, a + 2, sy1, 0, lit ? c.glassLit : c.glass);
+        const pane = lit ? c.glassLit : c.glass;
+        fr.box(g, a, sy0, 0, a + 2, sy1, 0, pane);
         if (o.han) { fr.box(g, a, sy1 + 1, 0, a + 2, sy1 + 1, 0, c.brick); fr.box(g, a + 1, sy1 + 2, 0, a + 1, sy1 + 2, 0, c.brick); continue; }
-        // frame and sill, shutters folded back; upper floors of the wooden houses have the kafes lattice half up
-        fr.box(g, a - 1, sy0 - 1, -1, a + 3, sy0 - 1, -1, o.trim);
+        // the sill, then the window's own surround
+        if (kind !== 'french') fr.box(g, a - 1, sy0 - 1, -1, a + 3, sy0 - 1, -1, o.trim);
         if (o.wooden) {
           fr.box(g, a - 1, sy0, 0, a - 1, sy1, 0, o.trim); fr.box(g, a + 3, sy0, 0, a + 3, sy1, 0, o.trim);
           fr.box(g, a - 1, sy1 + 1, 0, a + 3, sy1 + 1, 0, o.trim);
-        } else if (fl > 0) {
-          fr.box(g, a - 1, sy1 + 1, -1, a + 3, sy1 + 1, -1, o.trim); // a pediment over the window
-          fr.box(g, a, sy1 + 2, -1, a + 2, sy1 + 2, -1, o.trim);
-          if (hash3(a, yb, 7) < 0.6) { fr.box(g, a - 1, sy0, -1, a - 1, sy1, -1, o.shutter); fr.box(g, a + 3, sy0, -1, a + 3, sy1, -1, o.shutter); }
+          // upstairs, the kafes lattice over the lower half of the sash on some houses
+          if (lk.kafes && fl > 0) fr.box(g, a, sy0, 0, a + 2, sy0 + 2, 0, (aa, y) => ((aa + y) % 2 ? c.kafes : pane));
+        } else if (kind === 'shutter') {
+          if (fl > 0) {
+            fr.box(g, a - 1, sy1 + 1, -1, a + 3, sy1 + 1, -1, o.trim); // a pediment over the window
+            fr.box(g, a, sy1 + 2, -1, a + 2, sy1 + 2, -1, o.trim);
+            if (hash3(a, yb, 7) < 0.6) { fr.box(g, a - 1, sy0, -1, a - 1, sy1, -1, o.shutter); fr.box(g, a + 3, sy0, -1, a + 3, sy1, -1, o.shutter); }
+            else if (hash3(a, yb, 11) < lk.closed) fr.box(g, a, sy0, 0, a + 2, sy1, 0, (aa, y) => (aa === a + 1 ? c.trimDark : y % 2 ? o.shutter : c.iron)); // shutters closed for the heat
+          } else fr.box(g, a - 1, sy1 + 1, 0, a + 3, sy1 + 1, 0, o.trim);
+        } else if (kind === 'arch') {
+          // a round head: the top corners filled back in, the trim following the curve, a keystone at the crown
+          fr.box(g, a, sy1, 0, a, sy1, 0, o.trim); fr.box(g, a + 2, sy1, 0, a + 2, sy1, 0, o.trim);
+          fr.box(g, a - 1, sy0, 0, a - 1, sy1 - 1, 0, o.trim); fr.box(g, a + 3, sy0, 0, a + 3, sy1 - 1, 0, o.trim);
+          fr.box(g, a, sy1 + 1, 0, a + 2, sy1 + 1, 0, o.trim);
+          fr.box(g, a + 1, sy1 + 2, fl > 0 ? -1 : 0, a + 1, sy1 + 2, fl > 0 ? -1 : 0, o.trim);
+        } else if (kind === 'plain') {
+          fr.box(g, a - 1, sy0, 0, a - 1, sy1 + 1, 0, o.trim); fr.box(g, a + 3, sy0, 0, a + 3, sy1 + 1, 0, o.trim);
+          fr.box(g, a, sy1 + 1, 0, a + 2, sy1 + 1, 0, o.trim);
+        } else if (kind === 'french') {
+          // a door-height window onto an iron balconette (upper floors only, well over the street)
+          fr.box(g, a - 1, sy0 - 1, -1, a + 3, sy0 - 1, -1, o.trim);
+          fr.box(g, a - 1, sy0, -1, a + 3, sy0 + 2, -1, (aa, y) => (y === sy0 + 2 || aa === a - 1 || aa === a + 3 || (aa - a) % 2 === 0 ? c.iron : 0));
+          fr.box(g, a - 1, sy1 + 1, 0, a + 3, sy1 + 1, 0, o.trim);
+          fr.box(g, a + 1, sy0, 0, a + 1, sy1, 0, c.trimDark);
+        } else if (kind === 'segment') {
+          // a flat arch of alternating voussoirs, the jambs picked out in blocks
+          const vA = lk.mode === 'brick' ? c.limeLight : c.brick, vB = lk.mode === 'brick' ? c.brickDark : o.trim;
+          fr.box(g, a - 1, sy1 + 1, 0, a + 3, sy1 + 1, 0, (aa) => ((aa - a) % 2 ? vA : vB));
+          fr.box(g, a, sy1 + 2, 0, a + 2, sy1 + 2, 0, (aa) => ((aa - a) % 2 ? vB : vA));
+          for (const ja of [a - 1, a + 3]) fr.box(g, ja, sy0, 0, ja, sy1, 0, (_a, y) => (((y - sy0) >> 1) % 2 ? vA : o.trim));
+        } else {
+          // a pair of narrow lights under one lintel, a slim pier between them
+          fr.box(g, a + 1, sy0, 0, a + 1, sy1, 0, o.trim);
+          fr.box(g, a - 1, sy1 + 1, 0, a + 3, sy1 + 1, 0, o.trim);
+          fr.box(g, a + 1, sy1 + 2, 0, a + 1, sy1 + 2, 0, o.trim);
         }
         // under the sill: a box of geraniums trailing ivy, or on the plaster blocks now and then an air conditioner
-        if (fl > 0 && !balcony) {
+        if (fl > 0 && !balcony && kind !== 'french') {
           const h = hash3(a, yb, lt.seed + 17);
           if (h < 0.36) {
             fr.box(g, a - 1, sy0 - 2, -2, a + 3, sy0 - 1, -2, o.wooden ? c.woodBare : c.terracotta);
@@ -1199,16 +1385,21 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
     if (o.room) {
       // the room draws its own front
     } else if (o.shopFront) {
-      fr.box(g, a0, yb, 0, a1, yb + 9, 0, (a, y) => (y === yb + 9 ? o.trim : a % 6 === 0 ? c.woodDark : y < yb + 2 ? c.woodDark : c.shopGlass));
-      // the sign band, letters suggested in a darker paint
-      const sign = [c.signRed, c.signBlue, c.signGreen, c.sign, c.woodDark][Math.floor(hash3(lt.seed, 1, 1) * 5)];
-      fr.box(g, a0, yb + 10, -1, a1, yb + 11, -1, (a, y) => ((a + y) % 3 === 0 && a > a0 + 1 && a < a1 - 1 && hash3(a, y, lt.seed) < 0.7 ? c.white : sign));
+      // the shopfront's frame in its own paint, the glazing bars at its own spacing
+      const frameC = [c.woodDark, c.ironGreen, c.trimOx, c.iron, c.trimBlue, c.woodBare, c.trimGreen][Math.floor(hash3(lt.seed, 2, 2) * 7)];
+      const bar = 4 + Math.floor(hash3(lt.seed, 2, 3) * 4);
+      fr.box(g, a0, yb, 0, a1, yb + 9, 0, (a, y) => (y === yb + 9 ? o.trim : pm(a - a0, bar) === 0 || a === a1 ? frameC : y < yb + 2 ? frameC : c.shopGlass));
+      signBoard(c, g, fr, a0, a1, yb + 10, lt.seed);
+      if (lk.tiles >= 0 && top - base > 20) fr.box(g, 1, top - 6, 0, fr.W - 2, top - 3, 0, (a, y) => izTile(c, lk.tiles, a, y - (top - 6)));
       const [lx, lz] = fr.m(fr.W / 2, -1.5);
       b.lamp(lx, (yb - G) * V + 2.1, lz, WARM, 4, 0.55);
     } else {
       const da = Math.floor(fr.W / 2) - 2;
-      fr.box(g, da, yb, 0, da + 3, yb + 8, 0, o.wooden ? c.door : [c.door, c.doorGreen, c.doorBlue][lt.seed % 3]);
+      // the door, on some a fanlight of glass over it; a panel of tiles over a few doors
+      fr.box(g, da, yb, 0, da + 3, yb + 8, 0, (_a, y) => (lk.fan && y === yb + 8 ? c.glassLit : lk.doorC));
+      if (!lk.fan) fr.box(g, da + 1, yb, 0, da + 2, yb + 7, 0, (_a, y) => ((y - yb) % 4 === 3 ? c.trimDark : lk.doorC)); // the panels
       fr.box(g, da - 1, yb + 9, -1, da + 4, yb + 9, -1, o.trim);
+      if (lk.tiles >= 0) fr.box(g, da - 1, yb + 10, 0, da + 4, yb + 11, 0, (a, y) => izTile(c, lk.tiles, a, y - yb - 9));
       // the blue enamel number plate beside the door and a brass knocker, flush so the doorstep stays clear
       fr.box(g, da + 5, yb + 7, 0, da + 6, yb + 7, 0, (a) => (a === da + 5 ? c.signBlue : c.white));
       fr.box(g, da + 5, yb + 6, 0, da + 6, yb + 6, 0, c.signBlue);
@@ -1447,23 +1638,24 @@ export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touche
   const ca0 = A0 + 1, ca1 = A1 - 2;
   if (touched) {
     if (!bazaar) {
+      const frameC = [c.woodDark, c.ironGreen, c.trimOx, c.woodBare, c.trimBlue, c.trimGreen][Math.floor(hash3(lt.seed, 2, 7) * 6)];
       f.box(g, A0, base, D0, A1, base + 10, D1, 0);
       f.box(g, 0, base, 0, W - 1, base + 10, 0, (a, yy) => {
         if (a >= da && a < da + dw && yy <= base + 8) return 0;
-        if (a === 0 || a === W - 1 || yy === base + 10 || yy < base + 2 || a === da - 1 || a === da + dw) return c.woodDark;
+        if (a === 0 || a === W - 1 || yy === base + 10 || yy < base + 2 || a === da - 1 || a === da + dw) return frameC;
         return c.shopGlass;
       });
       // the sign over the door, and the awning
-      const sign = [c.signRed, c.signBlue, c.signGreen, c.woodDark][nth % 4];
-      f.box(g, 0, base + 11, -1, W - 1, base + 12, -1, (a, yy) => ((a + yy) % 3 === 0 && a > 1 && a < W - 2 && hash3(a, yy, lt.seed) < 0.7 ? c.white : sign));
+      signBoard(c, g, f, 0, W - 1, base + 11, lt.seed + nth);
       const aw: [number, number] = [[c.awnRed, c.awnWhite], [c.awnGreen, c.awnWhite], [c.awnBlue, c.awnWhite], [c.awnYellow, c.awnBrown]][(lt.seed >> 3) % 4] as [number, number];
       const [ax, az] = f.m(W / 2 - 0.5, -1.2);
       b.place(awning(aw, Math.min(W - 2, 24)), ax, y + 2.9, az, f.turnOut);
     }
     f.box(g, A0, base - 1, D0, A1, base - 1, D1, (a, _y, d) => look.floor(a, d));
     // walls: a dado of tiles or panelling, plaster above
+    // (the walls are the building's own outer walls: the finish goes only where a neighbour hides the outside)
     for (const [a0, d0, a1, d1] of [[A0 - 0, D1 + 1, A1, D1 + 1], [A0 - 1, D0, A0 - 1, D1], [A1 + 1, D0, A1 + 1, D1]] as const)
-      f.box(g, a0, base, d0, a1, base + 10, d1, (_a, yy) => (yy <= base + 3 ? look.wain : yy === base + 4 ? c.woodDark : look.wall));
+      f.box(g, a0, base, d0, a1, base + 10, d1, lined(ctx, f, (_a, yy) => (yy <= base + 3 ? look.wain : yy === base + 4 ? c.woodDark : look.wall)));
     // the counter and what is on it
     // a counter at counter height (its top 1 m off the floor), so you see the cook over it and the dish comes across
     // clean; what is on show sits along the back edge, clear of the middle where the cook hands it over
@@ -1482,7 +1674,8 @@ export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touche
       b.emitters.push({ kind: 'smoke', pos: [ox, y + 2.0, oz], rate: 0.4 });
     }
     // İznik plates hung along the side walls above the dado, and coloured lanterns over the tables
-    for (const a of [A0 - 1, A1 + 1]) for (let d = D0 + 2; d + 2 < cd; d += 5) iznikPlate(ctx, f, a, base + 6, d, lt.seed + d * 3 + a);
+    // (hung one voxel proud inside the room, never painted into the outer wall where the street would see them)
+    for (const a of [A0, A1]) for (let d = D0 + 2; d + 2 < cd; d += 6) iznikPlate(ctx, f, a, base + 8, d, lt.seed + d * 3 + a);
     if (!bazaar) for (let d = D0 + 4; d + 2 < cd; d += 7) hangingLantern(ctx, f, Math.round(W / 2) - 1 + ((d >> 1) & 1) * 2, d, base);
     if (kind === 'kahve' || kind === 'cay') {
       const [sx, sz] = f.m(ca1 - 1, cd + 0.5);
@@ -1564,7 +1757,7 @@ function hotel(ctx: Ctx, f: Frame, lt: LotPlan, index: number, touched: boolean)
     f.box(g, A0, base, D0, A1, base + 10, D1, 0);
     f.box(g, 0, base, 0, W - 1, base + 10, 0, (a, yy) => (a >= da && a < da + 4 && yy <= base + 8 ? 0 : a === 0 || a === W - 1 || yy === base + 10 || yy < base + 2 || a === da - 1 || a === da + 4 ? c.woodDark : c.shopGlass));
     f.box(g, A0, base - 1, D0, A1, base - 1, D1, (a, _y, d) => (Math.abs(a - (da + 1.5)) < 2 ? carpetA : ((a >> 2) + (d >> 2)) % 2 ? c.marble : c.marbleGrey));
-    f.box(g, A0, base, D1 + 1, A1, base + 10, D1 + 1, (_a, yy) => (yy <= base + 3 ? c.woodDark : wallC));
+    f.box(g, A0, base, D1 + 1, A1, base + 10, D1 + 1, lined(ctx, f, (_a, yy) => (yy <= base + 3 ? c.woodDark : wallC)));
     f.box(g, A0, base + 11, D0, A1, base + 11, D1, c.cornice);
     // the name over the door in gold on blue, and a canopy
     f.box(g, 1, base + 11, -1, W - 2, base + 12, -1, (a, yy) => ((a + yy) % 3 === 0 && a > 2 && a < W - 3 ? c.gold : c.signBlue));
@@ -1653,9 +1846,9 @@ function hangingLantern(ctx: Ctx, f: Frame, a: number, d: number, y: number): vo
 function lobbyDressing(ctx: Ctx, f: Frame, base: number, A0: number, A1: number, D0: number, D1: number, da: number): void {
   const { b, c } = ctx;
   const g = b.grid;
-  f.box(g, A0, base + 4, D1 + 1, A1, base + 5, D1 + 1, (a, yy) => ((a + yy) % 2 ? c.iznikBlue : (a % 4 === 1 ? c.iznikRed : c.iznikWhite)));
+  f.box(g, A0, base + 4, D1 + 1, A1, base + 5, D1 + 1, lined(ctx, f, (a, yy) => ((a + yy) % 2 ? c.iznikBlue : (a % 4 === 1 ? c.iznikRed : c.iznikWhite))));
   // the calligraphy: a gold-framed panel between the corner and the lift
-  if (da - 3 > A0 + 3) f.box(g, A0 + 3, base + 6, D1 + 1, da - 3, base + 9, D1 + 1, (a, yy) => (a === A0 + 3 || a === da - 3 || yy === base + 6 || yy === base + 9 ? c.gold : hash3(a, yy, 7) < 0.35 ? c.gold : c.leafDark));
+  if (da - 3 > A0 + 3) f.box(g, A0 + 3, base + 6, D1 + 1, da - 3, base + 9, D1 + 1, lined(ctx, f, (a, yy) => (a === A0 + 3 || a === da - 3 || yy === base + 6 || yy === base + 9 ? c.gold : hash3(a, yy, 7) < 0.35 ? c.gold : c.leafDark)));
   // the coffee table with tulip glasses, in front of the sofa
   f.box(g, A1 - 5, base, D0 + 4, A1 - 4, base, D0 + 7, c.woodDark);
   f.box(g, A1 - 5, base + 1, D0 + 4, A1 - 4, base + 1, D0 + 7, c.brass);
@@ -1685,7 +1878,8 @@ function guestDressing(ctx: Ctx, f: Frame, L: number, A0: number, A1: number, D0
   // the wardrobe, by the door if there is depth for it behind the bed
   if (D1 - 3 > bedD + 9) f.box(g, A1 - 1, L, D1 - 3, A1, L + 8, D1, (_a, yy, d) => (yy === L + 8 ? c.cornice : (yy === L + 4 && (d === D1 - 2 || d === D1 - 1)) ? c.brass : c.woodDark));
   // the picture: a ferry on blue water under a pale sky, gold-framed, on the side wall above the kilim
-  f.box(g, A0 - 1, L + 5, D0 + 4, A0 - 1, L + 8, D0 + 9, (_a, yy, d) => {
+  const pa = backed(ctx, f, A0 - 1, L + 8, D0 + 6) ? A0 - 1 : A0; // on the wall where it is hidden outside, else hung proud
+  f.box(g, pa, L + 5, D0 + 4, pa, L + 8, D0 + 9, (_a, yy, d) => {
     if (yy === L + 5 || yy === L + 8 || d === D0 + 4 || d === D0 + 9) return c.gilt;
     if (yy === L + 6) return d === D0 + 6 + (seed & 1) ? c.hullWhite : c.iznikBlue;
     return d === D0 + 6 + (seed & 1) ? c.hullDark : c.powder;
@@ -1713,7 +1907,7 @@ function guestRoom(ctx: Ctx, f: Frame, lt: LotPlan, hotelId: string, spec: { flo
     f.box(g, A0, L - 1, D0, A1, L - 1, D1, (a, _y, d) => ((a + d) % 5 === 0 ? c.carpetGold : carpetA));
     f.box(g, A0, L + 10, D0, A1, L + 10, D1, c.cornice);
     for (const [a0, d0, a1, d1] of [[A0, D1 + 1, A1, D1 + 1], [A0 - 1, D0, A0 - 1, D1], [A1 + 1, D0, A1 + 1, D1]] as const)
-      f.box(g, a0, L, d0, a1, L + 9, d1, (_a, yy) => (yy === L + 3 ? c.woodDark : wallC));
+      f.box(g, a0, L, d0, a1, L + 9, d1, lined(ctx, f, (_a, yy) => (yy === L + 3 ? c.woodDark : wallC)));
     // the windows of this floor opened through to the street, curtains either side
     // glazing bars every 6 cells, set either side of the middle so the view from the window is a clear pane
     const mid = Math.round(A1 / 2);

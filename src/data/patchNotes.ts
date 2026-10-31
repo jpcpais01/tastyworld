@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.22',
+    date: '2026-10-31',
+    title: 'Kilims and more cats',
+    items: [
+      'Kilims are put out to air on Istanbul\'s balconies, folded over the iron rails and hanging down the fronts in red, cream, blue and gold.',
+      'Seventeen more cats live down the lanes and stairways, so there are almost fifty to find and pet across the city.',
+    ],
+  },
+  {
     version: '0.16.21',
     date: '2026-10-31',
     title: 'Walls in relief',

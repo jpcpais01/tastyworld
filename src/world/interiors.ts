@@ -1,7 +1,8 @@
+import { paintColors, picture, hangIn } from './paintings';
 import type { Builder, Lot } from './tokyo';
 import { Palette } from './palette';
 import { rng, hash3 } from './grid';
-import { G } from './layout';
+import { G, V } from './layout';
 import { Prop, PropKit, stool, plantPot, cafeTable, crateStack, lantern, noren, flowerStand, breadShelf, bookCart, fishDisplay, boardSign, aFrame } from './props';
 import { buildFood, FoodId } from './food';
 import type { HotelInfo } from '../data/hotels';
@@ -651,7 +652,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
         lot.box(A1 - 3, 0, BD0 + 2, A1 - 1, 2, BD0 + 4, ic.wainDark); // desk
         lot.box(A1 - 3, 3, BD0 + 2, A1 - 1, 3, BD0 + 4, (a, _y, d) => ((a + d) % 2 ? ic.paper : ic.wainDark));
         shelfRun(A0, BD0, A0, BD1 - 2, 9, [ic.bookA, ic.bookC, ic.bookF, ic.paper], ic.wainDark);
-        lot.box(midA - 2, 6, dep - 2, midA + 2, 10, dep - 2, (a, y) => (a === midA - 2 || a === midA + 2 ? ic.wainDark : y === 8 && a === midA ? ic.ink : ic.paper)); // hanging scroll
+        hangIn(b, picture(paintColors(b), 'fuji', 10, 10, o.seed), (a, d) => lot.m(a, d), midA + 0.5, dep - 2, 0, -1, 6 * V); // a framed print of Fuji
         const [nx, nz] = P(A1 - 2, BD0 + 3.5);
         b.secret = { shelf: [sx, 1.4, sz], shelfStand: P((ga0 + ga1 + 1) / 2, D1 - 2.2), gate: [Math.min(gx0, gx1), Math.min(gz0, gz1), Math.max(gx0, gx1), Math.max(gz0, gz1)], note: [nx, 0.85, nz], noteStand: P(A1 - 2, BD0 + 6.5) };
         b.darumaSpots.unshift({ kind, pos: withY(P(A0 + 2, BD1 - 0.5), 0.5), secret: true }); // on the settee's seat
@@ -823,8 +824,12 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
     if (D1 - D0 >= 8) {
       // a calendar with its red top, and a framed print further along
       paint(sideA, 5, D0 + 3, sideA, 7, D0 + 4, (_a, y) => (y === 7 ? c.lacquer : ic.paper));
-      const art = [k.c.fabricBlue, k.c.pink, k.c.leaf][Math.floor(wr() * 3)];
-      paint(sideA, 6, D0 + 6, sideA, 8, D0 + 8, (_a, y, d) => (y === 6 || y === 8 || d === D0 + 6 || d === D0 + 8 ? c.woodDark : art));
+      const art = Math.floor(wr() * 3);
+      // only where the wall is bare: against a solid wall, nothing stood in front of it (shelves line most shops)
+      const fa = sideA < A0 ? A0 : A1;
+      let bare = true;
+      for (let y = 6; y <= 8; y++) for (let d = D0 + 6; d <= D0 + 8; d++) if (!lot.get(sideA, y, d) || lot.get(fa, y, d)) bare = false;
+      if (bare) hangIn(b, picture(paintColors(b), art === 1 ? 'fuji' : 'wave', 6, 6, o.seed + art), (a, d) => lot.m(a, d), sideA < A0 ? A0 : A1 + 1, D0 + 7.5, sideA < A0 ? 1 : -1, 0, 6 * V);
     }
   }
 

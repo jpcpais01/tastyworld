@@ -11,6 +11,7 @@ import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { amalfiPlan, K, col, layerOf, hillY, headlandY, isFoot, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, PORTAL_Y, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
 import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
+import { paintColors, picture, hangIn, type PaintColors } from './paintings';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -1865,14 +1866,12 @@ function lanes(b: Builder, c: AC, plan: Plan): void {
 }
 
 /** A wayside shrine: the Madonna in majolica in a marble niche under a little tiled roof, flowers and a red lamp on its ledge. Back to the wall at z = 0. */
-function shrine(c: AC, seed: number): Prop {
+function shrine(c: AC, pc: PaintColors, seed: number): Prop {
   const p = new Prop(8, 14, 4);
   p.box(0, 1, 0, 7, 12, 0, c.majolicaWhite);
-  // the picture: a blue mantle, a face, a gold halo, on yellow tiles in a blue border
-  p.box(1, 2, 0, 6, 10, 0, (x, y) => (x === 1 || x === 6 || y === 2 || y === 10 ? c.majolicaBlue : c.majolicaYellow));
-  p.box(2, 3, 0, 5, 7, 0, c.majolicaBlue);
-  p.box(3, 7, 0, 4, 8, 0, c.peach);
-  p.box(2, 9, 0, 5, 9, 0, c.mosaicGold); p.set(2, 8, 0, c.mosaicGold); p.set(5, 8, 0, c.mosaicGold);
+  // the picture: the Madonna and Child in a blue mantle under a gold halo, on yellow tiles in a blue border
+  const im = picture(pc, 'madonna', 6, 9, seed);
+  for (let v = 0; v < 9; v++) for (let u = 0; u < 6; u++) p.set(1 + u, 2 + v, 0, im.get(u, v));
   // the marble surround and the ledge
   p.box(0, 1, 1, 0, 11, 1, c.marble); p.box(7, 1, 1, 7, 11, 1, c.marble);
   p.box(0, 0, 0, 7, 1, 3, c.marble);
@@ -1932,7 +1931,7 @@ function laneDress(b: Builder, c: AC, plan: Plan): void {
       const side = r() < 0.5 ? 1 : -1;
       const w = wallAt(t, side, 0.5, 1.1, 3.2);
       if (!w) continue;
-      b.place(shrine(c, Math.floor(r() * 1e4)), w.x, w.y + 1.3, w.z, w.turn);
+      b.place(shrine(c, paintColors(b), Math.floor(r() * 1e4)), w.x, w.y + 1.3, w.z, w.turn);
       b.lamp(w.x, w.y + 1.6, w.z, [1, 0.55, 0.35], 2.2, 0.45);
     }
     // Vespas against the wall of the wider streets, along the kerb
@@ -2601,7 +2600,7 @@ function hotelHouse(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   { const [x, z] = L.P(2, D - 3); b.block(x - 0.4, z - 0.4, x + 0.4, z + 0.4); }
   // majolica plates on the left wall, a painting of the coast over the sofa
   for (let d = 10; d < D - 8; d += 4) box(0, 7, d, 0, 8, d + 1, (_a, y, dd) => ((y + dd) % 2 ? c.majolicaYellow : c.majolicaBlue));
-  box(0, 6, 3, 0, 9, 8, (_a, y, d) => (y === 6 || y === 9 || d === 3 || d === 8 ? c.mosaicGold : y < 8 ? c.umbrellaC : c.sky));
+  hangIn(b, picture(paintColors(b), 'coast', 12, 8, lt.seed), L.P, 1, 6, 1, 0, (F + 6 - G) * V);
   // a chandelier in the palazzo, a ceiling lamp elsewhere
   box(mid, 10, (D >> 1) - 1, mid + 1, 11, D >> 1, ic.brass);
   if (palazzo) {
@@ -2651,7 +2650,7 @@ function hotelHouse(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
     }
     const [b0] = rp.beds[0], b1 = rp.beds[rp.beds.length - 1][1];
     // a majolica plate or a gilt picture over the bed, little tables with lamps either side
-    o.box(0, 5, b0 + 1, 0, 8, b1 - 1, (_a, y, v) => (y === 5 || y === 8 || v === b0 + 1 || v === b1 - 1 ? (palazzo ? c.mosaicGold : c.majolicaYellow) : (v + y) % 3 ? c.sky : c.umbrellaC));
+    hangIn(b, picture(paintColors(b), i % 2 ? 'lemons' : 'coast', (b1 - b0 - 1) * 2, 8, lt.seed + i), R.P, 1, (b0 + b1 + 1) / 2, 1, 0, (f.yb + 5 - G) * V);
     for (const v of [b0 - 2, b1 + 1]) {
       o.box(1, 1, v, 2, 2, v + 1, wood); o.box(1, 3, v, 1, 3, v, c.iron); o.box(1, 4, v, 1, 4, v, ic.shade);
       lamp(R, 1.5, v + 0.5, Y + 1.1, WARM, 2.6, 0.55);

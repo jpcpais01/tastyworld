@@ -1,3 +1,4 @@
+import { paintColors, picture, hangIn } from './paintings';
 import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
@@ -1878,12 +1879,8 @@ function guestDressing(ctx: Ctx, f: Frame, L: number, A0: number, A1: number, D0
   // the wardrobe, by the door if there is depth for it behind the bed
   if (D1 - 3 > bedD + 9) f.box(g, A1 - 1, L, D1 - 3, A1, L + 8, D1, (_a, yy, d) => (yy === L + 8 ? c.cornice : (yy === L + 4 && (d === D1 - 2 || d === D1 - 1)) ? c.brass : c.woodDark));
   // the picture: a ferry on blue water under a pale sky, gold-framed, on the side wall above the kilim
-  const pa = backed(ctx, f, A0 - 1, L + 8, D0 + 6) ? A0 - 1 : A0; // on the wall where it is hidden outside, else hung proud
-  f.box(g, pa, L + 5, D0 + 4, pa, L + 8, D0 + 9, (_a, yy, d) => {
-    if (yy === L + 5 || yy === L + 8 || d === D0 + 4 || d === D0 + 9) return c.gilt;
-    if (yy === L + 6) return d === D0 + 6 + (seed & 1) ? c.hullWhite : c.iznikBlue;
-    return d === D0 + 6 + (seed & 1) ? c.hullDark : c.powder;
-  });
+  // (in fine voxels laid on the wall, like every painting in the game, so nothing of it shows outside)
+  hangIn(b, picture(paintColors(b), 'bosphorus', 12, 8, seed), (a, d) => f.m(a, d), A0 - 0.5, D0 + 6.5, 1, 0, (L + 5 - G) * V);
   hangingLantern(ctx, f, Math.round((A0 + A1) / 2) - 3, Math.round((D0 + D1) / 2) - 3, L);
 }
 

@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.11',
+    date: '2026-10-31',
+    title: 'Vetri',
+    items: [
+      'Amalfi\'s windows are glass now, like Tokyo\'s: the house windows between their shutters, the shop and café fronts, the pastry cases, the ferry\'s saloon and bridge, and the Duomo\'s rose window mirror the sky, catch the sun off the sea and glow warm at night.',
+    ],
+  },
+  {
     version: '0.16.10',
     date: '2026-10-31',
     title: 'Flower boxes held up',

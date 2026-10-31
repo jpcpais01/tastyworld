@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.3',
+    date: '2026-10-31',
+    title: 'Via Lorenzo\'s shops',
+    items: [
+      'The shops of Via Lorenzo d\'Amalfi spill out into the street: racks of painted ceramics, shelves of limoncello, rails of linen shirts and dresses, crates of lemons, and striped awnings over the doors.',
+      'The lanterns on the walls of Amalfi\'s lanes now all hang from the wall the right way round.',
+    ],
+  },
+  {
     version: '0.15.2',
     date: '2026-10-31',
     title: 'Gulls and fishing nets',

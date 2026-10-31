@@ -8,11 +8,53 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.24',
+    version: '0.16.29',
     date: '2026-10-31',
     title: 'Clear view',
     items: [
       'Looking out of your hotel room window, the flower boxes, pots, signs, lanterns and balcony rails just outside no longer stand in the way: from inside you see the street and the view, in Tokyo, Amalfi and Istanbul. From the street they are all still there.',
+    ],
+  },
+  {
+    version: '0.16.28',
+    date: '2026-10-31',
+    title: 'Counters you can see over',
+    items: [
+      'Every seller\'s counter is now at a real counter height in Tokyo, Amalfi and Istanbul, so you can always see the cook behind it, including the hidden kitchens, the Tokyo yatai and Istanbul\'s simit and ice-cream carts.',
+      'The cook holds your dish up over the counter and passes it across in a clean arc instead of through the counter.',
+      'Every Istanbul restaurant door is at least four blocks wide, so you can always walk in.',
+    ],
+  },
+  {
+    version: '0.16.27',
+    date: '2026-10-31',
+    title: 'Calmer water from afar',
+    items: [
+      'Zoomed out, the sea, the Bosphorus and the canal no longer break into a shimmering checker pattern. The smallest ripples fade away smoothly as they get too fine to see, so distant water reads as a calm, even surface and close-up water keeps all its detail.',
+    ],
+  },
+  {
+    version: '0.16.26',
+    date: '2026-10-31',
+    title: 'Clear cathedral steps',
+    items: [
+      'The grand stairway up to Amalfi\'s cathedral is clear again: the row of lamp posts is gone, leaving a single pair near the top that frames the portico and lights the steps at night.',
+    ],
+  },
+  {
+    version: '0.16.25',
+    date: '2026-10-31',
+    title: 'Naples leaves the map',
+    items: [
+      'Naples is no longer on the world map. Its pizza, fried fish and coffee are waiting for you down the coast in Amalfi.',
+    ],
+  },
+  {
+    version: '0.16.24',
+    date: '2026-10-31',
+    title: 'Look around on the way',
+    items: [
+      'While you walk to a pin or a spot you tapped, you can look around freely and the view no longer swings back to face the way you\'re going. In first person, look with the mouse, a drag or Q and E. From above, drag to turn the view while the walk carries on.',
     ],
   },
   {

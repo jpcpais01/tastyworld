@@ -208,7 +208,8 @@ class Game {
   private near: Interactable | null = null;
   private notified = new Set<string>();
   private keys = new Set<string>();
-  private joy: { id: number; sx: number; sy: number; x: number; y: number; active: boolean; run: boolean; t: number } | null = null;
+  /** look: the drag began during an auto-walk, so it turns the iso view instead of steering; looked: it did turn. */
+  private joy: { id: number; sx: number; sy: number; x: number; y: number; active: boolean; run: boolean; t: number; look?: boolean; looked?: boolean } | null = null;
   private pinch: { d: number; a: number; twist: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
   /** First-person look drag (right side of a touch screen, or a mouse drag without pointer lock). */
@@ -1821,7 +1822,7 @@ class Game {
         this.pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), a: Math.atan2(p2.y - p1.y, p2.x - p1.x), twist: 0 };
         this.joy = null;
       } else if (this.pointers.size === 1) {
-        this.joy = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: 0, y: 0, active: false, run: false, t: performance.now() };
+        this.joy = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: 0, y: 0, active: false, run: false, t: performance.now(), look: this.path.length > 0 };
       }
     });
     canvas.addEventListener('pointermove', (e) => {
@@ -1859,6 +1860,12 @@ class Game {
       const j = this.joy;
       if (j && j.id === e.pointerId) {
         const dx = e.clientX - j.sx, dy = e.clientY - j.sy;
+        if (j.look) {
+          // auto-walking: dragging turns the view around the traveller and the walk carries on
+          if (!j.looked && Math.hypot(dx, dy) > 14) j.looked = true;
+          if (j.looked && !this.ui.busy) this.cam.orbitBy(-(e.clientX - px) * 0.006, 0);
+          return;
+        }
         if (!j.active && Math.hypot(dx, dy) > 14) { j.active = true; this.path = []; this.pending = null; }
         if (j.active) {
           const len = Math.hypot(dx, dy), k = Math.min(1, len / 70) / Math.max(1e-3, len);
@@ -1883,7 +1890,7 @@ class Game {
       }
       const j = this.joy;
       if (j && j.id === e.pointerId) {
-        if (!j.active && performance.now() - j.t < 450 && e.type === 'pointerup') this.tap(e.clientX, e.clientY);
+        if (!j.active && !j.looked && performance.now() - j.t < 450 && e.type === 'pointerup') this.tap(e.clientX, e.clientY);
         this.joy = null;
       }
     };
@@ -2068,6 +2075,7 @@ class Game {
         }
       }
     }
+    if (!this.path.length) this.cam.lookedByHand = false; // the next auto-walk starts facing its way again
     if (speed > 0) {
       const hv = this.nav.standHeightVox(p.x, p.z);
       const from = hv === 255 ? 12 : hv;
@@ -2075,7 +2083,8 @@ class Game {
       if (this.path.length > 0) {
         p.x += dx * step; p.z += dz * step;
         pl.targetFacing = Math.atan2(dx, dz);
-        if (this.cam.fp) this.cam.turnToward(pl.targetFacing, dt);
+        // follow the walking direction, unless the player has taken the view to look around
+        if (this.cam.fp && !this.cam.lookedByHand) this.cam.turnToward(pl.targetFacing, dt);
       } else {
         // free movement slides along walls and nudges round corners, chairs and tree trunks
         const m = this.nav.slide(p.x, p.z, dx, dz, step, from, this.slideSide, PLAYER_REACH);

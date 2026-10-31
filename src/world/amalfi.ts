@@ -1123,11 +1123,11 @@ function duomo(b: Builder, c: AC): void {
     g.set(Math.floor(cx), Y + TH + 23, Math.floor(cz), c.iron);
     g.box(Math.floor(cx), Y + TH + 24, Math.floor(cz), Math.floor(cx), Y + TH + 27, Math.floor(cz), c.iron);
   }
-  // the steps get lamps either side, all the way up
-  // (on the outermost tread, between the people sitting along the edges)
-  for (const x of [-5.6, -10.8, -15.7]) {
-    const y = PIAZZA_Y + (DUOMO_Y - PIAZZA_Y) * ((-4.5 - x) / 15.5);
-    for (const z of [9.3, 18.7]) { b.place(lampPost(c), x, layerY(y), z); b.lamp(x, y + 3.4, z, WARM, 5, 0.7); }
+  // one pair of lamps near the top of the steps, framing the portico; the rest of the flight stays clear,
+  // lit from below by the piazza's lamps and the cathedral's floodlights
+  {
+    const x = -15.7, y = PIAZZA_Y + (DUOMO_Y - PIAZZA_Y) * ((-4.5 - x) / 15.5);
+    for (const z of [9.3, 18.7]) { b.place(lampPost(c), x, layerY(y), z); b.lamp(x, y + 3.4, z, WARM, 7, 0.8); }
   }
 }
 
@@ -1982,9 +1982,9 @@ function grotta(b: Builder, c: AC, anchors: Anchors): BuildResult['interior'] {
   g.box(0, G, 0, ISX - 1, G + 17, 2, (x, y, z) => (hash3(x >> 1, y >> 1, z) < 0.5 ? c.tufa : c.tufaDark));
   for (let y = 0; y < 6; y++) { g.box(3, G + 12 + y, 3, 3 + 6 - y, G + 12 + y, ISZ - 1, c.tufa); g.box(3, G + 12 + y, 3, ISX - 1, G + 12 + y, 3 + 6 - y, c.tufa); }
   // the marble counter (same footprint the bake keeps clear for any hidden kitchen) and the prep shelf behind it
-  g.box(8, G, 22, 44, G + 3, 25, c.majolicaBlue);
-  g.box(8, G, 22, 44, G + 3, 22, (x) => (x % 3 === 0 ? c.majolicaYellow : c.majolicaWhite));
-  g.box(8, G + 4, 21, 44, G + 4, 26, c.marble);
+  g.box(8, G, 22, 44, G + 2, 25, c.majolicaBlue);
+  g.box(8, G, 22, 44, G + 2, 22, (x) => (x % 3 === 0 ? c.majolicaYellow : c.majolicaWhite));
+  g.box(8, G + 3, 21, 44, G + 3, 26, c.marble);
   g.box(6, G, 6, 44, G + 3, 10, c.door);
   g.box(6, G + 4, 6, 44, G + 4, 10, c.marbleGrey);
   // shelves of jars, lemons and limoncello bottles
@@ -2001,8 +2001,8 @@ function grotta(b: Builder, c: AC, anchors: Anchors): BuildResult['interior'] {
   for (let i = 0; i < 6; i++) place(stool(b.k, c.door), (10.5 + i * 5.5) * V, 0, 30 * V);
   place(lemonTree(c, 404), 58 * V, 0, 40 * V);
   place(potLemon(c, 405), 4 * V, 0, 44 * V);
-  place(buildFood('scialatielli', b.pal), 22 * V, 1.25, 23 * V, 2);
-  place(buildFood('totani', b.pal), 30 * V, 1.25, 23 * V, 2);
+  place(buildFood('scialatielli', b.pal), 20 * V, 1.0, 23 * V, 2);
+  place(buildFood('totani', b.pal), 33 * V, 1.0, 23 * V, 2);
   lamp(18 * V, 2.5, 23.5 * V, WARM, 6, 1.3);
   lamp(34 * V, 2.5, 23.5 * V, WARM, 6, 1.3);
   lamp(50 * V, 1.5, 9 * V, [1, 0.55, 0.25], 6, 1.4);

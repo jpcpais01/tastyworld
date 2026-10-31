@@ -245,17 +245,20 @@ function teaTable(c: IC2, seed: number): Prop {
 function simitCart(c: IC2): Prop {
   const p = new Prop(16, 20, 10);
   for (const x of [1, 13]) { p.box(x, 0, 0, x + 2, 2, 0, c.iron); p.box(x, 0, 9, x + 2, 2, 9, c.iron); }
-  p.box(0, 3, 0, 15, 8, 9, c.cartRed);
-  p.box(0, 9, 0, 15, 9, 9, c.chrome);
-  p.box(1, 10, 1, 14, 16, 8, c.cartGlass);
-  p.box(2, 10, 2, 13, 15, 7, 0);
-  for (let y = 10; y <= 14; y++) for (let x = 2; x <= 13; x++) for (let z = 2; z <= 7; z++) {
+  // the body to counter height (1 m), the glass case of simits at one end, the other end open for handing over
+  p.box(0, 3, 0, 15, 6, 9, c.cartRed);
+  p.box(0, 7, 0, 15, 7, 9, c.chrome);
+  p.box(10, 8, 1, 14, 13, 8, c.cartGlass);
+  p.box(11, 8, 2, 13, 12, 7, 0);
+  for (let y = 8; y <= 12; y++) for (let x = 11; x <= 13; x++) for (let z = 2; z <= 7; z++) {
     const ring = Math.hypot(((x - 2) % 4) - 1.5, ((z - 2) % 3) - 1) > 0.6;
-    if (ring && hash3(x, y, z) < 0.8 - (y - 10) * 0.14) p.set(x, y, z, hash3(x, y + 1, z) < 0.3 ? c.simitDark : c.simit);
+    if (ring && hash3(x, y, z) < 0.8 - (y - 8) * 0.14) p.set(x, y, z, hash3(x, y + 1, z) < 0.3 ? c.simitDark : c.simit);
   }
+  // a few simits stacked on a tray at the open end
+  for (let x = 1; x <= 4; x++) for (let z = 3; z <= 6; z++) if ((x + z) % 2 === 0) p.set(x, 8, z, hash3(x, 8, z) < 0.3 ? c.simitDark : c.simit);
   p.box(0, 17, 0, 15, 17, 9, c.cartRed);
   p.box(0, 18, 1, 15, 18, 8, (x) => (x % 4 < 2 ? c.cartRed : c.awnWhite));
-  for (const x of [0, 15]) for (const z of [0, 9]) p.box(x, 10, z, x, 16, z, c.chrome);
+  for (const x of [0, 15]) for (const z of [0, 9]) p.box(x, 8, z, x, 16, z, c.chrome);
   return p;
 }
 
@@ -292,14 +295,14 @@ function midyeStand(c: IC2): Prop {
 /** The ice-cream stall with its long iron paddle and the brass bells. Faces +z. */
 function dondurmaStall(c: IC2): Prop {
   const p = new Prop(16, 24, 10);
-  p.box(0, 0, 0, 15, 9, 9, c.awnRed);
-  p.box(0, 4, 0, 15, 4, 0, c.gilt);
-  p.box(0, 10, 0, 15, 10, 9, c.chrome);
-  for (let x = 2; x <= 13; x += 4) p.box(x, 10, 2, x + 2, 10, 6, [c.lokumWhite, c.pistachio, c.lokumPink][(x / 4) | 0]);
-  for (const x of [0, 15]) p.box(x, 11, 8, x, 21, 8, c.gilt);
+  p.box(0, 0, 0, 15, 6, 9, c.awnRed);
+  p.box(0, 3, 0, 15, 3, 0, c.gilt);
+  p.box(0, 7, 0, 15, 7, 9, c.chrome);
+  for (let x = 2; x <= 13; x += 4) p.box(x, 7, 2, x + 2, 7, 6, [c.lokumWhite, c.pistachio, c.lokumPink][(x / 4) | 0]);
+  for (const x of [0, 15]) p.box(x, 8, 8, x, 21, 8, c.gilt);
   p.box(0, 21, 0, 15, 22, 9, (x) => (x % 4 < 2 ? c.awnRed : c.gilt));
   p.box(2, 19, 9, 2, 20, 9, c.brass); p.box(13, 19, 9, 13, 20, 9, c.brass);
-  p.box(6, 11, 4, 6, 18, 4, c.iron); // the paddle stood up in the tub
+  p.box(6, 8, 4, 6, 15, 4, c.iron); // the paddle stood up in the tub
   return p;
 }
 
@@ -1333,7 +1336,8 @@ function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touched: bool
   const nth = b.roomCount[kind] = (b.roomCount[kind] ?? -1) + 1;
   const y = (base - G) * V;
   const A0 = 1, A1 = W - 2, D0 = 1, D1 = D - 2;
-  const dw = Math.min(4, W - 6), da = Math.floor(W / 2) - (dw >> 1);
+  // the doorway is never narrower than four cells, so anyone can walk in; five where the front is wide enough
+  const dw = Math.max(4, Math.min(5, W - 6)), da = Math.floor(W / 2) - (dw >> 1);
   // the counter runs across the room two thirds of the way back; the keeper stands behind it
   const cd = Math.max(D0 + 4, D1 - 4);
   const ca0 = A0 + 1, ca1 = A1 - 2;
@@ -1357,9 +1361,12 @@ function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touched: bool
     for (const [a0, d0, a1, d1] of [[A0 - 0, D1 + 1, A1, D1 + 1], [A0 - 1, D0, A0 - 1, D1], [A1 + 1, D0, A1 + 1, D1]] as const)
       f.box(g, a0, base, d0, a1, base + 10, d1, (_a, yy) => (yy <= base + 3 ? look.wain : yy === base + 4 ? c.woodDark : look.wall));
     // the counter and what is on it
-    f.box(g, ca0, base, cd, ca1, base + 3, cd + 1, look.counter);
-    f.box(g, ca0, base + 4, cd, ca1, base + 4, cd + 1, look.top);
-    f.box(g, ca0 + 1, base + 5, cd, ca1 - 1, base + 5, cd, (a) => look.show[a % look.show.length]);
+    // a counter at counter height (its top 1 m off the floor), so you see the cook over it and the dish comes across
+    // clean; what is on show sits along the back edge, clear of the middle where the cook hands it over
+    f.box(g, ca0, base, cd, ca1, base + 2, cd + 1, look.counter);
+    f.box(g, ca0, base + 3, cd, ca1, base + 3, cd + 1, look.top);
+    const midC = (ca0 + ca1) / 2;
+    f.box(g, ca0 + 1, base + 4, cd + 1, ca1 - 1, base + 4, cd + 1, (a) => (Math.abs(a + 0.5 - midC) < 2.5 ? 0 : look.show[a % look.show.length]));
     // shelves behind with jars, glasses, copper
     f.box(g, A0, base + 6, D1, A1, base + 6, D1, c.woodDark);
     f.box(g, A0, base + 7, D1, A1, base + 8, D1, (a, yy) => (hash3(a, yy, lt.seed) < 0.6 ? look.show[(a + yy) % look.show.length] : 0));
@@ -1425,7 +1432,7 @@ function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touched: bool
     room.stall = restaurant.id;
     const [lx, lz] = f.m(mid, cd + 0.5);
     b.stallAnchors.push({ id: restaurant.id, stand: buyStand, vendor: [keeperAt[0], keeperAt[1], f.faceOut], label: [lx, y + 2.9, lz] });
-    if (touched) b.place(buildFood(restaurant.foods[0], b.pal), lx, y + 1.25, lz, f.turnOut);
+    if (touched) { const [fx, fz] = f.m(mid - 2.5, cd + 0.5); b.place(buildFood(restaurant.foods[0], b.pal), fx, y + 1.0, fz, f.turnOut); }
   }
   b.rooms.push(room);
 }
@@ -2270,11 +2277,11 @@ function teaGarden(ctx: Ctx): void {
   const cz = z1 - 1.2, Y = plan.walk[col(Math.floor(xm / V), Math.floor(cz / V))];
   const X0 = Math.round((xm - 1) / V), X1 = Math.round((xm + 1) / V) - 1, Z0 = Math.round((cz - 0.25) / V), Z1 = Math.round((cz + 0.25) / V) - 1;
   if (g.touches(X0, Z0, X1, Z1)) {
-    g.box(X0, Y, Z0, X1, Y + 3, Z1, c.woodDark);
-    g.box(X0, Y + 4, Z0, X1, Y + 4, Z1, c.marble);
-    for (let x = X0; x <= X1; x += 2) g.set(x, Y + 5, Z0, c.tea);
+    g.box(X0, Y, Z0, X1, Y + 2, Z1, c.woodDark);
+    g.box(X0, Y + 3, Z0, X1, Y + 3, Z1, c.marble);
+    for (let x = X0; x <= X1; x += 2) g.set(x, Y + 4, Z1, c.tea);
   }
-  b.place(samovar(c), xm + 0.6, (Y + 5 - G) * V, cz);
+  b.place(samovar(c), xm + 0.6, (Y + 4 - G) * V, cz);
   b.block(xm - 1, cz - 0.3, xm + 1, cz + 0.3);
   b.lamp(xm, (Y - G) * V + 2.4, cz, WARM, 5, 0.8);
   for (const z of [z0 + 0.6, z1 - 3]) { b.place(lampPost(c), x0 + 0.3, gy(x0 + 0.3, z), z); b.lamp(x0 + 0.3, gy(x0 + 0.3, z) + 3.8, z, WARM, 7, 0.8); b.block(x0 + 0.1, z - 0.2, x0 + 0.5, z + 0.2); }
@@ -2597,9 +2604,9 @@ function gizliMutfak(b: Builder, c: IC2, anchors: Anchors): BuildResult['interio
   // İznik tiles behind the counter
   g.box(3, G + 4, 3, 44, G + 11, 3, (x, y) => ((x + y) % 4 === 0 ? c.iznikRed : (x * 3 + y) % 5 === 0 ? c.iznikTeal : (x + y * 2) % 3 === 0 ? c.iznikWhite : c.iznikBlue));
   // the counter (the footprint the bake keeps clear for every hidden kitchen) and the prep table behind it
-  g.box(8, G, 22, 44, G + 3, 25, c.woodDark);
-  g.box(8, G, 22, 44, G + 3, 22, (x) => (x % 3 === 0 ? c.brass : c.woodBare));
-  g.box(8, G + 4, 21, 44, G + 4, 26, c.marble);
+  g.box(8, G, 22, 44, G + 2, 25, c.woodDark);
+  g.box(8, G, 22, 44, G + 2, 22, (x) => (x % 3 === 0 ? c.brass : c.woodBare));
+  g.box(8, G + 3, 21, 44, G + 3, 26, c.marble);
   g.box(6, G, 6, 44, G + 3, 10, c.woodBare);
   g.box(6, G + 4, 6, 44, G + 4, 10, c.marbleGrey);
   // copper pans and ladles hung on the tiles, jars of pickles on a shelf
@@ -2615,8 +2622,8 @@ function gizliMutfak(b: Builder, c: IC2, anchors: Anchors): BuildResult['interio
   for (let i = 0; i < 6; i++) place(tabure(c, c.carpetRed), (10.5 + i * 5.5) * V, 0, 30 * V);
   place(figTree(c, 404), 58 * V, 0, 40 * V);
   place(samovar(c), 4 * V, 0, 44 * V);
-  place(buildFood('hunkar', b.pal), 22 * V, 1.25, 23 * V, 2);
-  place(buildFood('manti', b.pal), 30 * V, 1.25, 23 * V, 2);
+  place(buildFood('hunkar', b.pal), 20 * V, 1.0, 23 * V, 2);
+  place(buildFood('manti', b.pal), 33 * V, 1.0, 23 * V, 2);
   place(mosaicLamps(c, 7), 26 * V, 2.0, 16 * V);
   lamp(18 * V, 2.5, 23.5 * V, WARM, 6, 1.3);
   lamp(34 * V, 2.5, 23.5 * V, WARM, 6, 1.3);

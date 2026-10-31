@@ -47,11 +47,6 @@ export const DESTINATIONS: Destination[] = [
     menu: [['croissant', 'Sfogliatella'], ['squid', 'Cuoppo di mare'], ['pizza', 'Pizza a portafoglio'], ['vanilla', 'Gelato al limone']],
   },
   {
-    id: 'naples', city: 'Naples', country: 'Italy', local: 'Napoli', code: 'NAP', lat: 40.85, lon: 14.27, tz: 'Europe/Rome', open: false,
-    blurb: 'Laundry over narrow vicoli and pizza folded to eat on the go.',
-    menu: [['pizza', 'Pizza fritta'], ['croissant', 'Sfogliatella'], ['squid', 'Cuoppo']],
-  },
-  {
     id: 'lisbon', city: 'Lisbon', country: 'Portugal', local: 'Lisboa', code: 'LIS', lat: 38.72, lon: -9.14, tz: 'Europe/Lisbon', open: false,
     blurb: 'Tiled hills, yellow trams and sardines on the grill in June.',
     menu: [['tart', 'Pastel de nata'], ['sando', 'Bifana'], ['fish', 'Sardinhas']],

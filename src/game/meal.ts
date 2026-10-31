@@ -177,6 +177,9 @@ class Held {
 interface HandState { pos: THREE.Vector3; q: THREE.Quaternion }
 interface Crumb { p: THREE.Vector3; v: THREE.Vector3; life: number; spin: number; mesh: number }
 
+/** How high the cook holds the dish out (metres over their feet): clear of a counter top at 1 m. */
+const OFFER_Y = 1.1;
+
 /** One dish being served and eaten. */
 export class Meal {
   readonly kit: MealKit;
@@ -537,7 +540,8 @@ export class Meal {
       const a = new THREE.Vector3(), b = new THREE.Vector3(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), s = new THREE.Vector3();
       this.passFrom.decompose(a, qa, s);
       main.mesh.matrix.decompose(b, qb, s);
-      a.lerp(b, u); a.y += Math.sin(u * Math.PI) * 0.06;
+      // lifted in an arc so it clears the counter's front edge on the way to the player's hands
+      a.lerp(b, u); a.y += Math.sin(u * Math.PI) * 0.12;
       qa.slerp(qb, u);
       main.mesh.matrix.compose(a, qa, s);
     } else {
@@ -582,8 +586,9 @@ export class Meal {
   private offer(v: Actor, z: number): void {
     const half = this.halfWidth(this.main()) + 0.03;
     v.reach[0].on = v.reach[1].on = true;
-    v.reach[0].pos.set(-half, 0.98, z);
-    v.reach[1].pos.set(half, 0.98, z);
+    // a little above the 1 m counter tops, so the dish is held over the counter, never sunk into it
+    v.reach[0].pos.set(-half, OFFER_Y, z);
+    v.reach[1].pos.set(half, OFFER_Y, z);
   }
 
   private offerMatrix(v: Actor, h: Held): void {

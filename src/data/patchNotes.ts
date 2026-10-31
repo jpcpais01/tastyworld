@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.18',
+    date: '2026-10-31',
+    title: 'Window boxes and wisteria',
+    items: [
+      'Istanbul\'s houses look lived in. Window boxes of geraniums hang under many upper windows, with ivy trailing down the wall. Air conditioners hum under the odd window of the plaster blocks.',
+      'Climbers grow up the house corners. Wisteria hangs in purple tassels, bougainvillea spills magenta, and plain ivy climbs above head height, so the lanes stay clear underneath.',
+      'Pigeon lofts of planks and wire stand on the flat roofs, an old Istanbul pastime, and pots of herbs and geraniums sit along the parapets.',
+    ],
+  },
+  {
     version: '0.16.17',
     date: '2026-10-31',
     title: 'Nothing in the way',

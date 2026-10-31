@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.44',
+    version: '0.16.48',
     date: '2026-10-31',
     title: 'Where Tokyo ends',
     items: [
@@ -17,6 +17,54 @@ export const PATCH_NOTES: PatchNote[] = [
       'The edges of the Inari hill, the shrine wood and the park now wander. A bamboo fence, a vermilion shrine fence and a clipped hedge close them off, with thick woods behind that carry on past the edge of the map.',
       'Tower cranes stand over the roadworks where Neon-dori and Minami-dori leave town. Each has a red light on the end of its jib.',
       'Past the edge, houses now stand shoulder to shoulder against the town and the woods run on, so you no longer see an empty square road around the map.',
+    ],
+  },
+  {
+    version: '0.16.47',
+    date: '2026-10-31',
+    title: 'Istanbul\'s streets, house by house',
+    items: [
+      'The teal tile bands and cross-shaped tiles that showed on the outside walls of many Istanbul shops, restaurants and hotels are gone. They were the tiles and plates from inside the rooms showing through the wall. Inside, the tiles now stay on the walls you share with the next building, and the plates hang inside the room.',
+      'Every building in Istanbul is now finished in its own way. Plaster comes in twenty-two colours, and some blocks are bare brick laced with stone or banded stone and brick. Some have a ground floor of rusticated stone or a second colour, and some have string courses, corner quoins, pilasters and a cornice with dentils.',
+      'Windows now come in six kinds: shuttered with a pediment (some with the shutters closed), round-arched with a keystone, plain framed, tall French windows onto iron balconettes, flat brick arches and paired lights. Each building sets its own window spacing and trim colour.',
+      'The wooden houses come in more colours, some with upright boards and battens, corner posts and lattice screens on the upper windows.',
+      'Doors come in more colours, some with a fanlight. Shopfronts and restaurant fronts have their own frame colours and glazing, and their signs come in four styles: a painted band, a gilt-framed board, letters painted on the wall, or lit letters.',
+      'A few fronts, about one in fifteen, have a panel of İznik tiles over the door or a tiled frieze under the cornice, in tulip, saz leaf, çintamani or turquoise designs.',
+    ],
+  },
+  {
+    version: '0.16.46',
+    date: '2026-10-31',
+    title: 'Galata across the water',
+    items: [
+      'The far shore of the Golden Horn has been rebuilt. Karaköy, Galata and Beyoğlu now climb the hill in rows of houses, each row a step above the last, with lanes, stone retaining walls under ivy, and cypresses and plane trees between the roofs. The bare grey cliff is gone.',
+      'The houses are a real mix: old wooden houses with bay windows under tiled roofs, stone and stucco apartment blocks with cornices, iron balconies, shop awnings, slate mansards and little corner domes, and newer flats with long balconies and a top floor set back. Windows have frames and shutters and show the sky by day.',
+      'At night the whole hillside lights up window by window, with the shops along the quay glowing and the odd blue of a television.',
+      'The Galata Tower is round now, in stone with narrow windows, a balcony ring, an arcaded top storey and its tall pointed cap. It is floodlit at night.',
+      'The waterfront has ferry piers with clock turrets, a ferry tied up at Karaköy, quay lamps, fishing boats, the Galataport terminal along the Bosphorus and three more mosques, plus the square minaret of the Arab Mosque.',
+      'Across the Bosphorus, Üsküdar and Kadıköy climb their hill the same way, with piers where the ferries tie up, Haydarpaşa station and the Selimiye barracks. Levent\'s towers stand on the far horizon.',
+    ],
+  },
+  {
+    version: '0.16.45',
+    date: '2026-10-31',
+    title: 'Arrivals dressed for the city',
+    items: [
+      'Landing in Tokyo, you now step into the streets through an indigo noren curtain with a cherry blossom crest. Paper lanterns swing in front of it, petals blow past, and the curtain parts as you walk through. After dark the lanterns glow.',
+      'Landing in Amalfi, lemon boughs and bougainvillea sweep in on the sea mist, then brush aside to show the town.',
+      'Landing in Istanbul, a wall of blue and white İznik tiles turns over, tile by tile from the middle out, and the gulls fly out past you into the city.',
+      'Cities still to come keep the clouds.',
+    ],
+  },
+  {
+    version: '0.16.44',
+    date: '2026-10-31',
+    title: 'End your trip',
+    items: [
+      'A new plane button at the end of the top bar ends your trip. It opens a trip summary on a Tasty Air pass: time spent, plates eaten, photos taken, money spent, your passport page for the city and a stub stamped with everything you tasted, new stamps marked.',
+      'Fly home: the globe opens on the city you are leaving, the plane flies you home, and you land back at the home menu, ready for the next trip.',
+      'Somewhere new: the globe opens with flights from where you are. Pick a city and fly straight there.',
+      'Changed your mind? Keep exploring closes the pass and nothing ends. Your passport, wallet and wardrobe are saved and travel with you, and on a co-op trip your friends can stay on and keep exploring.',
     ],
   },
   {

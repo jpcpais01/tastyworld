@@ -51,10 +51,11 @@ import { renderDishIcons } from './ui/icons';
 import { PhotoUI, capture } from './ui/photo';
 import { album, ALBUM_MAX } from './game/album';
 import { Travel } from './ui/travel';
+import { endTripCard, summarise, tripLog } from './ui/endtrip';
 import { CityMap, type Pin } from './ui/citymap';
 import { Beacon } from './game/guide';
 import { RoomGlass } from './game/roomglass';
-import type { Destination } from './data/destinations';
+import { DEST, type Destination } from './data/destinations';
 import type { Coop, Peer } from './net/coop';
 
 registerSW({ immediate: true });
@@ -278,6 +279,7 @@ class Game {
         if (this.started && this.lookColor !== this.s.profile.color) this.rebuildPlayer();
       },
       board: (d, coop) => this.start(d, coop),
+      home: () => this.goHome(),
       arrivalHour: () => this.tod.hour,
       cover: (on) => { this.covered = on; },
       notes: () => this.ui.notes(),
@@ -290,6 +292,7 @@ class Game {
     });
     this.ui.onMap = () => this.openCityMap();
     this.ui.onParty = () => this.travel.ticket();
+    this.ui.onEndTrip = () => this.endTrip();
     this.ui.onWave = () => this.wave();
     this.ui.onPhoto = () => this.setPhoto(true);
     this.photo = new PhotoUI({
@@ -1166,11 +1169,18 @@ class Game {
     if (dest.id !== CITY && isCity(dest.id)) {
       // another city is another world to build: save, reload into it, and board as soon as it has loaded
       coop?.leave();
+      if (this.started) {
+        // flying on from the end of a trip here: that trip is over
+        this.setCoop(null);
+        this.s.trip = null;
+      }
       saveNow(this.s);
       goToCity(dest.id, { board: dest.id });
       return;
     }
     this.started = true;
+    // a new trip starts on landing; coming back to a trip that never ended (a reload) carries on with it
+    if (this.s.trip?.city !== CITY) { this.s.trip = tripLog(this.s); this.save(); }
     this.rebuildPlayer(); // the colour may have changed at the gate
     if (coop) {
       // friends land a step apart instead of on top of each other
@@ -1200,6 +1210,52 @@ class Game {
       this.save();
       setTimeout(() => this.ui.notes(), 600);
     }
+  }
+
+  /** The end-trip button: the trip summary with the two ways out (fly home, or on to another city). */
+  private endTrip(): void {
+    if (!this.started || this.ui.busy || this.cityMap.isOpen) return;
+    if (this.meal || this.sleeping || this.inside) {
+      this.ui.toast('depart', 'Not just yet', this.meal ? 'Finish your plate first. The plane can wait.' : this.sleeping ? 'Sleep in. The plane can wait till morning.' : 'Step back out into the street first.');
+      return;
+    }
+    this.setPhoto(false);
+    this.path = []; this.pending = null; this.joy = null;
+    saveNow(this.s);
+    const shell = document.createElement('div');
+    shell.className = 'trip-plain endtrip-shell';
+    shell.appendChild(endTripCard({
+      here: DEST[CITY] ?? DEST.tokyo,
+      home: this.travel.home,
+      sum: summarise(this.s),
+      pics: this.ui.icons,
+      crew: this.coop?.peers.size ?? 0,
+      click: () => this.audio.play('click'),
+      homeward: () => setTimeout(() => this.travel.homeward(), 260),
+      onward: () => setTimeout(() => this.travel.openMap('onward'), 260),
+      stay: () => this.ui.close(),
+    }));
+    this.audio.play('whoosh');
+    this.ui.overlay(shell, () => {});
+  }
+
+  /** The plane home has landed: the trip is over, the save is written, and the home menu is back over the city. */
+  private goHome(): void {
+    this.setCoop(null);
+    if (this.cam.fp) this.setFirstPerson(false, true);
+    this.setPhoto(false);
+    this.path = []; this.pending = null; this.joy = null;
+    this.s.trip = null;
+    this.started = false;
+    this.ui.showHud(false);
+    this.ui.prompt('', '', '');
+    // the next trip here lands where trips start
+    const a = this.w.anchors;
+    this.player.position.set(a.spawn[0], this.navWorld.heightAt(a.spawn[0], a.spawn[2]), a.spawn[2]);
+    this.player.facing = this.player.targetFacing = Math.PI * 0.5;
+    saveNow(this.s);
+    this.titleView();
+    this.travel.title();
   }
 
   // ------------------------------------------------------------------ game actions

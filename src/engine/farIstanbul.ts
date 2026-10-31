@@ -11,8 +11,10 @@ import { hillY, shoreDist } from '../world/istanbulPlan';
  * west of it Fatih's hills, the great mosques along the ridge and the arches of the aqueduct.
  *
  * One mesh of terraced ground (cells growing with distance from the map) and one instanced draw of boxes whose
- * windows, roofs and lead the shader paints. Like Tokyo's far city, anything between the iso camera and the map
- * squats down so it never hides the streets.
+ * windows, roofs and lead the shader paints. The shores you look at across the water (Galata and Beyoğlu, Üsküdar) are
+ * laid out in rows along the contours, every house with its front to the water, cornices, balconies, bay windows and
+ * awnings on the near rows; those small parts carry a distance past which the vertex shader drops them. Like Tokyo's
+ * far city, anything between the iso camera and the map squats down so it never hides the streets.
  */
 
 type Rect = [number, number, number, number];
@@ -57,7 +59,7 @@ export function farHeight(x: number, z: number): number {
     dome(x, z, 30, -200, 22, 60), dome(x, z, -30, 330, 34, 110), dome(x, z, -160, 330, 52, 190), dome(x, z, 120, 340, 40, 160),
     dome(x, z, 560, 110, 44, 160), dome(x, z, 820, 380, 150, 220), dome(x, z, 600, -260, 30, 160),
   );
-  const h = 1.2 + hills * smooth(0, 40, d) + (fbm(x * 0.012, z * 0.012) - 0.5) * 6 * smooth(10, 80, d);
+  const h = 1.2 + hills * smooth(3, 90, d) + (fbm(x * 0.012, z * 0.012) - 0.5) * 6 * smooth(10, 80, d);
   return Math.max(0.8, h);
 }
 
@@ -71,8 +73,31 @@ function parkAt(x: number, z: number): boolean {
   return fbm(x * 0.02 + 3, z * 0.02) > 0.7;
 }
 
-/** One box of the far city: centre x, z, size w, d, foot y and height h, a seed, a kind (see the shader), a colour. */
-type Box = [number, number, number, number, number, number, number, number, number, number, number];
+/** What the shader paints on a box. */
+const P = {
+  Flats: 0, Tile: 1, Lead: 2, Hall: 3, Minaret: 4, Tree: 5, Civic: 6, Lit: 7, Rock: 8,
+  /** a striped shop awning */ Awning: 9,
+  /** a stack of balconies, one slab and railing per floor, open between */ Balcony: 10,
+  /** an Ottoman bay window (cumba), glazed all round */ Bay: 11,
+  /** a lantern, lit at night */ Lamp: 12,
+  /** stone with narrow arched slits, floodlit at night (Galata's tower) */ Tower: 14,
+} as const;
+/** Positive modulo, for patterns on coordinates that run negative. */
+const pm = (v: number, n: number) => ((v % n) + n) % n;
+/**
+ * A Şehir Hatları vapur, 34 m along x: black hull, white bulwark and saloons, a yellow funnel with a black top, a
+ * wheelhouse at each end. Each part is [x, z, w, d, y, h, kind, colour].
+ */
+const FERRY: [number, number, number, number, number, number, number, string][] = [
+  [0, 0, 30, 8.4, -1.2, 2.4, P.Rock, '#26282e'],
+  ...[-1, 1].flatMap((e): [number, number, number, number, number, number, number, string][] => [[e * 16, 0, 3, 6.2, -1.2, 2.4, P.Rock, '#26282e'], [e * 17.6, 0, 1.4, 3.4, -1.0, 2.2, P.Rock, '#26282e']]),
+  [0, 0, 33, 8.6, 1.2, 0.8, P.Rock, '#f0ede6'],
+  [0, 0, 27, 7.4, 2.0, 4.6, P.Civic, '#f2efe8'],
+  [0, 0, 21, 6.6, 6.6, 0.4, P.Rock, '#d6d2ca'],
+  ...[-1, 1].map((e): [number, number, number, number, number, number, number, string] => [e * 9.5, 0, 3, 5, 7.0, 2.0, P.Civic, '#f2efe8']),
+  [0, 0, 2.6, 2.2, 7.0, 3.6, P.Rock, '#e9b830'],
+  [0, 0, 2.7, 2.3, 10.6, 0.8, P.Rock, '#1e1e20'],
+];
 
 const PASTEL = ['#efe2cc', '#f1d9a8', '#e9c3a0', '#dcc7b0', '#f3ece0', '#e3b8a0', '#d9cfc0', '#f0e6c8', '#c9b49a', '#e8d2c0', '#d3c4b6', '#f4efe6'];
 
@@ -212,11 +237,19 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
         else if (k < 2.5) {
           // the city between the buildings: setts and roofs and courtyards, a tree here and there
           alb = mix(srgb2lin(vec3(0.55, 0.5, 0.45)), srgb2lin(vec3(0.44, 0.4, 0.37)), g);
-          alb = mix(alb, srgb2lin(vec3(0.27, 0.36, 0.2)), step(0.82, hash12(floor(p * 0.35))) * 0.8);
+          alb = mix(alb, srgb2lin(vec3(0.27, 0.36, 0.2)), step(0.74, hash12(floor(p * 0.35))) * 0.8);
           lights = 1.0;
         } else if (k < 3.5) alb = mix(srgb2lin(vec3(0.2, 0.32, 0.16)), srgb2lin(vec3(0.28, 0.4, 0.2)), g);
         else alb = mix(srgb2lin(vec3(0.34, 0.4, 0.24)), srgb2lin(vec3(0.46, 0.46, 0.36)), g);
-        if (n.y < 0.5) alb *= 0.82; // retaining walls of the terraces
+        if (n.y < 0.5) {
+          if (k > 1.5) {
+            // the terraces' retaining walls: stone in courses, ivy and fig spilling down them, green on the park slopes
+            float course = step(0.86, fract(vWorld.y * 1.6));
+            vec3 stone = mix(srgb2lin(vec3(0.63, 0.58, 0.5)), srgb2lin(vec3(0.52, 0.48, 0.42)), g) * (1.0 - course * 0.16);
+            float ivy = smoothstep(0.42, 0.62, vnoise(vec2(p.x + p.y, vWorld.y * 1.5) * 0.22) * 0.75 + g * 0.25 + (k > 2.5 ? 0.35 : 0.0));
+            alb = mix(stone, mix(srgb2lin(vec3(0.19, 0.3, 0.14)), srgb2lin(vec3(0.27, 0.38, 0.18)), g), ivy);
+          } else alb *= 0.82;
+        }
         float ndl = max(dot(n, uSunDir), 0.0);
         vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
         vec3 col = alb * (uSunColor * ndl + hemi);
@@ -233,12 +266,42 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
   ground.renderOrder = 10; // after the world, so it only fills what the voxels leave empty
 
   // ---------------------------------------------------------------------------------------- buildings
+  // the terrace you'd actually stand on at a spot (the ground mesh's own flat cells), so houses sit on it exactly
+  const cellOf = (arr: number[], v: number) => {
+    let lo = 0, hi = arr.length - 2;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (arr[m] <= v) lo = m; else hi = m - 1; }
+    return lo;
+  };
+  const T = (x: number, z: number) => ch[cellOf(zs, z) * nx + cellOf(xs, x)];
+  // which 2 m cells are built on, so houses stand shoulder to shoulder without running into one another
+  const OCC = 2, ON = 1800;
+  const occ = new Uint8Array(ON * ON);
+  const cells = (x: number, z: number, w: number, d: number, shrink: number, f: (i: number) => boolean) => {
+    const sx = Math.max(0, w / 2 - shrink), sz = Math.max(0, d / 2 - shrink);
+    const i0 = Math.floor((x - sx) / OCC) + ON / 2, i1 = Math.floor((x + sx) / OCC) + ON / 2;
+    const j0 = Math.floor((z - sz) / OCC) + ON / 2, j1 = Math.floor((z + sz) / OCC) + ON / 2;
+    for (let j = Math.max(0, j0); j <= Math.min(ON - 1, j1); j++)
+      for (let i = Math.max(0, i0); i <= Math.min(ON - 1, i1); i++) if (!f(j * ON + i)) return false;
+    return true;
+  };
+  const free = (x: number, z: number, w: number, d: number) => cells(x, z, w, d, OCC, (c) => occ[c] === 0);
+  const claim = (x: number, z: number, w: number, d: number) => { cells(x, z, w, d, 0, (c) => ((occ[c] = 1), true)); };
+
   const parts: number[] = [];
   const col = new THREE.Color();
-  const push = (b: Box) => parts.push(...b, 0);
-  const box = (x: number, z: number, w: number, d: number, y: number, h: number, kind: number, hex: string, seed = 0.5) => {
+  /**
+   * One box: centre x, z, size w (along x) and d (along z), foot y, height h, the shader's kind (P), a colour, a seed;
+   * lod > 0 drops it past that many metres from the camera, for the small things only the near shore needs.
+   */
+  const box = (x: number, z: number, w: number, d: number, y: number, h: number, kind: number, hex: string, seed = 0.5, lod = 0) => {
     col.set(hex);
-    push([x, z, w, d, y, h, seed, kind, col.r, col.g, col.b]);
+    parts.push(x, z, w, d, y, h, seed, kind, col.r, col.g, col.b, lod);
+  };
+  /** A round tower's section as three crossed boxes, which reads as round from any side. */
+  const round = (x: number, z: number, r: number, y: number, h: number, kind: number, hex: string, seed = 0.5, lod = 0) => {
+    box(x, z, 2 * r, 1.2 * r, y, h, kind, hex, seed, lod);
+    box(x, z, 1.2 * r, 2 * r, y, h, kind, hex, seed, lod);
+    box(x, z, 1.72 * r, 1.72 * r, y, h, kind, hex, seed, lod);
   };
   /**
    * A house: the walls, and on the tiled ones a low hipped roof in the town's own way, courses stepping in under the
@@ -246,63 +309,364 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
    */
   const house = (x: number, z: number, w: number, d: number, y: number, h: number, tile: number, hex: string, seed: number) => {
     box(x, z, w, d, y, h, tile, hex, seed);
-    if (tile !== 1) return;
+    if (tile !== P.Tile) return;
     const roof = seed < 0.5 ? '#a8563a' : '#8f4530';
     for (let t = 0; t < 4; t++) {
       const ww = w + 0.6 - t * 1.4, dd2 = d + 0.6 - t * 1.4;
       if (ww < 1 || dd2 < 1) break;
-      box(x, z, ww, dd2, y + h + t * 0.5, 0.5, 1, roof, seed);
+      box(x, z, ww, dd2, y + h + t * 0.5, 0.5, P.Tile, roof, seed, t < 2 ? 0 : t === 2 ? 1100 : 800);
     }
   };
   /** A dome as voxel tiers, each a little narrower and lower than the last. */
-  const domeAt = (x: number, z: number, r: number, y: number, kind = 2) => {
+  const domeAt = (x: number, z: number, r: number, y: number, kind: number = P.Lead) => {
     const tiers = Math.max(3, Math.round(r / 1.2));
     for (let t = 0; t < tiers; t++) {
       const a = t / tiers, w = 2 * r * Math.cos(Math.asin(a)), th = r / tiers;
       box(x, z, Math.max(0.6, w), Math.max(0.6, w), y + r * a, th + 0.05, kind, '#8d98a2');
     }
-    box(x, z, 0.4, 0.4, y + r, 1.6, 4, '#c9a24a'); // the gilt finial
+    box(x, z, 0.4, 0.4, y + r, 1.6, P.Minaret, '#c9a24a'); // the gilt finial
   };
   const minaret = (x: number, z: number, y: number, h: number, w = 1.1) => {
-    box(x, z, w * 1.5, w * 1.5, y, 3, 3, '#d8d2c4');
-    box(x, z, w, w, y + 3, h - 3, 4, '#ece6d8');
-    for (let t = 0; t < 4; t++) box(x, z, w * (1 - t * 0.22), w * (1 - t * 0.22), y + h + t * 0.9, 0.95, 2, '#8d98a2');
-    box(x, z, 0.2, 0.2, y + h + 3.6, 1, 4, '#c9a24a');
+    box(x, z, w * 1.5, w * 1.5, y, 3, P.Hall, '#d8d2c4');
+    box(x, z, w, w, y + 3, h - 3, P.Minaret, '#ece6d8');
+    for (let t = 0; t < 4; t++) box(x, z, w * (1 - t * 0.22), w * (1 - t * 0.22), y + h + t * 0.9, 0.95, P.Lead, '#8d98a2');
+    box(x, z, 0.2, 0.2, y + h + 3.6, 1, P.Minaret, '#c9a24a');
   };
   /** A mosque: the prayer hall, its great dome on a drum, half-domes and small domes round it, the minarets at the corners. */
   const mosque = (x: number, z: number, s: number, minarets: number, hall = '#d8d2c4') => {
     const y = H(x, z) - 0.5;
     if (y < 0.5) return;
-    box(x, z, 18 * s, 18 * s, y, 9 * s, 3, hall, 0.2);
-    box(x, z + 15 * s, 18 * s, 12 * s, y, 5 * s, 3, hall, 0.4); // the courtyard's arcades
+    claim(x, z + 5.5 * s, 24 * s, 36 * s);
+    box(x, z, 18 * s, 18 * s, y, 9 * s, P.Hall, hall, 0.2);
+    box(x, z + 15 * s, 18 * s, 12 * s, y, 5 * s, P.Hall, hall, 0.4); // the courtyard's arcades
     for (const [dx, dz] of [[-6, -6], [6, -6], [-6, 6], [6, 6]]) domeAt(x + dx * s, z + dz * s, 2.6 * s, y + 9 * s);
     for (const [dx, dz] of [[0, -6], [0, 6], [-6, 0], [6, 0]]) domeAt(x + dx * s, z + dz * s, 3.4 * s, y + 9 * s);
-    box(x, z, 11 * s, 11 * s, y + 9 * s, 2.2 * s, 3, hall, 0.6); // the drum
+    box(x, z, 11 * s, 11 * s, y + 9 * s, 2.2 * s, P.Hall, hall, 0.6); // the drum
     domeAt(x, z, 5.6 * s, y + 11.2 * s);
     const mh = 24 * s + 4;
     const corners = minarets >= 4 ? [[-10, -10], [10, -10], [-10, 21], [10, 21], [-10, 9], [10, 9]] : [[-10, -10], [10, -10]];
     for (const [dx, dz] of corners.slice(0, minarets)) minaret(x + dx * s, z + dz * s, y, mh * (dz > 15 ? 0.85 : 1));
   };
-
-  // the city: blocks of flats and old houses on every patch of dry land, thinning out up the hills
   let seed = 1453;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 26000 && parts.length / 12 < 5200; i++) {
+  const pick = <T,>(a: readonly T[]) => a[Math.floor(rnd() * a.length)];
+  /** A tree on the hillside: a dark cypress, or a plane or fig with its trunk under a round crown. */
+  const tree = (x: number, z: number, y: number, s = 1, lod = 0) => {
+    if (rnd() < 0.42) {
+      const hh = (6 + rnd() * 5) * s;
+      box(x, z, 1.8 * s, 1.8 * s, y - 0.3, hh * 0.62, P.Tree, '#3f6236', rnd(), lod);
+      box(x, z, 1.1 * s, 1.1 * s, y - 0.3 + hh * 0.62, hh * 0.38, P.Tree, '#46693b', rnd(), lod || 900);
+    } else {
+      const cw = (3.4 + rnd() * 2.6) * s;
+      box(x, z, 0.6, 0.6, y - 0.3, 2.4 * s, P.Rock, '#6e5a44', 0.5, lod || 600);
+      box(x, z, cw, cw, y + 1.8 * s, (2.6 + rnd() * 1.6) * s, P.Tree, pick(['#5b8a45', '#6a9650', '#4f7f3e', '#7a9c52']), rnd(), lod);
+    }
+  };
+  /** A quay lamp: an iron post and a lantern that glows at night. */
+  const lamp = (x: number, z: number, y: number) => {
+    box(x, z, 0.22, 0.22, y - 0.2, 4.2, P.Rock, '#2e3033', 0.5, 700);
+    box(x, z, 0.7, 0.7, y + 4.0, 0.7, P.Lamp, '#f3e7c8', 0.5, 900);
+  };
+
+  // ------------------------------------------------------------------- the landmarks first, so the houses keep clear of them
+  // Galata's tower on its hill across the Horn: a round stone shaft with string courses, the cantilevered gallery and its
+  // arcade, the cornice, and the tall conical cap in lead with its gilt finial; a little square round its foot
+  {
+    const x = -25, z = 300, y = H(x, z) - 0.6;
+    claim(x, z, 22, 22);
+    box(x, z, 20, 20, y - 0.2, 0.7, P.Rock, '#b8ae9c', 0.5, 900); // the square's paving
+    round(x, z, 5.6, y, 3.2, P.Tower, '#9d8f7b', 0.2);
+    round(x, z, 5.1, y + 3.2, 30, P.Tower, '#a89a86', 0.4);
+    for (const k of [11, 21]) round(x, z, 5.35, y + 3.2 + k, 0.45, P.Rock, '#b9ac97', 0.5, 1200);
+    round(x, z, 6.1, y + 33.2, 0.55, P.Rock, '#b9ac97', 0.5); // the gallery's floor
+    round(x, z, 6.0, y + 33.75, 0.9, P.Balcony, '#2b2c2e', 0.2, 1200); // and its railing
+    round(x, z, 4.9, y + 33.2, 5.4, P.Hall, '#b3a68f', 0.7); // the arcade of the top storey
+    round(x, z, 5.4, y + 38.6, 0.7, P.Rock, '#c0b39e', 0.5); // the cornice
+    for (let t = 0; t < 10; t++) {
+      const r = 5.0 * (1 - t / 10.5);
+      round(x, z, Math.max(0.35, r), y + 39.3 + t * 1.45, 1.5, P.Lead, '#5d6974', 0.5);
+    }
+    box(x, z, 0.3, 0.3, y + 53.8, 2.2, P.Minaret, '#c9a24a');
+  }
+  // the Galata Bridge carries on across the Horn to Karaköy: the deck on its piers, lamps along both rails
+  box(-18, (64 + HORN_N) / 2 + 2, 9, HORN_N - 60, 0.5, 1.0, P.Rock, '#8c9096');
+  for (let z = 70; z < HORN_N; z += 12) box(-18, z, 6, 2.5, -4, 4.5, P.Rock, '#9a958c');
+  for (let z = 68; z < HORN_N + 2; z += 8) for (const x of [-22.2, -13.8]) { box(x, z, 0.25, 0.25, 1.5, 3.8, P.Rock, '#3c3d40', 0.5, 900); box(x, z, 0.55, 0.55, 5.2, 0.5, P.Lamp, '#f3e7c8', 0.5, 1000); }
+  claim(-18, HORN_N + 8, 14, 18); // where the bridge lands in Karaköy
+  // the ferry piers along the Horn: Karaköy's by the bridge, Kasımpaşa's and Hasköy's up the water. Each is a stone deck on
+  // the water, the pier hall with its hipped roof and clock turret, a pontoon, and at Karaköy a vapur tied up alongside
+  const pier = (x: number, side: 'n' | 'e', zz: number, big: boolean) => {
+    const L = big ? 26 : 16, D = big ? 11 : 8, hw = big ? 17 : 11, hd = big ? 7.5 : 6;
+    // n: the deck runs along x on the Horn's north bank, its front to the south; e: along z on the Asian shore, front west
+    const [cx, cz, w, d] = side === 'n' ? [x, zz - D / 2 + 1, L, D] : [zz - D / 2 + 1, x, D, L];
+    box(cx, cz, w, d, -2.0, 3.3, P.Rock, '#9b958a', 0.5);
+    claim(cx, cz, w + 4, d + 6);
+    const [hx, hz, hW, hD] = side === 'n' ? [x, zz - D / 2 + 1 + (D - hd) / 2 - 0.5, hw, hd] : [zz - D / 2 + 1 + (D - hd) / 2 - 0.5, x, hd, hw];
+    house(hx, hz, hW, hD, 1.3, big ? 6 : 4.5, P.Tile, '#ece4d2', 0.7);
+    box(hx, hz, 2.6, 2.6, 1.3 + (big ? 6 : 4.5) + 1.6, 3.2, P.Civic, '#ece4d2', 0.3); // the clock turret
+    for (let t = 0; t < 3; t++) box(hx, hz, 2.4 - t * 0.7, 2.4 - t * 0.7, 1.3 + (big ? 6 : 4.5) + 4.8 + t * 0.6, 0.6, P.Lead, '#5d6974');
+    const [px, pz, pw, pd] = side === 'n' ? [x, zz - D - 2.2, L - 4, 3.4] : [zz - D - 2.2, x, 3.4, L - 4];
+    box(px, pz, pw, pd, -0.95, 0.75, P.Rock, '#6d6a66', 0.5, 1200); // the pontoon
+    const [l1x, l1z] = side === 'n' ? [x - L / 2 + 1, zz - D + 1.5] : [zz - D + 1.5, x - L / 2 + 1];
+    const [l2x, l2z] = side === 'n' ? [x + L / 2 - 1, zz - D + 1.5] : [zz - D + 1.5, x + L / 2 - 1];
+    lamp(l1x, l1z, 1.3); lamp(l2x, l2z, 1.3);
+  };
+  pier(8, 'n', HORN_N, true);
+  for (const b of FERRY) box(10 + b[0], HORN_N - 18.6 + b[1], b[2], b[3], b[4], b[5], b[6], b[7], 0.5, 1400);
+  pier(-150, 'n', hornNorth(-150), false);
+  pier(-290, 'n', hornNorth(-290), false);
+  // Galataport along the Bosphorus at Tophane: the long low terminal stepping along the quay, gardens on its roofs
+  for (let z = 252; z < 340; z += 13) {
+    const x = westShore(z) - 10, y = Math.max(1.2, T(x, z));
+    claim(x, z, 14, 13);
+    box(x, z, 12, 12, y - 0.5, 5.6, P.Civic, '#dcd8ce', 0.15);
+    box(x, z, 9, 9, y + 5.1, 0.6, P.Tree, '#4a7438', 0.4, 1200);
+  }
+  mosque(-110, 256, 0.7, 1); // Azapkapı, by the Horn
+  mosque(36, 262, 0.72, 1, '#dcd6c8'); // Kılıç Ali Paşa at Tophane
+  mosque(68, 302, 0.6, 2, '#e2dccf'); // Nusretiye, its minarets slender as pencils
+  mosque(-230, 290, 1.0, 2); // Kasımpaşa across the Horn
+  // the Arab mosque's square minaret, once a church's belfry, among Karaköy's roofs
+  {
+    const x = -62, z = 268, y = H(x, z) - 0.5;
+    claim(x, z, 8, 8);
+    box(x, z, 4.4, 4.4, y, 20, P.Civic, '#c7b9a2', 0.2);
+    box(x, z, 5.0, 5.0, y + 20, 0.6, P.Rock, '#b7a990');
+    for (let t = 0; t < 4; t++) box(x, z, 4.2 - t * 1.0, 4.2 - t * 1.0, y + 20.6 + t * 1.1, 1.15, P.Lead, '#6f7f8f');
+  }
+  // Hagia Sophia's rose walls and great shallow dome, the Blue Mosque's cascade of domes and six minarets
+  {
+    const x = 35, z = -300, y = H(x, z) - 0.5;
+    claim(x, z, 44, 42);
+    box(x, z, 34, 32, y, 13, P.Civic, '#c98f6e', 0.3);
+    for (const dx of [-11, 11]) box(x + dx, z, 8, 30, y + 13, 6, P.Civic, '#c08466', 0.5); // the buttresses
+    box(x, z, 18, 18, y + 13, 2, P.Civic, '#c98f6e', 0.6);
+    for (let t = 0; t < 5; t++) box(x, z, 18 - t * 3.4, 18 - t * 3.4, y + 15 + t * 1.2, 1.25, P.Lead, '#8d98a2');
+    for (const dz of [-9, 9]) domeAt(x, z + dz, 5, y + 13);
+    for (const [dx, dz] of [[-18, -17], [18, -17], [-18, 17], [18, 17]]) minaret(x + dx, z + dz, y, 26, 1.2);
+  }
+  mosque(-35, -360, 1.6, 6, '#cfcac0');
+  // Topkapı on the point: the Tower of Justice and the palace walls in the gardens
+  {
+    const x = 55, z = -190, y = H(x, z) - 0.5;
+    box(x, z, 5, 5, y, 18, P.Lit, '#d6cdbb', 0.2);
+    for (let t = 0; t < 5; t++) box(x, z, 4.4 - t * 0.9, 4.4 - t * 0.9, y + 18 + t * 1.3, 1.35, P.Lead, '#6f7f8f');
+    for (const [bx, bz, bw, bd] of [[40, -175, 30, 10], [70, -205, 14, 26], [30, -215, 20, 12]]) box(bx, bz, bw, bd, H(bx, bz) - 0.5, 6, P.Tile, '#efe6d4', 0.5);
+    for (let k = 0; k < 140; k++) { const tx = 15 + rnd() * 78, tz = -248 + rnd() * 96; if (wet(tx, tz) < -3) box(tx, tz, 3 + rnd() * 3, 3 + rnd() * 3, H(tx, tz) - 0.3, 3 + rnd() * 5, P.Tree, rnd() < 0.5 ? '#3f6a32' : '#2f5a2a', rnd()); }
+  }
+  // the Maiden's Tower on its rock
+  {
+    const x = 175, z = -150;
+    box(x, z, 13, 10, -3, 4.2, P.Rock, '#8a8580');
+    box(x, z, 5, 5, 1.2, 9, P.Flats, '#f2eee6', 0.9);
+    box(x, z, 3, 3, 10.2, 3, P.Flats, '#f2eee6', 0.9);
+    for (let t = 0; t < 4; t++) box(x, z, 2.6 - t * 0.6, 2.6 - t * 0.6, 13.2 + t, 1, P.Lead, '#6f7f8f');
+  }
+  // the great mosques along Fatih's ridge above the Horn, and the arches of the Valens aqueduct between the hills
+  mosque(-310, -100, 1.5, 4);
+  mosque(-470, -40, 1.7, 2);
+  mosque(-430, 70, 1.3, 2);
+  for (let k = 0; k <= 22; k++) {
+    const x = -380 + k * 7, z = -170 + k * 1.2, g = H(x, z);
+    claim(x + 1.7, z, 8, 4);
+    box(x, z, 2.4, 3.4, g - 1, Math.max(4, 18 - (g - 20) * 0.7), P.Hall, '#b9a98e', 0.1);
+    box(x + 3.5, z + 0.6, 4.8, 3.4, g + Math.max(4, 18 - (g - 20) * 0.7) - 4, 4, P.Hall, '#b9a98e', 0.1);
+  }
+  // Üsküdar's mosques on the Asian shore, and the great mosque on Çamlıca's hill
+  mosque(470, 60, 1.2, 2);
+  mosque(445, -30, 0.6, 1);
+  mosque(560, 160, 1.1, 4);
+  mosque(820, 380, 2.4, 6);
+  // the Asian piers where the ferries tie up, each beside its lane across the strait
+  for (const zz of [-26, -84]) pier(zz + 9, 'e', eastShore(zz + 9), true);
+  // Haydarpaşa station on its point: the long stone block, its two round corner towers under pointed lead caps
+  {
+    const x = eastShore(-330) + 16, z = -330, y = Math.max(1.2, H(x, z)) - 0.5;
+    claim(x, z, 22, 50);
+    box(x, z, 16, 40, y, 15, P.Civic, '#cdb08a', 0.25);
+    box(x, z, 17, 41, y + 15, 0.7, P.Rock, '#bfa27e');
+    box(x, z, 12, 34, y + 15.7, 3, P.Lead, '#5d6974');
+    for (const dz of [-20, 20]) {
+      round(x - 6, z + dz, 3.4, y, 21, P.Civic, '#cdb08a', 0.6);
+      for (let t = 0; t < 6; t++) round(x - 6, z + dz, Math.max(0.3, 3.3 * (1 - t / 6)), y + 21 + t * 1.3, 1.35, P.Lead, '#5d6974');
+    }
+  }
+  // the Selimiye barracks above Harem: four long wings round a parade ground, a tower with a pyramid roof at each corner
+  {
+    const x = eastShore(-230) + 52, z = -230, y = Math.max(1.2, H(x, z)) - 0.8;
+    claim(x, z, 66, 66);
+    for (const [dx, dz, w, d] of [[0, -28, 56, 8], [0, 28, 56, 8], [-28, 0, 8, 56], [28, 0, 8, 56]]) house(x + dx, z + dz, w, d, y, 10, P.Tile, '#e6dcc6', 0.3);
+    for (const [dx, dz] of [[-28, -28], [28, -28], [-28, 28], [28, 28]]) {
+      box(x + dx, z + dz, 9, 9, y, 16, P.Civic, '#e6dcc6', 0.7);
+      for (let t = 0; t < 5; t++) box(x + dx, z + dz, 9.6 - t * 1.9, 9.6 - t * 1.9, y + 16 + t * 0.9, 0.9, P.Lead, '#5d6974');
+    }
+  }
+  // Levent's towers far up the European side, the skyline you see over Beyoğlu's ridge on a clear day
+  for (let k = 0; k < 11; k++) {
+    const x = 240 + rnd() * 380, z = 1430 + rnd() * 220, y = H(x, z) - 1, w = 18 + rnd() * 16, d = 18 + rnd() * 14, h = 80 + rnd() * 120;
+    box(x, z, w, d, y, h, P.Flats, pick(['#6f7f8c', '#8a96a0', '#c9ccc8', '#5d6b78']), 0.9);
+    box(x, z, w * 0.7, d * 0.7, y + h, 6 + rnd() * 10, P.Flats, '#9aa3aa', 0.9);
+  }
+
+  // ------------------------------------------------------------------- the hillside quarters you look at across the water
+  const WOOD = ['#b5523b', '#7a3b2e', '#c99a4b', '#6d5a4a', '#9aa39a', '#d9b47a', '#8a4b3a', '#e7d6b5', '#c7c0ad'];
+  const PERA = ['#e8dcc4', '#d9c7a6', '#efe2cc', '#d8cbb4', '#e3b8a0', '#c9b49a', '#f1d9a8', '#dcc7b0', '#cfc3b0'];
+  const MODERN = ['#f3efe6', '#e9e4da', '#dfe0dc', '#f1e6d2', '#e6d8c2', '#d6d3cc'];
+  const AWNING = ['#a8323a', '#2f6b4a', '#2f4f7a', '#c58b2e', '#7a2f2a', '#e8dcc0'];
+  const shade = (hex: string, k: number) => '#' + col.set(hex).multiplyScalar(k).getHexString();
+  /**
+   * A hillside quarter in rows along the contours, the houses shoulder to shoulder with their fronts to the water and a
+   * stepped lane between each row and the next, so the hill climbs in roofs and facades instead of bare terraces. Side
+   * 'n' is the Horn's north bank (rows run along x, fronts face south), 'e' the Asian shore (rows along z, fronts west).
+   * Three kinds of house: old wooden ones with a bay window (cumba) under a tiled roof; Pera's stone and stucco blocks
+   * with cornices, iron balconies, shop awnings and mansards or corner domes; and newer flats with long balconies and a
+   * set-back top floor. The near rows get the small things; the far rows only walls and roofs.
+   */
+  const rowTown = (side: 'n' | 'e', a0: number, aEnd: (b: number) => number, shore: (a: number) => number, rows: number, detailRows: number, woodP: number, modernP: number) => {
+    const xz = (a: number, b: number): [number, number] => (side === 'n' ? [a, b] : [b, a]);
+    const at = (a: number, b: number, wa: number, db: number, y: number, h: number, kind: number, hex: string, s = 0.5, lod = 0) =>
+      side === 'n' ? box(a, b, wa, db, y, h, kind, hex, s, lod) : box(b, a, db, wa, y, h, kind, hex, s, lod);
+    const Tl = (a: number, b: number) => { const [x, z] = xz(a, b); return T(x, z); };
+    const wetl = (a: number, b: number) => { const [x, z] = xz(a, b); return wet(x, z); };
+    let off = 9;
+    for (let r = 0; r < rows; r++) {
+      // the upper rows, seen only as the skyline over the near ones, in bigger blocks: fewer boxes for the same roofs
+      const big = r >= detailRows * 2 ? 1.6 : 1;
+      const depth = (8 + rnd() * 4) * big;
+      if (r > 0) off += 2.5 + rnd() * 2.5;
+      const detail = r < detailRows;
+      let a = a0 + rnd() * 5;
+      for (let guard = 0; guard < 500 && a <= aEnd(shore(a) + off); guard++) {
+        const roll = rnd();
+        const style = roll < woodP + r * 0.012 ? 0 : roll < woodP + modernP ? 2 : 1; // 0 wooden, 1 Pera, 2 flats
+        const wa = (style === 0 ? 5 + rnd() * 2.5 : style === 1 ? 7 + rnd() * 5 : 9 + rnd() * 5) * big;
+        const db = style === 0 ? Math.min(depth, (7 + rnd() * 2) * big) : depth;
+        const ac = a + wa / 2;
+        const b0 = shore(ac) + off; // the front
+        const [cx, cz] = xz(ac, b0 + db / 2);
+        const [wx, wz] = side === 'n' ? [wa, db] : [db, wa];
+        a += wa + (rnd() < 0.1 ? 3 + rnd() * 2 : style === 0 ? 0.4 : 0);
+        if (outside(cx, cz) < Math.max(wa, db) / 2 + 1) continue;
+        if (wetl(ac - wa / 2, b0) > -1.5 || wetl(ac + wa / 2, b0) > -1.5 || parkAt(cx, cz) || !free(cx, cz, wx, wz)) continue;
+        const fl = Tl(ac - wa / 2, b0), fr = Tl(ac + wa / 2, b0), bl = Tl(ac - wa / 2, b0 + db), br = Tl(ac + wa / 2, b0 + db);
+        const lo = Math.min(fl, fr, bl, br), hi = Math.max(fl, fr, bl, br), gf = Math.min(fl, fr);
+        if (lo < 0.8 || hi - lo > 12) continue;
+        claim(cx, cz, wx, wz);
+        const base = lo - 0.5;
+        const floors = style === 0 ? 2 + (rnd() < 0.55 ? 1 : 0) : style === 1 ? 4 + Math.floor(rnd() * 3) : 5 + Math.floor(rnd() * 4);
+        const nf = floors + Math.round((hi - lo) / 4);
+        const h = nf * 3 + (style === 0 ? 0.4 : 0.8), top = base + h;
+        const s = rnd();
+        // the first floor line at least a storey above the street in front: bay windows and balconies start there
+        const yF = base + 3 * Math.ceil((gf + 2.4 - base) / 3);
+        if (style === 0) {
+          const hex = pick(WOOD);
+          house(cx, cz, wx, wz, base, h, P.Tile, hex, s);
+          if (detail && top - 0.4 - yF > 2.4) {
+            const cw = Math.min(wa - 1.6, 2.6 + rnd() * 1.2);
+            at(ac, b0 - 0.45, cw, 0.9, yF, top - 0.4 - yF, P.Bay, shade(hex, 0.92), s, 900);
+          }
+          continue;
+        }
+        const hex = style === 1 ? pick(PERA) : pick(MODERN);
+        at(ac, b0 + db / 2, wa, db, base, h, P.Flats, hex, s);
+        const nb = Math.floor((top - 2.2 - yF) / 3) + 1;
+        if (detail) {
+          const trim = shade(hex, 1.12);
+          if (style === 1) {
+            at(ac, b0 - 0.05, wa + 0.5, 0.5, top - 0.55, 0.65, P.Rock, trim, 0.5, 1000); // the cornice
+            at(ac, b0 - 0.02, wa + 0.2, 0.36, yF - 0.32, 0.3, P.Rock, trim, 0.5, 650); // the string course over the shops
+          }
+          if (nb > 0) at(ac, b0 - 0.45, style === 1 ? wa * (0.45 + rnd() * 0.25) : wa - 0.8, 0.9, yF, 3 * (nb - 1) + 0.2, P.Balcony, shade(hex, 0.95), style === 1 ? s * 0.49 : 0.51 + s * 0.49, 800);
+          if ((r < 3 || rnd() < 0.3) && Math.abs(fr - fl) < 1.6 && rnd() < 0.7)
+            at(ac, b0 - 0.75, wa - 1.2, 1.5, gf + 2.5, 0.28, P.Awning, pick(AWNING), rnd(), 550);
+        }
+        // the roofs: mansards in slate, a corner dome, a set-back top floor, water tanks
+        const rr = rnd();
+        if (style === 1 && rr < 0.3) {
+          at(ac, b0 + db / 2, wa - 1.2, db - 1.2, top, 2.4, P.Lead, '#5f6872', s);
+          at(ac, b0 + db / 2, wa - 3, db - 3, top + 2.4, 0.5, P.Lead, '#4f5862', s, 1000);
+        } else if (style === 1 && rr < 0.42 && detail) {
+          const dc = ac + (rnd() < 0.5 ? -1 : 1) * (wa / 2 - 1.5);
+          at(dc, b0 + 1.5, 2.8, 2.8, top, 1.8, P.Flats, hex, s);
+          const [dx, dz] = xz(dc, b0 + 1.5);
+          domeAt(dx, dz, 1.4, top + 1.8);
+        } else if (style === 2 && rr < 0.55) {
+          at(ac, b0 + db * 0.6, wa * 0.55, db * 0.5, top, 2.8, P.Flats, hex, s);
+        } else if (detail && rr < 0.8) {
+          at(ac + (rnd() - 0.5) * (wa - 2), b0 + db * (0.4 + rnd() * 0.4), 1.3, 1.3, top, 1.2, P.Flats, '#e8e8e6', 0.9, 500);
+        }
+      }
+      off += depth;
+    }
+  };
+  // the north bank: Karaköy's quays, Galata and Beyoğlu up the hill, Kasımpaşa as the Horn bends; rows stop short of the
+  // Bosphorus, where Tophane and Cihangir look down on Galataport
+  rowTown('n', -330, (b) => westShore(b) - 12, hornNorth, 34, 9, 0.28, 0.22);
+  // the Asian shore: Üsküdar and Kuzguncuk to the north, Harem and Kadıköy to the south
+  rowTown('e', -400, () => 250, eastShore, 17, 5, 0.34, 0.38);
+
+  // the quay lamps and plane trees along the Horn's north bank and the Asian waterfront
+  for (let x = -322; x < 26; x += 16) {
+    if (Math.abs(x + 18) < 9) continue;
+    const z = hornNorth(x) + 3.5, y = T(x, z);
+    if (y < 0.5 || y > 3 || !free(x, z, 1, 1)) continue;
+    lamp(x, z, y);
+    if (pm(x, 32) < 16 && free(x + 8, z + 2, 4, 4)) { claim(x + 8, z + 2, 4, 4); tree(x + 8, z + 2, y, 0.9, 1200); }
+  }
+  for (let z = -390; z < 250; z += 18) {
+    const x = eastShore(z) + 3.5, y = T(x, z);
+    if (y < 0.5 || y > 3 || !free(x, z, 1, 1)) continue;
+    lamp(x, z, y);
+  }
+  // fishing boats tied up along the north bank
+  for (let k = 0; k < 16; k++) {
+    const x = -320 + rnd() * 290;
+    if (Math.abs(x + 18) < 12 || Math.abs(x + 150) < 12) continue;
+    const z = hornNorth(x) - 3.5 - rnd() * 2;
+    box(x, z, 5.5, 2.0, -1.0, 1.1, P.Rock, pick(['#f0ece2', '#2f4f7a', '#e8dcc0', '#a8323a']), 0.5, 1100);
+    box(x - 0.8, z, 1.8, 1.4, 0.1, 1.2, P.Flats, '#f2efe8', 0.5, 800);
+  }
+  // trees in the gaps the houses leave on the facing hills: cypresses and planes over the lanes and in the gardens
+  const plant = (ax: number, bx: number, az: number, bz: number, tries: number, want: number, lod: number) => {
+    let got = 0;
+    for (let i = 0; i < tries && got < want; i++) {
+      const x = ax + rnd() * (bx - ax), z = az + rnd() * (bz - az);
+      if (outside(x, z) < 4 || wet(x, z) > -3) continue;
+      const y = T(x, z);
+      if (y < 0.8 || !cells(x, z, 3, 3, 0, (c) => occ[c] === 0)) continue;
+      claim(x, z, 3, 3);
+      tree(x, z, y, 0.8 + rnd() * 0.5, lod);
+      got++;
+    }
+  };
+  plant(-340, 330, HORN_N, 760, 8000, 650, 0);
+  plant(380, 760, -420, 260, 5000, 380, 0);
+
+  // the rest of the city: blocks of flats and old houses on every patch of dry land, thinning out up the hills
+  const scatter0 = parts.length / 12;
+  for (let i = 0; i < 26000 && parts.length / 12 - scatter0 < 5200; i++) {
     const r = 40 + Math.pow(rnd(), 1.6) * 1500, a = rnd() * Math.PI * 2;
     const x = mx + Math.cos(a) * r * 1.1, z = mz + Math.sin(a) * r;
     const o = outside(x, z);
     const w = 6 + rnd() * 8, dd = 6 + rnd() * 8;
     if (o < Math.max(w, dd) / 2 + 0.5) continue;
-    if (wet(x, z) > -w * 0.6 || parkAt(x, z)) continue;
+    if (wet(x, z) > -w * 0.6 || parkAt(x, z) || !free(x, z, w, dd)) continue;
     const hs4 = [H(x - w / 2, z - dd / 2), H(x + w / 2, z - dd / 2), H(x - w / 2, z + dd / 2), H(x + w / 2, z + dd / 2)];
     const lo = Math.min(...hs4), hi = Math.max(...hs4);
     if (lo < 0.8 || hi - lo > 8 || (hi > 140 && rnd() < 0.7)) continue;
+    claim(x, z, w, dd);
     const tall = (o < 60 ? 6 + rnd() * 9 : 8 + rnd() * 16) * (hi > 60 ? 0.7 : 1);
-    const tile = rnd() < 0.35 ? 1 : 0;
+    const tile = rnd() < 0.35 ? P.Tile : P.Flats;
     house(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + tall, tile, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
+    // a garden tree now and then among them, so the far hills aren't only boxes
+    if (rnd() < 0.12) {
+      const tx = x + (w / 2 + 2.5) * (rnd() < 0.5 ? -1 : 1), tz = z + (rnd() - 0.5) * dd;
+      const ty = H(tx, tz);
+      if (ty > 0.8 && wet(tx, tz) < -3 && free(tx, tz, 3, 3)) { claim(tx, tz, 3, 3); tree(tx, tz, ty, 1.2, 0); }
+    }
   }
-  // the shores you look at from the map get the city packed tight: Karaköy and Beyoğlu climbing the hill across the
-  // Horn, Üsküdar and Kadıköy across the strait; the houses step up the slopes shoulder to shoulder, never bare hill
+  // right up against the map's west and south sides, so the town's own houses run on into these without a gap
   const pack = (ax: number, bx: number, az: number, bz: number, tries: number, lo0: number, hi0: number) => {
     for (let i = 0; i < tries; i++) {
       const x = ax + rnd() * (bx - ax), z = az + rnd() * (bz - az);
@@ -312,69 +676,12 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
       const hs4 = [H(x - w / 2, z - dd / 2), H(x + w / 2, z - dd / 2), H(x - w / 2, z + dd / 2), H(x + w / 2, z + dd / 2)];
       const lo = Math.min(...hs4), hi = Math.max(...hs4);
       if (lo < 0.8 || hi - lo > 10) continue;
-      house(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + lo0 + rnd() * (hi0 - lo0), rnd() < 0.45 ? 1 : 0, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
+      claim(x, z, w, dd);
+      house(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + lo0 + rnd() * (hi0 - lo0), rnd() < 0.45 ? P.Tile : P.Flats, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
     }
   };
-  pack(-320, 140, HORN_N - 6, 520, 1500, 7, 17);
-  // and right up against the map's west and south sides, so the town's own houses run on into these without a gap
   pack(x0 - 70, x0, z0 - 70, z1, 1400, 5, 12);
   pack(x0, x1, z0 - 70, z0, 1400, 5, 12);
-  pack(400, 640, -420, 240, 900, 6, 15);
-  // the landmarks, readable from the quays: Galata's tower on its hill across the Horn
-  {
-    const x = -25, z = 300, y = H(x, z) - 0.5;
-    box(x, z, 9, 9, y, 30, 7, '#a89a86', 0.3);
-    box(x, z, 10, 10, y + 30, 1, 7, '#b8ab96', 0.4);
-    box(x, z, 9, 9, y + 31, 4, 7, '#a89a86', 0.7); // the gallery
-    for (let t = 0; t < 7; t++) box(x, z, 9 - t * 1.25, 9 - t * 1.25, y + 35 + t * 1.3, 1.35, 2, '#6f7f8f');
-    box(x, z, 0.3, 0.3, y + 44, 1.5, 4, '#c9a24a');
-  }
-  // the Galata Bridge carries on across the Horn to Karaköy: the deck on its piers, lamps along both rails
-  box(-18, (64 + HORN_N) / 2 + 2, 9, HORN_N - 60, 0.5, 1.0, 8, '#8c9096');
-  for (let z = 70; z < HORN_N; z += 12) box(-18, z, 6, 2.5, -4, 4.5, 8, '#9a958c');
-  for (let z = 68; z < HORN_N + 2; z += 8) for (const x of [-22.2, -13.8]) box(x, z, 0.25, 0.25, 1.5, 3.8, 7, '#3c3d40');
-  // Hagia Sophia's rose walls and great shallow dome, the Blue Mosque's cascade of domes and six minarets
-  {
-    const x = 35, z = -300, y = H(x, z) - 0.5;
-    box(x, z, 34, 32, y, 13, 6, '#c98f6e', 0.3);
-    for (const dx of [-11, 11]) box(x + dx, z, 8, 30, y + 13, 6, 6, '#c08466', 0.5); // the buttresses
-    box(x, z, 18, 18, y + 13, 2, 6, '#c98f6e', 0.6);
-    for (let t = 0; t < 5; t++) box(x, z, 18 - t * 3.4, 18 - t * 3.4, y + 15 + t * 1.2, 1.25, 2, '#8d98a2');
-    for (const dz of [-9, 9]) domeAt(x, z + dz, 5, y + 13);
-    for (const [dx, dz] of [[-18, -17], [18, -17], [-18, 17], [18, 17]]) minaret(x + dx, z + dz, y, 26, 1.2);
-  }
-  mosque(-35, -360, 1.6, 6, '#cfcac0');
-  // Topkapı on the point: the Tower of Justice and the palace walls in the gardens
-  {
-    const x = 55, z = -190, y = H(x, z) - 0.5;
-    box(x, z, 5, 5, y, 18, 7, '#d6cdbb', 0.2);
-    for (let t = 0; t < 5; t++) box(x, z, 4.4 - t * 0.9, 4.4 - t * 0.9, y + 18 + t * 1.3, 1.35, 2, '#6f7f8f');
-    for (const [bx, bz, bw, bd] of [[40, -175, 30, 10], [70, -205, 14, 26], [30, -215, 20, 12]]) box(bx, bz, bw, bd, H(bx, bz) - 0.5, 6, 1, '#efe6d4', 0.5);
-    for (let k = 0; k < 140; k++) { const tx = 15 + rnd() * 78, tz = -248 + rnd() * 96; if (wet(tx, tz) < -3) box(tx, tz, 3 + rnd() * 3, 3 + rnd() * 3, H(tx, tz) - 0.3, 3 + rnd() * 5, 5, rnd() < 0.5 ? '#3f6a32' : '#2f5a2a', rnd()); }
-  }
-  // the Maiden's Tower on its rock
-  {
-    const x = 175, z = -150;
-    box(x, z, 13, 10, -3, 4.2, 8, '#8a8580');
-    box(x, z, 5, 5, 1.2, 9, 0, '#f2eee6', 0.9);
-    box(x, z, 3, 3, 10.2, 3, 0, '#f2eee6', 0.9);
-    for (let t = 0; t < 4; t++) box(x, z, 2.6 - t * 0.6, 2.6 - t * 0.6, 13.2 + t, 1, 2, '#6f7f8f');
-  }
-  // the great mosques along Fatih's ridge above the Horn, and the arches of the Valens aqueduct between the hills
-  mosque(-310, -100, 1.5, 4);
-  mosque(-470, -40, 1.7, 2);
-  mosque(-430, 70, 1.3, 2);
-  mosque(-230, 290, 1.0, 2); // Kasımpaşa across the Horn
-  for (let k = 0; k <= 22; k++) {
-    const x = -380 + k * 7, z = -170 + k * 1.2, g = H(x, z);
-    box(x, z, 2.4, 3.4, g - 1, Math.max(4, 18 - (g - 20) * 0.7), 3, '#b9a98e', 0.1);
-    box(x + 3.5, z + 0.6, 4.8, 3.4, g + Math.max(4, 18 - (g - 20) * 0.7) - 4, 4, 3, '#b9a98e', 0.1);
-  }
-  // Üsküdar's mosques on the Asian shore, and the great mosque on Çamlıca's hill
-  mosque(470, 60, 1.2, 2);
-  mosque(445, -30, 0.6, 1);
-  mosque(560, 160, 1.1, 4);
-  mosque(820, 380, 2.4, 6);
 
   const n = parts.length / 12;
   const g = new THREE.InstancedBufferGeometry();
@@ -387,12 +694,13 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
   g.setAttribute('aBox', new THREE.InterleavedBufferAttribute(ib, 4, 0));
   g.setAttribute('aPart', new THREE.InterleavedBufferAttribute(ib, 4, 4));
   g.setAttribute('aCol', new THREE.InterleavedBufferAttribute(ib, 3, 8));
+  g.setAttribute('aLod', new THREE.InterleavedBufferAttribute(ib, 1, 11));
   g.instanceCount = n;
   const houses = new THREE.Mesh(g, new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
     uniforms: u,
     vertexShader: /* glsl */ `
-      in vec4 aBox; in vec4 aPart; in vec3 aCol;
+      in vec4 aBox; in vec4 aPart; in vec3 aCol; in float aLod;
       ${SQUASH}
       out vec3 vWorld; out vec3 vN; out vec3 vLocal; out vec3 vSize; out vec4 vPart; out vec3 vCol;
       void main() {
@@ -400,6 +708,8 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
         vLocal = vec3(position.x * aBox.z, position.y * h, position.z * aBox.w);
         vec3 p = vec3(aBox.x + vLocal.x, y0 + vLocal.y, aBox.y + vLocal.z);
         vWorld = p; vN = normal; vSize = vec3(aBox.z, h, aBox.w); vPart = aPart; vCol = aCol;
+        // the small things (balconies, awnings, lamps, the top courses of roofs) drop out past their distance
+        if (aLod > 0.0 && distance(cameraPosition.xz, p.xz) > aLod) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
         float s = squash(aBox.xy);
         if (s < 0.6) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
         p.y *= s;
@@ -415,42 +725,79 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
       layout(location = 0) out vec4 outColor;
       void main() {
         vec3 n = vN;
-        float seed = vPart.z, kind = vPart.w;
+        float seed = vPart.z;
+        int k = int(vPart.w + 0.5);
         vec3 alb = srgb2lin(vCol);
         float fw = fwidth(vWorld.x + vWorld.z);
         float fine = 1.0 - smoothstep(0.25, 0.8, fw);
         bool wall = abs(n.y) < 0.5;
         float u = abs(n.x) > 0.5 ? vLocal.z : vLocal.x;
         float y = vLocal.y;
-        float win = 0.0;
+        float win = 0.0, frame = 0.0, shop = 0.0;
         vec2 cell = vec2(0.0);
-        bool lead = kind > 1.5 && kind < 2.5, tree = kind > 4.5 && kind < 5.5, rock = kind > 7.5;
+        bool homes = k == 0 || k == 1 || k == 6 || k == 7 || k == 11;
         // a quarter-metre grain, the voxels of the town carried out to the horizon
         alb *= 0.94 + 0.12 * hash12(floor(vec2(u * 4.0 + n.z * 13.0, y * 4.0)) + seed * 17.0);
-        if (wall && !lead && !tree && !rock) {
-          if (kind < 1.5 || kind > 5.5) {
-            // flats and houses: a window every two metres, a floor every three; shutters on the old houses
-            cell = vec2(floor((u + 40.0) / 2.0), floor(y / 3.0));
-            vec2 f = vec2(fract((u + 40.0) / 2.0), fract(y / 3.0));
-            win = step(0.3, f.x) * step(f.x, 0.7) * step(0.28, f.y) * step(f.y, 0.78) * step(2.0, y) * step(y, vSize.y - 1.2);
-            alb = mix(alb, srgb2lin(vec3(0.16, 0.18, 0.2)), win * fine * 0.9);
-          } else if (kind < 3.5) {
-            // mosque walls: two rows of arched windows
-            cell = vec2(floor((u + 40.0) / 2.4), floor(y / 3.4));
-            vec2 f = vec2(fract((u + 40.0) / 2.4), fract(y / 3.4));
-            win = step(0.35, f.x) * step(f.x, 0.65) * step(0.3, f.y) * step(f.y, 0.85 - abs(f.x - 0.5) * 0.4) * step(y, vSize.y - 1.0);
-            alb = mix(alb, srgb2lin(vec3(0.12, 0.13, 0.15)), win * fine * 0.8);
-          } else {
-            // a minaret: the balconies are dark bands
-            float band = step(0.72, fract(y / max(1.0, vSize.y) * 2.0)) * step(fract(y / max(1.0, vSize.y) * 2.0), 0.76);
-            alb = mix(alb, srgb2lin(vec3(0.5, 0.48, 0.44)), band);
+        // balconies: a slab on every floor line and a railing on it, iron bars (seed < 0.5) or a solid parapet; between
+        // them the stack is glazed and walled like the facade behind it, so it reads as the balconied bay of the front.
+        // No discard here: the far city must keep early depth rejection behind the town's voxels
+        float fy = mod(y, 3.0);
+        bool rail = k == 10 && fy <= 1.05;
+        if (rail) {
+          if (fy > 0.24) {
+            float bar = seed < 0.5 ? mix(0.6, step(0.45, fract(u * 5.0)), fine) : 0.0;
+            alb = mix(alb * 0.9, srgb2lin(vec3(0.16, 0.16, 0.17)), seed < 0.5 ? 1.0 - bar * 0.55 : 0.0);
           }
-        } else if (n.y > 0.5 && kind < 0.5) {
+        } else if (k == 9) {
+          alb = mix(alb, srgb2lin(vec3(0.93, 0.9, 0.84)), step(0.5, fract(u * 1.4)) * 0.85); // awning stripes
+        } else if (wall && (homes || k == 10)) {
+          if (k == 11) {
+            // a bay window: glazed nearly all round, a sill and a corbel below
+            cell = vec2(floor((u + 40.0) / 0.9), floor(y / 3.0));
+            vec2 f = vec2(fract((u + 40.0) / 0.9), fract(y / 3.0));
+            win = step(0.14, f.x) * step(f.x, 0.86) * step(0.22, f.y) * step(f.y, 0.8) * step(0.5, y);
+          } else {
+            // windows on a pitch of its own for every house, a frame round each; shutters on some old houses;
+            // shop fronts on the ground floor of the blocks
+            float sp = 1.7 + fract(seed * 7.31) * 0.9, hw = 0.17 + fract(seed * 3.17) * 0.09;
+            cell = vec2(floor((u + 40.0) / sp), floor(y / 3.0));
+            vec2 f = vec2(fract((u + 40.0) / sp), fract(y / 3.0));
+            shop = (k == 0 && cell.y < 0.5 && vSize.y > 9.0) ? 1.0 : 0.0;
+            float wy0 = mix(0.28, 0.1, shop), wy1 = mix(0.78, 0.86, shop), whw = mix(hw, 0.42, shop);
+            float inside = step(abs(f.x - 0.5), whw) * step(wy0, f.y) * step(f.y, wy1);
+            float outer = step(abs(f.x - 0.5), whw + 0.07) * step(wy0 - 0.04, f.y) * step(f.y, wy1 + 0.05);
+            float ok = step(k == 10 ? 0.0 : 1.2, y) * step(y, vSize.y - 1.0);
+            win = inside * ok;
+            frame = (outer - inside) * ok * (1.0 - shop);
+            alb *= 1.0 + frame * fine * 0.28;
+            if (k == 1 && seed < 0.4) {
+              float sh = step(abs(f.x - 0.5), whw + 0.17) * step(wy0, f.y) * step(f.y, wy1) * (1.0 - step(abs(f.x - 0.5), whw + 0.07)) * ok;
+              alb = mix(alb, seed < 0.2 ? srgb2lin(vec3(0.24, 0.36, 0.26)) : srgb2lin(vec3(0.36, 0.24, 0.17)), sh * fine);
+            }
+          }
+        } else if (wall && k == 14) {
+          // Galata's stone: narrow arched slits, few and far between
+          cell = vec2(floor((u + 40.0) / 3.4), floor(y / 5.2));
+          vec2 f = vec2(fract((u + 40.0) / 3.4), fract(y / 5.2));
+          float slit = step(abs(f.x - 0.5), 0.07) * step(0.35, f.y) * step(f.y, 0.78 - abs(f.x - 0.5) * 0.8) * step(4.0, y);
+          alb = mix(alb, srgb2lin(vec3(0.1, 0.1, 0.11)), slit * fine * 0.9);
+          alb *= 1.0 - step(0.96, fract(y / 1.3)) * 0.12 * fine; // the courses of stone
+        } else if (wall && k == 3) {
+          // mosque walls: two rows of arched windows
+          cell = vec2(floor((u + 40.0) / 2.4), floor(y / 3.4));
+          vec2 f = vec2(fract((u + 40.0) / 2.4), fract(y / 3.4));
+          float w3 = step(0.35, f.x) * step(f.x, 0.65) * step(0.3, f.y) * step(f.y, 0.85 - abs(f.x - 0.5) * 0.4) * step(y, vSize.y - 1.0);
+          alb = mix(alb, srgb2lin(vec3(0.12, 0.13, 0.15)), w3 * fine * 0.8);
+        } else if (wall && k == 4) {
+          // a minaret: the balconies are dark bands
+          float band = step(0.72, fract(y / max(1.0, vSize.y) * 2.0)) * step(fract(y / max(1.0, vSize.y) * 2.0), 0.76);
+          alb = mix(alb, srgb2lin(vec3(0.5, 0.48, 0.44)), band);
+        } else if (n.y > 0.5 && k == 0) {
           alb = mix(alb * 0.86, srgb2lin(vec3(0.7, 0.7, 0.72)), step(0.82, hash12(floor(vLocal.xz * 0.6) + seed * 5.0))); // tanks and dishes
-        } else if (n.y > 0.5 && kind < 1.5) {
+        } else if (n.y > 0.5 && (k == 1 || k == 11)) {
           alb = srgb2lin(vec3(0.66, 0.3, 0.2)) * (0.85 + 0.15 * step(0.5, fract(vLocal.x * 2.0)));
         }
-        if (tree) alb *= 0.8 + 0.4 * hash12(floor(vLocal.xz * 2.0 + vLocal.y * 2.0) + seed);
+        if (k == 5) alb *= 0.8 + 0.4 * hash12(floor(vLocal.xz * 2.0 + vLocal.y * 2.0) + seed);
         float ndl = max(dot(n, uSunDir), 0.0);
         vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
         vec3 col = alb * (uSunColor * ndl * 0.9 + hemi);
@@ -460,12 +807,18 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
         else { fa = vLocal.xz + vSize.xz * 0.5; fe = vSize.xz; }
         float d = min(min(fa.x, fe.x - fa.x), min(fa.y, fe.y - fa.y));
         col *= 1.0 + (1.0 - smoothstep(0.0, 0.15 + fw * 0.7, d)) * 0.18;
-        if (win > 0.0 && (kind < 1.5 || kind > 5.5)) {
-          float on = step(hash12(cell * vec2(1.7, 3.1) + seed * 91.0 + n.xz * 7.0), 0.16 + 0.24 * uNight);
-          col += win * on * uWindowColor * uNight * 0.5;
+        if (win > 0.0) {
+          // the glass: dark, with the sky in it by day; at night a share of the rooms lit, warm or the blue of a screen
+          vec3 glass = srgb2lin(vec3(0.1, 0.12, 0.14)) * hemi + uSkyColor * 0.14 * (1.0 - uNight);
+          col = mix(col, glass, win * fine * 0.92);
+          float hr = hash12(cell * vec2(1.7, 3.1) + seed * 91.0 + n.xz * 7.0);
+          float on = step(hr, mix(0.16 + 0.26 * uNight, 0.6, shop));
+          vec3 tint = mix(vec3(1.0, 0.86, 0.66), vec3(0.75, 0.85, 1.0), step(0.85, fract(hr * 13.7)));
+          col += win * on * uWindowColor * tint * uNight * mix(0.55, 0.8, shop);
         }
-        // the mosques are floodlit at night, warm on the stone and the lead
-        if (kind > 1.5 && kind < 4.5 || kind > 5.5 && kind < 7.5) col += alb * uWindowColor * uNight * 0.35;
+        if (k == 12) col += uWindowColor * uNight * 2.2; // the lanterns
+        // the mosques, the tower and the old stone halls are floodlit at night, warm on the stone and the lead
+        if (k == 2 || k == 3 || k == 4 || k == 6 || k == 7 || k == 14) col += alb * uWindowColor * uNight * 0.35;
         outColor = vec4(haze(col, vWorld), 1.0);
       }`,
   }));
@@ -480,15 +833,7 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
     .replace('squash(aBox.xy)', 'squash(aBox.xy + uOff)');
   const fp: number[] = [];
   const fbox = (x: number, z: number, w: number, d: number, y: number, h: number, kind: number, hex: string) => { col.set(hex); fp.push(x, z, w, d, y, h, 0.5, kind, col.r, col.g, col.b, 0); };
-  // a Şehir Hatları vapur, 34 m: black hull, white bulwark and saloons, a yellow funnel with a black top, a wheelhouse at each end
-  fbox(0, 0, 30, 8.4, -1.2, 2.4, 8, '#26282e');
-  for (const e of [-1, 1]) { fbox(e * 16, 0, 3, 6.2, -1.2, 2.4, 8, '#26282e'); fbox(e * 17.6, 0, 1.4, 3.4, -1.0, 2.2, 8, '#26282e'); }
-  fbox(0, 0, 33, 8.6, 1.2, 0.8, 8, '#f0ede6');
-  fbox(0, 0, 27, 7.4, 2.0, 4.6, 6, '#f2efe8');
-  fbox(0, 0, 21, 6.6, 6.6, 0.4, 8, '#d6d2ca');
-  for (const e of [-1, 1]) fbox(e * 9.5, 0, 3, 5, 7.0, 2.0, 6, '#f2efe8');
-  fbox(0, 0, 2.6, 2.2, 7.0, 3.6, 8, '#e9b830');
-  fbox(0, 0, 2.7, 2.3, 10.6, 0.8, 8, '#1e1e20');
+  for (const f of FERRY) fbox(...f);
   const fg = new THREE.InstancedBufferGeometry();
   fg.index = unit.index;
   fg.setAttribute('position', unit.attributes.position);
@@ -497,6 +842,7 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
   fg.setAttribute('aBox', new THREE.InterleavedBufferAttribute(fib, 4, 0));
   fg.setAttribute('aPart', new THREE.InterleavedBufferAttribute(fib, 4, 4));
   fg.setAttribute('aCol', new THREE.InterleavedBufferAttribute(fib, 3, 8));
+  fg.setAttribute('aLod', new THREE.InterleavedBufferAttribute(fib, 1, 11));
   fg.instanceCount = fp.length / 12;
   const ferries = new THREE.Group();
   // two lines, each its own lane across the strait; they turn round just off the European piers and dwell at the Asian ones

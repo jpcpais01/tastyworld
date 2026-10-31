@@ -510,6 +510,18 @@ function masonry(c: AC, x: number, y: number, z: number, white: boolean): number
   return n < 0.4 ? c.dryStone : n < 0.75 ? c.dryStoneB : n < 0.9 ? c.tufa : c.limeDark;
 }
 
+/**
+ * Limestone of the coast: beds a metre or so thick, gently tilted, stained in long dark streaks where the water
+ * runs down, a tuft of caper or broom on a ledge here and there.
+ */
+function cliffRock(c: AC, x: number, y: number, z: number): number {
+  const n = hash3(x, y >> 1, z);
+  if (hash3(x >> 1, 7, z >> 1) < 0.1 && hash3(x >> 1, y >> 4, z >> 1) < 0.8) return c.cliffStreak;
+  if (n < 0.025) return c.herb;
+  const bed = hash3(0, (y + ((x + z) >> 4)) >> 2, 11);
+  return bed < 0.28 ? c.limeDark : bed < 0.78 ? (n < 0.5 ? c.lime : c.limeLight) : c.limeLight;
+}
+
 function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: number, wz1: number): void {
   const g = b.grid;
   // whole bricks under the lowest ground of each 8 x 8 column are bedrock
@@ -554,13 +566,32 @@ function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: n
           case K.Lane: return d === 0 ? (hash3(xx >> 1, 6, zz >> 1) < 0.5 ? c.cobble : c.cobbleB) : masonry(c, xx, y, zz, white);
           case K.Lot: return masonry(c, xx, y, zz, false);
           default: {
-            if (wild) { const n = hash3(xx, y >> 1, zz); return d === 0 ? (n < 0.4 ? c.grassDry : n < 0.7 ? c.herb : c.lime) : n < 0.15 ? c.cliffStreak : n < 0.6 ? c.lime : c.limeLight; }
+            if (wild) return d === 0 ? [c.grassDry, c.herb, c.lime][Math.floor(hash3(xx, y >> 1, zz) * 2.5)] : cliffRock(c, xx, y, zz);
             if (d === 0) { const n = hash3(xx, 9, zz); return n < 0.55 ? c.grass : n < 0.8 ? c.herb : c.soil; }
             if (d === 1) return c.soil;
             return masonry(c, xx, y, zz, white);
           }
         }
       });
+      // a sea cliff or a crag: its face is bedded limestone all the way down, not the plain bedrock behind it
+      if (wild) {
+        let lo = w;
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, nz = z + dz;
+          // (the edge of the map counts as a drop: the coast beyond is drawn lower)
+          if (nx < VX0 || nz < VZ0 || nx >= VX0 + SX || nz >= VZ0 + SZ) { lo = 0; continue; }
+          const nc = col(nx, nz), nw = plan.walk[nc];
+          lo = Math.min(lo, nw);
+          // the face is never ruler-flat: knobs and ribs of rock stand out a hand or two into the air beside it
+          const nk = plan.kind[nc];
+          if (nw < w - 8 && (nk === K.Sea || nk === K.Rock))
+            for (let y = nk === K.Sea ? nw : nw + 9; y < w - 1; y++) {
+              const h = hash3(x >> 1, y >> 2, z >> 1);
+              if (h < 0.3 && hash3(nx, y >> 3, nz) < 0.7) g.set(nx, y, nz, cliffRock(c, nx, y, nz));
+            }
+        }
+        if (lo < y0) g.box(x, Math.max(0, lo - 2), z, x, y0 - 1, z, (xx, y, zz) => cliffRock(c, xx, y, zz));
+      }
       // a parapet along every path where the ground falls away beside it
       if (isPath(kd) && kd !== K.Sand && kd !== K.Covered && kd !== K.Tunnel && kd !== K.Quay && kd !== K.Pier) {
         let drop = false;

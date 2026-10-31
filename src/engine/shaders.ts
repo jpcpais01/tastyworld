@@ -789,10 +789,22 @@ void main() {
     // waves drift downstream; the banks see slack water and small waves lapping in toward the stone
     vec2 flow = FLOW * (1.0 - uSea);
     // the sea: a longer swell rolling in towards the beach, and no current lines
-    vec3 nrm = waterNormal(mix(sp.xz - flow * uTime, sp.xz * 0.55, uSea), uTime * mix(1.0, 0.8, uSea));
+    // (the swell's crests bend and come in sets, so it never reads as ruled lines from up high)
+    vec2 warp = uSea * vec2(vnoise(sp.xz * 0.045), vnoise(sp.xz * 0.045 + 17.3)) * 7.0;
+    vec3 nrm = waterNormal(mix(sp.xz - flow * uTime, sp.xz * 0.55 + warp, uSea), uTime * mix(1.0, 0.8, uSea));
     float flowLine = vnoise(vec2((sp.x - flow.x * uTime * 1.3) * 0.9, sp.z * 5.5));
     nrm.z += (flowLine - 0.5) * 0.06 * (1.0 - uSea);
     nrm.xz *= 1.0 + 0.5 * uSea;
+    if (uSea > 0.5) {
+      float sets = 0.55 + 0.9 * vnoise(sp.xz * 0.025 + vec2(uTime * 0.012, 0.0));
+      // zoomed far out a pixel spans several ripples: calm the normal rather than alias it into stripes
+      // (metres per pixel from the projection: derivatives are not to be trusted inside this branch)
+      vec4 c0 = uViewProj * vec4(sp, 1.0), c1 = uViewProj * vec4(sp + vec3(1.0, 0.0, 0.0), 1.0), c2 = uViewProj * vec4(sp + vec3(0.0, 0.0, 1.0), 1.0);
+      vec2 s0 = c0.xy / c0.w;
+      float ppm = max(length((c1.xy / c1.w - s0) * uRes), length((c2.xy / c2.w - s0) * uRes)) * 0.5;
+      float px = 2.0 / max(ppm, 1e-3);
+      nrm.xz *= sets * mix(1.0, 0.3, smoothstep(0.12, 0.7, px));
+    }
     float lapA = exp(-dEdge * 2.2) * 0.09;
     nrm.xz += sg * cos(dEdge * 13.0 + uTime * 2.4) * lapA;
     nrm = normalize(nrm);

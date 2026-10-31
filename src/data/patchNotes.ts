@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.36',
+    date: '2026-10-31',
+    title: 'Walk to your pin',
+    items: [
+      'Pins on the pocket map now land exactly where you tap or click. Before, the map could be drawn slightly larger than it measured itself, so a pin placed away from the middle landed a little off.',
+      'Every card on the map has a Walk here button. Tap it on your pin, a stall, a hotel or a friend and the map folds away while you walk there on your own, round corners and up the stairs. Move yourself at any time to take over.',
+    ],
+  },
+  {
     version: '0.16.35',
     date: '2026-10-31',
     title: 'Real houses on the hills',

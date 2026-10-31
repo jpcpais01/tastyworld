@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.1',
+    date: '2026-10-31',
+    title: 'Amalfi\'s cliffs come down to the road',
+    items: [
+      'At both ends of Amalfi\'s seafront the hillside no longer stands over the road as a flat wall. Beside the tunnel towards Atrani the slope now comes down to the kerb in ledges of limestone with grass and scrub, the same rock as the headland across the road, so the road plainly cuts through one cliff.',
+      'The tunnel\'s portal is lower, its brow just over the arch, and the rock shoulders up to it on both sides.',
+      'Past the harbour, where the coast road leaves town towards Positano, the mountain slopes down to the road instead of ending in a sheer cut, and the road runs on in line with the seafront.',
+      'Houses on the slope above the road reach down to the rock instead of standing on bare walls.',
+    ],
+  },
+  {
     version: '0.17.0',
     date: '2026-10-31',
     title: 'Real prices everywhere',

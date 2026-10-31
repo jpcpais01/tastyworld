@@ -9,7 +9,7 @@ import { STALL } from '../data/stalls';
 import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
-import { amalfiPlan, K, col, layerOf, hillY, headlandY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
+import { amalfiPlan, K, col, layerOf, hillY, headlandY, isFoot, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, PORTAL_Y, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
 import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
 
 /**
@@ -658,7 +658,7 @@ function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: n
       const y0 = Math.max(0, ((w - 4) & ~7) - 8);
       const mx = x * V, mz = z * V;
       // natural cliff (the headland and the sea cliffs) or a built wall in town?
-      const wild = kd === K.Rock && (mz < -44 || w > layerOf(29));
+      const wild = kd === K.Rock && (mz < -44 || w > layerOf(29) || isFoot(mx, mz));
       const white = !wild && (hash3(x >> 4, 3, z >> 4) < 0.45) && w < layerOf(26);
       g.box(x, y0, z, x, w - 1, z, (xx, y, zz) => {
         const d = w - 1 - y;
@@ -1572,7 +1572,7 @@ function shore(b: Builder, c: AC, plan: Plan): void {
       const d = Math.abs((x + 0.5) * V - (ROAD_X0 + ROAD_X1) / 2);
       const crown = Y + 14 + Math.round(Math.sqrt(Math.max(0, 1 - (d / 4.2) ** 2)) * 8);
       // the headwall fills the cut in the rock face up to its brow, a stone cornice along the top
-      const T = layerOf(12);
+      const T = layerOf(PORTAL_Y);
       g.box(x, d < 4.2 ? crown : Y, tz, x, T - 2, tz + 1, (xx, y, zz) => (y < crown + 2 ? c.stripeTufa : masonry(c, xx, y, zz, false)));
       g.box(x, T - 1, tz, x, T, tz + 2, c.marbleGrey);
       // the arch's ring of voussoirs stands proud of the wall
@@ -1591,7 +1591,7 @@ function fireflySpots(plan: Plan): [number, number, number][] {
   for (let z = VZ0 + 8; z < VZ0 + SZ - 8; z += 12)
     for (let x = VX0 + 8; x < VX0 + SX - 8; x += 12) {
       const ci = col(x, z), mx = x * V, mz = z * V;
-      if (plan.kind[ci] !== K.Rock || mx > ROAD_X0 || mz < -44) continue;
+      if (plan.kind[ci] !== K.Rock || mx > ROAD_X0 || mz < -44 || isFoot(mx, mz)) continue;
       if (hash3(Math.floor(mx / 11), 17, Math.floor(mz / 11)) >= 0.62 || hash3(x, 41, z) > 0.19) continue;
       out.push([mx, (plan.walk[ci] - G) * V + 3.0, mz]); // just above the leaf roof at 2.5 m, where they can be seen
     }
@@ -1605,7 +1605,7 @@ function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) =>
   /** A terrace column with the same level two cells all round (from the plan alone, so every strip agrees). */
   const flatAt = (x: number, z: number) => {
     const ci = col(x, z);
-    if (plan.kind[ci] !== K.Rock || x * V > ROAD_X0 || z * V < -44) return false;
+    if (plan.kind[ci] !== K.Rock || x * V > ROAD_X0 || z * V < -44 || isFoot(x * V, z * V)) return false;
     const w = plan.walk[ci];
     for (const [dx, dz] of RING) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== K.Rock || plan.walk[nc] !== w) return false; }
     return true;
@@ -1683,7 +1683,7 @@ function gardens(b: Builder, c: AC, plan: Plan, inWin: (x: number, z: number) =>
     for (let dz = -8; dz <= 8 && flat; dz += 4) for (let dx = -8; dx <= 8 && flat; dx += 4) { const nc = col(x + dx, z + dz); if (plan.kind[nc] !== K.Rock || plan.walk[nc] !== plan.walk[ci]) flat = false; }
     if (!flat) continue;
     const y = (plan.walk[ci] - G) * V;
-    if (x * V > ROAD_X0) continue;
+    if (x * V > ROAD_X0 || isFoot(x * V, z * V)) continue;
     if (kind < 0.45) b.place(lemonTree(c, seed, kind < 0.1), x * V, y, z * V);
     else if (kind < 0.8) b.place(oliveTree(c, seed), x * V, y, z * V);
     else if (kind < 0.88) b.place(palmTree(c, seed), x * V, y, z * V);

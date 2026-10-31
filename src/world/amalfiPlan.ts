@@ -75,6 +75,8 @@ export const BELV_X0 = 20, BELV_X1 = 27;
 export const GATE_X = 23.75;
 /** The headland the road tunnels through starts here (z). */
 export const TUNNEL_Z = -52;
+/** The brow of the tunnel's portal (m): a headwall just over the arch, the rock sloping back from it. */
+export const PORTAL_Y = 10;
 
 /**
  * The beach, shared by the builder and the crowd: three lidos, each with rows of umbrellas (a sunbed beside each)
@@ -146,13 +148,36 @@ export function headlandY(x: number, z: number): number {
   // the toe on the beach: flush with the portal beside the road, bulging a few metres out over the pebbles beyond
   const zf = TUNNEL_Z + 5 * smooth(36, 42, x) * (1 - smooth(47, 55, x)) + n * 0.7 * smooth(35, 39, x);
   if (z > zf) return -99;
-  // the portal's headwall: a face cut sheer 12 m over the road, easing to the beach a few metres either side
-  const base = 1.5 + 10.5 * (1 - smooth(ROAD_X1 + 1, ROAD_X1 + 5, x));
+  // the portal's headwall: a face cut just over the arch, easing to the beach a few metres either side
+  const base = 1.5 + (PORTAL_Y - 1.5) * (1 - smooth(ROAD_X1 + 1, ROAD_X1 + 5, x));
   let h = base + (zf - z) * 1.7 + n * smooth(0, 3, zf - z);
   // the nose: the spur falls into the sea, wandering along a rocky shore
   const xs = 51 + 3 * Math.sin(z * 0.23) + 2 * Math.sin(z * 0.61 + 1.3);
   h = Math.min(h, (xs - x) * 2.4 + n);
   return Math.min(h, hillY(x, z));
+}
+
+/**
+ * The hillside's foot above the shore road at either end of the town, where the slope beside the road is steep:
+ * instead of a cut the height of the hill standing straight up from the kerb, the ground comes down to the road in
+ * crags, climbing about a metre and a half for every metre inland, and shoulders up to the tunnel's brow where the
+ * road goes into the headland (over the tunnel it rises with the headland itself). Infinity where the hill is left
+ * as it is: the town between, and everything well inland.
+ */
+export function footY(x: number, z: number): number {
+  if (x > ROAD_X0 || x < ROAD_X0 - 48) return Infinity;
+  // towards the headland (-z) and out past the harbour (+z); nothing in front of the piazza and the beach
+  const on = Math.max(smooth(-16, -24, z), smooth(36, 44, z));
+  if (on <= 0) return Infinity;
+  const din = ROAD_X0 - x;
+  const n = (Math.sin(x * 0.41 + z * 0.23) + Math.sin(z * 0.31 - x * 0.19)) * 0.7;
+  const lift = (PORTAL_Y - ROAD_Y) * smooth(TUNNEL_Z + 10, TUNNEL_Z, z) + Math.max(0, TUNNEL_Z - z) * 1.7;
+  return ROAD_Y + 0.5 + lift + din * 1.6 + n * smooth(0, 3, din) + (1 - on) * 60;
+}
+
+/** Whether the hillside's foot (footY) cuts the natural ground here: crags, not terraces. */
+export function isFoot(x: number, z: number): boolean {
+  return footY(x, z) < Math.max(hillY(x, z), ROAD_Y);
 }
 
 /** Height of the sea bed and the shore (m), seaward of the road. */
@@ -368,6 +393,29 @@ export function amalfiPlan(): Plan {
   rect(-60, 3, -26, 25, DUOMO_Y, K.Church, walk, kind, best);
   rect(-40, 25, -32, 30, DUOMO_Y, K.Church, walk, kind, best);
   const lots = placeLots(walk, kind, lot, segs);
+  // where the hill comes down to the shore road it does so in crags, a metre a step, like the headland across the
+  // road (after the houses are placed, so the town stays as it was and only the bare slope round them is cut)
+  for (let z = VZ0; z < VZ0 + SZ; z++)
+    for (let x = Math.max(VX0, Math.floor((ROAD_X0 - 48) / V)); x < Math.ceil(ROAD_X0 / V); x++) {
+      const c = col(x, z);
+      if (kind[c] !== K.Rock) continue;
+      const foot = footY((x + 0.5) * V, (z + 0.5) * V);
+      if (foot < Infinity) walk[c] = Math.min(walk[c], layerOf(Math.floor(foot)));
+    }
+  // a house on the slope above the road no longer stands on a bare plinth where the crags fall away round it: its
+  // walls carry on down to the rock, a storey or two taller, the way Amalfi's houses cling to their cliffs
+  for (const lt of lots) {
+    if (lt.door >= 0 || (lt.x1 + 1) * V < ROAD_X0 - 48) continue;
+    let lo = 255;
+    for (let z = lt.z0 - 1; z <= lt.z1 + 1; z++)
+      for (let x = lt.x0 - 1; x <= lt.x1 + 1; x++) {
+        const c = col(x, z);
+        if (kind[c] === K.Rock && (x < lt.x0 || x > lt.x1 || z < lt.z0 || z > lt.z1)) lo = Math.min(lo, walk[c]);
+      }
+    if (lo >= lt.base - 8) continue;
+    lt.base = Math.max(lo, lt.base - 72);
+    for (let z = lt.z0; z <= lt.z1; z++) for (let x = lt.x0; x <= lt.x1; x++) { const c = col(x, z); if (lot[c] === lt.id) walk[c] = lt.base; }
+  }
   const nodeList = ids.map((id) => [nodes[id].x, nodes[id].z] as [number, number]);
   const index = new Map(ids.map((id, i) => [id, i]));
   cached = { walk, kind, lot, lots, segs, nodes: nodeList, edges: edges.map(([a, b]) => [index.get(a)!, index.get(b)!]) };

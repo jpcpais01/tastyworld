@@ -32,7 +32,7 @@ import { HALL_ROOM, type HallPose } from './world/sacred';
 /** Metres from a great hall within which all of its inside is drawn (see StreamView.halls). */
 const HALL_NEAR = 24;
 import { Audio } from './game/audio';
-import { loadState, saveState, saveNow, resetState, SaveState, viewMetres, VIEW_DEFAULT } from './game/state';
+import { loadState, saveState, saveNow, resetState, SaveState, viewSetting } from './game/state';
 import { DISHES, ALL_DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
@@ -1273,14 +1273,15 @@ class Game {
     this.tod.setTarget(st.timeOfDay);
     // view distance: how far first person draws (the haze thickens to meet it) and how far out the iso view zooms
     const tier: Quality = st.quality === 'auto' ? (mobile ? 'medium' : 'high') : st.quality;
-    const dist = viewMetres(st.viewDist ?? VIEW_DEFAULT[tier]);
+    const dist = viewSetting(st, tier);
     this.viewDist = dist;
     if (this.streamer) this.streamer.dist = dist;
     // the voxel city fades out at the view distance, but the skyline beyond the map stays visible further
-    this.r.persp.far = Math.max(dist + 10, HILLSIDE ? 1700 : 650); // the mountains of the coast stand a kilometre and more away
+    this.r.persp.far = Math.max(dist + 60, HILLSIDE ? 1700 : 650); // the mountains of the coast stand a kilometre and more away
     this.r.persp.fov = st.fov;
     this.r.persp.updateProjectionMatrix();
-    this.cam.maxZoom = 34 + THREE.MathUtils.clamp((dist - 80) / 220, 0, 1) * 46;
+    // very far lets the overhead view pull back a little more again (the streamer coarsens the outskirts to match)
+    this.cam.maxZoom = 34 + THREE.MathUtils.clamp((dist - 80) / 220, 0, 1) * 46 + THREE.MathUtils.clamp((dist - 300) / 300, 0, 1) * 16;
     this.cam.zoom = Math.min(this.cam.zoom, this.cam.maxZoom);
   }
 

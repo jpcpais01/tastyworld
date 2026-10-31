@@ -1,4 +1,4 @@
-import { SaveState, viewMetres, VIEW_DEFAULT } from '../game/state';
+import { SaveState, viewMetres, VIEW_DEFAULT, VERY_FAR } from '../game/state';
 import type { Audio } from '../game/audio';
 import type { FoodId } from '../world/food';
 import type { StallInfo } from '../data/stalls';
@@ -979,9 +979,28 @@ export class UI {
       });
       row(look, icon, label, ctl);
       look.lastElementChild!.querySelector('.sl')!.appendChild(val);
+      return { ctl: ctl as HTMLInputElement, val };
     };
     const tier = st.quality === 'auto' ? (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high') : st.quality;
-    ranged(G.map, 'View distance', st.viewDist ?? VIEW_DEFAULT[tier], (v) => `${viewMetres(v)} m`, (v) => { st.viewDist = v; });
+    const vd = ranged(G.map, 'View distance', st.viewDist ?? VIEW_DEFAULT[tier], (v) => `${viewMetres(v)} m`, (v) => { st.viewDist = v; });
+    // very far: a small pill beside the slider pins the distance past its top end; off, the slider's own value comes back
+    const far = h('button', 'far-pill', `${G.horizon}<span>${VERY_FAR} m</span>`);
+    far.title = 'Very far view distance';
+    const pin = () => {
+      far.setAttribute('aria-pressed', String(st.veryFar));
+      vd.ctl.disabled = st.veryFar;
+      vd.val.textContent = st.veryFar ? `${VERY_FAR} m` : `${viewMetres(Number(vd.ctl.value) / 100)} m`;
+    };
+    far.onclick = () => {
+      this.audio.play('click');
+      st.veryFar = !st.veryFar;
+      pin();
+      this.hooks.settingsChanged();
+    };
+    const vwrap = h('div', 'view-ctl');
+    vd.ctl.replaceWith(vwrap);
+    vwrap.append(vd.ctl, far);
+    pin();
     const fovOf = (v: number) => Math.round(50 + v * 50);
     ranged(G.eye, 'First-person FOV', (st.fov - 50) / 50, (v) => `${fovOf(v)}°`, (v) => { st.fov = fovOf(v); });
     row(look, G.clock, 'Performance overlay', sw(st.perf, (v) => { st.perf = v; }));

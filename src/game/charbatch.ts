@@ -42,6 +42,8 @@ export class CharacterBatch {
   private roots = new Map<number, THREE.Object3D>();
   private shown = new Map<number, boolean>();
   private top = -1;
+  /** Told when the main view starts (true) and finishes (false) drawing the bodies, so the perf overlay can time them apart. */
+  onView: ((drawing: boolean) => void) | null = null;
 
   constructor(shared: SharedUniforms) {
     this.pose = new THREE.DataTexture(this.data, WIDTH, ROWS, THREE.RGBAFormat, THREE.FloatType);
@@ -58,6 +60,10 @@ export class CharacterBatch {
     this.mesh.sortObjects = true;
     this.mesh.layers.enable(SHADOW_DYNAMIC);
     this.mesh.userData.shadowMat = voxelDepthMaterial(defines, { uTime: shared.uTime, tPose });
+    // the shadow pass swaps in its own material, so drawing with ours means the main view
+    const m = this.mesh, cull = m.onBeforeRender;
+    m.onBeforeRender = (...args) => { cull.apply(m, args); if (args[4] === mat) this.onView?.(true); };
+    m.onAfterRender = (...args) => { if (args[4] === mat) this.onView?.(false); };
   }
 
   /** Adds a body; returns its id (its row in `data`). `root` places it and decides whether it shows. */

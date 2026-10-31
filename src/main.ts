@@ -194,6 +194,8 @@ class Game {
     this.cam = new IsoCamera(this.r.camera, this.r.persp);
     this.chars = new CharacterBatch(this.r.shared);
     this.r.scene.add(this.chars.mesh);
+    this.r.onPass = (name) => this.perf.pass(name);
+    this.chars.onView = (drawing) => this.perf.pass(drawing ? 'characters' : 'world');
     this.r.scene.add(this.worldGroup, this.insideGroup);
     this.insideGroup.visible = false;
     const hooks: GameHooks = {
@@ -1613,6 +1615,7 @@ class Game {
       for (const rm of this.remotes.values()) if (rm.actor.root.visible) friends.push([rm.actor.position.x, rm.actor.position.z]);
       const viewR = this.cam.fp ? Math.min(80, this.viewDist * 0.65) : this.cam.zoom * 1.3 + 8;
       this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends, viewR);
+      this.perf.lap('crowd');
       this.updateCats(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
@@ -1786,6 +1789,7 @@ class Game {
     this.perf.begin(raw);
     const sh = this.r.shared;
     this.syncCoop(dt);
+    this.perf.lap('net');
     if (this.covered) return;
     sh.uTime.value += dt;
     // the breeze slowly veers and freshens; gusts and each prop's own swing happen in the shader
@@ -1796,19 +1800,25 @@ class Game {
     this.tod.apply(this.r);
     if (this.inside) { sh.uLamp.value = Math.max(sh.uLamp.value, 0.95); sh.uSunColor.value.multiplyScalar(0.35); }
     if (this.started) this.s.playTime += dt;
+    this.perf.lap('clock');
 
     this.meal?.update(dt);
     this.movePlayer(dt);
     this.updateRemotes(dt);
+    this.perf.lap('player');
     this.updateNPCs(dt);
     if (this.meal) {
       this.meal.place(dt);
       if (this.meal.finished) this.endMeal();
     }
+    this.perf.lap('animation');
     this.updateNear();
     this.updateCamera(dt);
+    this.perf.lap('camera');
     this.streamer.update(dt, this.streamView(), !this.inside);
+    this.perf.lap('streaming');
     this.updateCutaway(dt);
+    this.perf.lap('cutaway');
     const fp = this.cam.fp;
     // in first person the body shows while eating, so the food is seen in your own hands (the camera sits inside the head)
     this.player.root.visible = !fp || !!this.meal;
@@ -1817,13 +1827,16 @@ class Game {
     sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi.update(sh.uTime.value);
+    this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
+    this.perf.lap('effects');
     this.updateGuide(dt);
     // paint the pocket map a sliver at a time once the trip is under way, so opening it is instant
     if (this.started) this.cityMap.prepare(2);
-    this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
+    this.perf.lap('map/guide');
     const pl = this.player.position;
     this.ui.updateLabels((p) => this.screen(p));
     this.placeTags();
+    this.perf.lap('labels');
 
     // HUD + audio at a calmer rate
     this.hudT -= dt;
@@ -1850,10 +1863,10 @@ class Game {
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }
     this.audio.tick(this.tod.night);
+    this.perf.lap('hud/audio');
     // the pocket map covers the screen, so the world can rest under it
-    this.perf.beginRender();
-    if (!this.cityMap.isOpen) { this.chars.sync(); this.r.render(); }
-    if (this.perf.on) this.perf.endRender({ chunks: this.streamer.resident.size, people: this.drawn.length, scale: this.r.renderScale, quality: this.r.quality });
+    if (!this.cityMap.isOpen) { this.chars.sync(); this.perf.lap('characters'); this.r.render(); }
+    if (this.perf.on) this.perf.end({ chunks: this.streamer.resident.size, people: this.drawn.length, scale: this.r.renderScale, quality: this.r.quality });
     this.r.adapt(raw, now);
   }
 }

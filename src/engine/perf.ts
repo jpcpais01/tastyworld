@@ -11,10 +11,13 @@ export interface PerfCounters {
 }
 
 /**
- * The in-game performance overlay (Settings, F3, or ?perf in the address). Frame pacing with percentiles and a
- * frame-time graph, CPU time split into simulation and render submission, GPU time from timer queries
- * where the browser offers them, and what was drawn: draw calls, triangles, shadow cache redraws.
- * Costs nothing while hidden: no queries, no counters, no DOM writes.
+ * The in-game performance overlay (Settings, F3, or ?perf in the address): frame pacing with percentiles
+ * and a frame-time graph, what each part of the game costs on the CPU and on the GPU, and what was drawn.
+ *
+ * The game splits a frame into named laps (`lap` after each system on the CPU, `pass` before each render
+ * pass, which also switches a GPU timer query). GPU results are read back a few frames later without
+ * waiting, and everything is averaged over a quarter second. While hidden every call returns at once:
+ * no clocks, no queries, no counters, no DOM writes.
  */
 export class Perf {
   private el: HTMLDivElement | null = null;
@@ -23,20 +26,23 @@ export class Perf {
   private ms = new Float32Array(HISTORY);
   private head = 0;
   private filled = 0;
-  private t0 = 0;
-  private simMs = 0;
-  private renderMs = 0;
-  private sim = 0;
-  private submit = 0;
-  private gpu = -1;
-  private gpuSum = 0;
-  private gpuN = 0;
-  private sumN = 0;
+  private t = 0;
+  private frames = 0;
   private shown = 0;
+  /** Summed milliseconds per label over the current window. */
+  private cpu = new Map<string, number>();
+  private gpu = new Map<string, number>();
+  private gpuFrames = 0;
+  /** Last window's per-frame averages, shown until the next one. */
+  private cpuAvg: [string, number][] = [];
+  private gpuAvg: [string, number][] = [];
   private ext: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null;
-  private queries: WebGLQuery[] = [];
+  /** Timer queries in flight, oldest first, with their label and whether they close a frame. */
+  private queries: { q: WebGLQuery; label: string; last: boolean }[] = [];
   private free: WebGLQuery[] = [];
-  private querying = false;
+  private open: { q: WebGLQuery; label: string; last: boolean } | null = null;
+  /** The render pass being issued. */
+  private stage: string | null = null;
   private redraws0 = 0;
   counters: PerfCounters = { chunks: 0, people: 0, scale: 1, quality: '' };
 
@@ -78,55 +84,79 @@ export class Perf {
     this.filled = 0;
   }
 
-  /** Start of a frame; `dt` is the time since the last one (ms). */
+  /** Start of a frame; `dtMs` is the time since the last one. */
   begin(dtMs: number): void {
     if (!this.el) return;
     this.ms[this.head] = dtMs;
     this.head = (this.head + 1) % HISTORY;
     this.filled = Math.min(HISTORY, this.filled + 1);
     this.renderer.info.reset();
-    this.t0 = performance.now();
     this.pollGpu();
+    this.t = performance.now();
   }
 
-  /** Simulation done; rendering starts. */
-  beginRender(): void {
+  /** CPU time since the previous lap (or the frame's start) goes to `label`. */
+  lap(label: string): void {
     if (!this.el) return;
     const now = performance.now();
-    this.simMs = now - this.t0;
-    this.t0 = now;
-    if (this.ext && !this.querying) {
-      const gl = this.renderer.getContext() as WebGL2RenderingContext;
-      const q = this.free.pop() ?? gl.createQuery();
-      if (q) { gl.beginQuery(this.ext.TIME_ELAPSED_EXT, q); this.queries.push(q); this.querying = true; }
-    }
+    this.cpu.set(label, (this.cpu.get(label) ?? 0) + now - this.t);
+    this.t = now;
   }
 
-  endRender(c: PerfCounters): void {
+  /**
+   * A render pass starts: the GPU work issued from here on is timed as `label`, and the CPU spent issuing
+   * the previous pass goes to "draw <that pass>".
+   */
+  pass(label: string): void {
     if (!this.el) return;
-    this.renderMs = performance.now() - this.t0;
-    if (this.querying && this.ext) {
-      (this.renderer.getContext() as WebGL2RenderingContext).endQuery(this.ext.TIME_ELAPSED_EXT);
-      this.querying = false;
-    }
-    this.sim += this.simMs;
-    this.submit += this.renderMs;
-    this.sumN++;
+    this.lap(this.stage ? `draw ${this.stage}` : 'render');
+    this.stage = label;
+    this.switchQuery(label, false);
+  }
+
+  /** End of the frame's GPU work and CPU time. */
+  end(c: PerfCounters): void {
+    if (!this.el) return;
+    this.lap(this.stage ? `draw ${this.stage}` : 'render');
+    this.stage = null;
+    this.switchQuery(null, true);
+    this.frames++;
     this.counters = c;
     if (performance.now() - this.shown > 250) this.show();
+  }
+
+  private switchQuery(label: string | null, last: boolean): void {
+    const ext = this.ext;
+    if (!ext) return;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (this.open) {
+      gl.endQuery(ext.TIME_ELAPSED_EXT);
+      this.open.last = last;
+      this.queries.push(this.open);
+      this.open = null;
+    }
+    if (label === null) return;
+    // a pile-up means results are not coming back (lost context, throttled tab): stop timing until they do
+    if (this.queries.length > 64) return;
+    const q = this.free.pop() ?? gl.createQuery();
+    if (!q) return;
+    gl.beginQuery(ext.TIME_ELAPSED_EXT, q);
+    this.open = { q, label, last: false };
   }
 
   private pollGpu(): void {
     const ext = this.ext;
     if (!ext) return;
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
     while (this.queries.length) {
-      const q = this.queries[0];
-      if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) break;
+      const e = this.queries[0];
+      if (!gl.getQueryParameter(e.q, gl.QUERY_RESULT_AVAILABLE)) break;
       this.queries.shift();
-      const ns = gl.getQueryParameter(q, gl.QUERY_RESULT) as number;
-      if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) { this.gpuSum += ns / 1e6; this.gpuN++; }
-      this.free.push(q);
+      const ns = gl.getQueryParameter(e.q, gl.QUERY_RESULT) as number;
+      if (!disjoint) this.gpu.set(e.label, (this.gpu.get(e.label) ?? 0) + ns / 1e6);
+      if (e.last) this.gpuFrames++;
+      this.free.push(e.q);
     }
   }
 
@@ -138,19 +168,27 @@ export class Perf {
     let recent = 0, rn = Math.min(n, 30);
     for (let i = 1; i <= rn; i++) recent += this.ms[(this.head - i + HISTORY) % HISTORY];
     recent /= Math.max(1, rn);
-    if (this.gpuN) { this.gpu = this.gpuSum / this.gpuN; this.gpuSum = this.gpuN = 0; }
-    const sim = this.sim / Math.max(1, this.sumN), sub = this.submit / Math.max(1, this.sumN);
-    this.sim = this.submit = this.sumN = 0;
+    const avg = (m: Map<string, number>, k: number): [string, number][] =>
+      [...m].map(([l, v]): [string, number] => [l, v / k]).sort((a, b) => b[1] - a[1]);
+    if (this.frames) { this.cpuAvg = avg(this.cpu, this.frames); this.cpu.clear(); this.frames = 0; }
+    if (this.gpuFrames) { this.gpuAvg = avg(this.gpu, this.gpuFrames); this.gpu.clear(); this.gpuFrames = 0; }
     const info = this.renderer.info, c = this.counters;
     const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
     const f1 = (x: number) => x.toFixed(1);
     const tris = info.render.triangles;
+    const total = (l: [string, number][]) => l.reduce((a, [, v]) => a + v, 0);
+    // a bar of up to 12 blocks, full at the 120 fps budget (8.3 ms)
+    const bar = (v: number) => '█'.repeat(Math.min(12, Math.round(v / 8.33 * 12)));
+    const rows = (l: [string, number][]) => l.filter(([, v]) => v >= 0.05).map(([k, v]) => `  ${k.padEnd(16)}${v.toFixed(2).padStart(6)} ${bar(v)}`);
     this.text.textContent = [
       `${Math.round(1000 / Math.max(0.1, recent))} fps  ${f1(recent)} ms   p50 ${f1(pick(0.5))}  p99 ${f1(pick(0.99))}  max ${f1(sorted[n - 1] ?? 0)}`,
-      `cpu  sim ${f1(sim)}  render ${f1(sub)}   gpu ${this.ext ? (this.gpu >= 0 ? f1(this.gpu) : '…') : 'n/a'} ms`,
       `draws ${info.render.calls}  tris ${tris >= 1e6 ? (tris / 1e6).toFixed(2) + 'M' : Math.round(tris / 1e3) + 'k'}  shadow redraws ${this.redraws() - this.redraws0}`,
       `chunks ${c.chunks}  people ${c.people}  ${c.quality} @ ${c.scale.toFixed(2)}x  ${this.renderer.domElement.width}×${this.renderer.domElement.height}`
         + (mem ? `  heap ${Math.round(mem.usedJSHeapSize / 1048576)} MB` : ''),
+      `CPU ${f1(total(this.cpuAvg))} ms`,
+      ...rows(this.cpuAvg),
+      this.ext ? `GPU ${this.gpuAvg.length ? f1(total(this.gpuAvg)) : '…'} ms` : 'GPU timing not available in this browser',
+      ...rows(this.gpuAvg),
     ].join('\n');
     this.drawGraph();
   }

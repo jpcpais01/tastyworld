@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.12',
+    date: '2026-10-31',
+    title: 'See where every millisecond goes',
+    items: [
+      'The performance overlay (Settings → Look) now breaks each frame down live: CPU time per part of the game (crowd, animation, streaming, cutaway, map, labels, audio and each render pass) and GPU time per render pass (shadows, world, characters, bloom, particles, water and post).',
+      'Each row has a bar that fills at the 120 fps budget, sorted from the most expensive down, averaged over a quarter second so it reads steadily.',
+      'Measuring costs next to nothing: GPU timings are read back a few frames later without waiting, and with the overlay off none of it runs at all. Browsers without GPU timers show the CPU side only.',
+    ],
+  },
+  {
     version: '0.10.11',
     date: '2026-10-31',
     title: 'A real skyline',

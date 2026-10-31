@@ -149,6 +149,7 @@ class Game {
   /** Scratch list of people near the player, nearest first, for the sway shader. */
   private nudgers: [number, Actor][] = [];
   private drawn: Actor[] = [];
+  private animFrame = 0;
   /** Every character's body, drawn in one call. */
   private chars: CharacterBatch;
   private perf!: Perf;
@@ -625,9 +626,9 @@ class Game {
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
     // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
     this.crowd.populate(perCity({
-      tokyo: m ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 } : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 },
+      tokyo: m ? { walkers: 200, joggers: 5, dogs: 7, cyclists: 7, couriers: 4, boats: 2, exercise: 6 } : { walkers: 500, joggers: 10, dogs: 14, cyclists: 14, couriers: 8, boats: 3, exercise: 9 },
       amalfi: m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 },
-      istanbul: m ? { walkers: 140, joggers: 3, dogs: 6, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 320, joggers: 6, dogs: 11, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
+      istanbul: m ? { walkers: 320, joggers: 3, dogs: 9, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 800, joggers: 6, dogs: 16, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
     }));
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
@@ -2142,11 +2143,11 @@ class Game {
 
   private updateNPCs(dt: number): void {
     const pp = this.player.position;
+    const viewR = this.cam.fp ? Math.min(80, this.viewDist * 0.65) : this.cam.zoom * 1.3 + 8;
     if (!this.inside) {
       const pl = this.player;
       const friends: [number, number][] = [];
       for (const rm of this.remotes.values()) if (rm.actor.root.visible) friends.push([rm.actor.position.x, rm.actor.position.z]);
-      const viewR = this.cam.fp ? Math.min(80, this.viewDist * 0.65) : this.cam.zoom * 1.3 + 8;
       this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends, viewR);
       this.perf.lap('crowd');
       // up in a hotel room you are no bother to the birds in the street
@@ -2244,11 +2245,13 @@ class Game {
     }
     const near = this.nudgers;
     near.length = 0;
+    // animation level of detail: limbs are posed every frame close up, every 2nd or 3rd frame further out
+    const full = Math.max(18, viewR * 0.4) ** 2, half = Math.max(30, viewR * 0.75) ** 2;
+    const frame = this.animFrame++;
     for (const a of all) {
-      a.update(dt);
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
       const d2 = dx * dx + dz * dz;
-      a.light(this.lm);
+      if (a.step(dt, d2 < full ? 1 : d2 < half ? 2 : 3, frame)) a.light(this.lm);
       if (d2 < 900) {
         if (!a.noBlob) this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);
         if (d2 < 225) near.push([d2, a]);

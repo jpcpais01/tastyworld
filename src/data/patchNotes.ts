@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.32',
+    date: '2026-10-31',
+    title: 'Crowded streets',
+    items: [
+      'Istanbul now has two and a half times as many people about (800 on computers, 320 on phones) and Tokyo more than twice as many (500 and 200).',
+      'People no longer keep to the main streets. Neighbours stay around their own few blocks, and everyone stops now and then in side lanes, courtyards, doorways and alley ends to take a call, snap a photo, look at a door or just watch the street. The back lanes of Cağaloğlu and Tahtakale, the Grand Bazaar and Tokyo\'s quiet residential streets are properly lived in now.',
+      'Quiet districts draw more walkers and people step out of side doors there, so the crowd spreads over the whole city instead of bunching at a few junctions.',
+      'To keep the frame rate up with so many people, those further from you are animated a little less often and those at the edge of the view take fewer steps a second. Up close nothing changes.',
+    ],
+  },
+  {
     version: '0.16.31',
     date: '2026-10-31',
     title: 'Tokyo Tower',

@@ -4,7 +4,8 @@ import { meshGrid, mergeMeshes, splitInner, orderFaces, packAtlas, MeshData, Lig
 import { Palette } from './palette';
 import { buildTokyo, Anchors, PlacedProp, BuildResult, Window } from './tokyo';
 import { buildAmalfi } from './amalfi';
-import { AMALFI } from './cityId';
+import { buildIstanbul } from './istanbul';
+import { AMALFI, ISTANBUL } from './cityId';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
 import { assemble } from './assemble';
 import type { Owners } from './owners';
@@ -87,7 +88,7 @@ const BLOCKED = 255;
 
 /** The builder of the city this page is visiting. */
 export function buildWorld(win?: Window): BuildResult {
-  return AMALFI ? buildAmalfi(win) : buildTokyo(win);
+  return ISTANBUL ? buildIstanbul(win) : AMALFI ? buildAmalfi(win) : buildTokyo(win);
 }
 /** Extra voxel rows a strip keeps on its -z side (long sun shadows from tall buildings) and +z side (sky light). */
 const HALO_LO = 112, HALO_HI = 40;
@@ -330,7 +331,7 @@ export class WorldPart {
   init(progress?: (stage: string, f: number) => void): PartInit {
     const { z0, z1 } = this;
     const wz0 = Math.max(VZ0, z0 - HALO_LO), wz1 = Math.min(VZ0 + SZ, z1 + HALO_HI);
-    progress?.(AMALFI ? 'Building Amalfi' : 'Building Tokyo', 0.04);
+    progress?.(ISTANBUL ? 'Building Istanbul' : AMALFI ? 'Building Amalfi' : 'Building Tokyo', 0.04);
     const res = (this.res = buildWorld([VX0, wz0, VX0 + SX, wz1]));
     if (res.sway.length >= SWAY_PART) throw new Error(`too many sway bodies: ${res.sway.length}`);
     res.grid.compact();

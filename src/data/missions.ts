@@ -3,7 +3,8 @@ import type { SaveState } from '../game/state';
 import { DISH, DISHES } from './dishes';
 import { CAPSULES } from './places';
 import { STALLS } from './stalls';
-import { AMALFI } from '../world/cityId';
+import { HOTELS } from './hotels';
+import { AMALFI, ISTANBUL } from '../world/cityId';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -21,6 +22,7 @@ const AMALFI_STALL_IDS = ['pansa', 'cuoppo', 'portafoglio', 'gelato', 'limonaia'
 /** Only this city's stamps count for its missions (the passport keeps every city's). */
 const amalfiTasted = (s: SaveState) => tasted(s).filter((id) => DISHES.some((d) => d.id === id));
 const AMALFI_TASTED = (s: SaveState) => amalfiTasted(s).length;
+const HOTEL_IDS = HOTELS.map((h) => h.id);
 const desserts = (s: SaveState) => tasted(s).filter((id) => DISH[id as keyof typeof DISH]?.dessert).length;
 
 const TOKYO_MISSIONS: Mission[] = [
@@ -61,9 +63,29 @@ const AMALFI_MISSIONS: Mission[] = [
   { id: 'a-master', name: 'Master of Amalfi', desc: `Collect all ${AMALFI_COUNT} Amalfi passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: 3000, title: 'Amalfi Gourmet', item: 'goldlemon' } },
 ];
 
-export const MISSIONS: Mission[] = AMALFI ? AMALFI_MISSIONS : TOKYO_MISSIONS;
+const ISTANBUL_STALL_IDS = ['simitci', 'balikci', 'midyeci', 'kestaneci', 'dondurmaci', 'durumcu', 'baklavaci'];
+const ISTANBUL_MISSIONS: Mission[] = [
+  { id: 'i-first-bite', name: 'Afiyet Olsun', desc: 'Taste your first dish in Istanbul.', progress: (s) => [Math.min(1, AMALFI_TASTED(s)), 1], reward: { yen: 500 } },
+  { id: 'i-trio', name: 'Üç Lezzet', desc: 'Discover three street foods in Istanbul.', progress: (s) => [Math.min(3, AMALFI_TASTED(s)), 3], reward: { yen: 800, item: 'fes' } },
+  { id: 'i-sweet', name: 'Tatlı Dil', desc: 'Find a sweet: baklava, künefe, salep or the stretchy ice cream.', progress: (s) => [Math.min(1, amalfiTasted(s).filter((id) => DISH[id as keyof typeof DISH]?.dessert).length), 1], reward: { yen: 600 } },
+  { id: 'i-apprentice', name: 'Çırak', desc: 'Help an Istanbul vendor cook a dish.', progress: (s) => [Math.min(1, ISTANBUL_STALL_IDS.filter((st) => s.cooked[st]).length), 1], reward: { yen: 500, item: 'onluk' } },
+  { id: 'i-quay', name: 'By the Boats', desc: 'Eat a balık ekmek and drink a pickle juice on the quay.', progress: (s) => [['balikekmek', 'tursu'].filter((d) => s.tasted[d]).length, 2], reward: { yen: 700 } },
+  { id: 'i-tables', name: 'Sit Down, Sit Down', desc: 'Eat at the dürüm house and the baklava house up the hill.', progress: (s) => [['durumcu', 'baklavaci'].filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st)).length, 2], reward: { yen: 1000 } },
+  { id: 'i-climb', name: 'Seven Hills', desc: 'Climb to the terrace of the great mosque on the hill.', progress: (s) => [s.flags.climbed ? 1 : 0, 1], reward: { yen: 800, item: 'tespih' } },
+  { id: 'i-browse', name: 'Çarşı Wanderer', desc: 'Step inside ten different shops, tea houses and lokantas.', progress: (s) => [Math.min(10, s.rooms.length), 10], reward: { yen: 800 } },
+  { id: 'i-night', name: 'Istanbul Nights', desc: 'Eat something after dark, when the minarets light up.', progress: (s) => [s.flags.ateAtNight ? 1 : 0, 1], reward: { yen: 400 } },
+  { id: 'i-nazar', name: 'Three Blue Eyes', desc: 'Find the three nazar beads hidden around Eminönü.', progress: (s) => [s.manekis.length, 3], reward: { item: 'fisilti' } },
+  { id: 'i-secret', name: 'Gizli Mutfak', desc: 'Dine at the hidden kitchen behind the door with no sign.', progress: (s) => [s.tasted['hunkar'] || s.tasted['manti'] ? 1 : 0, 1], reward: { yen: 1500, item: 'cezve' } },
+  { id: 'i-stars', name: 'Eline Sağlık', desc: 'Earn three stars on an Istanbul cooking challenge.', progress: (s) => [ISTANBUL_STALL_IDS.some((st) => (s.cooked[st] ?? 0) >= 3) ? 1 : 0, 1], reward: { yen: 700 } },
+  { id: 'i-hotel', name: 'A Bed by the Bosphorus', desc: 'Check into a hotel before dark and sleep until morning.', progress: (s) => [Math.min(1, s.stays.filter((h) => HOTEL_IDS.includes(h)).length), 1], reward: { yen: 600 } },
+  { id: 'i-hotels', name: 'Twelve Doors', desc: 'Spend a night in four different Istanbul hotels.', progress: (s) => [Math.min(4, s.stays.filter((h) => HOTEL_IDS.includes(h)).length), 4], reward: { yen: 1500, title: 'Seasoned Traveller' } },
+  { id: 'i-photos', name: 'Kartpostal', desc: 'Take three photos of the city in photo mode.', progress: (s) => [Math.min(3, s.flags.photosA ?? 0), 3], reward: { yen: 600 } },
+  { id: 'i-master', name: 'Master of Istanbul', desc: `Collect all ${AMALFI_COUNT} Istanbul passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: 3000, title: 'Istanbul Gourmet', item: 'goldtulip' } },
+];
+
+export const MISSIONS: Mission[] = ISTANBUL ? ISTANBUL_MISSIONS : AMALFI ? AMALFI_MISSIONS : TOKYO_MISSIONS;
 /** The mission for the hidden restaurant, which stays secret until its door is found. */
-export const SECRET_MISSION = AMALFI ? 'a-secret' : 'secret';
+export const SECRET_MISSION = ISTANBUL ? 'i-secret' : AMALFI ? 'a-secret' : 'secret';
 
 /** The one mission the HUD follows: a reward to claim first, otherwise the one closest to done. */
 export function trackedMission(s: SaveState): { next: Mission | null; ready: Mission[] } {
@@ -82,14 +104,18 @@ export function missionStalls(m: Mission, s: SaveState): string[] {
   const untasted = (pick: (d: (typeof DISHES)[number]) => boolean) =>
     all.filter((st) => DISHES.some((d) => d.stall === st.id && !s.tasted[d.id] && pick(d))).map((st) => st.id);
   switch (m.id) {
-    case 'first-bite': case 'trio': case 'master': case 'a-first-bite': case 'a-trio': case 'a-master': return untasted(() => true);
-    case 'sweet': case 'a-sweet': return untasted((d) => d.dessert);
+    case 'first-bite': case 'trio': case 'master': case 'a-first-bite': case 'a-trio': case 'a-master':
+    case 'i-first-bite': case 'i-trio': case 'i-master': return untasted(() => true);
+    case 'sweet': case 'a-sweet': case 'i-sweet': return untasted((d) => d.dessert);
+    case 'i-quay': return untasted((d) => d.stall === 'balikci');
+    case 'i-tables': return ['durumcu', 'baklavaci'].filter((id) => !Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === id));
     case 'a-fried': return untasted((d) => d.stall === 'cuoppo');
     case 'alley': return untasted((d) => ['yakitori', 'karaage', 'ramen', 'gyoza'].includes(d.id));
     case 'tables': return ['komorebi', 'kikyo'].filter((id) => !Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === id));
-    case 'apprentice': case 'stars': case 'a-apprentice': case 'a-stars': return all.filter((st) => !st.hidden).map((st) => st.id);
+    case 'apprentice': case 'stars': case 'a-apprentice': case 'a-stars': case 'i-apprentice': case 'i-stars': return all.filter((st) => !st.hidden).map((st) => st.id);
     case 'secret': return s.hiddenFound ? ['kakurega'] : [];
     case 'a-secret': return s.hiddenFound ? ['grotta'] : [];
+    case 'i-secret': return s.hiddenFound ? ['gizli'] : [];
     default: return [];
   }
 }
@@ -109,5 +135,11 @@ export const ITEMS: Record<string, { name: string; icon: IconName; desc: string 
   whisper: { name: 'A whisper', icon: 'paw', desc: 'The three lemons all point up the stairs behind the cathedral, to a door in the rock...' },
   majolica: { name: 'Majolica tile', icon: 'chopsticks', desc: 'Zia Carmela gave you a hand-painted tile from the grotta wall. Blue, yellow, a little lemon.' },
   goldlemon: { name: 'Golden lemon', icon: 'medal', desc: 'Your Amalfi passport is complete. The whole coast knows your name.' },
+  fes: { name: 'Red fez', icon: 'headband', desc: 'A felt fez with a black tassel, from a hat shop in the Grand Bazaar. Nobody wears them any more, which is why it is fun.' },
+  onluk: { name: 'Usta\'s apron', icon: 'coat', desc: 'A white apron from the cook\'s own hook. Eline sağlık: health to your hands.' },
+  tespih: { name: 'Prayer beads', icon: 'chime', desc: 'Amber tespih beads from the terrace tea man. Old men click them for hours on every bench in the city.' },
+  fisilti: { name: 'A whisper', icon: 'paw', desc: 'The three blue eyes all look up the lanes behind the Grand Bazaar, to a door with no sign...' },
+  cezve: { name: 'Copper cezve', icon: 'coffee', desc: 'Hatice Hanım gave you her small copper coffee pot. "For your own kitchen. Boil it slowly."' },
+  goldtulip: { name: 'Golden tulip', icon: 'medal', desc: 'Your Istanbul passport is complete. The ferry captains know your name.' },
   gold: { name: 'Gold stamp', icon: 'medal', desc: 'Your Japan passport is complete. Seoul is calling.' },
 };

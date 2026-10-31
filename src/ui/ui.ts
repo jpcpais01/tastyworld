@@ -8,7 +8,7 @@ import { MISSIONS, ITEMS, Mission, trackedMission, SECRET_MISSION } from '../dat
 import { ROOM_TYPE, roomNo, type HotelInfo, type HotelRoomSpec } from '../data/hotels';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { TEXT } from '../data/cityText';
-import { AMALFI } from '../world/cityId';
+import { AMALFI, ISTANBUL } from '../world/cityId';
 import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
 import { G } from './glyphs';
@@ -176,7 +176,7 @@ export class UI {
       </div>
       <div class="hud-tr">
         <div class="glass bar">
-          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${AMALFI ? '30.00' : '3,000'}</span></div>
+          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${AMALFI ? '30.00' : ISTANBUL ? '1350' : '3,000'}</span></div>
           <span class="sep"></span>
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
@@ -490,7 +490,7 @@ export class UI {
       card.querySelector<HTMLButtonElement>('[data-a="taste"]')!.onclick = () => {
         if (!this.hooks.buy(id, st)) {
           this.audio.play('fail');
-          this.toast('purse', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.');
+          this.toast('purse', 'Not enough money', 'Help a vendor cook to earn tips, or finish missions in your passport.');
           return;
         }
         // the vendor plates it up and hands it over in the street (see game/meal.ts)
@@ -521,7 +521,7 @@ export class UI {
           <div class="row"><button class="btn btn-red">Buy · ${yen(it.price)}</button></div>
         </div>`);
       card.querySelector('button')!.onclick = () => {
-        if (!buy(it)) { this.audio.play('fail'); this.toast('purse', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
+        if (!buy(it)) { this.audio.play('fail'); this.toast('purse', 'Not enough money', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
         this.close();
       };
       menu.appendChild(card);
@@ -553,7 +553,7 @@ export class UI {
         </div>`);
       const btn = card.querySelector<HTMLButtonElement>('.btn-red');
       if (btn) btn.onclick = () => {
-        if (!book(rm.id)) { this.audio.play('fail'); this.toast('purse', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
+        if (!book(rm.id)) { this.audio.play('fail'); this.toast('purse', 'Not enough money', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
         this.close();
       };
       menu.appendChild(card);
@@ -679,7 +679,7 @@ export class UI {
   passport(tab: 'stamps' | 'missions' | 'items' | 'album' | 'tokyo' = 'stamps'): void {
     const p = this.panel('panel passport');
     const got = DISHES.filter((d) => this.s.tasted[d.id]).length;
-    this.head(p, 'Food Passport', AMALFI ? 'Italia' : '日本', `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
+    this.head(p, 'Food Passport', AMALFI ? 'Italia' : ISTANBUL ? 'Türkiye' : '日本', `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
     const tabs = h('div', 'pp-tabs');
     const seg = h('div', 'seg');
     seg.setAttribute('role', 'tablist');
@@ -709,7 +709,7 @@ export class UI {
 
   private ppStamps(page: HTMLElement) {
     const got = DISHES.filter((d) => this.s.tasted[d.id]).length;
-    page.innerHTML = `<div class="pp-cover"><div class="pp-flag${AMALFI ? ' it' : ''}"><i></i></div><div><b>${esc(TEXT.name)} ${AMALFI ? '' : `<span class="jp" style="font-weight:400;font-size:15px">${TEXT.local}</span>`}</b><p>Collect a stamp for every dish you taste or cook.</p><div class="pbar"><span><i style="width:${(got / DISHES.length) * 100}%"></i></span>${got}/${DISHES.length}</div></div></div>`;
+    page.innerHTML = `<div class="pp-cover"><div class="pp-flag${AMALFI ? ' it' : ISTANBUL ? ' tr' : ''}"><i></i></div><div><b>${esc(TEXT.name)} ${AMALFI || ISTANBUL ? '' : `<span class="jp" style="font-weight:400;font-size:15px">${TEXT.local}</span>`}</b><p>Collect a stamp for every dish you taste or cook.</p><div class="pbar"><span><i style="width:${(got / DISHES.length) * 100}%"></i></span>${got}/${DISHES.length}</div></div></div>`;
     const grid = h('div', 'stamps');
     for (const d of DISHES) {
       const has = !!this.s.tasted[d.id];
@@ -724,7 +724,7 @@ export class UI {
       slot.onclick = () => {
         this.audio.play('click');
         if (has) this.taste(d.id, false);
-        else this.toast('compass', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? (AMALFI ? 'Some say the majolica lemons know the way.' : 'Some say the lucky cats know the way.') : `${st?.street ?? `Somewhere in ${TEXT.name}`}.`);
+        else this.toast('compass', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? (AMALFI ? 'Some say the majolica lemons know the way.' : ISTANBUL ? 'Some say the blue nazar beads know the way.' : 'Some say the lucky cats know the way.') : `${st?.street ?? `Somewhere in ${TEXT.name}`}.`);
       };
       grid.appendChild(slot);
     }
@@ -885,6 +885,14 @@ export class UI {
   }
 
   private ppTokyo(page: HTMLElement) {
+    if (ISTANBUL) {
+      page.innerHTML = `
+      <div class="sec fact"><h4>Istanbul</h4>${esc(TEXT.passport.fact)}</div>
+      <div class="sec fact"><h4>Çarşı &amp; iskele</h4>Eminönü is where the city has always shopped and sailed: the vaulted Spice Bazaar, the Grand Bazaar's sixty streets up the hill, and the ferry piers where boats cross between Europe and Asia all day long.</div>
+      <div class="sec fact"><h4>Etiquette</h4><ul>${TEXT.passport.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
+      <div class="sec fact"><h4>Words to know</h4><div class="words"><b>Merhaba</b><span>Hello</span><b>Afiyet olsun</b><span>Enjoy your meal</span><b>Çok güzel</b><span>Very beautiful, very good</span><b>Teşekkürler</b><span>Thank you</span></div></div>`;
+      return;
+    }
     if (AMALFI) {
       page.innerHTML = `
       <div class="sec fact"><h4>Amalfi</h4>${esc(TEXT.passport.fact)}</div>

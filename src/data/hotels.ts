@@ -1,5 +1,6 @@
 import type { Look } from '../world/characters';
 import type { IconName } from '../ui/emblems';
+import { ISTANBUL } from '../world/cityId';
 
 /**
  * The seven places to stay. Each one is a real building in the city (picked by the corner of its lot), with a
@@ -39,7 +40,7 @@ export interface HotelInfo {
 
 const DESK: Partial<Look> = { topStyle: 'suit', top: 0x2b3a62, accent: 0xf2efe7, bottom: 0x2b3a62, hat: 'none', backpack: undefined };
 
-export const HOTELS: HotelInfo[] = [
+const TOKYO_HOTELS: HotelInfo[] = [
   {
     id: 'kaminariya', name: 'Hotel Kaminari-ya', jp: 'ホテル雷屋', street: 'Kaminari Lane', theme: 'inn',
     blurb: 'A family-run inn above the old shopping street, with creaky floors and the temple roofs out of the window.',
@@ -126,14 +127,173 @@ export const HOTELS: HotelInfo[] = [
   },
 ];
 
+const HALIC: Partial<Look> = { topStyle: 'suit', top: 0x2b2b30, accent: 0xf4f1ea, bottom: 0x2b2b30, hat: 'none', backpack: undefined };
+const W = (top: number, accent: number, extra: Partial<Look> = {}): Partial<Look> => ({ topStyle: 'vest', top, accent, hat: 'none', backpack: undefined, ...extra });
+
+/**
+ * Istanbul's twelve places to stay, on the flat streets near the water (the builder takes the twelve biggest low
+ * buildings in order along the shore and up Sirkeci, so `lot` is unused here). Floors count from the ground floor
+ * the Turkish way: room 101 is one floor up. `jp` holds the Turkish sign.
+ */
+const ISTANBUL_HOTELS: HotelInfo[] = [
+  {
+    id: 'halic', name: 'Otel Haliç', jp: 'Haliç Oteli', street: '', theme: 'inn',
+    blurb: 'An old family hotel over the Golden Horn. The ferries hoot you awake.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'twin', price: 1600 }, { floor: 2, type: 'king', price: 2800 }],
+    keeper: 'Kemal Bey', keeperLook: { topStyle: 'cardigan', top: 0x5a4a3a, accent: 0x3a2a20, glasses: true, hair: 0xb9b6b0, hat: 'none', backpack: undefined },
+    lines: [
+      'Hoş geldiniz! My father opened this hotel the year the old bridge burned. We are still here, the bridge is new.',
+      'From the king room you can count the ferries. Forty a day, each with its own horn.',
+      'Breakfast? Go to the boats. Simit and tea on the quay. That is the real Istanbul breakfast.',
+    ],
+  },
+  {
+    id: 'marti', name: 'Martı Pansiyon', jp: 'Martı Pansiyon', street: '', theme: 'guesthouse',
+    blurb: 'A small guesthouse named after the gulls that sit on its roof. Cheap, clean, cheerful.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'single', price: 1100 }],
+    keeper: 'Elif', keeperLook: W(0x3f6e9a, 0xf4f1ea, { hairStyle: 'ponytail', hair: 0x3b2a20 }),
+    lines: [
+      'The gulls? They live on the roof. They pay no rent and they wake everyone at five.',
+      'One room, one bed, one big window. Everything a traveller needs.',
+      'If you hear singing at dawn, it is the call to prayer from the New Mosque. It is beautiful, you will see.',
+    ],
+  },
+  {
+    id: 'sirkeci', name: 'Sirkeci Konak', jp: 'Sirkeci Konak Oteli', street: '', theme: 'boutique',
+    blurb: 'A restored mansion near the old station, all velvet, brass and painted ceilings.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'double', price: 2200 }, { floor: 2, type: 'king', price: 3600 }],
+    keeper: 'Selim Bey', keeperLook: HALIC,
+    lines: [
+      'The Orient Express used to end its journey at the station across the road. Our guests then came with steamer trunks.',
+      'The ceilings are hand-painted, a hundred and twenty years old. Please do not throw pillows.',
+      'The king room has a balcony. In the evening you can hear the whole street eating.',
+    ],
+  },
+  {
+    id: 'lale', name: 'Lale Otel', jp: 'Lale Otel', street: '', theme: 'inn',
+    blurb: 'Tulips painted on every door. A grandmotherly hotel that smells of linden tea.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'twin', price: 1500 }, { floor: 2, type: 'double', price: 1900 }],
+    keeper: 'Nesrin Hanım', keeperLook: { topStyle: 'cardigan', top: 0x8a2a3a, accent: 0x5a1a2a, hairStyle: 'bun', hair: 0x6b6b70, hat: 'none', backpack: undefined },
+    lines: [
+      'The tulip came from here, you know. The Dutch took it from the sultans\' gardens.',
+      'Linden tea before bed, I insist. You will sleep like a stone.',
+      'Shoes off on the carpets, please. They are older than both of us.',
+    ],
+  },
+  {
+    id: 'vapur', name: 'Hotel Vapur', jp: 'Vapur Otel', street: '', theme: 'business',
+    blurb: 'Neat, modern and right by the ferry piers. You can hear the departure bell from the lobby.',
+    lot: [0, 0], style: 'modern', floors: 4,
+    rooms: [{ floor: 1, type: 'single', price: 1300 }, { floor: 2, type: 'double', price: 2000 }, { floor: 3, type: 'king', price: 3200 }],
+    keeper: 'Murat', keeperLook: { topStyle: 'suit', top: 0x2b3a62, accent: 0xf2efe7, bottom: 0x2b3a62, hat: 'none', backpack: undefined },
+    lines: [
+      'Ferry to Kadıköy every twenty minutes. Feed the gulls a piece of simit from the back deck, everyone does.',
+      'Wi-fi password is on the key card. Tea is in the lobby, all day, free.',
+      'Top floor, king room: the Bosphorus out of one window and the Golden Horn out of the other.',
+    ],
+  },
+  {
+    id: 'kervan', name: 'Kervansaray Otel', jp: 'Kervansaray', street: '', theme: 'boutique',
+    blurb: 'Built into an old merchants\' inn: thick stone walls, arched windows, a courtyard feeling.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'double', price: 2100 }, { floor: 2, type: 'king', price: 3400 }],
+    keeper: 'Hakan Bey', keeperLook: W(0x5a1a2a, 0xc9a24a, { glasses: true }),
+    lines: [
+      'Merchants slept here three hundred years ago, with their camels in the yard. You get a nicer bed.',
+      'The walls are a metre thick. Cool in summer, warm in winter, silent always.',
+      'The Grand Bazaar is up the hill. Go early, before the crowds, and drink tea with the carpet sellers.',
+    ],
+  },
+  {
+    id: 'bogaz', name: 'Boğaz Manzara', jp: 'Boğaz Manzara Otel', street: '', theme: 'sky',
+    blurb: 'A tall, thin hotel whose top room looks straight down the Bosphorus.',
+    lot: [0, 0], style: 'modern', floors: 4,
+    rooms: [{ floor: 2, type: 'double', price: 2400 }, { floor: 3, type: 'king', price: 4200 }],
+    keeper: 'Zeynep', keeperLook: { topStyle: 'suit', top: 0x2f2f35, accent: 0xf4f1ea, bottom: 0x2f2f35, hairStyle: 'long', hair: 0x2a1d17, hat: 'none', backpack: undefined },
+    lines: [
+      'Manzara means view. We named the hotel after the only thing that matters.',
+      'At night the bridges light up in colours. Leave the curtains open.',
+      'Asia is just there, across the water. Ten minutes by ferry. Two continents in one day!',
+    ],
+  },
+  {
+    id: 'nar', name: 'Nar Konak', jp: 'Nar Konak', street: '', theme: 'inn',
+    blurb: 'A wooden house hotel with a pomegranate tree at the door and creaking stairs.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'double', price: 1800 }],
+    keeper: 'Gül Hanım', keeperLook: { topStyle: 'cardigan', top: 0xb0603a, accent: 0x6a3a22, hairStyle: 'bun', hair: 0x8a8a8e, hat: 'none', backpack: undefined },
+    lines: [
+      'Nar means pomegranate. The tree is older than the house, and the house is old.',
+      'Pomegranate juice in the morning, squeezed in front of you. It stains, so wear red.',
+      'One room only, so you are my only guest. I will worry about you like a son.',
+    ],
+  },
+  {
+    id: 'yildiz', name: 'Otel Yıldız', jp: 'Yıldız Oteli', street: '', theme: 'business',
+    blurb: 'A practical, friendly hotel by the tram, the kind travelling salesmen have used for fifty years.',
+    lot: [0, 0], style: 'modern', floors: 4,
+    rooms: [{ floor: 1, type: 'twin', price: 1400 }, { floor: 2, type: 'single', price: 1200 }, { floor: 3, type: 'double', price: 1900 }],
+    keeper: 'Orhan Bey', keeperLook: HALIC,
+    lines: [
+      'Yıldız means star. We have no stars from the guidebooks, but the sky on the roof has plenty.',
+      'The tram rings its bell right under the window. You stop hearing it on the second night.',
+      'Need a taxi, a ferry ticket, a barber? Ask Orhan. Orhan knows everyone.',
+    ],
+  },
+  {
+    id: 'ebru', name: 'Ebru Butik', jp: 'Ebru Butik Otel', street: '', theme: 'boutique',
+    blurb: 'Named after marbled paper; every wall hangs a swirl of colour made on water.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'double', price: 2000 }, { floor: 2, type: 'king', price: 3300 }],
+    keeper: 'Leyla', keeperLook: W(0x2f6b54, 0xf4f1ea, { hairStyle: 'bob', hair: 0x1d1a1c }),
+    lines: [
+      'Ebru is painting on water. You drop colours on thick water, swirl them with a comb and lay paper on top. No two are the same.',
+      'My aunt makes them in the back room. If she is there, she will show you.',
+      'The king room has the tulip ebru. Guests always ask to buy it. It is not for sale!',
+    ],
+  },
+  {
+    id: 'kubbe', name: 'Kubbe Otel', jp: 'Kubbe Otel', street: '', theme: 'park',
+    blurb: 'A quiet hotel with a roof terrace facing the domes and minarets of the old city.',
+    lot: [0, 0], style: 'modern', floors: 4,
+    rooms: [{ floor: 1, type: 'twin', price: 1700 }, { floor: 2, type: 'double', price: 2200 }, { floor: 3, type: 'king', price: 3500 }],
+    keeper: 'Ayşe Hanım', keeperLook: { topStyle: 'jacket', top: 0x6a4a7a, accent: 0xf4f1ea, hairStyle: 'long', hair: 0x3b2a20, hat: 'none', backpack: undefined },
+    lines: [
+      'Kubbe means dome. From the top room you can see six of them, and the gulls circling over each.',
+      'When the call to prayer starts at dusk, go to the window. The whole city answers itself.',
+      'Breakfast on the terrace: olives, cheese, tomatoes, honey, simit. A Turkish breakfast takes an hour, at least.',
+    ],
+  },
+  {
+    id: 'cinar', name: 'Çınar Pansiyon', jp: 'Çınar Pansiyon', street: '', theme: 'guesthouse',
+    blurb: 'A backpackers\' favourite under an old plane tree, with a cat on every step.',
+    lot: [0, 0], style: 'apartment', floors: 4,
+    rooms: [{ floor: 1, type: 'single', price: 1000 }, { floor: 2, type: 'twin', price: 1300 }],
+    keeper: 'Deniz', keeperLook: W(0xd9a24a, 0x3a2a20, { hairStyle: 'spiky', hair: 0x2a1d17 }),
+    lines: [
+      'Çınar is the plane tree outside. Istanbul\'s plane trees are hundreds of years old. Some have names.',
+      'The cats? Pamuk, Duman and Sultan. Sultan is in charge.',
+      'Free tea, free maps, free advice. The advice is: eat everything.',
+    ],
+  },
+];
+
+/** The hotels of the city on this trip. */
+export const HOTELS: HotelInfo[] = ISTANBUL ? ISTANBUL_HOTELS : TOKYO_HOTELS;
+export { ISTANBUL_HOTELS };
+
 export const HOTEL: Record<string, HotelInfo> = Object.fromEntries(HOTELS.map((h) => [h.id, h]));
 
 /** The hotel whose building stands on a lot, by the lot's corner. */
 export function hotelAt(x0: number, z0: number): HotelInfo | undefined {
-  return HOTELS.find((h) => h.lot[0] === x0 && h.lot[1] === z0);
+  return TOKYO_HOTELS.find((h) => h.lot[0] === x0 && h.lot[1] === z0);
 }
 
-export const ROOM_TYPE: Record<RoomType, { name: string; jp: string; text: string; icon: IconName }> = {
+const TOKYO_ROOM_TYPE: Record<RoomType, { name: string; jp: string; text: string; icon: IconName }> = {
   single: { name: 'Single room', jp: 'シングル', text: 'A snug room with a single bed, a desk and a kettle.', icon: 'bed' },
   twin: { name: 'Twin room', jp: 'ツイン', text: 'Two beds side by side, in case a friend needs one.', icon: 'bed' },
   double: { name: 'Double room', jp: 'ダブル', text: 'A wide bed, an armchair by the window and room to stretch.', icon: 'bed' },
@@ -141,11 +301,20 @@ export const ROOM_TYPE: Record<RoomType, { name: string; jp: string; text: strin
   tatami: { name: 'Tatami room', jp: '和室', text: 'Futon on fresh tatami, a low table and a window seat over the lane.', icon: 'futon' },
 };
 
-/** Room number as the door says it: floor 1 above the lobby is the 2nd floor in Japan, so room 201. */
-export const roomNo = (floor: number) => `${floor + 1}01`;
+const ISTANBUL_ROOM_TYPE: typeof TOKYO_ROOM_TYPE = {
+  single: { name: 'Single room', jp: 'Tek kişilik', text: 'A snug room with a single bed, a kilim and a tea tray.', icon: 'bed' },
+  twin: { name: 'Twin room', jp: 'İki yataklı', text: 'Two beds side by side under woven covers.', icon: 'bed' },
+  double: { name: 'Double room', jp: 'Çift kişilik', text: 'A wide bed with a carved headboard, an armchair by the window.', icon: 'bed' },
+  king: { name: 'King room', jp: 'Süit', text: 'The best room in the house: a huge bed, a sofa and the widest view of the water.', icon: 'crown' },
+  tatami: { name: 'Tatami room', jp: 'Tatami', text: '', icon: 'futon' },
+};
+export const ROOM_TYPE = ISTANBUL ? ISTANBUL_ROOM_TYPE : TOKYO_ROOM_TYPE;
+
+/** Room number as the door says it: floor 1 above the lobby is the 2nd floor in Japan (room 201), the 1st in Turkey (101). */
+export const roomNo = (floor: number) => `${ISTANBUL ? floor : floor + 1}01`;
 
 /** Guests waiting in the lobbies have travel stories to tell. */
-export const HOTEL_GUEST_LINES: string[] = [
+const TOKYO_HOTEL_GUEST_LINES: string[] = [
   'I booked the king room on a whim. The bed is so big I lost my phone in it.',
   'Check in before dark, they told me. Then I spent three hours at the takoyaki stall anyway.',
   'From up there you can see the whole street glowing. I watched it until midnight.',
@@ -153,3 +322,13 @@ export const HOTEL_GUEST_LINES: string[] = [
   'The ryokan in Yanaka gives you a yukata. I wore mine to breakfast. Nobody blinked.',
   'Leave the curtains open. Waking up to the city is the best alarm clock.',
 ];
+
+const ISTANBUL_HOTEL_GUEST_LINES: string[] = [
+  'I took the room over the water. The ferries hoot all night and I loved every one.',
+  'Twelve hotels in this little corner of town! I am trying a new one every night.',
+  'Check in before the evening call to prayer, the receptionist said. Then I ate balık ekmek for two hours.',
+  'They brought tea to my room without asking. I think that is just what happens here.',
+  'From the top floor you can see two continents. I waved at Asia.',
+  'The breakfast here is a whole table. I have stopped eating lunch.',
+];
+export const HOTEL_GUEST_LINES: string[] = ISTANBUL ? ISTANBUL_HOTEL_GUEST_LINES : TOKYO_HOTEL_GUEST_LINES;

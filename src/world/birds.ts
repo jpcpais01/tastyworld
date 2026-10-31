@@ -1,7 +1,7 @@
 import { Grid } from './grid';
 import { Palette } from './palette';
 import { PART, PART_COUNT, type CharModel } from './characters';
-import { AMALFI } from './cityId';
+import { AMALFI, ISTANBUL } from './cityId';
 
 /** The birds of the city, commonest first. */
 export type Species = 'pigeon' | 'sparrow' | 'crow' | 'wagtail' | 'bulbul' | 'dove' | 'kingfisher' | 'gull';
@@ -61,7 +61,8 @@ function flat(pal: Palette, c: Colours, touch?: (r: Region, u: number, v: number
 
 /** Plumages of each species: pigeons come in the street colours (blue bar, chequer, dark, red, pied). */
 function plumage(sp: Species, variant: number, pal: Palette): Paint {
-  const local = AMALFI ? italian(sp, pal) : null;
+  // Istanbul shares the hooded crows and collared doves of the Mediterranean, but its sparrows are plain house sparrows
+  const local = AMALFI || (ISTANBUL && sp !== 'sparrow') ? italian(sp, pal) : null;
   if (local) return local;
   switch (sp) {
     case 'pigeon': {

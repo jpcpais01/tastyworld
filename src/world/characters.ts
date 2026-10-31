@@ -1,4 +1,4 @@
-import { AMALFI } from './cityId';
+import { AMALFI, ISTANBUL } from './cityId';
 import { Grid, rng } from './grid';
 import { Palette } from './palette';
 
@@ -65,9 +65,9 @@ export function randomLook(seed: number): Look {
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
   const hairStyles: Look['hairStyle'][] = ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald'];
   // a summer coast dresses lighter than a Tokyo street: tees and linen, shorts, straw hats and sunglasses
-  const topStyles: Look['topStyle'][] = AMALFI ? ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'] : ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'];
+  const topStyles: Look['topStyle'][] = ISTANBUL ? ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'] : AMALFI ? ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'] : ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'];
   const topStyle = pick(topStyles);
-  const hats: Look['hat'][] = AMALFI ? ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'] : ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'];
+  const hats: Look['hat'][] = ISTANBUL ? ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'] : AMALFI ? ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'] : ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'];
   return {
     skin: pick(SKINS), hair: pick(HAIRS), hairStyle: pick(hairStyles), top: pick(TOPS), topStyle,
     accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.25, shoes: pick(SHOES), shorts: r() < (AMALFI ? 0.4 : 0.12),

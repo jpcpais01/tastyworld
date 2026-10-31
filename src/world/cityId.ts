@@ -1,6 +1,6 @@
 /** The cities a trip can land in. Each page load builds exactly one of them. */
-export type CityId = 'tokyo' | 'amalfi';
-export const CITIES: readonly CityId[] = ['tokyo', 'amalfi'];
+export type CityId = 'tokyo' | 'amalfi' | 'istanbul';
+export const CITIES: readonly CityId[] = ['tokyo', 'amalfi', 'istanbul'];
 export const CITY_KEY = 'tastyworld.city';
 
 const known = (v: unknown): CityId | null => (CITIES as readonly unknown[]).includes(v) ? v as CityId : null;
@@ -24,6 +24,9 @@ export const CITY: CityId = (() => {
 })();
 
 export const AMALFI = CITY === 'amalfi';
+export const ISTANBUL = CITY === 'istanbul';
+/** Cities built on a heightfield (streets climb, labels and seats follow the ground), not on Tokyo's flat street level. */
+export const HILLSIDE = AMALFI || ISTANBUL;
 
 export const isCity = (id: string): id is CityId => known(id) !== null;
 

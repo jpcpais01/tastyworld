@@ -1,5 +1,5 @@
 import { TEXT } from '../data/cityText';
-import { AMALFI } from '../world/cityId';
+import { AMALFI, ISTANBUL, HILLSIDE } from '../world/cityId';
 import type { NavData } from '../world/bake';
 import type { Occluder, StallAnchor } from '../world/tokyo';
 import { V, G as STREET, WX0, WZ0, WX1, WZ1, WORLD_W, WORLD_D, ZONES, zoneAt } from '../world/layout';
@@ -68,13 +68,15 @@ const C = {
 const ROOFS = ['#8f9dab', '#7f8d9d', '#c98468', '#99a6b0', '#d6ae76', '#a3b294', '#8a96a6', '#cf9a7e', '#b39a86', '#8f9dab'];
 // Amalfi from above: whitewashed and pastel vaults and terraces
 const PASTEL = ['#efe6d6', '#f1d9a8', '#eec2a6', '#e8c6c9', '#f3e8c4', '#dfd3c0', '#f0dcb8', '#e6b9a0'];
+/** Istanbul's old roofs: Marseille tiles weathered from orange to brown. */
+const TILES = ['#b8674a', '#c47a58', '#a95c42', '#c98a66', '#b06f52', '#d09a78', '#a8705a'];
 const TOWERS = ['#8d95aa', '#9aa3a8', '#7f8aa0', '#a49aa8'];
 const GREENS = ['#8db67a', '#7eab6c', '#9cc283', '#86b07e'];
 const SAKURA = ['#f1b6c4', '#eeaabb', '#f5c3cf'];
 const PARKS = new Set(['park', 'inari', 'midori', 'farbank']);
 
 // ---------------------------------------------------------------------------------------- places
-type Glyph = 'train' | 'torii' | 'temple' | 'tree' | 'bag' | 'bath' | 'lantern' | 'bed';
+type Glyph = 'train' | 'torii' | 'temple' | 'tree' | 'bag' | 'bath' | 'lantern' | 'bed' | 'mosque' | 'boat';
 const GLYPH: Record<Glyph, string> = {
   train: 'M7 3.5h10a3 3 0 0 1 3 3V15a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6.5a3 3 0 0 1 3-3Z M4 10.5h16 M8.5 21l2-3 M15.5 21l-2-3 M8 14.5h.01 M16 14.5h.01',
   torii: 'M3 5.5c3.5 1.3 14.5 1.3 18 0 M5 9.5h14 M7 6.6V21 M17 6.6V21 M12 9.5V7',
@@ -83,10 +85,12 @@ const GLYPH: Record<Glyph, string> = {
   bag: 'M5 8h14l-1.2 12.5H6.2L5 8Z M9 8V6.5a3 3 0 0 1 6 0V8',
   bath: 'M5 20h14 M8 16c-1.6-2 1.6-3 0-5.2s1.6-3 0-5.3 M12 16c-1.6-2 1.6-3 0-5.2s1.6-3 0-5.3 M16 16c-1.6-2 1.6-3 0-5.2s1.6-3 0-5.3',
   bed: 'M3 19V6.5 M3 15.5h18V19 M21 15.5v-3a2.5 2.5 0 0 0-2.5-2.5H11v5.5 M7 12.4a1.6 1.6 0 1 0 0-.01',
+  mosque: 'M3 20.5h15 M5 20.5v-6h11v6 M5.6 14.5a4.9 4.9 0 0 1 9.8 0 M10.5 9.6V7.4 M20.5 20.5V8.5 M19.3 8.5h2.4 M20.5 8.5 20.5 5.5',
+  boat: 'M3 15h18l-2.4 4.5H5.4L3 15Z M6 15v-4h9v4 M8.5 11V8h4v3 M3 21.5c1.5-.8 3-.8 4.5 0s3 .8 4.5 0 3-.8 4.5 0 3 .8 4.5 0',
   lantern: 'M12 2.5v2 M9 4.5h6 M7.5 8.2c0-2.1 2-3.7 4.5-3.7s4.5 1.6 4.5 3.7v5.6c0 2.1-2 3.7-4.5 3.7s-4.5-1.6-4.5-3.7V8.2Z M7.6 11h8.8 M9 19.5h6',
 };
-const ZONE_ICON: Record<string, Glyph> = { station: 'train', midori: 'torii', inari: 'torii', park: 'tree', ginza: 'bag', plaza: 'temple', gado: 'lantern' };
-const DISTRICTS = new Set(['marina', 'molo', 'ponente', 'mulini', 'limoni', 'plaza', 'ekimae', 'station', 'midori', 'gado', 'park', 'inari', 'ginza', 'yanaka', 'canal']);
+const ZONE_ICON: Record<string, Glyph> = { yeni: 'mosque', suleymaniye: 'mosque', kapali: 'bag', misir: 'bag', gar: 'train', kadikoy: 'boat', uskudar: 'boat', halicpier: 'boat', station: 'train', midori: 'torii', inari: 'torii', park: 'tree', ginza: 'bag', plaza: 'temple', gado: 'lantern' };
+const DISTRICTS = new Set(['tahtakale', 'cagaloglu', 'kucukpazar', 'marina', 'molo', 'ponente', 'mulini', 'limoni', 'plaza', 'ekimae', 'station', 'midori', 'gado', 'park', 'inari', 'ginza', 'yanaka', 'canal']);
 const EXTRA_PLACES: { name: string; jp: string; at: [number, number]; icon: Glyph }[] = [
   { name: 'Sento', jp: '銭湯', at: [-23.1, 8.6], icon: 'bath' },
 ];
@@ -114,7 +118,7 @@ function paintBase(w: MapWorld): { canvas: HTMLCanvasElement; step: (ms: number)
   const parks = ZONES.filter((zn) => PARKS.has(zn.id)).map((zn) => zn.rect);
   const cellAt = (cx: number, cz: number) => (cx < 0 || cz < 0 || cx >= sx || cz >= sz ? 255 : nh[cz * sx + cx]);
   const shoreAt = (cx: number, cz: number) => shore[clamp(cz, 0, sz - 1) * sx + clamp(cx, 0, sx - 1)];
-  const lvl = (h: number) => (h === 255 ? -1 : Math.floor(Math.max(0, h - STREET) / (AMALFI ? 12 : 4)));
+  const lvl = (h: number) => (h === 255 ? -1 : Math.floor(Math.max(0, h - STREET) / (HILLSIDE ? 12 : 4)));
   let row = 0;
   const band = (y0: number) => {
     for (let py = y0; py < y0 + BAND && py < H; py++) {
@@ -145,7 +149,7 @@ function paintBase(w: MapWorld): { canvas: HTMLCanvasElement; step: (ms: number)
           const base = h === 255 ? C.block : C.street;
           r = base[0]; g = base[1]; b = base[2];
           if (h !== 255 && h > STREET + 1) {
-            const k = smooth(1, AMALFI ? 170 : 26, h - STREET) * 0.85 + 0.15;
+            const k = smooth(1, AMALFI ? 170 : ISTANBUL ? 60 : 26, h - STREET) * 0.85 + 0.15;
             r += (C.hill[0] - r) * k; g += (C.hill[1] - g) * k; b += (C.hill[2] - b) * k;
           }
           for (const [x0, z0, x1, z1] of parks) {
@@ -193,10 +197,11 @@ function roofsOf(w: MapWorld): { roofs: Roof[]; trees: Tree[] } {
       trees.push({ x: cx, z: cz, r: Math.max(0.8, Math.max(x1 - x0, z1 - z0) * 0.34), fill: list[Math.floor(h * list.length)] });
       continue;
     }
-    const tall = o.top - (o.floor ?? 0) >= 13 && !AMALFI;
+    const tall = o.top - (o.floor ?? 0) >= 13 && !HILLSIDE;
     let style: Roof['style'] = tall || AMALFI ? 'flat' : 'hip';
-    let fill = tall ? TOWERS[Math.floor(h * TOWERS.length)] : AMALFI ? PASTEL[Math.floor(h * PASTEL.length)] : ROOFS[Math.floor(h * ROOFS.length)];
-    if (o.kind === 'landmark') {
+    let fill = tall ? TOWERS[Math.floor(h * TOWERS.length)] : AMALFI ? PASTEL[Math.floor(h * PASTEL.length)] : ISTANBUL ? TILES[Math.floor(h * TILES.length)] : ROOFS[Math.floor(h * ROOFS.length)];
+    if (o.kind === 'landmark' && ISTANBUL) { style = 'flat'; fill = '#9aa5b1'; } // the lead domes of the mosques and the bazaars
+    else if (o.kind === 'landmark') {
       if (zone === 'gado' && x1 - x0 > 40) { style = 'rail'; fill = '#d9ccb4'; }
       else if (zone === 'station') { style = 'station'; fill = '#6f929a'; }
       else if (zone === 'ginza') { style = 'glass'; fill = '#bcd8dc'; }
@@ -213,12 +218,12 @@ function roofsOf(w: MapWorld): { roofs: Roof[]; trees: Tree[] } {
 function labelsOf(): Label[] {
   const out: Label[] = [];
   for (const zn of ZONES) {
-    if (zn.id === 'kakurega' || zn.id === 'grotta') continue;
+    if (zn.id === 'kakurega' || zn.id === 'grotta' || zn.id === 'gizli' || zn.id === 'eminonu') continue;
     const [x0, z0, x1, z1] = zn.rect;
     const district = DISTRICTS.has(zn.id);
     out.push({ name: zn.name, jp: zn.jp, x: (x0 + x1) / 2, z: (z0 + z1) / 2, district, vertical: !district && z1 - z0 > (x1 - x0) * 1.8, icon: ZONE_ICON[zn.id], zone: zn.id });
   }
-  if (!AMALFI) for (const p of EXTRA_PLACES) out.push({ name: p.name, jp: p.jp, x: p.at[0], z: p.at[1], district: false, vertical: false, icon: p.icon });
+  if (!HILLSIDE) for (const p of EXTRA_PLACES) out.push({ name: p.name, jp: p.jp, x: p.at[0], z: p.at[1], district: false, vertical: false, icon: p.icon });
   // districts claim their space before the streets
   return out.sort((a, b) => Number(b.district) - Number(a.district));
 }
@@ -295,7 +300,7 @@ export class CityMap {
       <div class="cm-sheet">
         <canvas class="cm-view" aria-label="Map of the city"></canvas>
         <div class="cm-folds" aria-hidden="true"></div>
-        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>${TEXT.district[0]} <span class="jp">${TEXT.district[1]}</span></h2><small>${AMALFI ? 'Costiera Amalfitana · Italy' : 'Tokyo · 東京'}</small></div>
+        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>${TEXT.district[0]} <span class="jp">${TEXT.district[1]}</span></h2><small>${AMALFI ? 'Costiera Amalfitana · Italy' : ISTANBUL ? 'Eminönü · İstanbul' : 'Tokyo · 東京'}</small></div>
         <button class="cm-btn cm-close" data-a="close" aria-label="Fold the map away">${G.close}</button>
         <div class="cm-tools">
           <button class="cm-btn" data-a="in" aria-label="Zoom in">${G.plus}</button>
@@ -604,7 +609,7 @@ export class CityMap {
       const from = Math.min(...h.rooms.map((r) => r.price));
       const rooms = h.rooms.map((r) => ROOM_TYPE[r.type].icon).join('');
       html = `<div class="cm-ic hotel">${icon('bed')}</div>
-        <div class="cm-tx"><b>${esc(h.name)}<span class="jp">${h.jp}</span></b><small>${esc(h.street)} · ${esc(h.blurb)}</small><div class="cm-meta">${booked ? `<span class="cm-tag ok">${G.check}Your room</span>` : `<span class="cm-tag">${rooms} from ¥${from.toLocaleString('en-US')}</span>`}${this.s.stays.includes(h.id) ? `<span class="cm-tag ok">Stayed here</span>` : ''}<span class="cm-dist">${dist(sel.m.x, sel.m.z)}</span></div></div>`;
+        <div class="cm-tx"><b>${esc(h.name)}<span class="jp">${h.jp}</span></b><small>${esc(h.street)} · ${esc(h.blurb)}</small><div class="cm-meta">${booked ? `<span class="cm-tag ok">${G.check}Your room</span>` : `<span class="cm-tag">${rooms} from ${TEXT.money(from)}</span>`}${this.s.stays.includes(h.id) ? `<span class="cm-tag ok">Stayed here</span>` : ''}<span class="cm-dist">${dist(sel.m.x, sel.m.z)}</span></div></div>`;
     } else if (sel.kind === 'friend') {
       guide = { x: sel.x, z: sel.z, name: sel.name };
       html = `<div class="cm-ic">${G.people}</div><div class="cm-tx"><b>${esc(sel.name)}</b><small>On this trip with you</small><div class="cm-meta"><span class="cm-dist">${dist(sel.x, sel.z)}</span></div></div>`;

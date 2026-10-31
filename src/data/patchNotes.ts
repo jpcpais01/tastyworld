@@ -8,6 +8,22 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.0',
+    date: '2026-10-31',
+    title: 'Istanbul',
+    items: [
+      'A new destination: Istanbul. Fly in from the globe and land at Eminönü, where the Golden Horn meets the Bosphorus.',
+      'The old city climbs gently from the waterfront: the New Mosque over its square, the vaulted Spice Bazaar, Hamidiye Street and the tram through Sirkeci, the long market street of Uzunçarşı up to the Grand Bazaar, and the Süleymaniye on its hilltop with a terrace over the whole Horn. Every slope is steps and ramps you can walk.',
+      'Thirty places to eat: simit carts, balık ekmek from the gilded fish boats at the quay, mussels, roast chestnuts and grilled corn, stretchy Maraş ice cream, döner and kebab houses, pide ovens, börek shops, pudding shops, lokum and baklava, tea gardens, coffee houses, spice shops and lokantas with their steaming trays. Sixteen new dishes for the passport.',
+      'Somewhere behind the bazaar there is a kitchen with no sign. The blue nazar beads know the way.',
+      'Twelve hotels, from a family guesthouse under the Süleymaniye to rooms over the Bosphorus quay, each with a çaydanlık by the window.',
+      'Ferries tied up at the Kadıköy, Üsküdar and Golden Horn piers, fishermen lining the Galata Bridge, rowing boats along the Horn and fishing boats out on the strait.',
+      'Beyond the map the city carries on in voxels to the horizon: Galata and its tower across the Horn, Asia across the Bosphorus with the Maiden\'s Tower on its rock, Hagia Sophia, the Blue Mosque and Topkapı along the point, the domes of Fatih and the aqueduct inland, floodlit at night.',
+      'Its own music in the Hicaz mode, the call to prayer five times a day from the New Mosque and the Süleymaniye, ferry horns on the water and gulls everywhere.',
+      'Sixteen new missions, a Turkish passport cover, prices in lira, and a pocket map of Eminönü.',
+    ],
+  },
+  {
     version: '0.15.16',
     date: '2026-10-31',
     title: 'Phones out',

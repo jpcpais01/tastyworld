@@ -10,7 +10,7 @@
  */
 
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
-import { AMALFI } from '../world/cityId';
+import { AMALFI, ISTANBUL, HILLSIDE } from '../world/cityId';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh' | 'jet'
   | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
@@ -155,6 +155,57 @@ const RIVIERA: Song = (() => {
   };
 })();
 
+/**
+ * Istanbul's tune: D Hicaz, the augmented second between E flat and F sharp that every street musician in Beyoğlu
+ * leans on, over a slow 4/4 sway. A dark nylon string stands in for the oud and sings the verse, a breathy flute for
+ * the ney takes the chorus, a bright plucked string for the bağlama fills the break.
+ */
+const BOSPHORUS: Song = (() => {
+  const A = [0, 1, 0, 2, 3, 1, 0, 4], B = [3, 6, 2, 1, 3, 5, 7, 0];
+  const m1: Phrase = [
+    [[0, 74, 2], [2, 75, 1], [3, 78, 1], [4, 79, 2], [6, 78, 2]],
+    [[0, 75, 3], [3, 74, 1], [4, 74, 4]],
+    [[0, 81, 2], [2, 79, 1], [3, 78, 1], [4, 79, 2], [6, 81, 2]],
+    [[0, 82, 3], [3, 81, 1], [4, 79, 2], [6, 75, 2]],
+    [[0, 79, 2], [2, 82, 2], [4, 81, 2], [6, 79, 2]],
+    [[0, 78, 2], [2, 79, 1], [3, 78, 1], [4, 75, 4]],
+    [[0, 74, 2], [2, 75, 1], [3, 78, 1], [4, 75, 2], [6, 74, 2]],
+    [[0, 72, 2], [2, 75, 2], [4, 74, 4]],
+  ];
+  const m2: Phrase = [
+    [[0, 86, 4], [4, 84, 2], [6, 82, 2]],
+    [[0, 82, 3], [3, 81, 1], [4, 79, 4]],
+    [[0, 84, 2], [2, 82, 1], [3, 81, 1], [4, 79, 2], [6, 75, 2]],
+    [[0, 78, 3], [3, 79, 1], [4, 78, 2], [6, 75, 2]],
+    [[0, 79, 4], [4, 82, 2], [6, 81, 2]],
+    [[0, 79, 2], [2, 76, 2], [4, 79, 4]],
+    [[0, 81, 2], [2, 79, 2], [4, 73, 2], [6, 76, 2]],
+    [[0, 74, 6]],
+  ];
+  return {
+    chords: [
+      [38, 54, 57, 62, 66], // D
+      [39, 55, 58, 62, 67], // Ebmaj7
+      [36, 55, 60, 63, 67], // Cm
+      [43, 55, 58, 62, 67], // Gm
+      [38, 54, 57, 60, 66], // D7
+      [43, 52, 55, 58, 62], // Gm6
+      [46, 53, 58, 62, 65], // Bb
+      [45, 55, 57, 61, 64], // A7
+    ],
+    bpm: 86, swing: 0.55, loopFrom: 1, style: 'riviera',
+    sections: [
+      { prog: A, bass: false, drums: 0 },
+      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 1 },
+      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
+      { prog: A, arp: true, lead: 'mando', bass: true, drums: 2 },
+      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 2 },
+      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
+      { prog: B, arp: true, lead: 'nylon', bass: true, drums: 0 },
+    ],
+  };
+})();
+
 /** A semitone or whole tone below, staying in the scale: the koto's little lead-in. */
 const graceOf = (m: number) => m - ([0, 5].includes(m % 12) ? 1 : 2);
 
@@ -246,21 +297,23 @@ export class Audio {
     this.loop(brown, 0.6, swell);
     this.far = this.filter('lowpass', 2600, 0.4, this.street);
     this.far.connect(this.gain(0.6, this.verb));
-    if (AMALFI) {
+    if (HILLSIDE) {
       this.surf = this.gain(0, this.street);
       this.loop(this.surfLoop(), 1, this.surf);
     }
     this.setVolumes(this.vol.music, this.vol.amb, this.vol.sfx);
 
     const now = ctx.currentTime;
-    const song = AMALFI ? RIVIERA : BGM;
+    const song = AMALFI ? RIVIERA : ISTANBUL ? BOSPHORUS : BGM;
     this.bgm = { song, t: now + 0.4, sec: 0, bar: 0, step: 0, out: this.bgmOut, bpm: song.bpm };
     this.timers.bird = now + rand(15, 40);
     this.timers.cricket = now + rand(5, 12);
+    this.timers.horn = now + rand(25, 60);
 
     // queue the tune's notes and footsteps so they're rendered a couple per frame before they're needed
     this.queueSong(song);
     if (AMALFI) this.warm.push('gull', 'toll');
+    if (ISTANBUL) this.warm.push('gull', 'horn', 'ezan');
     for (const s of ['stone', 'wood', 'tile', 'gravel', 'grass']) for (let i = 0; i < 3; i++) this.warm.push(`step-${s}-${i}`);
     for (const k of ['bite', 'chew', 'crunch', 'slurp', 'gulp', 'blow', 'rustle', 'drop']) this.warm.push(k);
 
@@ -559,10 +612,24 @@ export class Audio {
     }
     if (due('cricket', 4, 10) && n > 0.55) this.fire(this.buf('cricket'), at, rand(0.01, 0.02) * n, this.street, rand(0.97, 1.03), undefined, rand(-0.9, 0.9));
     // Amalfi: now and then a gull far out over the bay, a little nearer by the sea
-    if (AMALFI && due('gull', 35, 90) && n < 0.6) {
+    if (HILLSIDE && due('gull', ISTANBUL ? 18 : 35, ISTANBUL ? 50 : 90) && n < 0.6) {
       const pan = rand(-0.9, 0.9), vol = rand(0.01, 0.018) * (0.4 + 0.6 * this.sea);
       for (let i = 0, c = 1 + Math.floor(rand(0, 2)); i < c; i++) this.fire(this.buf('gull'), at + i * rand(0.5, 0.8), vol * (1 - i * 0.25), this.far, rand(0.9, 1.05), undefined, pan);
     }
+    // Istanbul: a ferry's horn somewhere out on the Bosphorus, day and night
+    if (ISTANBUL && due('horn', 70, 160)) {
+      const vol = rand(0.035, 0.06) * (0.5 + 0.5 * this.sea), pan = rand(0.2, 0.8);
+      this.fire(this.buf('horn'), at, vol, this.far, rand(0.94, 1.04), undefined, pan);
+      if (Math.random() < 0.5) this.fire(this.buf('horn'), at + 2.6, vol * 0.8, this.far, 1, undefined, pan);
+    }
+  }
+
+  /** The call to prayer from a minaret, `delay` seconds from now, reverberating across the roofs. */
+  ezan(vol: number, delay: number): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + 0.1 + delay;
+    this.fire(this.buf('ezan'), t, vol * (this.inside ? 0.35 : 1), this.far, 1, undefined, delay ? -0.5 : 0.3);
+    this.fire(this.buf('ezan'), t + 0.9, vol * 0.3 * (this.inside ? 0.35 : 1), this.verb, 1, undefined, delay ? 0.4 : -0.4);
   }
 
   /** The cathedral bell striking the hour, fainter the further away it is. */
@@ -580,6 +647,51 @@ export class Audio {
       this.note('bell', pick(notes), at, vol * rand(0.6, 1), dest, undefined, pan);
       at += rand(0.09, 0.28);
     }
+  }
+
+  /**
+   * The call to prayer: a single voice on the open vowel, long held tones ornamented with melisma, phrase by phrase
+   * with breaths between. A glottal buzz through three vowel formants, vibrato that widens on the held notes, the
+   * pitch gliding between steps of a Hicaz-like scale.
+   */
+  private renderEzan(): AudioBuffer {
+    const base = 207.65; // G#3
+    // [semitones above the tonic, seconds] per note, phrases split by rests (null)
+    const line: ([number, number] | null)[] = [
+      [0, 1.4], [1, 0.3], [0, 0.3], [4, 0.5], [5, 2.2], [4, 0.35], [1, 0.4], [0, 1.6], null,
+      [5, 0.8], [7, 0.4], [8, 0.3], [7, 2.0], [5, 0.4], [4, 0.4], [5, 0.3], [4, 0.3], [1, 0.4], [0, 1.8], null,
+      [7, 1.0], [8, 0.3], [7, 0.3], [5, 0.3], [7, 2.4], [8, 0.3], [10, 0.6], [8, 0.4], [7, 0.4], [5, 0.5], [4, 0.4], [5, 2.0], null,
+      [4, 0.6], [5, 0.4], [4, 0.3], [1, 0.4], [0, 2.6],
+    ];
+    const notes: { t0: number; t1: number; st: number }[] = [];
+    let t = 0.2;
+    const rests: [number, number][] = [];
+    for (const n of line) {
+      if (!n) { rests.push([t, t + 1.6]); t += 1.6; continue; }
+      notes.push({ t0: t, t1: t + n[1], st: n[0] });
+      t += n[1];
+    }
+    const dur = t + 1.0;
+    return this.render(dur, LSR, () => {
+      const f1 = new SVF(LSR, 0.18), f2 = new SVF(LSR, 0.14), f3 = new SVF(LSR, 0.1);
+      let ph = 0, i = 0, st = notes[0].st;
+      return (tt) => {
+        while (i < notes.length - 1 && tt >= notes[i].t1) i++;
+        const nt = notes[i];
+        // glide to each new step, then hold with a slow widening vibrato
+        st += (nt.st - st) * 0.0016;
+        const held = Math.min(1, Math.max(0, tt - nt.t0 - 0.25) / 0.8);
+        const vib = (0.12 + 0.28 * held) * Math.sin(TAU * 5.4 * tt);
+        const f = base * 2 ** ((st + vib) / 12);
+        ph += (TAU * f) / LSR;
+        // a plain sawtooth buzz (cheap to render); the formants and the reverb soften it into a voice
+        const src = ((ph / TAU) % 1) * 2 - 1 + noise() * 0.05;
+        const v = f1.run(src, 760) * 1.0 + f2.run(src, 1180) * 0.55 + f3.run(src, 2650) * 0.22;
+        let env = Math.min(1, tt / 0.25) * Math.min(1, Math.max(0, dur - 0.6 - tt) / 0.6);
+        for (const [a, b] of rests) if (tt > a - 0.35 && tt < b) env *= Math.max(0, Math.min(1, (a - tt) / 0.35, (tt - b + 0.3) / 0.3));
+        return v * env;
+      };
+    });
   }
 
   // ---- playback helpers ----
@@ -862,6 +974,12 @@ export class Audio {
         const env = Math.min(1, t / 0.03) * Math.exp(-Math.max(0, t - 0.25) * 7);
         return (Math.sin(ph) + 0.55 * Math.sin(2 * ph) + 0.3 * Math.sin(3 * ph)) * 0.55 * env * (0.8 + 0.2 * Math.sin(TAU * 52 * t));
       }; });
+      case 'horn': return this.render(2.4, LSR, () => { const lp = new SVF(LSR, 0.6); let ph = 0; return (t) => { // a ferry's deep two-tone horn
+        ph += (TAU * 98 * (1 + 0.004 * Math.sin(TAU * 4 * t))) / LSR;
+        const src = Math.sin(ph) + 0.6 * Math.sin(2 * ph) + 0.45 * Math.sin(3 * ph) + 0.3 * Math.sin(4 * ph) + 0.2 * Math.sin(5.04 * ph);
+        return lp.run(src, 700) * Math.min(1, t / 0.12) * Math.min(1, (2.4 - t) / 0.5);
+      }; });
+      case 'ezan': return this.renderEzan();
       case 'toll': return this.render(6, LSR, () => (t) => { // a big bronze bell: hum, prime, minor third, fifth, nominal
         const f = 196;
         let s = 0;

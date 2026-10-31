@@ -38,6 +38,16 @@ export function foodColors(pal: Palette) {
     chocolate: a(0x4a2a1a, 0.06), chocolateDark: a(0x2e1a10, 0.05), mussel: a(0x23263a, 0.06), musselIn: a(0xe8964a, 0.06), clam: a(0xd9cfc0, 0.06),
     squid: a(0xf0e6d6, 0.05), potato: a(0xe9cf86, 0.06), parsley: a(0x3a8a2e, 0.1), ceramicBlue: a(0x2f63a8, 0.04), ceramicYellow: a(0xe9c23a, 0.04), ceramicWhite: a(0xf5f1e6, 0.02),
     scialatielli: a(0xf0dc9a, 0.06), scialatielliHi: a(0xf8eab8, 0.05), oil: a(0xd9b84a, 0.04),
+    // Istanbul
+    simit: a(0xb8642a, 0.1), simitDark: a(0x8a4318, 0.08), sesame: a(0xf0dca0, 0.06), bread: a(0xd9a05a, 0.08), breadIn: a(0xf6e6c0, 0.04),
+    mackerel: a(0x9aa4ae, 0.08), mackerelBack: a(0x3a4a5a, 0.08), redOnion: a(0xa84a7a, 0.06), pickleJuice: a(0xd83a5a, 0.04), gherkin: a(0x8aa83a, 0.08),
+    carrot: a(0xe8803a, 0.06), offal: a(0x8a5a3a, 0.1), offalHi: a(0xa86a42, 0.1), chiliFlake: a(0xb8281e, 0.08), chestnut: a(0x5a2e16, 0.08),
+    chestnutIn: a(0xe8c27a, 0.06), corn: a(0xf2c84a, 0.06), cornDark: a(0xd8a02a, 0.08), husk: a(0xc9b878, 0.06), dondurma: a(0xf8f4ea, 0.02),
+    salep: a(0xefe2c8, 0.03), cinnamon: a(0x8a5a2a, 0.08), doner: a(0x9a5a2a, 0.1), donerHi: a(0xb8743a, 0.08), lavash: a(0xf0dcae, 0.05),
+    ayran: a(0xfbfaf4, 0.02), copper: a(0xb87333, 0.06), copperDark: a(0x8a4f22, 0.06), baklava: a(0xd89a3a, 0.08), baklavaHi: a(0xf0c060, 0.06),
+    antep: a(0x7aa83a, 0.08), kadayif: a(0xe88a2a, 0.1), kadayifHi: a(0xf4a840, 0.08), syrup: a(0xe8b04a, 0.04, 0.05), begendi: a(0xe8dcb8, 0.04),
+    lambStew: a(0x7a3a1a, 0.08), stewSauce: a(0xb8401e, 0.06), manti: a(0xf2e2c0, 0.04), yoghurt: a(0xfbf8f0, 0.02), redButter: a(0xc8401e, 0.04),
+    mint: a(0x5a8a3a, 0.1), tulipGlass: pal.add(0xe8c8a0, { glass: true }), tea: a(0x8a2a12, 0.04), iznik: a(0x2f63a8, 0.04), iznikRed: a(0xc8321e, 0.04),
   };
 }
 
@@ -46,7 +56,9 @@ export type FoodId =
   | 'yakitori' | 'karaage' | 'ramen' | 'gyoza' | 'nigiri' | 'tamagoyaki'
   | 'purin' | 'napolitan' | 'zarusoba' | 'tempura'
   | 'sfogliatella' | 'delizia' | 'cuoppo' | 'frittatina' | 'portafoglio' | 'montanara' | 'gelato' | 'granita'
-  | 'limoncello' | 'caprese' | 'scialatielli' | 'totani';
+  | 'limoncello' | 'caprese' | 'scialatielli' | 'totani'
+  | 'simit' | 'pogaca' | 'balikekmek' | 'tursu' | 'midye' | 'kokorec' | 'kestane' | 'misir'
+  | 'dondurma' | 'salep' | 'doner' | 'ayran' | 'baklava' | 'kunefe' | 'hunkar' | 'manti';
 
 type FC = ReturnType<typeof foodColors>;
 
@@ -81,6 +93,22 @@ export function buildFood(id: FoodId, pal: Palette): Prop {
     case 'caprese': return caprese(c);
     case 'scialatielli': return scialatielli(c);
     case 'totani': return totani(c);
+    case 'simit': return simit(c);
+    case 'pogaca': return pogaca(c);
+    case 'balikekmek': return balikekmek(c);
+    case 'tursu': return tursu(c);
+    case 'midye': return midye(c);
+    case 'kokorec': return kokorec(c);
+    case 'kestane': return kestane(c);
+    case 'misir': return misir(c);
+    case 'dondurma': return dondurma(c);
+    case 'salep': return salep(c);
+    case 'doner': return doner(c);
+    case 'ayran': return ayran(c);
+    case 'baklava': return baklava(c);
+    case 'kunefe': return kunefe(c);
+    case 'hunkar': return hunkar(c);
+    case 'manti': return manti(c);
   }
 }
 
@@ -546,5 +574,219 @@ function totani(c: FC): Prop {
     else for (let t = 0; t < 8; t++) { const aa = (t / 8) * Math.PI * 2; p.set(Math.round(x + Math.cos(aa) * 1.6), 5, Math.round(z + Math.sin(aa) * 1.6), c.squid); }
   }
   for (let k = 0; k < 10; k++) p.set(7 + Math.floor(r() * 10), 6, 7 + Math.floor(r() * 10), c.parsley);
+  return p;
+}
+
+// ---------------------------------------------------------------------------------------------- Istanbul
+
+/** A plate with an İznik rim: white, a ring of blue with red tulip dots. */
+function iznikPlate(p: Prop, c: FC, cx: number, cz: number, r: number): void {
+  p.cylY(cx, cz, r, 0, 0, c.ceramicWhite);
+  p.cylY(cx, cz, r, 1, 1, (x, _y, z) => (Math.hypot(x + 0.5 - cx, z + 0.5 - cz) > r - 1.2 ? ((x * 3 + z) % 5 ? c.iznik : c.iznikRed) : 0));
+}
+
+/** A ring in the xz plane: a torus of radius R and tube r, lying on y0. */
+function ring(p: Prop, cx: number, cz: number, R: number, r: number, y0: number, col: (x: number, y: number, z: number) => number): void {
+  for (let y = 0; y <= Math.ceil(r * 2); y++) for (let z = 0; z < p.grid.sz; z++) for (let x = 0; x < p.grid.sx; x++) {
+    const d = Math.hypot(x + 0.5 - cx, z + 0.5 - cz) - R, dy = y + 0.5 - r;
+    if (d * d + dy * dy <= r * r) p.set(x, y0 + y, z, col(x, y0 + y, z));
+  }
+}
+
+function simit(c: FC): Prop {
+  const p = new Prop(22, 8, 22, S);
+  p.box(1, 0, 1, 20, 0, 20, c.paper);
+  // a ring of twisted dough dipped in grape molasses and rolled in sesame
+  ring(p, 11, 11, 6.4, 2.6, 1, (x, y, z) => (y >= 4 && (x * 5 + z * 3) % 4 === 0 ? c.sesame : (Math.atan2(z - 11, x - 11) * 6 + y) % 2 < 1 ? c.simitDark : c.simit));
+  return p;
+}
+
+function pogaca(c: FC): Prop {
+  const p = new Prop(22, 10, 22, S);
+  p.box(1, 0, 1, 20, 0, 20, c.paper);
+  for (const [x, z] of [[7, 8], [15, 8], [11, 15]] as const) {
+    p.ellipsoid(x, 1.5, z, 4.2, 4, 4.2, (_x, y) => (y >= 4 ? c.bread : c.breadIn));
+    p.box(x - 1, 5, z - 1, x, 5, z, c.sesame);
+  }
+  return p;
+}
+
+function balikekmek(c: FC): Prop {
+  const p = new Prop(26, 12, 14, S);
+  p.box(0, 0, 0, 25, 0, 13, c.paper);
+  // half a loaf split open: a grilled mackerel fillet, lettuce, red onion
+  for (let x = 2; x <= 23; x++) for (let z = 2; z <= 11; z++) {
+    const e = Math.abs(z - 6.5) / 5;
+    if (e > 1) continue;
+    const h = Math.round(4 * Math.sqrt(1 - e * e));
+    for (let y = 1; y <= h; y++) p.set(x, y, z, y === h || x === 2 || x === 23 ? c.bread : c.breadIn);
+  }
+  p.box(3, 5, 4, 22, 5, 9, c.lettuce);
+  p.box(4, 6, 4, 21, 7, 9, (x, y) => (y === 7 && x % 3 === 0 ? c.chashuEdge : y === 7 ? c.mackerelBack : c.mackerel));
+  for (let x = 5; x <= 20; x += 3) p.set(x, 8, 6 + (x % 2), c.redOnion);
+  for (let x = 2; x <= 23; x++) for (let z = 3; z <= 10; z++) { const e = Math.abs(z - 6.5) / 4.5; if (e <= 1) p.set(x, 9 + Math.round(1.5 * Math.sqrt(1 - e * e)), z, c.bread); }
+  p.box(22, 6, 10, 24, 7, 12, c.lemon);
+  return p;
+}
+
+function tursu(c: FC): Prop {
+  const p = new Prop(16, 18, 14, S);
+  // a glass of pink pickle juice and a dish of pickles: cucumber, carrot, cabbage, hot pepper
+  p.cylY(5, 7, 3.2, 0, 12, c.glass);
+  p.cylY(5, 7, 2.5, 1, 11, c.pickleJuice);
+  p.cylY(5, 7, 2.5, 12, 12, 0);
+  p.cylY(12, 7, 3.6, 0, 1, c.plate);
+  p.box(10, 2, 5, 11, 3, 9, c.gherkin); p.box(13, 2, 6, 14, 2, 8, c.carrot); p.box(12, 3, 7, 13, 3, 9, c.cabbage); p.box(11, 4, 6, 11, 6, 6, c.pepper);
+  return p;
+}
+
+function midye(c: FC): Prop {
+  const p = new Prop(22, 8, 22, S);
+  p.cylY(11, 11, 10, 0, 0, c.plate);
+  // stuffed mussels on the half shell, spiced rice inside, with lemon wedges
+  const r = rng(71);
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2, x = 11 + Math.cos(a) * 5.6, z = 11 + Math.sin(a) * 5.6;
+    p.ellipsoid(x, 1.2, z, 2.2, 1.2, 3.2, c.mussel);
+    p.ellipsoid(x, 2.2, z, 1.6, 1, 2.4, () => (r() < 0.2 ? c.musselIn : r() < 0.15 ? c.cinnamon : c.rice));
+  }
+  p.box(10, 1, 10, 12, 2, 12, c.lemon);
+  return p;
+}
+
+function kokorec(c: FC): Prop {
+  const p = new Prop(24, 12, 14, S);
+  p.box(0, 0, 0, 23, 0, 13, c.paper);
+  // chopped grilled lamb intestines with tomato, oregano and chilli in half a loaf
+  for (let x = 2; x <= 21; x++) for (let z = 2; z <= 11; z++) {
+    const e = Math.abs(z - 6.5) / 5;
+    if (e > 1) continue;
+    const h = Math.round(4 * Math.sqrt(1 - e * e));
+    for (let y = 1; y <= h; y++) p.set(x, y, z, y === h || x === 2 || x === 21 ? c.bread : c.breadIn);
+  }
+  const r = rng(72);
+  for (let x = 3; x <= 20; x++) for (let z = 4; z <= 9; z++) { p.set(x, 5, z, r() < 0.5 ? c.offal : c.offalHi); if (r() < 0.6) p.set(x, 6, z, r() < 0.2 ? c.tomato : r() < 0.2 ? c.chiliFlake : r() < 0.5 ? c.offal : c.offalHi); }
+  return p;
+}
+
+function kestane(c: FC): Prop {
+  const p = new Prop(16, 18, 14, S);
+  // a paper bag of roast chestnuts, some split open
+  p.box(1, 0, 1, 14, 10, 12, c.paper);
+  p.box(2, 1, 2, 13, 10, 11, 0);
+  p.box(1, 7, 1, 14, 7, 1, c.paperRed);
+  const r = rng(73);
+  for (let k = 0; k < 9; k++) {
+    const x = 4 + (k % 3) * 3.5, z = 4 + Math.floor(k / 3) * 3, y = 9 + r() * 4;
+    p.ellipsoid(x, y, z, 1.8, 1.4, 1.6, c.chestnut);
+    if (k % 2 === 0) p.box(Math.round(x), Math.round(y + 1), Math.round(z), Math.round(x), Math.round(y + 1), Math.round(z) + 1, c.chestnutIn);
+  }
+  return p;
+}
+
+function misir(c: FC): Prop {
+  const p = new Prop(10, 10, 28, S);
+  // a cob of grilled corn in its peeled-back husk, salted
+  for (let z = 4; z <= 25; z++) {
+    const rr = 3.4 * Math.sin(Math.PI * (z - 2) / 26);
+    for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) {
+      const d = Math.hypot(x + 0.5 - 5, y + 0.5 - 5);
+      if (d <= rr) p.set(x, y, z, (x + y * 2 + z) % 5 === 0 ? c.cornDark : c.corn);
+    }
+  }
+  for (let z = 0; z <= 5; z++) { p.box(3, 1, z, 6, 2, z, c.husk); p.box(1, 4, z, 2, 6, z, c.husk); p.box(7, 4, z, 8, 6, z, c.husk); }
+  return p;
+}
+
+function dondurma(c: FC): Prop {
+  const p = new Prop(14, 30, 14, S);
+  // a cone of stretchy Maraş ice cream, beaten so long it stands up tall
+  for (let y = 0; y < 13; y++) p.cylY(7, 7, 0.8 + y * 0.36, y, y, (x, yy, z) => ((x + yy + z) % 3 === 0 ? c.waferDark : c.wafer));
+  p.cylY(7, 7, 5, 13, 22, (_x, y) => (y > 20 ? c.dondurma : c.dondurma));
+  p.ellipsoid(7, 23, 7, 4.4, 3, 4.4, c.dondurma);
+  p.box(6, 25, 6, 8, 26, 8, c.antep);
+  return p;
+}
+
+function salep(c: FC): Prop {
+  const p = new Prop(18, 14, 14, S);
+  p.cylY(9, 7, 6.5, 0, 0, c.plate);
+  // a cup of hot orchid-root milk, thick as custard, dusted with cinnamon
+  p.cylY(9, 7, 4, 1, 9, c.ceramicWhite);
+  p.cylY(9, 7, 3.2, 3, 9, c.salep);
+  p.box(8, 9, 6, 10, 9, 8, c.cinnamon); p.set(7, 9, 7, c.cinnamon); p.set(11, 9, 6, c.cinnamon);
+  p.box(13, 4, 7, 14, 4, 7, c.ceramicWhite); p.box(14, 5, 7, 14, 7, 7, c.ceramicWhite); p.box(13, 8, 7, 14, 8, 7, c.ceramicWhite);
+  return p;
+}
+
+function doner(c: FC): Prop {
+  const p = new Prop(26, 10, 16, S);
+  p.box(0, 0, 0, 25, 0, 15, c.paper);
+  // a dürüm: lavash rolled round shaved döner, tomato, onion and parsley, open at one end
+  for (let x = 3; x <= 22; x++) for (let y = 1; y <= 8; y++) for (let z = 3; z <= 12; z++) {
+    const d = Math.hypot(y - 4.5, z - 7.5);
+    if (d > 4.4) continue;
+    p.set(x, y, z, d > 3.4 ? c.lavash : x > 19 ? ((y + z) % 3 === 0 ? c.tomato : (y + z) % 3 === 1 ? c.parsley : c.donerHi) : c.doner);
+  }
+  for (let x = 3; x <= 12; x++) for (let y = 1; y <= 8; y++) for (let z = 3; z <= 12; z++) if (Math.hypot(y - 4.5, z - 7.5) <= 4.6 && Math.hypot(y - 4.5, z - 7.5) > 3.6) p.set(x, y, z, c.paper);
+  return p;
+}
+
+function ayran(c: FC): Prop {
+  const p = new Prop(14, 16, 14, S);
+  // a hammered copper cup of ayran with its froth standing up
+  p.cylY(7, 7, 4.4, 0, 11, (x, y, z) => ((x + y + z) % 4 === 0 ? c.copperDark : c.copper));
+  p.cylY(7, 7, 3.6, 1, 11, c.ayran);
+  p.ellipsoid(7, 11.5, 7, 3.6, 2, 3.6, c.ayran);
+  p.box(11, 4, 6, 12, 4, 8, c.copperDark); p.box(12, 5, 6, 12, 8, 8, c.copperDark); p.box(11, 9, 6, 12, 9, 8, c.copperDark);
+  return p;
+}
+
+function baklava(c: FC): Prop {
+  const p = new Prop(22, 8, 22, S);
+  iznikPlate(p, c, 11, 11, 10.5);
+  // diamonds of paper-thin layers glossy with syrup, crowned with ground pistachio
+  for (const [x0, z0] of [[5, 5], [12, 5], [5, 12], [12, 12]] as const)
+    for (let x = 0; x < 6; x++) for (let z = 0; z < 6; z++) {
+      if (Math.abs(x - 2.5) + Math.abs(z - 2.5) > 3.6) continue;
+      for (let y = 1; y <= 4; y++) p.set(x0 + x, y, z0 + z, y === 4 ? (Math.abs(x - 2.5) + Math.abs(z - 2.5) < 1.6 ? c.antep : c.baklavaHi) : y % 2 ? c.baklava : c.antep);
+    }
+  return p;
+}
+
+function kunefe(c: FC): Prop {
+  const p = new Prop(22, 8, 22, S);
+  // a copper pan: shredded kadayıf baked crisp round a layer of melting cheese, soaked in syrup, pistachio on top
+  p.cylY(11, 11, 10, 0, 2, c.copper);
+  p.cylY(11, 11, 9, 1, 2, 0);
+  p.cylY(11, 11, 8.6, 1, 4, (x, y, z) => (y === 2 && Math.hypot(x + 0.5 - 11, z + 0.5 - 11) < 7 ? c.cheese : (x + z + y) % 3 ? c.kadayif : c.kadayifHi));
+  p.cylY(11, 11, 3, 5, 5, c.antep);
+  for (let k = 0; k < 10; k++) p.set(6 + (k * 7) % 11, 5, 6 + (k * 3) % 11, c.syrup);
+  return p;
+}
+
+function hunkar(c: FC): Prop {
+  const p = new Prop(24, 9, 24, S);
+  iznikPlate(p, c, 12, 12, 11.5);
+  // the sultan's delight: a bed of smoky aubergine and cheese béchamel under a slow-cooked lamb stew
+  p.cylY(12, 12, 9, 1, 2, c.begendi);
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2, d = k % 3 === 0 ? 0 : 3.4;
+    p.ellipsoid(12 + Math.cos(a) * d, 3.5, 12 + Math.sin(a) * d, 1.8, 1.4, 1.8, c.lambStew);
+  }
+  p.cylY(12, 12, 4.6, 3, 3, (x, _y, z) => (p.get(x, 3, z) ? c.lambStew : c.stewSauce));
+  p.box(11, 5, 11, 12, 5, 12, c.parsley);
+  return p;
+}
+
+function manti(c: FC): Prop {
+  const p = new Prop(22, 9, 22, S);
+  // a deep plate of tiny lamb dumplings under garlic yoghurt and red pepper butter, dried mint
+  for (let y = 0; y <= 3; y++) p.cylY(11, 11, 7.5 + y * 0.9, y, y, c.ceramicWhite);
+  p.cylY(11, 11, 9.6, 1, 3, 0);
+  const r = rng(74);
+  for (let k = 0; k < 26; k++) { const a = r() * Math.PI * 2, d = r() * 7; p.box(Math.round(11 + Math.cos(a) * d), 1, Math.round(11 + Math.sin(a) * d), Math.round(11 + Math.cos(a) * d) + 1, 2, Math.round(11 + Math.sin(a) * d), c.manti); }
+  p.cylY(11, 11, 5.5, 3, 3, c.yoghurt);
+  for (let k = 0; k < 18; k++) { const a = r() * Math.PI * 2, d = r() * 6; p.set(Math.round(11 + Math.cos(a) * d), 4, Math.round(11 + Math.sin(a) * d), k % 3 === 0 ? c.mint : c.redButter); }
   return p;
 }

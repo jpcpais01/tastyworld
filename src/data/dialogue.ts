@@ -1,5 +1,5 @@
 import type { Look } from '../world/characters';
-import { AMALFI } from '../world/cityId';
+import { AMALFI, ISTANBUL } from '../world/cityId';
 
 export interface Idler { id: string; name: string; look: Look; lines: string[]; }
 
@@ -117,9 +117,75 @@ const AMALFI_IDLERS: Record<string, Idler> = {
   },
 };
 
-export const IDLERS: Record<string, Idler> = AMALFI ? AMALFI_IDLERS : TOKYO_IDLERS;
+const ISTANBUL_IDLERS: Record<string, Idler> = {
+  teyze: {
+    id: 'teyze', name: 'Ayşe Teyze',
+    look: { skin: 0xe0ac86, hair: 0x8a8a8e, hairStyle: 'bun', top: 0x6a3a4a, topStyle: 'cardigan', accent: 0x3a2a3a, bottom: 0x3a3a40, skirt: true, shoes: 0x2a2a2e },
+    lines: [
+      'Welcome, my child! Feed the pigeons by the mosque, buy a simit, then you are a real Istanbullu.',
+      'My mother used to tie nazar beads in secret places, three of them, for the cook behind the door with no sign. Somebody still does.',
+      'One is in the Spice Bazaar, where the smell is strongest. One is with the fishermen on the bridge. The third... up on the terrace of the great mosque, where you can see the whole Golden Horn.',
+    ],
+  },
+  olta: {
+    id: 'olta', name: 'Rıfat Amca',
+    look: { skin: 0xc98f6a, hair: 0xb9b6b0, hairStyle: 'short', top: 0x5a6a4a, topStyle: 'vest', accent: 0x3a3a30, bottom: 0x4a4a40, shoes: 0x2a2a2e, hat: 'cap', hatColor: 0x3a3a40 },
+    lines: [
+      'Forty years I fish from this bridge. Istavrit, the little horse mackerel. Some days a hundred, some days nothing. Every day tea.',
+      'Under the bridge there are fish restaurants. Above it, us. The fish do not know which one to fear.',
+      'The current in the Bosphorus runs two ways at once: fresh water south on top, salty water north underneath. The fish ride both.',
+    ],
+  },
+  hamal: {
+    id: 'hamal', name: 'Hamal Cemal',
+    look: { skin: 0xa8714f, hair: 0x1d1a1c, hairStyle: 'short', top: 0x7a6a5a, topStyle: 'vest', accent: 0x5a4a3a, bottom: 0x4a4038, shoes: 0x3a2a20, hat: 'beanie', hatColor: 0x5a4a3a },
+    lines: [
+      'I am a hamal, a porter. This saddle on my back carries a fridge up the hill, no problem. The streets are too narrow for vans.',
+      'The bazaar shops get their sacks from me at dawn. Saffron, sumac, two hundred kilos of pistachio.',
+      'Tip for you: the lokanta next to the han, the beans. Workers\' food. The best food.',
+    ],
+  },
+  imam: {
+    id: 'imam', name: 'Hasan Hoca',
+    look: { skin: 0xe0ac86, hair: 0xb9b6b0, hairStyle: 'short', top: 0x3a3a40, topStyle: 'jacket', accent: 0xf4f1ea, bottom: 0x3a3a40, shoes: 0x2a2a2e, hat: 'beanie', hatColor: 0xf4f1ea, glasses: true },
+    lines: [
+      'This is the New Mosque, Yeni Cami. New, but it was finished in 1665! In Istanbul, new is a relative word.',
+      'Five times a day the ezan, the call to prayer, rises from the minarets. You are welcome inside between prayers. Shoes off, shoulders covered.',
+      'The pigeons have lived on this square longer than anyone. People buy seed from the old ladies and feed them for good luck.',
+    ],
+  },
+  cayci: {
+    id: 'cayci', name: 'Çaycı Necati',
+    look: { skin: 0xc98f6a, hair: 0x2a1d17, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'vest', accent: 0x8a2a2a, bottom: 0x2b2b30, shoes: 0x2a2a2e },
+    lines: [
+      'Up here on the terrace of Süleymaniye the whole Golden Horn is yours. Tea is fifteen lira. The view is free.',
+      'Mimar Sinan built this mosque. He was a janissary engineer and built three hundred buildings. He is buried just over there, by the wall.',
+      'See the boats down there? From up here they look like toys. In the morning the fog hides the whole Asian side.',
+    ],
+  },
+  halici: {
+    id: 'halici', name: 'Halıcı Orhan',
+    look: { skin: 0xe0ac86, hair: 0x3b2a20, hairStyle: 'short', top: 0x6a2a2a, topStyle: 'suit', accent: 0xf4f1ea, bottom: 0x2b2b30, shoes: 0x3a2a20, glasses: true },
+    lines: [
+      'Welcome to the Kapalıçarşı, the Covered Bazaar! Four thousand shops, sixty streets. Since 1461.',
+      'A carpet? No, no, I am not selling. Just sit, drink tea. Then maybe we talk carpets.',
+      'Every street here belonged to one trade: goldsmiths, slipper makers, fez makers. The street names still tell you who worked there.',
+    ],
+  },
+  kaptan: {
+    id: 'kaptan', name: 'Kaptan Yaşar',
+    look: { skin: 0xc98f6a, hair: 0xb9b6b0, hairStyle: 'short', top: 0x2b3a62, topStyle: 'jacket', accent: 0xf2c74a, bottom: 0x2b3a62, shoes: 0x2a2a2e, hat: 'cap', hatColor: 0xf4f1ea },
+    lines: [
+      'I captain the ferry to Kadıköy. Twenty minutes, Europe to Asia. People feed the gulls simit from the back deck the whole way.',
+      'Ferries have run from these piers since 1851. The old steamers had names of birds.',
+      'In the fog you navigate by sound: the horns of the other ferries, the bells, the call to prayer from the shore.',
+    ],
+  },
+};
 
-export const CAT_LINES = AMALFI ? ['Miao.', 'The cat squints at the sea, unimpressed.', 'Purrrr...', 'The cat rolls over on the warm stone.'] : ['Nyaa~', 'The cat blinks at you slowly. That means trust.', 'Purrrr...', 'The cat stretches, then ignores you magnificently.'];
+export const IDLERS: Record<string, Idler> = ISTANBUL ? ISTANBUL_IDLERS : AMALFI ? AMALFI_IDLERS : TOKYO_IDLERS;
+
+export const CAT_LINES = ISTANBUL ? ['Miyav.', 'The cat owns this street, and it knows it.', 'Purrrr...', 'The cat accepts one head scratch. Only one.'] : AMALFI ? ['Miao.', 'The cat squints at the sea, unimpressed.', 'Purrrr...', 'The cat rolls over on the warm stone.'] : ['Nyaa~', 'The cat blinks at you slowly. That means trust.', 'Purrrr...', 'The cat stretches, then ignores you magnificently.'];
 
 /** Snippets overheard from passers-by. */
 const TOKYO_CHAT = [
@@ -166,7 +232,29 @@ const AMALFI_GREET: Record<'morning' | 'day' | 'evening', string[]> = {
 const AMALFI_STARTLE = ['Mamma mia!', 'Attenzione!', 'Piano, piano!', 'Scusi!', 'Uè!'];
 const AMALFI_ENVY = ['Che buono!', 'Where did you find that?', 'Now I want one too...'];
 
-export const CROWD_CHAT = AMALFI ? AMALFI_CHAT : TOKYO_CHAT;
-export const CROWD_GREET = AMALFI ? AMALFI_GREET : TOKYO_GREET;
-export const CROWD_STARTLE = AMALFI ? AMALFI_STARTLE : TOKYO_STARTLE;
-export const CROWD_ENVY = AMALFI ? AMALFI_ENVY : TOKYO_ENVY;
+const ISTANBUL_CHAT = [
+  'Çay içelim mi? A quick tea?',
+  'The ferry leaves in five minutes, run!',
+  'Balık ekmek by the boats, my treat.',
+  'Yok artık! No way!',
+  'My aunt sells spices in the bazaar.',
+  'Look at the gulls, they want your simit.',
+  'Kadıköy tonight? Fenerbahçe is playing.',
+  'This hill, every single day...',
+  'The tram is full again.',
+  'Have you seen the sunset from the bridge?',
+  'Smells like roasting chestnuts.',
+  'Mashallah, look at that baklava.',
+];
+const ISTANBUL_GREET: Record<'morning' | 'day' | 'evening', string[]> = {
+  morning: ['Günaydın!', 'Good morning!', 'Had your tea yet?'],
+  day: ['Merhaba!', 'Hoş geldiniz!', 'Enjoying Istanbul?'],
+  evening: ['İyi akşamlar!', 'Good evening!', 'Lovely evening by the water.'],
+};
+const ISTANBUL_STARTLE = ['Aman!', 'Dikkat!', 'Yavaş, yavaş!', 'Pardon!', 'Hoppala!'];
+const ISTANBUL_ENVY = ['Afiyet olsun!', 'Where did you get that?', 'Now I want one too...'];
+
+export const CROWD_CHAT = ISTANBUL ? ISTANBUL_CHAT : AMALFI ? AMALFI_CHAT : TOKYO_CHAT;
+export const CROWD_GREET = ISTANBUL ? ISTANBUL_GREET : AMALFI ? AMALFI_GREET : TOKYO_GREET;
+export const CROWD_STARTLE = ISTANBUL ? ISTANBUL_STARTLE : AMALFI ? AMALFI_STARTLE : TOKYO_STARTLE;
+export const CROWD_ENVY = ISTANBUL ? ISTANBUL_ENVY : AMALFI ? AMALFI_ENVY : TOKYO_ENVY;

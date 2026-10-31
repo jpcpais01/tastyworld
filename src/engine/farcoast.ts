@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
-import { hillY, shoreY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
+import { hillY, shoreY, headlandY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
 
 /**
  * The Amalfi Coast past the edges of the playable map. The Lattari mountains climb from the town's two flanks to
@@ -120,7 +120,7 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
     const ex = Math.max(x0, Math.min(x1, x)), ez = Math.max(z0, Math.min(z1, z));
     if (ex < ROAD_X0) return hillY(ex, ez) - 0.4;
     if (ex <= ROAD_X1) return ez < -52 ? hillY(ex, ez) + 4 : 1.6;
-    return shoreY(ex, ez);
+    return Math.max(shoreY(ex, ez), headlandY(ex, ez));
   };
   const H = (x: number, z: number) => {
     const o = outside(x, z);

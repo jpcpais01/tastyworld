@@ -9,7 +9,7 @@ import { STALL } from '../data/stalls';
 import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
-import { amalfiPlan, K, col, layerOf, hillY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
+import { amalfiPlan, K, col, layerOf, hillY, headlandY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -744,9 +744,11 @@ function covered(b: Builder, c: AC, plan: Plan): void {
     for (let z = z0; z <= z1; z++)
       for (let x = x0; x <= x1; x++) {
         const px = (x + 0.5) * V, pz = (z + 0.5) * V;
-        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2));
+        const tr = ((px - ax) * dx + (pz - az) * dz) / len2, t = Math.max(0, Math.min(1, tr));
         const d = Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
         if (d > r) continue;
+        // a tunnel stops dead at its portals: nothing of it stands out in front of the rock face
+        if (s.kind === K.Tunnel && (tr < 0 || tr > 1)) continue;
         const floor = layerOf(ay + (by - ay) * t);
         const ci = col(x, z);
         const inside = d <= s.w / 2;
@@ -754,16 +756,18 @@ function covered(b: Builder, c: AC, plan: Plan): void {
         const spring = floor + Math.round((s.roof - 1.2) / V);
         const crown = spring + Math.round(Math.sqrt(Math.max(0, 1 - (d / (s.w / 2)) ** 2)) * 1.2 / V);
         const lt = plan.lot[ci] ? plan.lots[plan.lot[ci] - 1] : null;
-        const hill = layerOf(hillY(px, pz));
+        const hd = headlandY(px, pz);
+        const hill = layerOf(hd > -99 ? Math.floor(hd) : hillY(px, pz));
         const top = Math.max(lt ? lt.top : 0, s.kind === K.Tunnel ? hill : spring + 14 + Math.round(hash3(x >> 4, 1, z >> 4) * 12));
         const wall = s.kind === K.Tunnel ? c.limeDark : lt ? c.plasterOld : c.tufa;
         if (inside) {
           // the hill the passage burrows through is cut away under the vault
           if (crown > floor) g.box(x, floor, z, x, crown - 1, z, 0);
-          g.box(x, crown, z, x, top, z, (xx, y, zz) => (y === crown ? c.stripeTufa : y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : s.kind === K.Tunnel && y > top - 2 ? c.grassDry : masonry(c, xx, y, zz, false) === c.mortar ? c.mortar : wall));
+          // (a tunnel's lining is a few courses of stone; above it is the headland's own limestone)
+          g.box(x, crown, z, x, top, z, (xx, y, zz) => (y === crown ? c.stripeTufa : y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : s.kind === K.Tunnel && y > top - 2 ? c.grassDry : s.kind === K.Tunnel && y > crown + 6 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, false) === c.mortar ? c.mortar : wall));
         } else if (plan.kind[ci] !== s.kind && t > 0 && t < 1) {
           // side walls only: the two ends stay open
-          g.box(x, floor, z, x, top, z, (xx, y, zz) => (y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : y < floor + 2 ? c.plinth : masonry(c, xx, y, zz, s.kind !== K.Tunnel)));
+          g.box(x, floor, z, x, top, z, (xx, y, zz) => (y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : y < floor + 2 ? c.plinth : s.kind === K.Tunnel && y > spring + 8 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, s.kind !== K.Tunnel)));
         }
       }
     // lamps along the vault
@@ -788,9 +792,10 @@ function carvePassages(b: Builder, c: AC, plan: Plan): void {
     for (let z = z0; z <= z1; z++)
       for (let x = x0; x <= x1; x++) {
         const px = (x + 0.5) * V, pz = (z + 0.5) * V;
-        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2));
+        const tr = ((px - ax) * dx + (pz - az) * dz) / len2, t = Math.max(0, Math.min(1, tr));
         const d = Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
         if (d > r) continue;
+        if (s.kind === K.Tunnel && (tr < 0 || tr > 1)) continue; // (the portal's face, as in covered())
         const floor = layerOf(ay + (by - ay) * t);
         const spring = floor + Math.round((s.roof - 1.2) / V);
         const crown = spring + Math.round(Math.sqrt(Math.max(0, 1 - (d / r) ** 2)) * 1.2 / V);
@@ -1561,8 +1566,17 @@ function shore(b: Builder, c: AC, plan: Plan): void {
     for (let x = ROAD_X0 / V - 4; x <= ROAD_X1 / V + 4; x++) {
       const d = Math.abs((x + 0.5) * V - (ROAD_X0 + ROAD_X1) / 2);
       const crown = Y + 14 + Math.round(Math.sqrt(Math.max(0, 1 - (d / 4.2) ** 2)) * 8);
-      g.box(x, d < 4.2 ? crown : Y, tz, x, Y + 30, tz + 1, (xx, y, zz) => (y < crown + 2 ? c.stripeTufa : masonry(c, xx, y, zz, false)));
+      // the headwall fills the cut in the rock face up to its brow, a stone cornice along the top
+      const T = layerOf(12);
+      g.box(x, d < 4.2 ? crown : Y, tz, x, T - 2, tz + 1, (xx, y, zz) => (y < crown + 2 ? c.stripeTufa : masonry(c, xx, y, zz, false)));
+      g.box(x, T - 1, tz, x, T, tz + 2, c.marbleGrey);
+      // the arch's ring of voussoirs stands proud of the wall
+      if (d < 4.7) for (let y = Y; y <= crown + 1; y++) if (d >= 4.2 || y >= crown) g.set(x, y, tz + 2, (x + y) % 3 ? c.stripeTufa : c.tufaDark);
     }
+    // a marble plaque over the arch with the road's number and the year it was cut
+    const xc = Math.round((ROAD_X0 + ROAD_X1) / 2 / V);
+    g.box(xc - 5, Y + 26, tz + 2, xc + 4, Y + 30, tz + 2, c.marble);
+    for (let x = xc - 3; x <= xc + 2; x++) if (x % 2) g.set(x, Y + 28, tz + 2, c.stripeDark);
   }
 }
 

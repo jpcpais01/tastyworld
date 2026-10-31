@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.15',
+    date: '2026-10-31',
+    title: 'A wider clear view',
+    items: [
+      'Buildings now lower over a wider band on both sides of you, about two metres either way, so the street around you stays in view instead of just a narrow gap where you stand.',
+      'Buildings no longer try to guess where you are walking next: what lowers depends only on where you are.',
+    ],
+  },
+  {
     version: '0.10.14',
     date: '2026-10-31',
     title: 'Smoother when zoomed out',

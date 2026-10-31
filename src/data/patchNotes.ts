@@ -8,6 +8,21 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.2',
+    date: '2026-10-31',
+    title: 'Across the Horn',
+    items: [
+      'The Golden Horn is now as wide as it should be. From Eminönü you look across open water to Karaköy, with the Galata Tower on its hill above it and Beyoğlu packed up the slope behind.',
+      'The Galata Bridge carries on across the water to the far bank, its lamps running all the way over.',
+      'The houses below the Süleymaniye are lower, so the terrace finally has its view over the whole Horn.',
+      'The far shores are much denser: houses climb the hills shoulder to shoulder in Beyoğlu, Üsküdar and Kadıköy instead of leaving bare slopes.',
+      'Simit sellers do their rounds with a tray of sesame rings balanced on their heads, and call out "Simiiit!" as they pass.',
+      'The pigeons of Eminönü gather in a real flock on the square in front of the New Mosque.',
+      'The ground between the old houses is now cobbled yards and small kitchen gardens instead of lawn, the quays are stone right to the water\'s edge, and the Grand Bazaar\'s courtyards are paved.',
+      'Cats far from you are no longer animated, which saves a little time every frame.',
+    ],
+  },
+  {
     version: '0.16.1',
     date: '2026-10-31',
     title: 'Ferries and anglers',

@@ -311,7 +311,8 @@ export class Birds {
         const zone = zoneAt(x, z)?.id ?? '';
         if (zone === 'kakurega' || zone === 'grotta' || zone === 'gizli' || zone === 'kapali' || zone === 'misir') continue;
         const sq = SQUARES.has(zone), green = GREEN.has(zone), water = WATERSIDE.has(zone), ave = AVENUES.has(zone);
-        const density = sq ? 0.4 : water ? 0.3 : ave ? 0.07 : 0.14;
+        // the pigeons of Eminönü, fed by the seed sellers in front of the New Mosque, are a flock all of their own
+        const density = zone === 'meydan' || zone === 'yeni' ? 0.85 : sq ? 0.4 : water ? 0.3 : ave ? 0.07 : 0.14;
         if (r() > density) continue;
         const y = this.groundAt(x, z);
         if (Number.isNaN(y)) continue;
@@ -328,7 +329,7 @@ export class Birds {
           : water ? [['pigeon', 0.5], ['wagtail', 0.7], ['sparrow', 0.35], ['crow', 0.1]]
           : green ? [['sparrow', 0.6], ['bulbul', 0.4], ['dove', 0.3], ['pigeon', 0.3], ['crow', 0.15]]
           : [['sparrow', 0.65], ['pigeon', 0.35], ['crow', 0.18], ['wagtail', 0.12]]);
-        const gap = sp === 'pigeon' ? 9 : 7;
+        const gap = sp === 'pigeon' ? (zone === 'meydan' || zone === 'yeni' ? 4.5 : 9) : 7;
         if (!room(x, z, gap)) continue;
         keep(spot(x, z, sp, true, sp === 'pigeon' ? 2.6 : sp === 'crow' ? 2.2 : 1.6));
       }

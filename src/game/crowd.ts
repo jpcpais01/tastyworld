@@ -7,6 +7,7 @@ import { randomLook, type Look } from '../world/characters';
 import { rng } from '../world/grid';
 import { crowdSpots, laneFor, streetAt, Spot, type CrowdSpots } from '../world/crowdspots';
 import { zoneAt } from '../world/layout';
+import { ISTANBUL } from '../world/cityId';
 import { CROWD_CHAT, CROWD_GREET, CROWD_STARTLE, CROWD_ENVY } from '../data/dialogue';
 
 /**
@@ -25,6 +26,8 @@ import { CROWD_CHAT, CROWD_GREET, CROWD_STARTLE, CROWD_ENVY } from '../data/dial
  */
 
 type V2 = [number, number];
+const HAWKER_CALLS = ['Simiiit! Taze simit!', 'Sıcak simit!', 'Simitçiii!', 'Gevrek simit, sıcacık!'];
+
 type Persona = 'commuter' | 'local' | 'tourist' | 'student' | 'elder' | 'jogger' | 'dogwalker' | 'cyclist' | 'courier';
 type Mode = 'foot' | 'jog' | 'ride';
 
@@ -78,6 +81,8 @@ interface Walker {
   mateSeat: Seat | null;
   chatCool: number;
   greetCool: number;
+  /** Carries something to sell and calls it out (Istanbul's simit sellers). */
+  hawker: boolean;
   nearT: number;
   stuck: number;
   stuckRef: V2;
@@ -329,6 +334,8 @@ export class Crowd {
     let prev: Walker | null = null;
     for (let i = 0; i < size.walkers; i++) {
       const look = lookFor(seed + i * 7, null);
+      // Istanbul: now and then a simit seller doing the rounds, the tray balanced on the head
+      if (ISTANBUL && i % 14 === 3) Object.assign(look, { tray: true, hat: 'none', topStyle: 'vest', top: 0xf4f1ea, accent: 0x8a2e2a, skirt: false, moustache: i % 28 === 3 });
       const pair = i % 5 === 4 && prev && !prev.mate;
       prev = this.add(mk.person(look), look, pair ? prev!.node : startNode(), pair ? prev! : undefined);
     }
@@ -366,6 +373,7 @@ export class Crowd {
       food: 0, hidden: false, wantHome: false, lead: null, mate: null, mateSeat: null,
       chatCool: rnd(5, 25), greetCool: rnd(0, 20), nearT: 0, stuck: 0, stuckRef: [0, 0], run: mode === 'jog', ghost: 0, from: null, hideT: 0,
       dest: -1, place: null, ring: -1, laps: 0, pet: null, ride: null, out: Math.random(), dist: 0, unseen: 0, acc: Math.random() * 0.25,
+      hawker: !!look.tray,
     };
     const [nx, nz] = this.nodes[node];
     actor.position.set(nx + rnd(-1, 1), this.nav.heightAt(nx, nz), nz + rnd(-1, 1));
@@ -1314,6 +1322,12 @@ export class Crowd {
   private overhear(dt: number, pl: CrowdPlayer): void {
     if ((this.sayT -= dt) > 0) return;
     this.sayT = rnd(5, 10);
+    // a simit seller passing calls out the wares
+    const hawker = this.walkers.find((w) => w.hawker && !w.hidden && w.dist < 8);
+    if (hawker && Math.random() < 0.6) {
+      this.say(`hawk-${this.walkers.indexOf(hawker)}`, pick(HAWKER_CALLS), hawker.actor.position, 2.2, pl);
+      return;
+    }
     const talkers = this.walkers.filter((w) => !w.hidden && w.dist < 7 && w.actor.anim === 'talk');
     if (talkers.length) {
       const w = pick(talkers);

@@ -2187,7 +2187,13 @@ class Game {
       for (const v of this.vendors) all.push(v.actor);
       for (const e of this.idlers) all.push(e.actor);
       for (const a of this.crowd.visible()) all.push(a);
-      for (const c of this.cats) all.push(c.actor);
+      // cats only near enough to be seen: Istanbul has thirty of them spread over the whole map
+      const catR = 40 + this.cam.zoom * 1.6, pp0 = this.player.position;
+      for (const c of this.cats) {
+        const q = c.actor.position, on = (q.x - pp0.x) ** 2 + (q.z - pp0.z) ** 2 < catR * catR;
+        c.actor.root.visible = on;
+        if (on) all.push(c.actor);
+      }
     }
     // shop keepers and regulars: only the ones near the player are shown and animated
     for (const act of this.extras) {

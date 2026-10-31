@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import type { Nav } from './nav';
 
 const PITCH = THREE.MathUtils.degToRad(36);
+/** How far photo mode may tilt the iso camera (radians above the ground). */
+const PHOTO_PITCH: [number, number] = [THREE.MathUtils.degToRad(22), THREE.MathUtils.degToRad(68)];
 /** Eye height above the player's feet in first person (m). */
 const EYE_H = 1.4;
 const MAX_PITCH = 1.3;
@@ -38,6 +40,12 @@ export class IsoCamera {
   fpBack = 0;
   private fpBackCur = 0;
   private bobT = 0;
+  /** Iso view angle above the ground; photo mode tilts it, otherwise it stays at the classic 36 degrees. */
+  pitch = PITCH;
+  private pitchCur = PITCH;
+  /** Photo mode: the iso view's offset from the player (metres, on the ground). */
+  readonly pan = new THREE.Vector3();
+  private panCur = new THREE.Vector3();
 
   constructor(readonly cam: THREE.OrthographicCamera, readonly persp: THREE.PerspectiveCamera) {}
 
@@ -75,11 +83,26 @@ export class IsoCamera {
     this.cur.copy(this.target);
     this.yawCur = this.yaw;
     this.zoomCur = this.zoom;
+    this.pitchCur = this.pitch;
+    this.panCur.copy(this.pan);
   }
 
   rotate(dir: number): void {
     if (this.fp) this.fpTurn -= (dir * Math.PI) / 4;
     else this.yaw += (dir * Math.PI) / 2;
+  }
+
+  /** Photo mode: turn the iso view freely (radians) and tilt it. */
+  orbitBy(dYaw: number, dPitch: number): void {
+    this.yaw += dYaw;
+    this.pitch = THREE.MathUtils.clamp(this.pitch + dPitch, PHOTO_PITCH[0], PHOTO_PITCH[1]);
+  }
+
+  /** Back to the regular iso view: the classic tilt, no offset, and the nearest of the four diagonal angles. */
+  settle(): void {
+    this.pitch = PITCH;
+    this.pan.set(0, 0, 0);
+    this.yaw = Math.round((this.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
   }
 
   zoomBy(f: number): void {
@@ -97,7 +120,8 @@ export class IsoCamera {
     if (this.fp) { this.updateFirstPerson(dt); return; }
     if (this.orbit) this.yaw += this.orbit * dt;
     const k = 1 - Math.exp(-dt * 6);
-    const t = this.target.clone();
+    this.panCur.lerp(this.pan, 1 - Math.exp(-dt * 10));
+    const t = this.target.clone().add(this.panCur);
     if (this.bounds) {
       t.x = THREE.MathUtils.clamp(t.x, this.bounds[0], this.bounds[2]);
       t.z = THREE.MathUtils.clamp(t.z, this.bounds[1], this.bounds[3]);
@@ -105,12 +129,14 @@ export class IsoCamera {
     this.cur.lerp(t, k);
     this.yawCur += (this.yaw - this.yawCur) * (1 - Math.exp(-dt * 7));
     this.zoomCur += (this.zoom - this.zoomCur) * (1 - Math.exp(-dt * 8));
+    this.pitchCur += (this.pitch - this.pitchCur) * (1 - Math.exp(-dt * 8));
     const h = this.zoomCur;
     const w = h * aspect;
     const c = this.cam;
     c.left = -w / 2; c.right = w / 2; c.top = h / 2; c.bottom = -h / 2;
     c.updateProjectionMatrix();
-    const dir = new THREE.Vector3(Math.sin(this.yawCur) * Math.cos(PITCH), Math.sin(PITCH), Math.cos(this.yawCur) * Math.cos(PITCH));
+    const cp = Math.cos(this.pitchCur);
+    const dir = new THREE.Vector3(Math.sin(this.yawCur) * cp, Math.sin(this.pitchCur), Math.cos(this.yawCur) * cp);
     const focus = this.cur.clone();
     if (this.shake > 0) {
       focus.x += (Math.random() - 0.5) * this.shake;

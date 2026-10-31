@@ -10,6 +10,7 @@ import type { BakedWorld, LightMap2D, PartInit } from './world/bake';
 import { assemble } from './world/assemble';
 import type { WorkerIn, WorkerOut } from './world/worker';
 import { Streamer, StreamView } from './engine/streamer';
+import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
 import { bikeModel, scooterModel, swanBoatModel } from './world/vehicles';
@@ -38,6 +39,8 @@ import type { HotelAnchor, HotelRoomAnchor } from './world/hotels';
 import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo } from './data/hotels';
 import { UI, GameHooks } from './ui/ui';
 import { renderDishIcons } from './ui/icons';
+import { PhotoUI, capture } from './ui/photo';
+import { album, ALBUM_MAX } from './game/album';
 import { Travel } from './ui/travel';
 import { CityMap, type Pin } from './ui/citymap';
 import { Beacon } from './game/guide';
@@ -91,6 +94,8 @@ function playerLook(wear: Record<string, boolean>, color = 0xd8452f): Look {
   return l;
 }
 
+/** How far photo mode lets the camera wander from the traveller (metres). */
+const PHOTO_REACH = 16;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Game {
@@ -192,6 +197,14 @@ class Game {
   /** First-person look drag (right side of a touch screen, or a mouse drag without pointer lock). */
   private lookPtr: { id: number; x: number; y: number; sx: number; sy: number; t: number; moved: boolean } | null = null;
   private wasInside = false;
+  private photo!: PhotoUI;
+  /** Photo mode is up: the HUD steps aside, the traveller stands still and the camera is free. */
+  private photoOn = false;
+  /** Frames left until the shutter reads the canvas (0 = no photo waiting), and the render scale to go back to. */
+  private shot = 0;
+  private shotScale = 1;
+  private photoPtr: { id: number; x: number; y: number; pan: boolean } | null = null;
+  private placeName = 'Tokyo';
   private last = performance.now();
   private hudT = 0;
   private callT = 6;
@@ -223,7 +236,7 @@ class Game {
       wearChanged: () => { this.rebuildPlayer(); this.save(); this.shareProfile(); },
       settingsChanged: () => { this.applySettings(); this.save(); },
       reset: () => { resetState(); location.reload(); },
-      panel: (open) => { if (open) { this.path = []; this.joy = null; } },
+      panel: (open) => { if (open) { this.path = []; this.joy = null; this.setPhoto(false); } },
     };
     this.ui = new UI(this.s, this.audio, hooks);
     this.ui.onPrompt = () => this.interact();
@@ -247,6 +260,15 @@ class Game {
     this.ui.onMap = () => this.openCityMap();
     this.ui.onParty = () => this.travel.ticket();
     this.ui.onWave = () => this.wave();
+    this.ui.onPhoto = () => this.setPhoto(true);
+    this.photo = new PhotoUI({
+      shutter: () => this.shutter(),
+      close: () => this.setPhoto(false),
+      view: () => this.setFirstPerson(!this.cam.fp, true),
+      album: () => { this.setPhoto(false); this.ui.passport('album'); },
+      options: () => this.applyPhotoLook(),
+      click: () => this.audio.play('click'),
+    });
     this.applySettings();
     window.addEventListener('resize', () => this.r.resize());
   }
@@ -311,6 +333,7 @@ class Game {
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
     const m = new THREE.Mesh(geometryFrom(md), mat);
+    if (md.atlas) useAtlas(m, atlasTexture(this.r.gl, md.atlas));
     m.layers.enable(SHADOW_STATIC);
     m.matrixAutoUpdate = false;
     m.updateMatrix();
@@ -325,8 +348,9 @@ class Game {
     sw.generateMipmaps = false;
     sw.needsUpdate = true;
     sh.tSway.value = sw;
-    this.matWorld = voxelMaterial(sh, { SWAY: 1 });
-    this.matCut = voxelMaterial(sh, { CUTAWAY: 1, SWAY: 1 });
+    // the city's meshes keep their light and colours in atlas textures (world/mesher.ts AtlasBlocks)
+    this.matWorld = voxelMaterial(sh, { SWAY: 1, ATLAS: 1 }, { tAtlas: { value: null } });
+    this.matCut = voxelMaterial(sh, { CUTAWAY: 1, SWAY: 1, ATLAS: 1 }, { tAtlas: { value: null } });
     // double-sided so a neighbour's unmeshed party wall shows its far side instead of a hole
     this.matCut.side = THREE.DoubleSide;
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
@@ -364,9 +388,9 @@ class Game {
     this.cutaway = new Cutaway(w.owners, w.nav, w.interiorNav, { height: w.height, solid: w.solid }, { height: w.interiorHeight, solid: w.interiorSolid });
     sh.tCut.value = this.cutaway.cut;
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
-    this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile);
+    this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile, this.r.gl);
     this.streamer.dist = this.viewDist;
-    this.streamer.fadeMaterial = () => voxelMaterial(sh, { SWAY: 1, LODFADE: 1 }, { uFade: { value: new THREE.Vector2() } });
+    this.streamer.fadeMaterial = () => voxelMaterial(sh, { SWAY: 1, LODFADE: 1, ATLAS: 1 }, { uFade: { value: new THREE.Vector2() }, tAtlas: { value: null } });
     this.streamer.onMesh = (c, m) => {
       const [x0, z0, x1, z1] = this.streamer.rect(c);
       c.occ = this.cutaway.touching(x0, z0, x1, z1);
@@ -1055,7 +1079,7 @@ class Game {
     else { this.r.autoQuality = false; this.r.renderScale = 1; this.r.setQuality(st.quality); this.r.resize(); }
     this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
     if (st.perf || !new URLSearchParams(location.search).has('perf')) this.perf.toggle(st.perf);
-    this.r.composite.uniforms.uTilt.value = st.tilt && !this.cam.fp ? 0.6 : 0;
+    this.applyPhotoLook();
     this.tod.dayLength = st.dayLength;
     this.tod.setTarget(st.timeOfDay);
     // view distance: how far first person draws (the haze thickens to meet it) and how far out the iso view zooms
@@ -1229,7 +1253,8 @@ class Game {
     this.cam.setFirstPerson(on, this.player.facing);
     this.r.firstPerson = on;
     this.ui.setFirstPerson(on);
-    this.r.composite.uniforms.uTilt.value = this.s.settings.tilt && !on ? 0.6 : 0;
+    this.photo.setFirstPerson(on, this.r.isMobile);
+    this.applyPhotoLook();
     this.lookPtr = null;
     this.joy = null;
     this.pinch = null;
@@ -1246,8 +1271,68 @@ class Game {
     }
   }
 
+  /** Tilt-shift follows the setting, or the photo mode switch while taking pictures; never in first person. */
+  private applyPhotoLook(): void {
+    const tilt = this.photoOn ? this.photo.opts.focus : this.s.settings.tilt;
+    this.r.composite.uniforms.uTilt.value = tilt && !this.cam.fp ? 0.6 : 0;
+  }
+
+  /** Open or leave photo mode. */
+  private setPhoto(on: boolean): void {
+    if (on === this.photoOn) return;
+    if (on && (!this.started || this.ui.busy || this.meal || this.sleeping || this.cityMap.isOpen)) return;
+    this.photoOn = on;
+    this.path = []; this.pending = null; this.joy = null; this.pinch = null; this.lookPtr = null; this.photoPtr = null;
+    if (document.pointerLockElement) document.exitPointerLock();
+    document.body.classList.toggle('photo-mode', on);
+    if (on) {
+      this.cam.minZoom = 4;
+      this.photo.open(this.cam.fp, this.r.isMobile);
+      this.audio.play('whoosh');
+    } else {
+      this.cam.minZoom = 9;
+      this.cam.zoom = THREE.MathUtils.clamp(this.cam.zoom, this.cam.minZoom, this.cam.maxZoom);
+      this.cam.settle();
+      this.photo.close();
+    }
+    this.applyPhotoLook();
+  }
+
+  /** Press the shutter: the picture is read right after the next frame is drawn (at full resolution). */
+  private shutter(): void {
+    if (!this.photoOn || this.shot) return;
+    this.audio.play('shutter');
+    this.photo.flash();
+    this.shotScale = this.r.renderScale;
+    if (this.r.renderScale < 1) { this.r.renderScale = 1; this.r.resize(); }
+    this.shot = 1;
+  }
+
+  /** Called straight after a frame is drawn, while the canvas still holds it. */
+  private takePhoto(): void {
+    const stamp = this.photo.opts.stamp ? { place: this.placeName, clock: this.tod.label() } : null;
+    const meta = { t: Date.now(), place: this.placeName, clock: this.tod.label() };
+    const shot = capture(this.r.gl.domElement, stamp);
+    if (this.shotScale < 1) { this.r.renderScale = this.shotScale; this.r.resize(); }
+    void shot.then(async (img) => {
+      if (await album.count() >= ALBUM_MAX) {
+        this.ui.toast('camera', 'Your album is full', `It holds ${ALBUM_MAX} photos. Delete a few in the passport's Album to make room.`);
+        return;
+      }
+      const photo = { ...meta, ...img };
+      const id = await album.add(photo);
+      this.photo.showShot({ id, ...photo });
+      this.s.photos = (this.s.photos ?? 0) + 1;
+      this.afterChange();
+      this.save();
+    }).catch((e) => {
+      console.error(e);
+      this.ui.toast('camera', 'The photo did not save', 'Your browser would not store it. Try again, or check that site storage is allowed.');
+    });
+  }
+
   private requestLook(): void {
-    if (this.ui.busy) return;
+    if (this.ui.busy || this.photoOn) return;
     const canvas = this.r.gl.domElement;
     try { void Promise.resolve(canvas.requestPointerLock()).catch(() => {}); } catch { /* unsupported */ }
   }
@@ -1616,6 +1701,7 @@ class Game {
       if (e.repeat && !['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) return;
       this.keys.add(e.code);
       if (!this.started) return;
+      if (this.photoOn) { this.photoKey(e); return; }
       switch (e.code) {
         case 'Space': case 'Enter': case 'KeyF': e.preventDefault(); this.interact(); break;
         case 'KeyQ': this.cam.rotate(-1); break;
@@ -1624,6 +1710,7 @@ class Game {
         case 'KeyM': this.ui.open ? this.ui.close() : this.ui.map(); break;
         case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
         case 'KeyG': if (!this.ui.busy) this.wave(); break;
+        case 'KeyC': this.setPhoto(true); break;
         case 'Escape': this.ui.endDialogue(); this.ui.close(); break;
         case 'Equal': case 'NumpadAdd': this.cam.zoomBy(0.85); break;
         case 'Minus': case 'NumpadSubtract': this.cam.zoomBy(1.18); break;
@@ -1639,6 +1726,7 @@ class Game {
       this.audio.start();
       canvas.setPointerCapture(e.pointerId);
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.photoOn && !this.cam.fp) { this.photoPointerDown(e); return; }
       if (this.cam.fp) { this.fpPointerDown(e); return; }
       if (this.pointers.size === 2) {
         const [p1, p2] = [...this.pointers.values()];
@@ -1651,7 +1739,9 @@ class Game {
     canvas.addEventListener('pointermove', (e) => {
       const p = this.pointers.get(e.pointerId);
       if (!p) return;
+      const px = p.x, py = p.y;
       p.x = e.clientX; p.y = e.clientY;
+      if (this.photoOn && !this.cam.fp) { this.photoPointerMove(e, px, py); return; }
       const lp = this.lookPtr;
       if (lp && lp.id === e.pointerId) {
         const k = e.pointerType === 'mouse' ? 0.004 : 0.0058;
@@ -1692,12 +1782,13 @@ class Game {
     const up = (e: PointerEvent) => {
       this.pointers.delete(e.pointerId);
       if (this.pointers.size < 2) this.pinch = null;
+      if (this.photoPtr?.id === e.pointerId) this.photoPtr = null;
       const lp = this.lookPtr;
       if (lp && lp.id === e.pointerId) {
         this.lookPtr = null;
         if (!lp.moved && performance.now() - lp.t < 450 && e.type === 'pointerup') {
           // a mouse click grabs the pointer for mouse look, a touch tap walks or interacts like in the iso view
-          if (e.pointerType === 'mouse') this.requestLook();
+          if (this.photoOn) { /* photo mode: a tap only frames the shot */ } else if (e.pointerType === 'mouse') this.requestLook();
           else this.tap(e.clientX, e.clientY);
         }
         return;
@@ -1708,8 +1799,62 @@ class Game {
         this.joy = null;
       }
     };
+    canvas.addEventListener('contextmenu', (e) => { if (this.photoOn) e.preventDefault(); });
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
+  }
+
+  /** Photo mode keys: the shutter, leaving, the view, and turning or moving the camera. */
+  private photoKey(e: KeyboardEvent): void {
+    switch (e.code) {
+      case 'Space': case 'Enter': e.preventDefault(); this.shutter(); break;
+      case 'Escape': case 'KeyC': this.setPhoto(false); break;
+      case 'KeyV': this.setFirstPerson(!this.cam.fp, true); break;
+      case 'KeyQ': if (this.cam.fp) this.cam.rotate(-1); else this.cam.orbitBy(-Math.PI / 4, 0); break;
+      case 'KeyE': if (this.cam.fp) this.cam.rotate(1); else this.cam.orbitBy(Math.PI / 4, 0); break;
+      case 'Equal': case 'NumpadAdd': this.cam.zoomBy(0.85); break;
+      case 'Minus': case 'NumpadSubtract': this.cam.zoomBy(1.18); break;
+    }
+  }
+
+  /** Photo mode, iso view: one finger or the left button turns and tilts; two fingers, the right button or Shift move the camera. */
+  private photoPointerDown(e: PointerEvent): void {
+    if (this.pointers.size === 2) {
+      const [p1, p2] = [...this.pointers.values()];
+      this.pinch = { d: Math.hypot(p1.x - p2.x, p1.y - p2.y), a: 0, twist: 0 };
+      this.photoPtr = null;
+    } else if (this.pointers.size === 1) {
+      this.photoPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
+    }
+  }
+
+  private photoPointerMove(e: PointerEvent, px: number, py: number): void {
+    if (this.pinch && this.pointers.size >= 2) {
+      const [p1, p2] = [...this.pointers.values()];
+      const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+      if (d > 0 && this.pinch.d > 0) this.cam.zoomBy(this.pinch.d / d);
+      this.pinch.d = d;
+      // each finger carries half of the move of their midpoint
+      this.panCamera((e.clientX - px) / 2, (e.clientY - py) / 2);
+      return;
+    }
+    const pp = this.photoPtr;
+    if (!pp || pp.id !== e.pointerId) return;
+    const dx = e.clientX - pp.x, dy = e.clientY - pp.y;
+    pp.x = e.clientX; pp.y = e.clientY;
+    if (pp.pan) this.panCamera(dx, dy);
+    else this.cam.orbitBy(-dx * 0.006, dy * 0.004);
+  }
+
+  /** Slide the photo camera by a screen drag (pixels), so the world follows the pointer; it stays near the traveller. */
+  private panCamera(dx: number, dy: number): void {
+    const k = this.cam.zoom / Math.max(1, window.innerHeight);
+    const { fwd, right } = this.cam.groundAxes();
+    const sinP = Math.max(0.3, Math.sin(this.cam.pitch));
+    const pan = this.cam.pan;
+    pan.x += -right.x * dx * k + fwd.x * dy * k / sinP;
+    pan.z += -right.y * dx * k + fwd.y * dy * k / sinP;
+    if (pan.length() > PHOTO_REACH) pan.setLength(PHOTO_REACH);
   }
 
   /** First person: with the mouse locked a click uses whatever is under the crosshair; touches split into a stick (left) and look (right). */
@@ -1723,7 +1868,7 @@ class Game {
       this.lookPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false };
       return;
     }
-    if (e.clientX < window.innerWidth * 0.45 && !this.joy) {
+    if (e.clientX < window.innerWidth * 0.45 && !this.joy && !this.photoOn) {
       this.joy = { id: e.pointerId, sx: e.clientX, sy: e.clientY, x: 0, y: 0, active: false, run: false, t: performance.now() };
     } else if (!this.lookPtr) {
       this.lookPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false };
@@ -1732,6 +1877,7 @@ class Game {
 
   /** Locked-mouse click: interact with what's in reach, or walk to the thing under the crosshair. */
   private fpUse(): void {
+    if (this.photoOn) return;
     if (this.ui.advanceDialogue()) return;
     if (!this.started || this.ui.busy) return;
     if (this.meal) { this.meal.hurry(); return; }
@@ -1752,7 +1898,7 @@ class Game {
   }
 
   private tap(x: number, y: number): void {
-    if (!this.started || this.ui.busy || this.sleeping) return;
+    if (!this.started || this.ui.busy || this.sleeping || this.photoOn) return;
     if (this.meal) { this.meal.hurry(); return; }
     // tapped an interactable?
     let best: Interactable | null = null, bd = 46;
@@ -1796,7 +1942,7 @@ class Game {
     let dx = 0, dz = 0, speed = 0, run = false;
     // under the pocket map only a walk already under way carries on
     const mapOpen = this.cityMap.isOpen;
-    if ((!this.ui.busy || mapOpen) && this.started && !this.sleeping) {
+    if ((!this.ui.busy || mapOpen) && this.started && !this.sleeping && !this.photoOn) {
       const k = this.keys;
       let f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
       let rt = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
@@ -1964,7 +2110,7 @@ class Game {
     }
     this.blobs.begin();
     const pl = this.player.position;
-    if (!this.cam.fp) this.blobs.add(pl.x, pl.y + 0.02, pl.z, 0.62, 0.5);
+    if (!this.cam.fp && (!this.photoOn || this.photo.opts.me)) this.blobs.add(pl.x, pl.y + 0.02, pl.z, 0.62, 0.5);
     for (const rm of this.remotes.values()) {
       if (!rm.actor.root.visible) continue;
       all.push(rm.actor);
@@ -2057,6 +2203,13 @@ class Game {
       this.cam.target.copy(meal.focus);
       this.cam.zoom = meal.zoom;
     } else if (this.started) this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
+    if (this.photoOn && !this.cam.fp) {
+      const k = this.keys;
+      const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
+      const rt = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+      // about a screen height every two seconds, whatever the zoom
+      if (f || rt) this.panCamera(-rt * dt * window.innerHeight * 0.5, f * dt * window.innerHeight * 0.5 * Math.sin(this.cam.pitch));
+    }
     this.wasInside = this.inside;
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
   }
@@ -2101,7 +2254,7 @@ class Game {
     this.perf.lap('cutaway');
     const fp = this.cam.fp;
     // in first person the body shows while eating, so the food is seen in your own hands (the camera sits inside the head)
-    this.player.root.visible = !fp || !!this.meal;
+    this.player.root.visible = (!fp || !!this.meal) && (!this.photoOn || this.photo.opts.me);
     const eye = this.r.persp.position;
     // first-person haze, thick enough to hide the far edge of the view distance
     sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
@@ -2133,6 +2286,7 @@ class Game {
       const z = this.inside ? { name: 'Kakurega · Hidden Counter', jp: '隠れ家' } : up && hi ? { name: `${hi.name} · ${roomNo(up.room.floor)}`, jp: hi.jp } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: 'Tokyo', jp: '東京' };
       this.hotelGoal();
       this.ui.location(z.name, z.jp, this.tod.label());
+      this.placeName = z.name;
       let sizzle = 0;
       if (!this.inside) for (const e of this.w.anchors.emitters) {
         if (e.kind === 'incense') continue;
@@ -2147,7 +2301,10 @@ class Game {
     this.audio.tick(this.tod.night);
     this.perf.lap('hud/audio');
     // the pocket map covers the screen, so the world can rest under it
-    if (!this.cityMap.isOpen) { this.chars.sync(); this.perf.lap('characters'); this.r.render(); }
+    if (!this.cityMap.isOpen) {
+      this.chars.sync(); this.perf.lap('characters'); this.r.render();
+      if (this.shot && --this.shot === 0) this.takePhoto();
+    }
     if (this.perf.on) this.perf.end({ chunks: this.streamer.resident.size, people: this.drawn.length, scale: this.r.renderScale, quality: this.r.quality });
     this.r.adapt(raw, now);
   }

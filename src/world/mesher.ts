@@ -2,18 +2,19 @@ import { Grid } from './grid';
 import { Palette } from './palette';
 
 /**
- * Greedy voxel mesher with per-vertex ambient occlusion, baked lighting and convex-edge flags.
+ * Greedy voxel mesher with ambient occlusion, baked lighting and convex-edge flags.
  *
- * Faces whose four corners carry identical AO and lighting ("uniform" faces) and share a colour are merged
- * into large quads; everything else (soft shadow edges, AO creases, lamp falloff) stays per-voxel so the
- * smooth lighting is preserved exactly. Per-voxel colour jitter happens in the shader from the voxel cell,
- * so it does not prevent merging.
+ * The city's meshes are atlas meshes (see AtlasBlocks): their light, AO and colours live in a texture, so
+ * coplanar faces merge into the largest rectangles whatever they look like. Other meshes (characters, icons)
+ * carry them in the vertices: there faces whose four corners carry identical AO and lighting ("uniform" faces)
+ * and share a colour are merged, and everything else stays per-voxel so the smooth AO is preserved exactly. Per-voxel colour jitter happens in the shader
+ * from the voxel cell, so it does not prevent merging.
  *
  * Vertex layout (28 bytes):
  *   position: float32 x3 (object space)
  *   pack:  u8 x4 [face | scaleIdx << 3 | seam << 7, ao, edgeBits | vary << 4, sky | partId]
  *   color: u8 x4 [r, g, b, emissive code]  (code 1..127 always on, 129..255 night only, 128 foliage)
- *   light: u8 x4 [lamp r, lamp g, lamp b (x2 range), sun]
+ *   light: u8 x4 [lamp r, lamp g, lamp b (x2 range), sun]  (atlas meshes: the quad's block, u16 u, u16 v)
  *   quad:  u8 x4 [dist to u-min edge, to u-max, to v-min, to v-max] in voxels (for the bevel highlight)
  * plus a separate u16 per vertex: the sway body it belongs to (0 = static, see world/sway.ts).
  */
@@ -46,6 +47,36 @@ export interface MeshData {
   innerBounds?: [number, number, number, number, number, number];
   /** Set by orderFaces: where each segment of FACE_SEGMENTS starts in the indices, plus the end. */
   segs?: Uint32Array;
+  /** Atlas meshes before packAtlas: each quad's texel block (see AtlasBlocks); its vertices hold the block number. */
+  blocks?: AtlasBlocks;
+  /** Atlas meshes after packAtlas: the texture the quads read their light and colours from (see ATLAS_PLANES). */
+  atlas?: Atlas;
+}
+
+/**
+ * Atlas meshes keep light, AO and colour out of the vertices: every quad owns a block of texels, one per
+ * voxel corner across it, in three planes stacked in one RGBA8 texture:
+ *   0: lamp r, g, b (x2 range), sun        at the corners, read with bilinear filtering
+ *   1: sky, AO, vary, edge bits            sky and AO at the corners (bilinear); vary and edges per voxel
+ *   2: r, g, b, emissive code              per voxel
+ * (a quad of w x h voxels has (w + 1) x (h + 1) corners; voxel (i, j) uses the texel of its corner (i, j)).
+ * So faces merge by shape alone, however their light and colours change across them, and the shading in
+ * between is the smooth bilinear blend of the voxel corners. The vertex keeps the block's place in the
+ * atlas where the light used to be: u, v as two little-endian u16 in bytes 8..11.
+ */
+export const ATLAS_PLANES = 3;
+export interface AtlasBlocks {
+  /** Per block: corners across and down. */
+  dims: number[];
+  /** Per block: byte offset of its texels in data (the three planes one after another). */
+  offs: number[];
+  data: Uint8Array;
+}
+export interface Atlas {
+  width: number;
+  /** Rows per plane; the texture is width x height * ATLAS_PLANES. */
+  height: number;
+  data: Uint8Array;
 }
 
 /** Per-vertex lighting callback: p in world metres + normal; fills out[0]=sun,out[1]=sky,out[2..4]=lamp rgb. */
@@ -64,6 +95,8 @@ export interface MeshOpts {
   greedy?: boolean;
   /** Treat cells outside the grid below this layer as solid (hides the underside and cut edges of the ground). */
   groundBelow?: number;
+  /** Light and colours go in a texture atlas instead of the vertices (needs light; see AtlasBlocks). */
+  atlas?: boolean;
   /** Sway body id of a voxel (grid index), 0 = static. Faces of different bodies never merge. */
   sway?: (vi: number) => number;
   /** Per-column owner ids (grid sx * sz): side faces between two different owners are kept even though both
@@ -78,6 +111,10 @@ class Buf {
   sw: Uint16Array;
   nv = 0;
   ni = 0;
+  dims: number[] = [];
+  offs: number[] = [];
+  bd = new Uint8Array(0);
+  bn = 0;
   constructor(cap = 4096) {
     this.pos = new Float32Array(cap * 3);
     this.att = new Uint8Array(cap * STRIDE);
@@ -92,11 +129,18 @@ class Buf {
     const i = new Uint32Array(Math.ceil(cap * 1.5)); i.set(this.idx); this.idx = i;
     const w = new Uint16Array(cap); w.set(this.sw); this.sw = w;
   }
+  /** A new atlas block of cw x ch corners: its number and where its texels start in bd. */
+  block(cw: number, ch: number): [number, number] {
+    const n = cw * ch * 4 * ATLAS_PLANES, off = this.bn;
+    if (off + n > this.bd.length) { const d = new Uint8Array(Math.max(this.bd.length * 2, off + n, 1 << 16)); d.set(this.bd); this.bd = d; }
+    this.bn += n;
+    this.dims.push(cw, ch);
+    this.offs.push(off);
+    return [this.offs.length - 1, off];
+  }
 }
 
 const tmp = new Float32Array(5);
-/** How far (in quantisation steps) a merged gradient quad may stray from its faces' own corner light, and its largest side. */
-const GRAD_TOL = 0.75, GRAD_MAX = 64;
 /** How far (in voxels) a merged quad tucks under its coplanar neighbours. */
 const T_EPS = 0.01;
 const SEAM_MIN = 16; // grid layer: street level (12) plus 1 m
@@ -112,7 +156,7 @@ const flat = (L: Float32Array, c: number, m: number): number => {
 const MAXS = 320 * 320;
 let scr: {
   keys: Float64Array; edgesM: Uint8Array; colM: Uint16Array; swM: Uint16Array; partM: Int8Array; lightM: Uint8Array; used: Uint8Array;
-  cornerStamp: Int32Array; cornerVals: Float32Array; cornerAo: Uint8Array; cornerAoV: Float32Array;
+  cornerStamp: Int32Array; cornerVals: Float32Array; cornerAo: Uint8Array;
 } | null = null;
 let stampBase = 1;
 function scratch() {
@@ -120,7 +164,7 @@ function scratch() {
     scr = {
       keys: new Float64Array(MAXS), edgesM: new Uint8Array(MAXS), colM: new Uint16Array(MAXS), swM: new Uint16Array(MAXS), partM: new Int8Array(MAXS),
       lightM: new Uint8Array(MAXS * 6), used: new Uint8Array(MAXS),
-      cornerStamp: new Int32Array(322 * 322), cornerVals: new Float32Array(322 * 322 * 5), cornerAo: new Uint8Array(322 * 322), cornerAoV: new Float32Array(322 * 322),
+      cornerStamp: new Int32Array(322 * 322), cornerVals: new Float32Array(322 * 322 * 5), cornerAo: new Uint8Array(322 * 322),
     };
   }
   return scr;
@@ -129,6 +173,8 @@ function scratch() {
 export function meshGrid(o: MeshOpts): MeshData {
   const { grid, pal, scale, origin, light, parts, sway, seam } = o;
   const greedy = o.greedy !== false;
+  const atlas = !!o.atlas;
+  if (atlas && (!light || parts)) throw new Error('atlas meshes need light and no parts');
   const scaleIdx = SCALES.findIndex((s) => Math.abs(s - scale) < 1e-6);
   if (scaleIdx < 0) throw new Error('unknown voxel scale ' + scale);
   const [x0, x1, z0, z1] = o.region ?? [0, grid.sx, 0, grid.sz];
@@ -148,7 +194,7 @@ export function meshGrid(o: MeshOpts): MeshData {
   };
   let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-  const { keys, edgesM, colM, swM, partM, lightM, used, cornerStamp, cornerVals, cornerAo, cornerAoV } = scratch();
+  const { keys, edgesM, colM, swM, partM, lightM, used, cornerStamp, cornerVals, cornerAo } = scratch();
   const maxU = keys.length;
 
   const cAo = [0, 0, 0, 0];
@@ -156,7 +202,7 @@ export function meshGrid(o: MeshOpts): MeshData {
   let stamp = stampBase;
   const p = [0, 0, 0];
 
-  const emit = (f: number, px: number, py: number, pz: number, w: number, h: number, col: number, edges: number, aoIdx: number[], lightVals: Float32Array | null, uni: Uint8Array | null, uniOff: number, part: number, sw: number, seamF = 0) => {
+  const emit = (f: number, px: number, py: number, pz: number, w: number, h: number, col: number, edges: number, aoIdx: number[], lightVals: Float32Array | null, uni: Uint8Array | null, uniOff: number, part: number, sw: number, seamF = 0, block = -1) => {
     const n = FACE_N[f], u = FACE_U[f], v = FACE_V[f];
     b.ensure(4);
     const base = b.nv;
@@ -185,6 +231,14 @@ export function meshGrid(o: MeshOpts): MeshData {
       const o16 = vi * STRIDE;
       const at = b.att;
       at[o16] = f | (scaleIdx << 3) | (seamF << 7);
+      if (block >= 0) {
+        // the atlas has the rest; bytes 8..11 hold the block number until packAtlas puts its place there
+        at[o16 + 1] = 255; at[o16 + 2] = edges; at[o16 + 3] = 0;
+        at[o16 + 4] = at[o16 + 5] = at[o16 + 6] = at[o16 + 7] = 0;
+        at[o16 + 8] = block & 255; at[o16 + 9] = (block >> 8) & 255; at[o16 + 10] = (block >> 16) & 255; at[o16 + 11] = block >>> 24;
+        at[o16 + 12] = cu * w; at[o16 + 13] = (1 - cu) * w; at[o16 + 14] = cv * h; at[o16 + 15] = (1 - cv) * h;
+        continue;
+      }
       at[o16 + 2] = edges | (vary << 4);
       at[o16 + 4] = pal.r[col]; at[o16 + 5] = pal.g[col]; at[o16 + 6] = pal.b[col]; at[o16 + 7] = em;
       if (uni) {
@@ -206,7 +260,7 @@ export function meshGrid(o: MeshOpts): MeshData {
     const ii = b.ni;
     b.ni += 6;
     if (b.idx.length < b.ni) { const ni = new Uint32Array(b.idx.length * 2); ni.set(b.idx); b.idx = ni; }
-    const flip = !uni && aoIdx[0] + aoIdx[2] < aoIdx[1] + aoIdx[3];
+    const flip = block < 0 && !uni && aoIdx[0] + aoIdx[2] < aoIdx[1] + aoIdx[3];
     if (!flip) {
       b.idx[ii] = base; b.idx[ii + 1] = base + 1; b.idx[ii + 2] = base + 2;
       b.idx[ii + 3] = base; b.idx[ii + 4] = base + 2; b.idx[ii + 5] = base + 3;
@@ -268,7 +322,7 @@ export function meshGrid(o: MeshOpts): MeshData {
             if (light) {
               const ci = (iu + cu) + (iv + cv) * (U + 1);
               const c5 = ci * 5;
-              cornerAo[ci] = cAo[k]; cornerAoV[ci] = AO_CURVE[cAo[k]];
+              cornerAo[ci] = cAo[k];
               if (cornerStamp[ci] !== stamp) {
                 const cx = bx + u[0] * cu + v[0] * cv, cy = by + u[1] * cu + v[1] * cv, cz = bz + u[2] * cu + v[2] * cv;
                 light(origin[0] + cx * scale, origin[1] + cy * scale, origin[2] + cz * scale, n[0], n[1], n[2], tmp);
@@ -289,6 +343,12 @@ export function meshGrid(o: MeshOpts): MeshData {
           }
           const part = parts ? parts[vi] : -1;
           const sw = sway ? sway(vi) : 0;
+          if (atlas) {
+            // merged by shape alone below: light and colours go to the atlas
+            keys[mi] = seamFace ? 2 : 1;
+            edgesM[mi] = edges; colM[mi] = col; swM[mi] = sw; used[mi] = 0;
+            continue;
+          }
           // uniform test on quantised values: a face whose corners are at most one step apart (1/63 of full sun or
           // sky, under the per-voxel colour jitter) takes their mean and counts as flat
           // character parts merge too, but only within one part (each part moves on its own)
@@ -299,13 +359,7 @@ export function meshGrid(o: MeshOpts): MeshData {
             uniform = qs >= 0 && qk >= 0 && qr >= 0 && qg >= 0 && qb >= 0;
           }
           if (!uniform) {
-            if (!greedy || !light || seamFace) {
-              emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
-              continue;
-            }
-            // light or AO varies across it: may still merge where they change evenly (see below)
-            keys[mi] = -3 - (col * 16 + part + 1);
-            edgesM[mi] = edges; colM[mi] = col; partM[mi] = part; swM[mi] = sw; used[mi] = 0;
+            emit(f, x, y, z, 1, 1, col, edges, cAo, cL, null, 0, part, sw, seamFace ? 1 : 0);
             continue;
           }
           keys[mi] = (((((((col * 4 + cAo[0]) * 64 + qs) * 64 + qk) * 64 + qr) * 64 + qg) * 64 + qb) * 16 + part + 1) * 2 + (seamFace ? 1 : 0);
@@ -319,6 +373,65 @@ export function meshGrid(o: MeshOpts): MeshData {
         }
       }
       if (!any) continue;
+      if (atlas) {
+        // every face of one kind (seam or not) and sway body merges into the largest rectangles; each gets a
+        // block of corner texels in the atlas (see AtlasBlocks)
+        const C = U + 1;
+        for (let iv = 0; iv < Vn; iv++)
+          for (let iu = 0; iu < U; iu++) {
+            const mi = iv * U + iu;
+            const key = keys[mi];
+            if (key < 0 || used[mi]) continue;
+            const sw = swM[mi];
+            let w = 1;
+            while (iu + w < U && w < 255 && keys[mi + w] === key && swM[mi + w] === sw && !used[mi + w]) w++;
+            let h = 1;
+            outer: while (iv + h < Vn && h < 255) {
+              const row = (iv + h) * U + iu;
+              for (let k = 0; k < w; k++) if (keys[row + k] !== key || swM[row + k] !== sw || used[row + k]) break outer;
+              h++;
+            }
+            const [blk, off] = b.block(w + 1, h + 1);
+            const plane = (w + 1) * (h + 1) * 4, bd = b.bd, seamQ = key === 2;
+            for (let jv = 0; jv <= h; jv++)
+              for (let ju = 0; ju <= w; ju++) {
+                const t = off + (jv * (w + 1) + ju) * 4, ci = iu + ju + (iv + jv) * C, c5 = ci * 5;
+                if (seamQ) {
+                  // buried until the neighbour is cut away: lit like an open outside wall, not the dark inside
+                  bd[t] = bd[t + 1] = bd[t + 2] = 0; bd[t + 3] = 204;
+                  bd[t + plane] = 242; bd[t + plane + 1] = 255;
+                } else {
+                  bd[t] = Math.min(255, Math.round(cornerVals[c5 + 2] * 127.5));
+                  bd[t + 1] = Math.min(255, Math.round(cornerVals[c5 + 3] * 127.5));
+                  bd[t + 2] = Math.min(255, Math.round(cornerVals[c5 + 4] * 127.5));
+                  bd[t + 3] = Math.round(Math.min(1, cornerVals[c5]) * 255);
+                  bd[t + plane] = Math.round(Math.min(1, cornerVals[c5 + 1]) * 255);
+                  bd[t + plane + 1] = Math.round(AO_CURVE[cornerAo[ci]] * 255);
+                }
+                if (ju === w || jv === h) continue;
+                const cm = mi + jv * U + ju, col = colM[cm];
+                used[cm] = 1;
+                bd[t + plane + 2] = Math.min(15, Math.round(pal.vary[col] / 0.02));
+                bd[t + plane + 3] = edgesM[cm];
+                bd[t + 2 * plane] = pal.r[col]; bd[t + 2 * plane + 1] = pal.g[col]; bd[t + 2 * plane + 2] = pal.b[col];
+                // code 128 (night-only, zero strength) never emits: it marks foliage for the shadow lookup
+                bd[t + 2 * plane + 3] = pal.emit[col] > 0 ? (pal.night[col] ? 128 : 0) + Math.max(1, Math.round(pal.emit[col] * 127)) : pal.leaf[col] ? 128 : 0;
+              }
+            let eU0 = 1, eU1 = 2, eV0 = 4, eV1 = 8;
+            for (let jv = 0; jv < h; jv++) {
+              const row = (iv + jv) * U + iu;
+              if (!(edgesM[row] & 1)) eU0 = 0;
+              if (!(edgesM[row + w - 1] & 2)) eU1 = 0;
+            }
+            for (let ju = 0; ju < w; ju++) {
+              if (!(edgesM[iv * U + iu + ju] & 4)) eV0 = 0;
+              if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
+            }
+            p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
+            emit(f, p[0], p[1], p[2], w, h, 0, eU0 | eU1 | eV0 | eV1, cAo, null, null, 0, -1, sw, seamQ ? 1 : 0, blk);
+          }
+        continue;
+      }
       // greedy merge of uniform faces
       for (let iv = 0; iv < Vn; iv++)
         for (let iu = 0; iu < U; iu++) {
@@ -348,67 +461,6 @@ export function meshGrid(o: MeshOpts): MeshData {
           p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
           emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, null, lightM, mi * 6, partM[mi], sw, key % 2);
         }
-      // Faces whose light or AO changes across them (soft shadow edges, lamp falloff, the dark strip along the
-      // foot of a wall) merge too where what the merged quad's two triangles interpolate from its corners is,
-      // at every voxel corner inside it, within under a step of what the faces had: even gradients become one quad.
-      const C = U + 1;
-      const fits = (iu: number, iv: number, w: number, h: number): boolean => {
-        const i00 = iu + iv * C, i10 = i00 + w, i01 = i00 + h * C, i11 = i01 + w;
-        // the diagonal emit() picks: corner 0 to 2, (0, 0) to (w, h), unless AO says 1 to 3
-        const flip = cornerAo[i00] + cornerAo[i11] < cornerAo[i10] + cornerAo[i01];
-        for (let b = 0; b <= h; b++)
-          for (let a = 0; a <= w; a++) {
-            const su = a / w, tv = b / h, c = i00 + a + b * C;
-            // weights of the four corners at this point
-            let k00: number, k10: number, k01: number, k11: number;
-            if (flip) {
-              if (su + tv >= 1) { k00 = 0; k10 = 1 - tv; k11 = su + tv - 1; k01 = 1 - su; }
-              else { k00 = 1 - su - tv; k10 = su; k01 = tv; k11 = 0; }
-            } else if (su >= tv) { k00 = 1 - su; k10 = su - tv; k11 = tv; k01 = 0; }
-            else { k00 = 1 - tv; k01 = tv - su; k11 = su; k10 = 0; }
-            for (let ch = 0; ch < 5; ch++) {
-              const pred = k00 * cornerVals[i00 * 5 + ch] + k10 * cornerVals[i10 * 5 + ch] + k01 * cornerVals[i01 * 5 + ch] + k11 * cornerVals[i11 * 5 + ch];
-              if (Math.abs(pred - cornerVals[c * 5 + ch]) > (ch < 2 ? GRAD_TOL / 63 : GRAD_TOL / 31.875)) return false;
-            }
-            const pa = k00 * cornerAoV[i00] + k10 * cornerAoV[i10] + k01 * cornerAoV[i01] + k11 * cornerAoV[i11];
-            if (Math.abs(pa - cornerAoV[c]) > GRAD_TOL / 255) return false;
-          }
-        return true;
-      };
-      for (let iv = 0; iv < Vn; iv++)
-        for (let iu = 0; iu < U; iu++) {
-          const mi = iv * U + iu;
-          const key = keys[mi];
-          if (key > -3 || used[mi]) continue;
-          const sw = swM[mi];
-          let w = 1;
-          while (iu + w < U && w < GRAD_MAX && keys[mi + w] === key && swM[mi + w] === sw && !used[mi + w] && fits(iu, iv, w + 1, 1)) w++;
-          let h = 1;
-          outer: while (iv + h < Vn && h < GRAD_MAX) {
-            const row = (iv + h) * U + iu;
-            for (let k = 0; k < w; k++) if (keys[row + k] !== key || swM[row + k] !== sw || used[row + k]) break outer;
-            if (!fits(iu, iv, w, h + 1)) break;
-            h++;
-          }
-          let eU0 = 1, eU1 = 2, eV0 = 4, eV1 = 8;
-          for (let jv = 0; jv < h; jv++) {
-            const row = (iv + jv) * U + iu;
-            for (let ju = 0; ju < w; ju++) used[row + ju] = 1;
-            if (!(edgesM[row] & 1)) eU0 = 0;
-            if (!(edgesM[row + w - 1] & 2)) eU1 = 0;
-          }
-          for (let ju = 0; ju < w; ju++) {
-            if (!(edgesM[iv * U + iu + ju] & 4)) eV0 = 0;
-            if (!(edgesM[(iv + h - 1) * U + iu + ju] & 8)) eV1 = 0;
-          }
-          const ci = [iu + iv * C, iu + w + iv * C, iu + w + (iv + h) * C, iu + (iv + h) * C];
-          for (let k = 0; k < 4; k++) {
-            cAo[k] = cornerAo[ci[k]];
-            for (let ch = 0; ch < 5; ch++) cL[k * 5 + ch] = cornerVals[ci[k] * 5 + ch];
-          }
-          p[na] = s; p[ua] = lo[ua] + iu; p[va] = lo[va] + iv;
-          emit(f, p[0], p[1], p[2], w, h, colM[mi], eU0 | eU1 | eV0 | eV1, cAo, cL, null, 0, partM[mi], sw);
-        }
     }
   }
   stampBase = stamp + 1;
@@ -419,6 +471,7 @@ export function meshGrid(o: MeshOpts): MeshData {
     sway: b.sw.slice(0, b.nv),
     vertexCount: b.nv,
     bounds: [minX, minY, minZ, maxX, maxY, maxZ],
+    blocks: atlas ? { dims: b.dims, offs: b.offs, data: b.bd.slice(0, b.bn) } : undefined,
   };
 }
 
@@ -432,11 +485,28 @@ export function mergeMeshes(list: MeshData[]): MeshData | null {
   const attrs = new Uint8Array(nv * STRIDE);
   const indices = new Uint32Array(ni);
   const sway = new Uint16Array(nv);
-  let ov = 0, oi = 0;
+  const atlas = !!parts[0].blocks;
+  if (parts.some((m) => !!m.blocks !== atlas || m.atlas)) throw new Error('mergeMeshes: mixed or packed atlas meshes');
+  let bytes = 0;
+  if (atlas) for (const m of parts) bytes += m.blocks!.data.length;
+  const blocks: AtlasBlocks | undefined = atlas ? { dims: [], offs: [], data: new Uint8Array(bytes) } : undefined;
+  let ov = 0, oi = 0, ob = 0;
   const bounds: MeshData['bounds'] = [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
   for (const m of parts) {
     positions.set(m.positions, ov * 3);
     attrs.set(m.attrs, ov * STRIDE);
+    if (blocks) {
+      // renumber this piece's blocks after the ones before it
+      const first = blocks.offs.length, src = m.blocks!;
+      for (let v = ov; v < ov + m.vertexCount; v++) {
+        const o = v * STRIDE + 8, id = (attrs[o] | (attrs[o + 1] << 8) | (attrs[o + 2] << 16) | (attrs[o + 3] << 24)) + first;
+        attrs[o] = id & 255; attrs[o + 1] = (id >> 8) & 255; attrs[o + 2] = (id >> 16) & 255; attrs[o + 3] = id >>> 24;
+      }
+      blocks.data.set(src.data, ob);
+      for (const d of src.dims) blocks.dims.push(d);
+      for (const o of src.offs) blocks.offs.push(o + ob);
+      ob += src.data.length;
+    }
     sway.set(m.sway, ov);
     for (let k = 0; k < m.indices.length; k++) indices[oi + k] = m.indices[k] + ov;
     for (let k = 0; k < 3; k++) {
@@ -446,7 +516,44 @@ export function mergeMeshes(list: MeshData[]): MeshData | null {
     ov += m.vertexCount;
     oi += m.indices.length;
   }
-  return { positions, attrs, indices, sway, vertexCount: nv, bounds };
+  return { positions, attrs, indices, sway, vertexCount: nv, bounds, blocks };
+}
+
+/**
+ * Lays an atlas mesh's blocks out in its texture (shelves, tallest first) and writes each quad's place
+ * into its vertices. The texture is ATLAS_W texels wide (a quad is at most 255 voxels, 256 corners, across).
+ */
+const ATLAS_W = 256;
+export function packAtlas(md: MeshData): MeshData {
+  const bl = md.blocks;
+  if (!bl) return md;
+  const n = bl.offs.length, order = Array.from({ length: n }, (_, i) => i);
+  order.sort((a, b) => bl.dims[b * 2 + 1] - bl.dims[a * 2 + 1] || bl.dims[b * 2] - bl.dims[a * 2]);
+  const at = new Uint32Array(n * 2);
+  let x = 0, y = 0, shelf = 0;
+  for (const i of order) {
+    const w = bl.dims[i * 2], h = bl.dims[i * 2 + 1];
+    if (x + w > ATLAS_W) { x = 0; y += shelf; shelf = 0; }
+    at[i * 2] = x; at[i * 2 + 1] = y;
+    x += w;
+    shelf = Math.max(shelf, h);
+  }
+  const height = Math.max(1, y + shelf), row = ATLAS_W * 4, planeBytes = row * height;
+  const data = new Uint8Array(planeBytes * ATLAS_PLANES);
+  for (let i = 0; i < n; i++) {
+    const w = bl.dims[i * 2], h = bl.dims[i * 2 + 1], ax = at[i * 2], ay = at[i * 2 + 1];
+    for (let k = 0; k < ATLAS_PLANES; k++) {
+      const src = bl.offs[i] + k * w * h * 4;
+      for (let j = 0; j < h; j++) data.set(bl.data.subarray(src + j * w * 4, src + (j + 1) * w * 4), k * planeBytes + (ay + j) * row + ax * 4);
+    }
+  }
+  const attrs = md.attrs.slice();
+  for (let v = 0; v < md.vertexCount; v++) {
+    const o = v * STRIDE + 8, id = attrs[o] | (attrs[o + 1] << 8) | (attrs[o + 2] << 16) | (attrs[o + 3] << 24);
+    const ax = at[id * 2], ay = at[id * 2 + 1];
+    attrs[o] = ax & 255; attrs[o + 1] = ax >> 8; attrs[o + 2] = ay & 255; attrs[o + 3] = ay >> 8;
+  }
+  return { ...md, attrs, blocks: undefined, atlas: { width: ATLAS_W, height, data } };
 }
 
 /**

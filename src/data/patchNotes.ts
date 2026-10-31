@@ -8,6 +8,28 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.12.1',
+    date: '2026-10-31',
+    title: 'A much lighter city',
+    items: [
+      'The city is now built from about a third as many pieces up close: light, shade and colours are painted onto whole walls, roofs and streets instead of being carried block by block, so the graphics card has far less to draw, above all when zoomed out.',
+      'Shading inside each block now blends smoothly between its corners, and the city takes less graphics memory.',
+    ],
+  },
+  {
+    version: '0.12.0',
+    date: '2026-10-31',
+    title: 'Photo mode',
+    items: [
+      'A camera button now sits next to the view switch (or press C). It opens photo mode: the HUD steps aside for a viewfinder and your traveller holds still.',
+      'Frame the shot your way. Drag to turn the camera all the way around and tilt it higher or lower, zoom in closer than ever, and move the camera up to 16 m from where you stand (WASD, Shift or right-drag, or two fingers on a phone). The eye button switches to first person for eye-level photos.',
+      'Switches along the top: a thirds grid to help line things up, Me to leave yourself out of the picture, Focus for the tilt-shift miniature look, and Stamp for a small Tasty World tag with the place and time in the corner.',
+      'Press the big shutter (or Space) for a click and a flash. Photos are taken at full resolution and kept in a new Album page in your Food Passport, with room for 120.',
+      'Open any photo in the album to see it big, flip through with the arrows, share it straight to your apps on a phone, save it as a picture file, or delete it.',
+      'New mission: Say Cheese, for your first five photos.',
+    ],
+  },
+  {
     version: '0.11.0',
     date: '2026-10-31',
     title: 'Hotels: a bed for the night',

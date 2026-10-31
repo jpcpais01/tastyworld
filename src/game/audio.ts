@@ -10,7 +10,7 @@
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh'
-  | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding';
+  | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
 
 export interface AudioRoom { rect: [number, number, number, number]; kind: string }
 
@@ -294,6 +294,7 @@ export class Audio {
       case 'meow': fire('meow', t, 0.32, rand(0.92, 1.12)); break;
       case 'ding': note('bell', 88, t, 0.2); note('bell', 84, t + 0.3, 0.18); break; // the lift arrives
       case 'whoosh': fire('whoosh', t, 0.42, rand(0.95, 1.05)); break;
+      case 'shutter': fire('shutter', t, 0.55); fire('shutter', t + 0.075, 0.38, 0.82); break; // curtain opens, then closes
       // eating
       case 'bite': fire('bite', t, 0.5, rand(0.9, 1.12)); fire('chew', t + 0.22, 0.2, rand(0.9, 1.1)); fire('chew', t + 0.5, 0.16, rand(0.85, 1.05)); break;
       case 'crunch': fire('crunch', t, 0.55, rand(0.92, 1.1)); fire('crunch', t + 0.26, 0.3, rand(0.8, 1.0)); fire('chew', t + 0.55, 0.15); break;
@@ -675,6 +676,9 @@ export class Audio {
         const u = t / 0.55;
         return bp.run(noise(), 350 + 1300 * Math.sin(Math.PI * u)) * Math.sin(Math.PI * u) ** 2;
       }; });
+      case 'shutter': return this.render(0.07, SR, () => { const bp = new SVF(SR, 1.4); return (t) => // a small mechanical clack
+        (bp.run(noise(), 2600) * 0.9 + Math.sin(TAU * 1450 * t) * 0.35) * Math.min(1, t / 0.0008) * Math.exp(-t * 85);
+      });
       case 'chirp': return this.render(0.14, SR, () => (t) => { // one sparrow "tsip"
         const f = 3600 + 1800 * Math.sin(Math.PI * Math.min(1, t / 0.07));
         return Math.sin(TAU * f * t) * Math.sin(Math.PI * Math.min(1, t / 0.09)) ** 2;

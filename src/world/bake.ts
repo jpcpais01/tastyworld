@@ -1,6 +1,6 @@
 import { Grid, SparseGrid } from './grid';
 import { LightField, Lamp } from './lighting';
-import { meshGrid, mergeMeshes, splitInner, orderFaces, MeshData, LightFn } from './mesher';
+import { meshGrid, mergeMeshes, splitInner, orderFaces, packAtlas, MeshData, LightFn } from './mesher';
 import { Palette } from './palette';
 import { buildTokyo, Anchors, PlacedProp, BuildResult } from './tokyo';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ, HILL } from './layout';
@@ -249,9 +249,9 @@ function meshRegion(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, 
     return id ? id + base : 0;
   } : undefined;
   const pieces: MeshData[] = [
-    meshGrid({ grid: dense, pal, scale: V, origin: [(x0 - 1) * V, -G * V, (z0 - 1) * V], region: [1, x1 - x0 + 1, 1, z1 - z0 + 1], light, groundBelow: G, sway, seam }),
+    meshGrid({ grid: dense, pal, scale: V, origin: [(x0 - 1) * V, -G * V, (z0 - 1) * V], region: [1, x1 - x0 + 1, 1, z1 - z0 + 1], light, groundBelow: G, sway, seam, atlas: true }),
   ];
-  for (const p of props) pieces.push(meshGrid({ grid: p.prop.grid, pal, scale: p.prop.scale, origin: p.origin, light, sway: propSway(p, base) }));
+  for (const p of props) pieces.push(meshGrid({ grid: p.prop.grid, pal, scale: p.prop.scale, origin: p.origin, light, sway: propSway(p, base), atlas: true }));
   return mergeMeshes(pieces);
 }
 
@@ -287,7 +287,7 @@ function meshLod(grid: SparseGrid, pal: Palette, light: LightFn, x0: number, z0:
         }
         coarse.set(x, y, z, best);
       }
-  return meshGrid({ grid: coarse, pal, scale: f * V, origin: [(x0 - f) * V, -G * V, (z0 - f) * V], region: [1, cw - 1, 1, cd - 1], light, groundBelow: G / f });
+  return meshGrid({ grid: coarse, pal, scale: f * V, origin: [(x0 - f) * V, -G * V, (z0 - f) * V], region: [1, cw - 1, 1, cd - 1], light, groundBelow: G / f, atlas: true });
 }
 
 /**
@@ -343,7 +343,7 @@ export class WorldPart {
       const ix = Math.min(CHUNKS_X - 1, Math.max(0, Math.floor((cx - VX0) / CHUNK)));
       const iz = Math.min(CHUNKS_Z - 1, Math.max(0, Math.floor((cz - VZ0) / CHUNK)));
       if (iz < this.rows[0] || iz >= this.rows[1]) continue;
-      if (p.tag) tagged.push({ tag: p.tag, mesh: meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: this.light, sway: propSway(p, this.swayBase) }) });
+      if (p.tag) tagged.push({ tag: p.tag, mesh: packAtlas(meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: this.light, sway: propSway(p, this.swayBase), atlas: true })) });
       else this.buckets[iz * CHUNKS_X + ix].push(p);
     }
     progress?.('Paving the streets', 0.85);
@@ -390,13 +390,13 @@ export class WorldPart {
         ifield.lampLight(px, py, pz, nx, ny, nz, out);
       };
       const dense = ig.extract(0, ISX, 0, ISZ, G);
-      const pieces = [meshGrid({ grid: dense, pal: res.pal, scale: V, origin: [iox - V, -G * V, ioz - V], region: [1, ISX + 1, 1, ISZ + 1], light: ilight, groundBelow: G })];
+      const pieces = [meshGrid({ grid: dense, pal: res.pal, scale: V, origin: [iox - V, -G * V, ioz - V], region: [1, ISX + 1, 1, ISZ + 1], light: ilight, groundBelow: G, atlas: true })];
       for (const p of res.interior.props) {
         const sc = p.prop.scale;
         p.origin = [Math.round(p.origin[0] / sc) * sc, Math.round(p.origin[1] / sc) * sc, Math.round(p.origin[2] / sc) * sc];
-        pieces.push(meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: ilight, sway: propSway(p, this.swayBase) }));
+        pieces.push(meshGrid({ grid: p.prop.grid, pal: res.pal, scale: sc, origin: p.origin, light: ilight, sway: propSway(p, this.swayBase), atlas: true }));
       }
-      const im = mergeMeshes(pieces);
+      const merged = mergeMeshes(pieces), im = merged && packAtlas(merged);
       const blockers: [number, number, number, number][] = [
         [2.0, 5.2, 11.2, 6.8], // counter
         [1.4, 1.4, 11.2, 2.8], // prep shelf
@@ -429,10 +429,10 @@ export class WorldPart {
     const x0 = VX0 + ix * CHUNK, z0 = VZ0 + iz * CHUNK;
     if (lod) {
       const md = meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, lod === 1 ? 2 : 4);
-      return md && orderFaces(md);
+      return md && packAtlas(orderFaces(md));
     }
     const md = meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase, this.owners);
-    return md && orderFaces(splitInner(md, this.rooms.filter((b) => b[0] < (x0 + CHUNK) * V && b[3] > x0 * V && b[2] < (z0 + CHUNK) * V && b[5] > z0 * V)));
+    return md && packAtlas(orderFaces(splitInner(md, this.rooms.filter((b) => b[0] < (x0 + CHUNK) * V && b[3] > x0 * V && b[2] < (z0 + CHUNK) * V && b[5] > z0 * V))));
   }
 }
 

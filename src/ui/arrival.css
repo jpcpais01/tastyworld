@@ -1,0 +1,96 @@
+/* The arrival veil (src/ui/arrival.ts): rolls in after the landing stamp, hides the switch from the globe to the
+   city, then parts. Transform and opacity only, so it keeps moving while the city loads underneath. */
+.veil { position: absolute; inset: 0; z-index: 61; pointer-events: none; overflow: hidden;
+  --wash: radial-gradient(120% 90% at 50% 45%, #fffaf2 0%, #f4ecdf 60%, #e4e0f0 100%); }
+.veil::before { content: ''; position: absolute; inset: 0; background: var(--wash); opacity: 0; transition: opacity 0.5s ease 0.45s; }
+.veil.on { pointer-events: auto; }
+.veil.on::before { opacity: 1; }
+.veil.out::before { opacity: 0; transition: opacity 0.6s ease 0.15s; }
+
+/* wind-blown bits (petals, leaves, bracts) */
+.fl { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: calc(var(--s) * 0.6); margin: calc(var(--s) * -0.3) 0 0 calc(var(--s) * -0.5);
+  opacity: 0; transform: translate(var(--fx), var(--fy)); transition: transform 1.15s cubic-bezier(0.2, 0.7, 0.3, 1) var(--d), opacity 0.4s ease var(--d); }
+.fl i { position: absolute; inset: 0; background: var(--img) center / contain no-repeat; rotate: var(--r0); animation: flTumble var(--sp) linear infinite; }
+@keyframes flTumble { from { transform: rotate(0deg) rotateX(0deg); } to { transform: rotate(360deg) rotateX(360deg); } }
+.veil.on .fl { opacity: 1; transform: none; }
+.veil.out .fl { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(var(--ts));
+  transition: transform 1.3s cubic-bezier(0.4, 0, 0.8, 0.5) var(--do), opacity 0.5s ease calc(var(--do) + 0.8s); }
+
+/* banks of mist */
+.ms { position: absolute; left: -30vw; width: 160vw; top: var(--y); height: 46vh; margin-top: -23vh; opacity: 0; transform: translateX(var(--fx));
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0)); transition: transform 1.2s cubic-bezier(0.2, 0.7, 0.3, 1) var(--d), opacity 0.5s ease var(--d); }
+.veil.on .ms { opacity: 1; transform: none; }
+.veil.out .ms { opacity: 0; transform: translateX(var(--tx)); transition: transform 1.6s cubic-bezier(0.4, 0, 0.7, 0.6) var(--d), opacity 1s ease calc(var(--d) + 0.4s); }
+.veil.night .ms { background: radial-gradient(closest-side, rgba(176, 192, 232, 0.36), rgba(176, 192, 232, 0)); }
+
+/* ---------------------------------------------------------------- anywhere else: blocky clouds */
+.puff { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: calc(var(--s) * 0.5); opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(0.7);
+  transition: transform 1s cubic-bezier(0.2, 0.75, 0.25, 1) var(--d), opacity 0.35s ease var(--d); }
+.puff i { position: absolute; background: #fffaf2; border-radius: 16%; box-shadow: inset 0 calc(var(--s) * -0.035) 0 rgba(150, 140, 190, 0.18), 0 calc(var(--s) * 0.02) calc(var(--s) * 0.06) rgba(40, 40, 90, 0.12); }
+.puff i:nth-child(1) { left: 0; right: 0; bottom: 0; height: 52%; }
+.puff i:nth-child(2) { left: 12%; width: 42%; top: 14%; height: 62%; }
+.puff i:nth-child(3) { left: 44%; width: 38%; top: 0; height: 74%; }
+.veil.on .puff { opacity: 1; transform: translate(-50%, -50%); }
+.veil.out .puff { opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(1.3); transition: transform 1.2s cubic-bezier(0.5, 0, 0.75, 0.4) var(--d), opacity 0.9s ease calc(var(--d) + 0.3s); }
+
+/* ---------------------------------------------------------------- Tokyo: through the noren, in a flurry of petals */
+.arr-tokyo { --wash: radial-gradient(120% 90% at 50% 40%, #fff4f2 0%, #f8dde3 55%, #e6d5ec 100%); }
+.arr-tokyo.night { --wash: radial-gradient(120% 90% at 50% 40%, #3b3056 0%, #251f43 60%, #151631 100%); }
+.arr-tokyo.out::before { transition: opacity 0.4s ease 0.1s; }
+.nr-cur { position: absolute; inset: 0; }
+.veil.out .nr-cur { transform: scale(1.18); transition: transform 1.3s cubic-bezier(0.5, 0, 0.7, 0.4) 0.05s; }
+.nr { position: absolute; top: -1vh; height: 101vh; left: calc(var(--i) * 100% / var(--n)); width: calc(100% / var(--n)); overflow: hidden; clip-path: inset(0 0.3vw);
+  transform-origin: 50% 0; transform: translateY(-112%);
+  background:
+    linear-gradient(to top, #17224a 0 2.2%, #f3eee2 2.2% 2.8%, transparent 2.8% 4%, #f3eee2 4% 4.4%, transparent 4.4%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(255, 255, 255, 0.05) 35%, rgba(255, 255, 255, 0) 60%, rgba(0, 0, 0, 0.24)),
+    linear-gradient(#1f2f62, #2b4382 55%, #22336a);
+  transition: transform 0.85s cubic-bezier(0.3, 1.08, 0.5, 1) calc(var(--k) * 0.09s); }
+.nr b { position: absolute; top: 0; height: 100%; width: calc(var(--n) * 100%); left: calc(var(--i) * -100%); background: var(--mon) no-repeat 50% 42% / min(46vmin, 50vh); }
+.veil.on .nr { transform: none; }
+.veil.out .nr { opacity: 0; transform: translateX(calc(var(--side) * 22vw)) rotate(calc(var(--side) * -28deg * var(--sw)));
+  transition: transform 1.15s cubic-bezier(0.35, 0.05, 0.6, 1) calc(var(--k) * 0.08s), opacity 0.5s ease calc(0.55s + var(--k) * 0.08s); }
+.nr-rod { position: absolute; left: -2vw; right: -2vw; top: 0; height: max(14px, 2.6vmin); transform: translateY(-130%); transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1);
+  background: repeating-linear-gradient(90deg, transparent 0 17vmin, rgba(70, 40, 10, 0.45) 17vmin calc(17vmin + 3px), transparent calc(17vmin + 3px) 30vmin), linear-gradient(#e2b874, #b9884a 60%, #8d6230);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); }
+.veil.on .nr-rod { transform: none; }
+.veil.out .nr-rod { transform: translateY(-160%); transition: transform 0.6s ease-in 0.05s; }
+.lt { --lw: min(12vmin, 90px); --lh: min(18vmin, 135px); position: absolute; left: var(--x); top: 0; width: var(--lw); height: calc(var(--len) + var(--lh)); margin-left: calc(var(--lw) / -2);
+  transform-origin: 50% 0; transform: translateY(-110%); transition: transform 0.9s cubic-bezier(0.3, 1.15, 0.5, 1) var(--d); }
+.lt::before { content: ''; position: absolute; left: 50%; top: 0; width: 2px; margin-left: -1px; height: calc(var(--len) + 2px); background: #2b1d14; }
+.lt i { position: absolute; left: 0; right: 0; bottom: 0; height: var(--lh); background: var(--img) center / contain no-repeat; }
+.veil.lit .lt::after { content: ''; position: absolute; z-index: -1; left: -70%; right: -70%; bottom: calc(var(--lh) * -0.4); height: calc(var(--lh) * 1.8);
+  background: radial-gradient(closest-side, rgba(255, 160, 90, 0.6), rgba(255, 120, 60, 0)); }
+.veil.on .lt { transform: none; animation: ltSwing 2.2s ease-in-out calc(var(--d) + 0.6s) infinite alternate; }
+@keyframes ltSwing { from { rotate: -3deg; } to { rotate: 3deg; } }
+.veil.out .lt { transform: translateY(-125%); transition: transform 0.7s cubic-bezier(0.5, 0, 0.8, 0.5); }
+
+/* ---------------------------------------------------------------- Amalfi: lemon boughs and bougainvillea in the sea mist */
+.arr-amalfi { --wash: linear-gradient(180deg, #fff9e8 0%, #fbefd2 45%, #d4eee8 100%); }
+.arr-amalfi.night { --wash: linear-gradient(180deg, #2c2c55 0%, #3d3460 45%, #1e4251 100%); }
+.bh { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: calc(var(--s) * 0.7); background: var(--img) center / contain no-repeat; opacity: 0;
+  transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) rotate(var(--r)) scale(0.7); transition: transform 1s cubic-bezier(0.2, 0.75, 0.25, 1) var(--d), opacity 0.35s ease var(--d); }
+.veil.on .bh { opacity: 1; transform: translate(-50%, -50%) rotate(var(--r)); }
+.veil.out .bh { opacity: 0; transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) rotate(calc(var(--r) + 25deg)) scale(1.4);
+  transition: transform 1.25s cubic-bezier(0.5, 0, 0.75, 0.4) var(--d), opacity 0.9s ease calc(var(--d) + 0.3s); }
+
+/* ---------------------------------------------------------------- Istanbul: a wall of İznik tiles turns, the gulls fly out */
+.arr-istanbul { --wash: radial-gradient(120% 90% at 50% 45%, #f6faf8 0%, #dcebec 60%, #bcd5de 100%); }
+.arr-istanbul.night { --wash: radial-gradient(120% 90% at 50% 45%, #2b3d5a 0%, #1d2b45 60%, #121c30 100%); }
+.arr-istanbul.out::before { transition: opacity 0.3s ease; }
+.tl { position: absolute; opacity: 0; backface-visibility: hidden; box-shadow: inset 0 0 0 1px rgba(28, 52, 96, 0.14);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 42%), var(--tile) center / 100% 100%;
+  transform: perspective(900px) rotateY(calc(var(--fl) * 90deg));
+  transition: transform 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) calc((1 - var(--dd)) * 0.55s), opacity 0.2s linear calc((1 - var(--dd)) * 0.55s); }
+.veil.on .tl { opacity: 1; transform: perspective(900px) rotateY(0deg); }
+.veil.out .tl { opacity: 0; transform: perspective(900px) rotateX(calc(var(--fl) * 100deg)) scale(1.15);
+  transition: transform 0.6s cubic-bezier(0.5, 0, 0.8, 0.6) calc(var(--dd) * 0.8s), opacity 0.35s ease calc(var(--dd) * 0.8s + 0.2s); }
+.arr-istanbul .ms, .arr-istanbul.on .ms { opacity: 0; transform: translateX(var(--fx)); transition: none; }
+.arr-istanbul.out .ms { animation: msPass 1.8s cubic-bezier(0.3, 0, 0.6, 1) var(--d) both; }
+@keyframes msPass { from { opacity: 0; transform: translateX(calc(var(--fx) * 0.4)); } 35% { opacity: 0.85; } to { opacity: 0; transform: translateX(var(--tx)); } }
+.gl { position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); opacity: 0; }
+.gl i, .gl b { position: absolute; inset: 0; background: var(--body) center / contain no-repeat; rotate: var(--a); }
+.gl b { background-image: var(--wings); animation: glFlap var(--fp) ease-in-out infinite alternate; }
+@keyframes glFlap { from { transform: scaleY(1); } to { transform: scaleY(0.42); } }
+.veil.out .gl { animation: glFly 1.4s cubic-bezier(0.35, 0, 0.75, 0.7) var(--d) both; }
+@keyframes glFly { from { opacity: 0; transform: translate(0, 0) scale(0.35); } 18% { opacity: 1; } 80% { opacity: 1; } to { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(var(--ts)); } }

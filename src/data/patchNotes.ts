@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.6',
+    date: '2026-10-31',
+    title: 'Washing day',
+    items: [
+      'Washing lines are strung across Amalfi\'s narrow lanes from house to house, high enough to walk under, with shirts, towels and sheets swaying in the breeze. Sparrows and doves like to sit on them.',
+      'The washing lines on the roof terraces are now tied to a pole at each end instead of hanging in the air.',
+    ],
+  },
+  {
     version: '0.15.5',
     date: '2026-10-31',
     title: 'A canzone for Amalfi',

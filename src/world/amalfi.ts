@@ -419,6 +419,7 @@ export function buildAmalfi(win?: Window): BuildResult {
   gardens(b, c, plan, inWin);
   lanes(b, c, plan);
   shopfronts(b, c, plan);
+  washingLines(b, c, plan);
   const stalls = foodStalls(b, c, plan);
   // the three majolica lemons, on the ground where the plan says it is
   const groundY = (x: number, z: number) => (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
@@ -821,6 +822,9 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
       // washing on a line across the terrace
       const cols = [c.white, c.sky, c.pink, c.yellow, c.umbrellaC];
       g.box(x0 + 1, top + 8, z0 + Math.floor(d / 2), x1 - 1, top + 8, z0 + Math.floor(d / 2), c.iron);
+      // tied to a pole at each end
+      g.box(x0 + 1, top + 1, z0 + Math.floor(d / 2), x0 + 1, top + 8, z0 + Math.floor(d / 2), c.pole);
+      g.box(x1 - 1, top + 1, z0 + Math.floor(d / 2), x1 - 1, top + 8, z0 + Math.floor(d / 2), c.pole);
       for (let x = x0 + 2; x < x1 - 1; x += 2) if (hash3(x, top, z0) < 0.7) {
         const zc = z0 + Math.floor(d / 2);
         g.box(x, top + 5, zc, x, top + 7, zc, cols[Math.floor(hash3(x, 1, zc) * cols.length)]);
@@ -1269,6 +1273,56 @@ function shopfronts(b: Builder, c: AC, plan: Plan): void {
         b.block(x - 0.6, z - 0.6, x + 0.6, z + 0.6);
         if (front && r() < 0.6) b.place(awning(c, awnings[Math.floor(r() * awnings.length)]), x - nx * side * 0.3, fl + 2.5, z - nz * side * 0.3, turn);
       }
+    }
+  }
+}
+
+/**
+ * Washing hung on a line across a narrow lane, house to house, high enough to walk under; the sparrows use the line
+ * too. Decided from the plan alone, so every worker strings the same lines.
+ */
+function washingLines(b: Builder, c: AC, plan: Plan): void {
+  const r = rng(909);
+  const g = b.grid;
+  const cols = [c.white, c.sky, c.pink, c.yellow, c.umbrellaC, c.whiteWarm, c.hullRed];
+  const lotAt = (x: number, z: number) => plan.lot[col(Math.floor(x / V), Math.floor(z / V))];
+  for (const s of plan.segs) {
+    if (s.kind !== K.Lane && s.kind !== K.Stair && s.kind !== K.Street) continue;
+    const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
+    const len = Math.hypot(bx - ax, bz - az);
+    const nx = -(bz - az) / len, nz = (bx - ax) / len;
+    for (let t = 2 + r() * 4; t < len - 2; t += 2.5 + r() * 3) {
+      if (r() < 0.15) continue;
+      const f = t / len, cx = ax + (bx - ax) * f, cz = az + (bz - az) * f, y = ay + (by - ay) * f;
+      // a house wall within reach on both sides
+      let d1 = -1, d2 = -1, l1 = 0, l2 = 0;
+      for (let d = s.w / 2 - 0.5; d < s.w / 2 + 2.6 && d1 < 0; d += 0.25) if ((l1 = lotAt(cx + nx * d, cz + nz * d))) d1 = d;
+      for (let d = s.w / 2 - 0.5; d < s.w / 2 + 2.6 && d2 < 0; d += 0.25) if ((l2 = lotAt(cx - nx * d, cz - nz * d))) d2 = d;
+      if (d1 < 0 || d2 < 0) continue;
+      // both walls must stand above the line: tied under the eaves, high enough to walk under
+      const hi = Math.min(plan.lots[l1 - 1].top, plan.lots[l2 - 1].top) - 3;
+      const lo = Math.max(layerOf(y + 3.2), plan.lots[l1 - 1].base + 6, plan.lots[l2 - 1].base + 6);
+      if (hi < lo) continue;
+      const x0 = cx + nx * d1, z0 = cz + nz * d1, x1 = cx - nx * d2, z1 = cz - nz * d2;
+      const Y = Math.min(hi, Math.max(lo, layerOf(y + 4.3 + r() * 0.8)));
+      const span = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(span / (V * 0.5));
+      const ax2 = (x1 - x0) / span, az2 = (z1 - z0) / span;
+      let last = -1;
+      for (let i = 0; i <= n; i++) {
+        const k = i / n, vx = Math.floor((x0 + (x1 - x0) * k) / V), vz = Math.floor((z0 + (z1 - z0) * k) / V);
+        const key = vx * 4096 + vz;
+        if (key === last) continue;
+        last = key;
+        if (!g.get(vx, Y, vz)) g.set(vx, Y, vz, c.iron);
+        // a shirt, a towel, a sheet now and then: every other cell along the line
+        if (i % 4 === 2 && hash3(vx, Y, vz) < 0.75 && i > 2 && i < n - 2 && g.touches(vx, vz, vx, vz)) {
+          const drop = hash3(vz, Y, vx) < 0.25 ? 5 : 3;
+          const cl = cols[Math.floor(hash3(vx, 3, vz) * cols.length)];
+          const id = b.addSway({ ...SWAY.laundry, pivot: [(vx + 0.5) * V, (Y + 0.5 - G) * V, (vz + 0.5) * V], axis: [ax2, 0, az2], reach: 0 });
+          for (let yy = Y - drop; yy < Y; yy++) if (!g.get(vx, yy, vz)) { g.set(vx, yy, vz, cl); b.swayCell(vx, yy, vz, id); }
+        }
+      }
+      b.wires.push([x0, z0, x1, z1, (Y + 1 - G) * V, 0.05]);
     }
   }
 }

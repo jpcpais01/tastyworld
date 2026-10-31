@@ -62,8 +62,10 @@ export class CookingGame {
 
   private pop(text: string, x: number, y: number, color: string) {
     const p = h('div', 'fx-pop', text);
-    p.style.left = x + 'px';
-    p.style.top = y + 'px';
+    // x/y come from screen rects; on phones the panel is CSS-zoomed, so map them back to its own pixels
+    const k = this.stage.offsetWidth / (this.stage.getBoundingClientRect().width || 1);
+    p.style.left = x * k + 'px';
+    p.style.top = y * k + 'px';
     p.style.color = color;
     this.stage.appendChild(p);
     setTimeout(() => p.remove(), 800);

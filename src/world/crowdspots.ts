@@ -96,14 +96,14 @@ function amalfiSpots(): CrowdSpots {
   freeBeachTowels().forEach((t, i) => beds.push({ x: t.x, z: t.z, face: (t.alongX ? Math.PI / 2 : 0) + (i % 2 ? Math.PI : 0), top: 0.125, at: [t.x, t.z] }));
   // swimmers off the lidos, the shore runs along x = 50.25
   const swim: V2[] = [];
-  for (let z = -27; z <= 28; z += 4.5) swim.push([52 + ((z * 7.3) % 3 + 3) % 3, z]);
+  for (let z = -27; z <= 28; z += 4.5) if (Math.abs(z - 9) > 4) swim.push([52 + ((z * 7.3) % 3 + 3) % 3, z]); // (not under the Molo)
   return {
     pray: [], purify: [], gates: [], meet,
     sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
     windows: [], jog, exercise: [],
     boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
     // the bay between the beach and the pier, kept clear of the swimmers and the moorings
-    sea: { cx: 66, cz: -14, rx: 5, rz: 30, y: -0.55 },
+    sea: { cx: 71, cz: -14, rx: 5, rz: 30, y: -0.55 }, // (clear of the Molo's round end at x 63)
     beach: { beds, swim, seaY: -0.55 },
   };
 }

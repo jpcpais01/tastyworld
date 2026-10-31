@@ -61,6 +61,12 @@ export const PIAZZA_Y = 3.0;
 export const DUOMO_Y = 12.5;
 /** Where the shore road runs (x) and its width. */
 export const ROAD_X0 = 27, ROAD_X1 = 35;
+/** The Molo, out from the beach at z = 9: its deck height, half width, the far end and its round belvedere. */
+export const PIER_Y = 1.55, PIER_HALF = 1.75, PIER_END = 63, PIER_R = 4.5;
+/** The belvedere in front of the piazza: open to the sea between these x, its balustrade along the road side. */
+export const BELV_X0 = 20, BELV_X1 = 27;
+/** Where the steps down to the road start, under the sea gate's arch. */
+export const GATE_X = 23.75;
 /** The headland the road tunnels through starts here (z). */
 export const TUNNEL_Z = -52;
 
@@ -142,8 +148,8 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     // the shore road, its pavement and the tunnel through the headland
     r0: { x: 31, z: 79, y: ROAD_Y }, r1: { x: 31, z: 40, y: ROAD_Y }, r2: { x: 31, z: 9, y: ROAD_Y }, r3: { x: 31, z: -20, y: ROAD_Y },
     r4: { x: 31, z: TUNNEL_Z, y: ROAD_Y }, r5: { x: 31, z: -79, y: ROAD_Y },
-    // Porta della Marina: an arch through the old sea wall from the road into the piazza
-    g0: { x: 25.5, z: 9, y: ROAD_Y + 0.25 }, g1: { x: 19.5, z: 9, y: PIAZZA_Y },
+    // Porta della Marina: the old sea gate, now an arch standing free on the belvedere, steps down to the road
+    g0: { x: 27.25, z: 9, y: ROAD_Y }, g1: { x: GATE_X, z: 9, y: PIAZZA_Y },
     // the piazza (painted as a plaza below; these are the crowd's crossing points)
     p0: { x: 16, z: 9, y: PIAZZA_Y }, p1: { x: 8, z: 14, y: PIAZZA_Y }, p2: { x: 0, z: 3, y: PIAZZA_Y }, p3: { x: 10, z: 26, y: PIAZZA_Y },
     p4: { x: 2, z: 14, y: PIAZZA_Y }, p5: { x: 16, z: -2, y: PIAZZA_Y }, p6: { x: -2, z: 25, y: PIAZZA_Y },
@@ -159,11 +165,14 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     u0: { x: -4.5, z: 2, y: PIAZZA_Y }, u1: { x: -18, z: 1.5 }, u2: { x: -34, z: 1 }, u3: { x: -46, z: -3 },
     // the beach and the harbour
     b0: { x: 39, z: 9, y: 1.55 }, b1: { x: 39.5, z: -9, y: 1.15 }, b2: { x: 42, z: 34, y: 1.15 },
+    // the Molo: a stone pier straight out from the beach below the piazza, a round belvedere at its end
+    q0: { x: 49, z: 9, y: PIER_Y }, q1: { x: PIER_END - 4, z: 9, y: PIER_Y },
     h0: { x: 40, z: 46, y: 1.0 }, h1: { x: 40, z: 66, y: 1.0 }, h2: { x: 51, z: 51, y: 1.0 }, h3: { x: 78, z: 51, y: 1.0 },
   };
   const e: [string, string, number, K, number?][] = [
     ['r0', 'r1', 5.5, K.Road], ['r1', 'r2', 5.5, K.Road], ['r2', 'r3', 5.5, K.Road], ['r3', 'r4', 5.5, K.Road], ['r4', 'r5', 6.5, K.Tunnel, 5.5],
-    ['r2', 'g0', 4, K.Walk], ['g0', 'g1', 4, K.Covered, 4.5], ['g1', 'p0', 4, K.Piazza],
+    ['r2', 'g0', 4, K.Walk], ['g0', 'g1', 4, K.Walk], ['g1', 'p0', 4, K.Piazza],
+    ['b0', 'q0', 3, K.Pier], ['q0', 'q1', 3, K.Pier],
     ['p0', 'p1', 3, K.Piazza], ['p1', 'p4', 3, K.Piazza], ['p4', 'd0', 3, K.Piazza], ['p1', 'p3', 3, K.Piazza], ['p0', 'p5', 3, K.Piazza],
     ['p5', 'p2', 3, K.Piazza], ['p2', 'u0', 2, K.Piazza], ['p2', 'm0', 3, K.Piazza], ['p4', 'p2', 3, K.Piazza], ['p3', 'p6', 3, K.Piazza],
     ['d0', 'd1', 10, K.Steps], ['d1', 'd2', 6, K.Piazza], ['d2', 'd3', 3, K.Piazza], ['d2', 'd4', 3, K.Piazza], ['d3', 'c0', 2.4, K.Covered, 3.5], ['c0', 'c1', 3, K.Piazza],
@@ -269,10 +278,25 @@ export function amalfiPlan(): Plan {
   for (const s of segs) if (s.kind === K.Steps || s.kind === K.Covered) paintSeg(s, walk, kind, own);
   for (let i = 0; i < n; i++) if (own[i] < 1e9) best[i] = -1;
   // the piazza, the cathedral terrace and the cloister are open squares
-  rect(-4, -6, 21, 30, PIAZZA_Y, K.Piazza, walk, kind, best);
+  // the piazza runs right out to the old sea wall: a belvedere over the road, the beach and the Molo
+  rect(-4, -6, BELV_X1, 30, PIAZZA_Y, K.Piazza, walk, kind, best);
   rect(-26, 2, -20, 26, DUOMO_Y, K.Piazza, walk, kind, best);
   rect(-46, 29, -32, 43, DUOMO_Y, K.Piazza, walk, kind, best);
   rect(-68, -15, -52, -1, floorY(-60), K.Piazza, walk, kind, best);
+  // the steps down from the belvedere through the sea gate keep their own grade over the square
+  for (let z = Math.floor(7 / V); z < Math.ceil(11 / V); z++)
+    for (let x = Math.floor(GATE_X / V); x < Math.ceil(ROAD_X0 / V); x++) {
+      const c = col(x, z), t = ((x + 0.5) * V - GATE_X) / (ROAD_X0 - GATE_X);
+      walk[c] = layerOf(PIAZZA_Y + (ROAD_Y - PIAZZA_Y) * t); kind[c] = K.Steps; best[c] = -1;
+    }
+  // the Molo and its round end
+  rect(37, 9 - PIER_HALF, PIER_END - PIER_R + 0.5, 9 + PIER_HALF, PIER_Y, K.Pier, walk, kind, best);
+  for (let z = Math.floor((9 - PIER_R) / V); z < Math.ceil((9 + PIER_R) / V); z++)
+    for (let x = Math.floor((PIER_END - 2 * PIER_R) / V); x < Math.ceil(PIER_END / V); x++) {
+      if (Math.hypot((x + 0.5) * V - (PIER_END - PIER_R), (z + 0.5) * V - 9) > PIER_R) continue;
+      const c = col(x, z);
+      walk[c] = layerOf(PIER_Y); kind[c] = K.Pier; best[c] = -1;
+    }
   // the quay and the pier
   rect(36, 41, 46, 80, 1.0, K.Quay, walk, kind, best);
   rect(46, 48.5, 84, 53.5, 1.0, K.Pier, walk, kind, best);
@@ -381,8 +405,8 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
   };
   for (const s of segs) if (s.kind === K.Lane || s.kind === K.Street || s.kind === K.Stair) front(s.a[0], s.a[2], s.b[0], s.b[2], s.w / 2, s.kind, s.a[1], s.b[1]);
   // round the piazza and Piazza dei Dogi
-  front(-3, -6, 20, -6, 0, K.Piazza, PIAZZA_Y, PIAZZA_Y);
-  front(-3, 30, 20, 30, 0, K.Piazza, PIAZZA_Y, PIAZZA_Y);
+  front(-3, -6, BELV_X1 - 1, -6, 0, K.Piazza, PIAZZA_Y, PIAZZA_Y);
+  front(-3, 30, BELV_X1 - 1, 30, 0, K.Piazza, PIAZZA_Y, PIAZZA_Y);
   front(-67, -15, -53, -15, 0, K.Piazza, floorY(-60), floorY(-60));
   front(-67, -1, -53, -1, 0, K.Piazza, floorY(-60), floorY(-60));
   // above the shore road, facing the sea

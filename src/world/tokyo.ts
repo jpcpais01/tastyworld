@@ -78,13 +78,14 @@ export interface Anchors {
   /** People who keep to one spot all day (Istanbul's anglers on the bridge): where, facing which way, their look. */
   extras?: { pos: [number, number, number]; face: number; seed: number }[];
   emitters: Emitter[];
-  /** Where fireflies dance on summer nights (metres); left out, they keep to Tokyo's park. */
-  fireflies?: [number, number, number][];
-  /** No cherry petals drifting along the canal (a city without the sakura). */
-  noPetals?: boolean;
+  /** Where fireflies dance on summer nights (metres). */
+  fireflies: [number, number, number][];
+  /** The box (x0, z0, x1, z1 in metres) where cherry petals drift; a city without the sakura leaves it out. */
+  petals?: [number, number, number, number];
   vending: [number, number, number][];
   blockers: [number, number, number, number][];
-  koiArea: [number, number, number, number];
+  /** The pond the koi swim in (x0, z0, x1, z1); left out where there are none. */
+  koiArea?: [number, number, number, number];
   /** Walkable ground-floor rooms behind the storefronts. */
   rooms: RoomAnchor[];
   /** The hotels: their lobbies are among the rooms, their guest rooms upstairs are here. */
@@ -1723,6 +1724,9 @@ export function buildTokyo(win?: Window): BuildResult {
     vending,
     blockers: b.blockers,
     koiArea: [1, 43.4, 71, 49.6],
+    // fireflies over the canal bank on summer nights, and the cherry petals drifting along it
+    fireflies: (() => { const fr = rng(7); return Array.from({ length: 46 }, () => [fr() * 70 + 1, 0.6 + fr() * 1.2, 41 + fr() * 13] as [number, number, number]); })(),
+    petals: [0, 36, 72, 54],
     rooms: b.rooms,
     hotels: b.hotels,
     darumas,

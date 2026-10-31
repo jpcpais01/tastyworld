@@ -1,6 +1,6 @@
 import type { Look } from '../world/characters';
 import type { IconName } from '../ui/emblems';
-import { ISTANBUL } from '../world/cityId';
+import { perCity } from '../world/cityId';
 
 /**
  * The seven places to stay. Each one is a real building in the city (picked by the corner of its lot), with a
@@ -283,7 +283,7 @@ const ISTANBUL_HOTELS: HotelInfo[] = [
 ];
 
 /** The hotels of the city on this trip. */
-export const HOTELS: HotelInfo[] = ISTANBUL ? ISTANBUL_HOTELS : TOKYO_HOTELS;
+export const HOTELS: HotelInfo[] = perCity({ tokyo: TOKYO_HOTELS, amalfi: [], istanbul: ISTANBUL_HOTELS });
 export { ISTANBUL_HOTELS };
 
 export const HOTEL: Record<string, HotelInfo> = Object.fromEntries(HOTELS.map((h) => [h.id, h]));
@@ -308,10 +308,18 @@ const ISTANBUL_ROOM_TYPE: typeof TOKYO_ROOM_TYPE = {
   king: { name: 'King room', jp: 'Süit', text: 'The best room in the house: a huge bed, a sofa and the widest view of the water.', icon: 'crown' },
   tatami: { name: 'Tatami room', jp: 'Tatami', text: '', icon: 'futon' },
 };
-export const ROOM_TYPE = ISTANBUL ? ISTANBUL_ROOM_TYPE : TOKYO_ROOM_TYPE;
+const AMALFI_ROOM_TYPE: typeof TOKYO_ROOM_TYPE = {
+  single: { name: 'Single room', jp: 'singola', text: 'A snug room with a single bed, majolica tiles and shutters on the lane.', icon: 'bed' },
+  twin: { name: 'Twin room', jp: 'doppia', text: 'Two beds side by side under a vaulted ceiling.', icon: 'bed' },
+  double: { name: 'Double room', jp: 'matrimoniale', text: 'A wide wrought-iron bed and a little balcony over the roofs.', icon: 'bed' },
+  king: { name: 'King room', jp: 'suite', text: 'The best room in the house: a huge bed, a terrace and the whole bay.', icon: 'crown' },
+  tatami: { name: 'Tatami room', jp: 'tatami', text: '', icon: 'futon' },
+};
+export const ROOM_TYPE = perCity({ tokyo: TOKYO_ROOM_TYPE, amalfi: AMALFI_ROOM_TYPE, istanbul: ISTANBUL_ROOM_TYPE });
 
-/** Room number as the door says it: floor 1 above the lobby is the 2nd floor in Japan (room 201), the 1st in Turkey (101). */
-export const roomNo = (floor: number) => `${ISTANBUL ? floor : floor + 1}01`;
+/** Room number as the door says it: floor 1 above the lobby is the 2nd floor in Japan (room 201), the 1st in Italy and Turkey (101). */
+const FIRST_FLOOR = perCity({ tokyo: 2, amalfi: 1, istanbul: 1 });
+export const roomNo = (floor: number) => `${floor + FIRST_FLOOR - 1}01`;
 
 /** Guests waiting in the lobbies have travel stories to tell. */
 const TOKYO_HOTEL_GUEST_LINES: string[] = [
@@ -331,4 +339,10 @@ const ISTANBUL_HOTEL_GUEST_LINES: string[] = [
   'From the top floor you can see two continents. I waved at Asia.',
   'The breakfast here is a whole table. I have stopped eating lunch.',
 ];
-export const HOTEL_GUEST_LINES: string[] = ISTANBUL ? ISTANBUL_HOTEL_GUEST_LINES : TOKYO_HOTEL_GUEST_LINES;
+const AMALFI_HOTEL_GUEST_LINES: string[] = [
+  'I asked for a sea view. Every room here has a sea view. That is the whole town.',
+  'Two hundred steps up to my room and nobody warned me. My calves send their regards.',
+  'Breakfast on the terrace: lemon cake, coffee and a ferry coming in. I am never leaving.',
+  'Leave the shutters open. The bells will wake you, but gently.',
+];
+export const HOTEL_GUEST_LINES: string[] = perCity({ tokyo: TOKYO_HOTEL_GUEST_LINES, amalfi: AMALFI_HOTEL_GUEST_LINES, istanbul: ISTANBUL_HOTEL_GUEST_LINES });

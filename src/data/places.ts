@@ -2,7 +2,7 @@ import type { IconName } from '../ui/emblems';
 import type { RoomKind } from '../world/interiors';
 import { randomLook, Look } from '../world/characters';
 import { HOTEL } from './hotels';
-import { ISTANBUL } from '../world/cityId';
+import { perCity } from '../world/cityId';
 
 /** Something small a shop sells over the counter. */
 export interface Buyable { icon: IconName; name: string; price: number; text: string; snack?: boolean; }
@@ -389,7 +389,15 @@ const ISTANBUL_GUEST_LINES: string[] = [
   'Up the stairs behind the market there is a door with no sign. My aunt swears the best mantı in the city is behind it.',
 ];
 
-export const GUEST_LINES: string[] = ISTANBUL ? ISTANBUL_GUEST_LINES : TOKYO_GUEST_LINES;
+const AMALFI_GUEST_LINES: string[] = [
+  'Coffee standing at the bar, one euro, thirty seconds. Sitting down costs double, and it is worth it for the view.',
+  'Nonna says the lemons on the terraces are older than the church. She may be exaggerating. A little.',
+  'The fishermen come in before seven. After that, the best fish is already in somebody\'s pan.',
+  'They say there is a door in the rock up the stairs behind the Duomo. My cousin swears he ate there once.',
+  'Never ask for cappuccino after lunch. The barista will serve it, but he will remember.',
+  'The ferry is late again. Good. One more limoncello.',
+];
+export const GUEST_LINES: string[] = perCity({ tokyo: TOKYO_GUEST_LINES, amalfi: AMALFI_GUEST_LINES, istanbul: ISTANBUL_GUEST_LINES });
 
 export interface Capsule { id: string; name: string; icon: IconName; rare?: boolean; }
 

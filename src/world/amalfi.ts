@@ -510,10 +510,8 @@ export function buildAmalfi(win?: Window): BuildResult {
     emitters: b.emitters,
     // lucciole over the lemon pergolas on summer nights; no cherry blossom on this coast
     fireflies: fireflySpots(plan),
-    noPetals: true,
     vending: [],
     blockers: b.blockers,
-    koiArea: [9.2, 11.2, 10.8, 12.8],
     rooms: [],
     hotels: [],
     darumas: [],

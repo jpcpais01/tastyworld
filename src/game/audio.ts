@@ -10,7 +10,7 @@
  */
 
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
-import { AMALFI, ISTANBUL, HILLSIDE } from '../world/cityId';
+import { AMALFI, ISTANBUL, HILLSIDE, perCity } from '../world/cityId';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh' | 'jet'
   | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
@@ -304,7 +304,7 @@ export class Audio {
     this.setVolumes(this.vol.music, this.vol.amb, this.vol.sfx);
 
     const now = ctx.currentTime;
-    const song = AMALFI ? RIVIERA : ISTANBUL ? BOSPHORUS : BGM;
+    const song = perCity({ tokyo: BGM, amalfi: RIVIERA, istanbul: BOSPHORUS });
     this.bgm = { song, t: now + 0.4, sec: 0, bar: 0, step: 0, out: this.bgmOut, bpm: song.bpm };
     this.timers.bird = now + rand(15, 40);
     this.timers.cricket = now + rand(5, 12);

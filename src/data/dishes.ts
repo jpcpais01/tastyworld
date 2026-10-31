@@ -1,5 +1,5 @@
 import type { FoodId } from '../world/food';
-import { AMALFI, ISTANBUL } from '../world/cityId';
+import { CITY, perCity } from '../world/cityId';
 
 export interface Dish {
   id: FoodId;
@@ -9,6 +9,8 @@ export interface Dish {
   stall: string;
   price: number;
   dessert: boolean;
+  /** Drunk rather than eaten: how it is served, for the words on its card. */
+  drink?: 'hot' | 'cold';
   tagline: string;
   origin: string;
   history: string;
@@ -265,7 +267,7 @@ const AMALFI_DISHES: Dish[] = [
     flavor: { sweet: 3, savory: 0, umami: 0, crunch: 2 },
   },
   {
-    id: 'limoncello', name: 'Limoncello', jp: 'limoncello', romaji: 'lee-mon-CHEL-lo', stall: 'limonaia', price: 500, dessert: true,
+    id: 'limoncello', name: 'Limoncello', jp: 'limoncello', romaji: 'lee-mon-CHEL-lo', stall: 'limonaia', price: 500, dessert: true, drink: 'cold',
     tagline: 'Ice-cold lemon liqueur, poured from a bottle kept in the freezer.',
     origin: 'Amalfi Coast, early 1900s',
     history: 'Families on the coast steeped lemon peel in alcohol and sugar long before anyone sold it. Every grove still makes its own, and every family thinks theirs is the best.',
@@ -339,7 +341,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 5, umami: 4, crunch: 2 },
   },
   {
-    id: 'tursu', name: 'Turşu Suyu', jp: 'turşu suyu', romaji: 'toor-SHOO soo-yoo', stall: 'balikci', price: 100, dessert: false,
+    id: 'tursu', name: 'Turşu Suyu', jp: 'turşu suyu', romaji: 'toor-SHOO soo-yoo', stall: 'balikci', price: 100, dessert: false, drink: 'cold',
     tagline: 'A glass of bright pink pickle juice, with a fork of pickles.',
     origin: 'Istanbul pickle shops, 1800s',
     history: 'Pickle shops have lined the old streets for centuries, keeping vegetables in brine through winter. The juice itself became a drink, coloured pink by beetroot or red carrot.',
@@ -399,7 +401,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 5, savory: 0, umami: 0, crunch: 1 },
   },
   {
-    id: 'salep', name: 'Sıcak Salep', jp: 'salep', romaji: 'sah-LEP', stall: 'dondurmaci', price: 200, dessert: true,
+    id: 'salep', name: 'Sıcak Salep', jp: 'salep', romaji: 'sah-LEP', stall: 'dondurmaci', price: 200, dessert: true, drink: 'hot',
     tagline: 'Hot milk thickened with orchid root, dusted with cinnamon.',
     origin: 'Ottoman Istanbul, 1500s',
     history: 'Ground tubers of wild orchids were believed to warm and strengthen. Salep was the winter drink of the coffee houses, and in London it became saloop, sold on the streets before tea arrived.',
@@ -419,7 +421,7 @@ const ISTANBUL_DISHES: Dish[] = [
     flavor: { sweet: 0, savory: 5, umami: 5, crunch: 1 },
   },
   {
-    id: 'ayran', name: 'Ayran', jp: 'ayran', romaji: 'eye-RAHN', stall: 'durumcu', price: 100, dessert: false,
+    id: 'ayran', name: 'Ayran', jp: 'ayran', romaji: 'eye-RAHN', stall: 'durumcu', price: 100, dessert: false, drink: 'cold',
     tagline: 'Cold, frothy, salted yoghurt in a copper cup.',
     origin: 'Central Asia, ancient',
     history: 'Nomadic Turks diluted yoghurt with water for the long rides. Ayran is now officially the national drink of Turkey.',
@@ -471,7 +473,7 @@ const ISTANBUL_DISHES: Dish[] = [
 ];
 
 /** The menu of the city on this trip. */
-export const DISHES: Dish[] = ISTANBUL ? ISTANBUL_DISHES : AMALFI ? AMALFI_DISHES : TOKYO_DISHES;
+export const DISHES: Dish[] = perCity({ tokyo: TOKYO_DISHES, amalfi: AMALFI_DISHES, istanbul: ISTANBUL_DISHES });
 /** Every dish of every city, for stamps collected elsewhere. */
 export const ALL_DISHES: Dish[] = [...TOKYO_DISHES, ...AMALFI_DISHES, ...ISTANBUL_DISHES];
 /** The menus of the other cities, for the passport's "stamped elsewhere" pages. */
@@ -481,7 +483,7 @@ const MENUS = [
   { city: 'istanbul', name: 'Istanbul', flag: 'tr', dishes: ISTANBUL_DISHES },
 ];
 export const OTHER_MENUS: { name: string; flag: string; dishes: Dish[] }[] = MENUS
-  .filter((m) => m.city !== (ISTANBUL ? 'istanbul' : AMALFI ? 'amalfi' : 'tokyo'))
+  .filter((m) => m.city !== CITY)
   .map(({ name, flag, dishes }) => ({ name, flag, dishes }));
 
 export const DISH = Object.fromEntries(ALL_DISHES.map((d) => [d.id, d])) as Record<FoodId, Dish>;

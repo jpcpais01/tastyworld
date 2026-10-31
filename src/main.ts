@@ -32,7 +32,7 @@ import { DISHES, ALL_DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
-import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity } from './world/cityId';
+import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity } from './world/cityId';
 import { farCoast } from './engine/farcoast';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
@@ -198,7 +198,7 @@ class Game {
   private cats: Cat[] = [];
   private chef!: Actor;
   private blobs!: Blobs;
-  private koi!: Koi;
+  private koi: Koi | null = null;
   private birds!: Birds;
   private particles!: Particles;
   private interactables: Interactable[] = [];
@@ -456,8 +456,8 @@ class Game {
     this.setDoor(this.s.manekis.length >= 3);
 
     this.blobs = new Blobs(this.r.scene, 160);
-    this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
-    this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, !a.noPetals);
+    if (a.koiArea) this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
+    this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, a.petals);
     this.beacon = new Beacon(this.r.scene);
     this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand, hotels: a.hotels }, {
       player: () => {
@@ -535,7 +535,7 @@ class Game {
       });
     }
     // chef inside the hidden restaurant
-    const kak = STALL[AMALFI ? 'grotta' : ISTANBUL ? 'gizli' : 'kakurega'];
+    const kak = STALL[perCity({ tokyo: 'kakurega', amalfi: 'grotta', istanbul: 'gizli' })];
     this.chef = new Actor(buildPerson(kak.vendorLook), this.chars);
     this.chef.position.set(a.chef[0], 0, a.chef[2]);
     this.chef.facing = this.chef.targetFacing = 0;
@@ -543,7 +543,7 @@ class Game {
     this.insideGroup.add(this.chef.root);
     this.interactables.push({
       key: 'chef', x: a.counterStand[0], z: a.counterStand[1], stand: a.counterStand, pick: [a.chef[0], 1.6, a.chef[2]], r: 1.6, inside: true,
-      prompt: () => [AMALFI ? 'squid' : ISTANBUL ? 'pot' : 'sushi', TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
+      prompt: () => [perCity({ tokyo: 'sushi', amalfi: 'squid', istanbul: 'pot' }), TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
       act: () => this.openStall(kak, this.chef, [a.chef[0], a.chef[2]]),
     });
     this.interactables.push({
@@ -607,7 +607,7 @@ class Game {
       person: (look) => lazy(new Actor(buildPerson(look), this.chars, false, true)),
       dog: (seed) => { const d = lazy(new Actor(buildDog(seed), this.chars, true, true)); d.dog = true; return d; },
       vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), this.chars, true, true)),
-      boat: (seed) => lazy(new Actor(HILLSIDE ? gozzoModel(seed) : swanBoatModel(seed), this.chars, true, true)),
+      boat: (seed) => lazy(new Actor(CITY === 'tokyo' ? swanBoatModel(seed) : gozzoModel(seed), this.chars, true, true)),
     });
     this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
@@ -615,11 +615,11 @@ class Game {
     const m = this.r.isMobile;
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
     // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
-    this.crowd.populate(ISTANBUL
-      ? m ? { walkers: 95, joggers: 2, dogs: 5, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 210, joggers: 4, dogs: 9, cyclists: 0, couriers: 0, boats: 4, exercise: 0 }
-      : AMALFI
-      ? m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 }
-      : m ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 } : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
+    this.crowd.populate(perCity({
+      tokyo: m ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 } : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 },
+      amalfi: m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 },
+      istanbul: m ? { walkers: 95, joggers: 2, dogs: 5, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 210, joggers: 4, dogs: 9, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
+    }));
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
     this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);
@@ -652,7 +652,7 @@ class Game {
     a.manekis.forEach((m, i) => {
       this.interactables.push({
         key: `maneki-${i}`, x: m[0], z: m[2], stand: [m[0], m[2]], pick: [m[0], 0.6, m[2]], r: 1.4, inside: false,
-        prompt: () => this.s.manekis.includes(i) ? [HILLSIDE ? 'sparkle' : 'cat', TEXT.charm.one, TEXT.charm.found] : ['sparkle', TEXT.charm.seen, TEXT.charm.hint],
+        prompt: () => this.s.manekis.includes(i) ? [TEXT.charm.icon, TEXT.charm.one, TEXT.charm.found] : ['sparkle', TEXT.charm.seen, TEXT.charm.hint],
         act: () => this.findManeki(i),
       });
     });
@@ -660,7 +660,7 @@ class Game {
     a.vending.forEach((v, i) => {
       this.interactables.push({
         key: `vend-${i}`, x: v[0], z: v[2], stand: [v[0], v[2]], pick: [v[0], 1.4, v[2]], r: 1.3, inside: false,
-        prompt: () => ['can', 'Vending machine', 'Buy a drink · ¥130'],
+        prompt: () => ['can', 'Vending machine', `Buy a drink · ${TEXT.money(130)}`],
         act: () => this.vend(),
       });
     });
@@ -750,7 +750,7 @@ class Game {
       if (sp.kind !== 'gacha') continue;
       this.interactables.push({
         key: `gacha-${rm.id}`, x: sp.pos[0], z: sp.pos[2], stand: sp.stand, pick: [sp.pos[0], 1.0, sp.pos[2]], r: 1.4, inside: false,
-        prompt: () => ['capsule', 'Gachapon', `Turn the handle · ¥${GACHA_PRICE}`],
+        prompt: () => ['capsule', 'Gachapon', `Turn the handle · ${TEXT.money(GACHA_PRICE)}`],
         act: () => this.gacha(sp.pos),
       });
     }
@@ -791,11 +791,10 @@ class Game {
           return [rm.type === 'tatami' ? 'futon' : 'bed', ROOM_TYPE[rm.type].name, h >= 17 || h < 6 ? 'Sleep until morning' : 'Take a nap'];
         }, () => { this.player.targetFacing = rm.bed.facing; void this.sleepIn(rm); });
         it('win', rm.window.stand, rm.window.pick, () => ['skyline', 'The window', 'Look out over the city'], () => this.lookOut(rm));
-        it('tea', rm.tea.stand, rm.tea.pick, () => ['tea', ISTANBUL ? 'Çaydanlık' : rm.type === 'tatami' ? 'Tea set' : 'Kettle', ISTANBUL ? 'Brew a glass of çay' : 'Make a cup of green tea'], () => {
+        it('tea', rm.tea.stand, rm.tea.pick, () => ['tea', rm.type === 'tatami' ? 'Tea set' : TEXT.tea.name, TEXT.tea.act], () => {
           this.player.targetFacing = rm.tea.facing;
           this.audio.play('pop');
-          if (ISTANBUL) this.ui.toast('tea', 'Çay', 'The double kettle hisses. Strong tea from the top pot, hot water from the bottom, a tulip glass and two sugar cubes.');
-          else this.ui.toast('tea', 'Green tea', rm.type === 'tatami' ? 'The okami left a pot of sencha and two rice crackers. Perfect.' : 'The kettle clicks off. A tea bag from the tray, hot water and a moment to yourself.');
+          this.ui.toast('tea', TEXT.tea.title, rm.type === 'tatami' ? 'The okami left a pot of sencha and two rice crackers. Perfect.' : TEXT.tea.text);
           this.startMeal('tea', null, () => {});
         });
       }
@@ -914,7 +913,7 @@ class Game {
     const to = night ? 7 : (h + 2) % 24;
     const sub = keep
       ? follow ? 'Your trip leader keeps the clock, so the city kept its hour.' : 'The time of day is fixed in your settings, so the city kept its hour.'
-      : night ? `${info?.name ?? 'The hotel'} · the city is waking up` : 'Two hours later, fresh as a daikon.';
+      : night ? `${info?.name ?? 'The hotel'} · the city is waking up` : TEXT.nap;
     const first = night && !this.s.stays.includes(rm.hotel);
     await this.ui.sleep(h, keep ? h : to, night ? 'Good morning!' : 'What a lovely nap', sub, () => {
       if (!keep) this.tod.hour = to;
@@ -996,7 +995,7 @@ class Game {
   }
 
   private gacha(pos: V3): void {
-    if (this.s.yen < GACHA_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `A capsule costs ¥${GACHA_PRICE}.`); return; }
+    if (this.s.yen < GACHA_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `A capsule costs ${TEXT.money(GACHA_PRICE)}.`); return; }
     this.s.yen -= GACHA_PRICE;
     // the golden shrimp is rare; everything else is equally likely
     const roll = Math.random();
@@ -1310,7 +1309,7 @@ class Game {
     this.audio.play('chime');
     this.player.flash = 1;
     const n = this.s.manekis.length;
-    if (n < 3) this.ui.toast(HILLSIDE ? 'sparkle' : 'cat', `${AMALFI ? 'Majolica lemon' : ISTANBUL ? 'Nazar bead' : 'Lucky cat'} ${n} / 3`, n === 1 ? TEXT.charm.first : TEXT.charm.next, true);
+    if (n < 3) this.ui.toast(TEXT.charm.icon, `${TEXT.charm.one} ${n} / 3`, n === 1 ? TEXT.charm.first : TEXT.charm.next, true);
     else {
       this.ui.toast('lantern', TEXT.charm.all, TEXT.charm.allText, true);
       this.setDoor(true);
@@ -1320,7 +1319,7 @@ class Game {
   }
 
   private vend(): void {
-    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', 'Even a can of tea costs ¥130.'); return; }
+    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(130)}.`); return; }
     this.s.yen -= 130;
     const drinks = [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
     const d = drinks[Math.floor(Math.random() * drinks.length)];
@@ -2365,7 +2364,7 @@ class Game {
     // first-person haze, thick enough to hide the far edge of the view distance
     sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
-    this.koi.update(sh.uTime.value);
+    this.koi?.update(sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     this.perf.lap('effects');
     this.updateGuide(dt);

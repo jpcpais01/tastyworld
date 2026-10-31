@@ -4,7 +4,7 @@ import { DISH, DISHES } from './dishes';
 import { CAPSULES } from './places';
 import { STALLS } from './stalls';
 import { HOTELS } from './hotels';
-import { AMALFI, ISTANBUL } from '../world/cityId';
+import { perCity } from '../world/cityId';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -83,9 +83,9 @@ const ISTANBUL_MISSIONS: Mission[] = [
   { id: 'i-master', name: 'Master of Istanbul', desc: `Collect all ${AMALFI_COUNT} Istanbul passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: 3000, title: 'Istanbul Gourmet', item: 'goldtulip' } },
 ];
 
-export const MISSIONS: Mission[] = ISTANBUL ? ISTANBUL_MISSIONS : AMALFI ? AMALFI_MISSIONS : TOKYO_MISSIONS;
+export const MISSIONS: Mission[] = perCity({ tokyo: TOKYO_MISSIONS, amalfi: AMALFI_MISSIONS, istanbul: ISTANBUL_MISSIONS });
 /** The mission for the hidden restaurant, which stays secret until its door is found. */
-export const SECRET_MISSION = ISTANBUL ? 'i-secret' : AMALFI ? 'a-secret' : 'secret';
+export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret' });
 
 /** The one mission the HUD follows: a reward to claim first, otherwise the one closest to done. */
 export function trackedMission(s: SaveState): { next: Mission | null; ready: Mission[] } {

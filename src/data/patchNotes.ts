@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.17',
+    date: '2026-10-31',
+    title: 'The city carries on',
+    items: [
+      'The city beyond the map has been redesigned to look like the rest of Tokyo instead of a wall of identical skyscrapers.',
+      'Most of it is now a low and mid-rise sprawl: little houses with tiled or flat roofs, apartment blocks with a balcony on every floor, and shop and office buildings with signs and rooftop billboards. Heights, colours and materials vary from block to block.',
+      'Rooftops have water tanks, stair houses and air-conditioning units, and some apartment blocks step back at the top.',
+      'Tall towers now only gather in a few business districts far away, mixing dark glass with stone and concrete, and they fade into the haze the further off they are.',
+    ],
+  },
+  {
     version: '0.10.16',
     date: '2026-10-31',
     title: 'Less work behind the walls',

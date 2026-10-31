@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.33',
+    date: '2026-10-31',
+    title: 'Through the headland',
+    items: [
+      'The headland at the end of Amalfi\'s beach no longer stops in a sheer flat wall. Its limestone now comes down to the pebbles in crags and ledges tufted with green, and its nose runs down into the sea over rocks under the water.',
+      'The shore road dives into the headland through a proper tunnel portal: a stone headwall cut into the rock face, a ring of tufa voussoirs round the arch, a cornice along the top and a marble plaque over the road, with the rock climbing away above it.',
+    ],
+  },
+  {
     version: '0.16.32',
     date: '2026-10-31',
     title: 'Crowded streets',

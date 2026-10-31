@@ -1068,7 +1068,7 @@ function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
   const touched = g.touches(x0 - 4, z0 - 4, x1 + 4, z1 + 4);
   const r = rng(lt.seed);
   const wooden = lt.use === 'house' && (lt.on === K.Lane || lt.on === K.Stair || lt.on === K.Ground) && r() < 0.75;
-  const han = lt.use === 'han' || (lt.use === 'shop' && r() < 0.18);
+  const han = lt.use === 'han' || lt.use === 'bazaar' || (lt.use === 'shop' && r() < 0.18);
   const wall = han ? c.kufeki : wooden ? WOOD(c)[Math.floor(r() * 8)] : PLASTER(c)[Math.floor(r() * 13)];
   const shutter = [c.shutter, c.shutterB, c.shutterC][Math.floor(r() * 3)];
   const trim = wooden ? c.woodCream : han ? c.limeLight : c.cornice;

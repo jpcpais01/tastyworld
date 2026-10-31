@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.40',
+    date: '2026-10-31',
+    title: 'The bazaars, rebuilt',
+    items: [
+      'Istanbul\'s Grand Bazaar and Spice Bazaar have been rebuilt inside. Their halls are lined with shops wall to wall, with no empty gaps. The two shops that stood in the middle of a Grand Bazaar hall are gone.',
+      'The halls are taller, under pointed vaults painted cream, red, blue and gold in the Grand Bazaar and whitewashed with ochre bands in the Spice Bazaar. Striped arches cross them every few metres, and a band of İznik tiles with a small arched window runs over every shop front.',
+      'Every crossing has a painted dome with a ring of windows, a lantern on top and a chandelier hanging under it. Open skylights in each bay let the sun in, and on a bright day you can see the shafts of light falling through the dust.',
+      'The floors are finished: flagstones laid in courses, a marble band under every arch, marble thresholds at the shops and an inlaid marble star under each dome.',
+      'The light under the vaults is warm all day, and the shops\' lamps stay lit. Big coloured-glass lanterns hang on long chains down every hall. The Grand Bazaar\'s dead ends now finish at tiled walls with marble fountains, and the gates have taller portals with cornices and columns.',
+      'There are thirteen kinds of shop: carpets, lamps, İznik ceramics, copper, silk and towels, jewellery and leather in the Grand Bazaar, and spices, teas, nuts and dried fruit, Turkish delight, olive oil soap and sponges, and nazar beads in the Spice Bazaar. Each has its own goods stacked to the ceiling, its own displays out front and things hanging over the door. Each has a painted sign, and corner shops open onto both halls.',
+      'Shoppers stop to browse the shop fronts.',
+    ],
+  },
+  {
     version: '0.16.39',
     date: '2026-10-31',
     title: 'Inside the cathedral and the mosques',

@@ -47,7 +47,7 @@ const GATES: [number, number, number | null, boolean, boolean][] = [
 
 /** Where the light is warm and the lamps lit all day: the Grand Bazaar on its ridge, the Spice Bazaar's two arms. */
 export const WARM_ZONES: [number, number, number, number, number][] = [
-  [-153, -101, -101, -41, 11.5 + 6.4], [-62.6, 18.5, -8.5, 31.5, 8.3], [-18.6, -14.5, -5.4, 31.5, 8.3],
+  [-153, -101, -101, -41, 11.5 + 8.2], [-62.6, 18.5, -8.5, 31.5, 10], [-18.6, -14.5, -5.4, 31.5, 10],
 ];
 
 let cache: { segs: PathSeg[]; halls: Hall[]; domes: Dome[] } | null = null;
@@ -363,8 +363,12 @@ function clerestory(ctx: Ctx, x: number, z: number, o: Over, kd: number): void {
   const open = kd !== K.Ground && kd !== K.Lot && kd !== K.Covered;
   const y0 = open ? o.floor + 13 : lot ? o.floor + 12 : o.floor;
   if (kd === K.Covered) return;
-  g.box(x, y0, z, x, top, z, (_x, y) => {
+  // the outer of the wall's two cells is the bazaar's plain stone outside, over the shops' roofs
+  const outer = Math.abs(o.v) > h.r + 0.27;
+  g.box(x, y0, z, x, top, z, (xx, y, zz) => {
     const up = y - o.floor;
+    if (up === top - o.floor) return h.grand ? c.lead : c.leadDark;
+    if (outer && up >= 12) return up >= 15 && up <= 18 && Math.abs(bay) < 0.45 - (up === 18 ? 0.25 : 0) ? c.skyGlass : up === 14 || up === 19 ? c.limeLight : almasik(c, xx, y, zz);
     if (up === 12) return c.marble;
     if (up === 13) return h.grand ? c.paintRed : c.brick;
     if (up < 12) {
@@ -379,7 +383,7 @@ function clerestory(ctx: Ctx, x: number, z: number, o: Over, kd: number): void {
     const wb = Math.abs(bay);
     if (up >= 15 && up <= 18 && wb < 0.45 - (up === 18 ? 0.25 : 0)) return c.skyGlass;
     if (up >= 14 && up <= 19 && wb < 0.7) return c.marble;
-    if (up === top - o.floor) return h.grand ? c.paintGold : c.ochre;
+    if (up === top - o.floor - 1) return h.grand ? c.paintGold : c.ochre;
     // tiles either side of the window, a painted band over them
     if (up >= 14 && up <= 19 && wb < 1.45 && Math.abs(rib) > 0.6) return h.grand ? ((pi + up) % 3 === 0 ? c.iznikRed : (pi + up) & 1 ? c.iznikBlue : c.iznikWhite) : (pi + up) & 1 ? c.iznikTeal : c.iznikWhite;
     if (up === 20) return h.grand ? c.paintBlue : c.paintRed;
@@ -521,7 +525,22 @@ export function bazaarShop(ctx: Ctx, f: Frame, lt: LotPlan, use: Use | undefined
   if (use?.room) { foodRoom(ctx, f, lt, use.room, true, undefined, true); return; }
   const kinds = grand ? GRAND_KINDS : SPICE_KINDS;
   const kind = kinds[Math.floor(hash3(seed, 5, 9) * kinds.length)];
-  dressShop(ctx, f, lt, kind);
+  // a shop on a corner opens onto the cross hall too, under its own sign
+  const hallCell = (a: number, d: number) => { const [x, z] = f.xz(a, d); return inMap(x, z) && ctx.plan.kind[col(x, z)] === K.Covered; };
+  const onHall = (a: number) => [2, D >> 1, D - 3].every((d) => hallCell(a, d));
+  const sides = { left: onHall(-1), right: onHall(W) };
+  // a side wall that only partly meets a hall is stocked on its outside instead: shelves of the trade's goods
+  for (const [open, a, out] of [[sides.left, 0, -1], [sides.right, W - 1, W]] as const) {
+    if (open) continue;
+    const gl = GOODS(c)[kinds[Math.floor(hash3(seed, 5, 9) * kinds.length)]];
+    for (let d = 1; d <= D - 2; d++) if (hallCell(out, d)) f.box(g, a, base, d, a, base + 9, d, (_a, y) => (y === base || (y - base) % 3 === 0 ? c.woodDark : gl[Math.floor(hash3(d, y, seed + a) * gl.length)]));
+  }
+  for (const [open, a] of [[sides.left, 0], [sides.right, W - 1]] as const) {
+    if (!open) continue;
+    f.box(g, a, base, 1, a, base + 9, D - 2, (_a, y, d) => ((d === 1 || d === D - 2) && y >= base + 8 ? c.marble : 0));
+    f.box(g, a, base + 10, 0, a, base + 11, D - 1, (_a, y, d) => (d === 0 || d === D - 1 ? c.gold : d >= 2 && d <= D - 3 && hash3(d, y, seed + 1) < 0.55 ? (y === base + 11 ? c.gold : c.white) : board));
+  }
+  dressShop(ctx, f, lt, kind, sides);
 }
 
 /** Where a bazaar shop's keeper stands (metres): beside the goods, in the light of the opening. */
@@ -530,7 +549,7 @@ export function bazaarKeeper(f: Frame): [number, number] {
 }
 
 /** A trade's shop dressed: floor, walls, shelves, what hangs from the ceiling, and what stands out front. */
-function dressShop(ctx: Ctx, f: Frame, lt: LotPlan, kind: Kind): void {
+function dressShop(ctx: Ctx, f: Frame, lt: LotPlan, kind: Kind, sides: { left: boolean; right: boolean }): void {
   const { b, c } = ctx;
   const g = b.grid;
   const { base: Y, seed } = lt;
@@ -579,8 +598,8 @@ function dressShop(ctx: Ctx, f: Frame, lt: LotPlan, kind: Kind): void {
     return [c.leather, c.leatherDark, c.carpetRed, c.copper, c.carpetBlue][Math.floor(h(u / 5 | 0, up / 5 | 0, 3) * 5)];
   };
   f.box(g, 1, Y, D1, A1, Y + 10, D1, wallFill);
-  f.box(g, 1, Y, 2, 1, Y + 10, D1 - 1, wallFill);
-  f.box(g, A1, Y, 2, A1, Y + 10, D1 - 1, wallFill);
+  if (!sides.left) f.box(g, 1, Y, 2, 1, Y + 10, D1 - 1, wallFill);
+  if (!sides.right) f.box(g, A1, Y, 2, A1, Y + 10, D1 - 1, wallFill);
   // a counter along the back, two cells deep
   if (kind === 'jewel' || kind === 'lokum') {
     // glass cases: gold, silver and stones (or Turkish delight) under glass, on dark wood
@@ -657,6 +676,13 @@ function dressShop(ctx: Ctx, f: Frame, lt: LotPlan, kind: Kind): void {
       const y = Y + 9 - k;
       const v = kind === 'lamp' ? (k === 0 ? c.brass : pick(goods, a, y, 0)) : kind === 'nazar' ? (k & 1 ? c.nazarBlue : c.nazarWhite) : kind === 'carpet' ? pick(goods, 0, y, a >> 2) : pick(goods, a, y, 0);
       f.box(g, a, y, -1, a, y, -1, v);
+    }
+  }
+  for (const [open, a] of [[sides.left, -1], [sides.right, W]] as const) {
+    if (!open || kind === 'jewel' || kind === 'lokum') continue;
+    for (let d = 1; d <= D1; d++) {
+      const len = 1 + Math.floor(h(d, 4, a) * 2);
+      for (let k = 0; k < len; k++) f.box(g, a, Y + 9 - k, d, a, Y + 9 - k, d, kind === 'lamp' && k === 0 ? c.brass : kind === 'nazar' ? (k & 1 ? c.nazarBlue : c.nazarWhite) : pick(goods, d, Y + 9 - k, a));
     }
   }
   // the light: warm over most trades, white and bright over the jewellers', coloured in the lamp shops

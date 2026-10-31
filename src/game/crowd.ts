@@ -335,7 +335,7 @@ export class Crowd {
     for (let i = 0; i < size.walkers; i++) {
       const look = lookFor(seed + i * 7, null);
       // Istanbul: now and then a simit seller doing the rounds, the tray balanced on the head
-      if (ISTANBUL && i % 14 === 3) Object.assign(look, { tray: true, hat: 'none', topStyle: 'vest', top: 0xf4f1ea, accent: 0x8a2e2a, skirt: false, moustache: i % 28 === 3 });
+      if (ISTANBUL && i % 10 === 3) Object.assign(look, { tray: true, hat: 'none', topStyle: 'vest', top: 0xf4f1ea, accent: 0x8a2e2a, skirt: false, moustache: i % 20 === 3 });
       const pair = i % 5 === 4 && prev && !prev.mate;
       prev = this.add(mk.person(look), look, pair ? prev!.node : startNode(), pair ? prev! : undefined);
     }

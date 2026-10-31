@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.13',
+    date: '2026-10-31',
+    title: 'Tea by the Bosphorus',
+    items: [
+      'A tea garden opens on the Bosphorus shore below Sirkeci. Rows of little tables and low stools sit under two plane trees, and the çaycı stands at his samovar at the top. Lamps light it after dark.',
+      'Anglers line the Bosphorus quay as well as the Galata Bridge, their rods leaning out over the water and their buckets beside them.',
+    ],
+  },
+  {
     version: '0.16.12',
     date: '2026-10-31',
     title: 'Flags, washing and windows',

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Renderer } from './renderer';
+import { AMALFI } from '../world/cityId';
 
 /** Time-of-day keyframes. Every lighting parameter is interpolated from these. */
 interface Key {
@@ -27,6 +28,27 @@ const K: Key[] = [
   { h: 19.6, sun: 0.22, sunCol: 0x8a8cff, sky: 0x40508e, ground: 0x221e38, ambient: 0.78, skyTop: 0x141a48, skyHorizon: 0x4a3a7a, fog: 0x2a2a56, lamp: 1, night: 1, exposure: 1.22, bloom: 0.95, scatter: 0x0e2a40, deep: 0x030a16, gradeS: 0xb8c0ff, gradeH: 0xffe2c4, cloud: 0, particle: 0x9098c8 },
   { h: 24, sun: 0.16, sunCol: 0x7d9cff, sky: 0x2b3f78, ground: 0x1a1830, ambient: 0.75, skyTop: 0x0b1030, skyHorizon: 0x2a2858, fog: 0x1d2142, lamp: 1, night: 1, exposure: 1.25, bloom: 0.9, scatter: 0x0a2a3a, deep: 0x020812, gradeS: 0xb8c4ff, gradeH: 0xffe6c8, cloud: 0, particle: 0x8090c0 },
 ];
+
+// Amalfi's nights: no neon to colour them, so the moonlight is greyer and the lamps carry the warmth
+if (AMALFI) {
+  const c = new THREE.Color(), grey = new THREE.Color();
+  const soften = (hex: number, k: number, warm: number) => {
+    c.setHex(hex);
+    const l = (c.r + c.g + c.b) / 3;
+    grey.setRGB(l * (1 + warm), l, l * (1 - warm * 0.6));
+    return c.lerp(grey, k).getHex();
+  };
+  for (const key of K) {
+    if (key.night <= 0) continue;
+    const n = key.night;
+    key.sky = soften(key.sky, 0.45 * n, 0.15);
+    key.sunCol = soften(key.sunCol, 0.55 * n, 0.1);
+    key.ground = soften(key.ground, 0.35 * n, 0.3);
+    key.fog = soften(key.fog, 0.3 * n, 0.1);
+    key.gradeS = soften(key.gradeS, 0.4 * n, 0.1);
+    key.lamp *= 1 + 0.45 * n;
+  }
+}
 
 const ca = new THREE.Color(), cb = new THREE.Color();
 function lerpCol(out: THREE.Color, a: number, b: number, t: number, mul = 1) {

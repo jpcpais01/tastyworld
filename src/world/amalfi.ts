@@ -124,9 +124,9 @@ function oliveTree(c: AC, seed: number): Prop {
   return p;
 }
 
-function umbrella(c: AC, seed: number): Prop {
+function umbrella(c: AC, seed: number, pair?: [number, number]): Prop {
   const p = new Prop(17, 18, 17);
-  const cols = [[c.umbrellaA, c.umbrellaB], [c.umbrellaC, c.umbrellaB], [c.umbrellaD, c.umbrellaB], [c.umbrellaE, c.umbrellaB], [c.umbrellaA, c.umbrellaD]][seed % 5];
+  const cols = pair ?? [[c.umbrellaA, c.umbrellaB], [c.umbrellaC, c.umbrellaB], [c.umbrellaD, c.umbrellaB], [c.umbrellaE, c.umbrellaB], [c.umbrellaA, c.umbrellaD]][seed % 5];
   p.box(8, 0, 8, 8, 15, 8, c.bedFrame);
   for (let z = 0; z < 17; z++) for (let x = 0; x < 17; x++) {
     const dx = x - 8, dz = z - 8, d = Math.hypot(dx, dz);
@@ -144,6 +144,51 @@ function sunbed(c: AC): Prop {
   p.box(0, 0, 0, 0, 1, 0, c.bedFrame); p.box(5, 0, 0, 5, 1, 0, c.bedFrame); p.box(0, 0, 14, 0, 1, 14, c.bedFrame); p.box(5, 0, 14, 5, 1, 14, c.bedFrame);
   p.box(0, 2, 0, 5, 2, 14, c.bed);
   p.box(0, 3, 11, 5, 3, 14, c.bed);
+  return p;
+}
+
+/** A changing cabin of a lido: painted planks in the lido's colour and white, a door, a little flat roof. */
+function cabin(c: AC, col: number, seed: number): Prop {
+  const p = new Prop(6, 10, 6);
+  p.box(0, 0, 0, 5, 8, 5, (x, _y, z) => ((x + z) % 2 ? col : c.white));
+  p.box(1, 1, 1, 4, 8, 4, 0);
+  p.box(2, 0, 0, 3, 6, 0, hash3(seed, 3, 7) < 0.3 ? 0 : c.door);
+  p.box(0, 9, 0, 5, 9, 5, c.white);
+  p.set(1, 7, 0, c.iron);
+  return p;
+}
+
+/** A beach towel spread on the pebbles, striped. */
+function towel(c: AC, seed: number): Prop {
+  const p = new Prop(4, 1, 8);
+  const a = [c.umbrellaA, c.umbrellaC, c.umbrellaD, c.umbrellaE, c.pink, c.sky][seed % 6];
+  p.box(0, 0, 0, 3, 0, 7, (_x, _y, z) => ((z >> 1) % 2 ? a : c.umbrellaB));
+  return p;
+}
+
+/** The lifeguard's tower: a tall wooden chair with a red umbrella and a rescue float. */
+function lifeguardTower(c: AC): Prop {
+  const p = new Prop(9, 24, 9);
+  for (const [x, z] of [[1, 1], [7, 1], [1, 7], [7, 7]]) p.box(x, 0, z, x, 9, z, c.bedFrame);
+  p.box(1, 4, 1, 7, 4, 1, c.bedFrame); p.box(1, 4, 7, 7, 4, 7, c.bedFrame);
+  p.box(0, 10, 0, 8, 10, 8, c.deckWood);
+  p.box(2, 11, 6, 6, 11, 7, c.white); p.box(2, 12, 7, 6, 15, 7, c.white);
+  p.box(3, 0, 0, 5, 9, 0, (_x, y) => (y % 3 === 0 ? c.bedFrame : 0)); // the ladder
+  p.box(4, 11, 4, 4, 21, 4, c.iron);
+  for (let z = 0; z < 9; z++) for (let x = 0; x < 9; x++) if (Math.hypot(x - 4, z - 4) < 4.6) p.set(x, 22 - (Math.hypot(x - 4, z - 4) > 3 ? 1 : 0), z, c.hullRed);
+  p.box(8, 6, 3, 8, 8, 5, c.hullRed); p.set(8, 7, 4, 0);
+  return p;
+}
+
+/** A kayak drawn up at the water's edge. */
+function kayak(c: AC, seed: number): Prop {
+  const col = [c.umbrellaD, c.hullRed, c.umbrellaE][seed % 3];
+  const p = new Prop(3, 2, 14);
+  for (let z = 0; z < 14; z++) {
+    const half = Math.sin(Math.PI * (z + 0.5) / 14) * 1.6;
+    for (let x = 0; x < 3; x++) if (Math.abs(x - 1) <= half) p.set(x, 0, z, col);
+    if (z > 1 && z < 12) p.set(1, 1, z, z > 5 && z < 9 ? c.iron : col);
+  }
   return p;
 }
 
@@ -320,7 +365,7 @@ export function buildAmalfi(win?: Window): BuildResult {
   gate(b, c);
   carvePassages(b, c, plan);
   piazza(b, c);
-  shore(b, c);
+  shore(b, c, plan);
   gardens(b, c, plan, inWin);
   lanes(b, c, plan);
   const stalls = foodStalls(b, c, plan);
@@ -363,6 +408,8 @@ export function buildAmalfi(win?: Window): BuildResult {
     wires: b.wires,
   };
   for (const id of anchors.idlers) id.pos[1] = 0;
+  // a southern town at night is lit warm and generous: lamp light reaches further over the pale stone than in Tokyo
+  for (const l of b.lamps) { l.r *= 1.3; l.g *= 1.3; l.b *= 1.25; l.radius *= 1.15; }
   const interior = grotta(b, c, anchors);
   return {
     grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells,
@@ -900,6 +947,9 @@ function piazza(b: Builder, c: AC): void {
     b.place(stool(k(b), c.iron), x + 0.55, PIAZZA_Y, z);
     b.stools.push([x - 0.55, z, Math.PI / 2], [x + 0.55, z, -Math.PI / 2]);
     if (seed % 2 === 0) b.place(umbrella(c, seed), x, PIAZZA_Y, z);
+    // after dark a little light on every table, and the café's light spilling over its terrace
+    b.lamp(x, PIAZZA_Y + 1.1, z, WARM, 2.5, 0.5);
+    if (seed % 2 === 1) b.lamp(x, PIAZZA_Y + 3, z, WARM, 6, 0.7);
   };
   for (let i = 0; i < 4; i++) terrace(3 + i * 3.2, -3.6, b.k.c.white, i);
   for (let i = 0; i < 3; i++) terrace(5 + i * 3.4, 27.4, b.k.c.navy, i + 7);
@@ -915,17 +965,43 @@ function piazza(b: Builder, c: AC): void {
 const k = (b: Builder) => b.k;
 
 /** The beach with its umbrellas and boats, the harbour quay, the pier and its lighthouse, ferries and gozzi. */
-function shore(b: Builder, c: AC): void {
-  // umbrellas and sunbeds in rows on the pebbles
+function shore(b: Builder, c: AC, plan: Plan): void {
+  const sand = (x: number, z: number) => (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
+  // the beach is let out to lidos, each with its own umbrellas and a row of changing cabins against the sea
+  // wall; a stretch at the tunnel end is the free beach, towels and odd umbrellas brought from home
+  const lidos: { z0: number; z1: number; pair: [number, number]; rows: number[] }[] = [
+    { z0: -29, z1: -13, pair: [c.umbrellaC, c.umbrellaB], rows: [39, 42, 45] },
+    { z0: -7, z1: 6, pair: [c.umbrellaA, c.umbrellaB], rows: [43, 46] },
+    { z0: 12.5, z1: 30, pair: [c.umbrellaE, c.umbrellaB], rows: [44.5, 47.2] },
+  ];
   let s = 0;
-  for (let z = -10; z < 32; z += 3.6)
-    for (const x of [41.5, 45]) {
-      if (Math.abs(z - 9) < 3) continue; // the walk down to the water stays open
-      b.place(umbrella(c, s), x, 0.95 - (x - 41.5) * 0.1, z);
-      b.place(sunbed(c), x + 1, 0.95 - (x - 41.5) * 0.1, z + 0.4);
-      b.block(x + 0.6, z - 0.6, x + 1.8, z + 1.4);
-      s++;
+  for (const l of lidos) {
+    for (let z = l.z0; z <= l.z1; z += 3.4)
+      for (const x of l.rows) {
+        if (Math.hypot(x - 45, z - 21) < 2.8) continue; // Ciro and his tower
+        const y = sand(x, z);
+        b.place(umbrella(c, s, l.pair), x, y, z);
+        b.place(sunbed(c), x + 1, sand(x + 1, z + 0.4), z + 0.4);
+        b.block(x + 0.6, z - 0.6, x + 1.8, z + 1.4);
+        s++;
+      }
+    for (let z = l.z0; z <= l.z1 - 1; z += 1.7) {
+      if (Math.abs(z - 9) < 3) continue;
+      b.place(cabin(c, l.pair[0], s++), 36, 1.55, z, 3);
     }
+    b.block(35.2, l.z0 - 0.9, 36.8, l.z1 - 0.2);
+  }
+  // the free beach
+  const r = rng(77);
+  for (let i = 0; i < 16; i++) {
+    const x = 38 + r() * 9, z = -48 + r() * 17;
+    b.place(towel(c, i), x, sand(x, z), z, r() < 0.5 ? 0 : 1);
+    if (r() < 0.35) b.place(umbrella(c, i), x + 0.9, sand(x + 0.9, z), z);
+  }
+  for (let i = 0; i < 3; i++) b.place(kayak(c, i), 48.5 + i * 0.2, -0.3, -44 + i * 2.6, 0);
+  // the lifeguard's tower beside Ciro
+  b.place(lifeguardTower(c), 45.8, sand(45.8, 22.4), 22.4);
+  b.block(44.8, 21.4, 46.8, 23.4);
   // gozzi pulled up on the beach near the harbour end
   for (let i = 0; i < 4; i++) {
     const z = 32 + i * 1.8;

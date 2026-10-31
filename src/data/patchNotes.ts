@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.5',
+    date: '2026-10-31',
+    title: 'A canzone for Amalfi',
+    items: [
+      'Amalfi has its own music: a little canzone in A minor that turns to C major for the chorus, with a mandolin playing the long notes in tremolo over a nylon guitar and a softly shaken tambourine. Tokyo keeps its koto.',
+      'Gulls cry over the harbour, louder the nearer you are to the sea.',
+      'The bell of Sant\'Andrea strikes the hours from seven in the morning to ten at night, fainter the further you are from the cathedral.',
+    ],
+  },
+  {
     version: '0.15.4',
     date: '2026-10-31',
     title: 'Cliffs and open sea',

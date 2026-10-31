@@ -182,6 +182,7 @@ class Game {
   private server: Actor | null = null;
   private mealZoom = 0;
   private crowd!: Crowd;
+  private lastToll = -1;
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
   private cats: Cat[] = [];
@@ -2348,6 +2349,15 @@ class Game {
       }
       const water = this.inside ? 0 : AMALFI ? THREE.MathUtils.clamp((pl.x - 22) / 22, 0, 1) : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
       this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
+      // Sant'Andrea strikes the hours (not through the small hours)
+      const hr = Math.floor(this.tod.hour);
+      if (AMALFI && hr !== this.lastToll) {
+        if (this.lastToll >= 0 && this.started && hr >= 7 && hr <= 22) {
+          const d = Math.hypot(pl.x + 23, pl.z - 14);
+          this.audio.toll(hr % 12 || 12, 0.22 * THREE.MathUtils.clamp(1 - d / 160, 0.2, 1));
+        }
+        this.lastToll = hr;
+      }
       this.audio.scene(pl.x, pl.z);
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();
     }

@@ -1,5 +1,5 @@
 // Bodies for the crowd's rides: bicycles and delivery scooters (the street props, drawn by the character
-// renderer so they move and are lit like people) and the swan boats on the park pond.
+// renderer so they move and are lit like people), the swan boats on the park pond and Amalfi's gozzi.
 import { Grid, rng } from './grid';
 import { Palette } from './palette';
 import { bicycle, scooter, makePropColors } from './props';
@@ -61,5 +61,40 @@ export function swanBoatModel(seed: number): CharModel {
   g.box(5, 11, 17, 7, 13, 19, white);
   g.box(6, 11, 20, 6, 12, 20, beak);
   g.set(5, 12, 19, black); g.set(7, 12, 19, black);
+  return rigidModel(g, pal, 0.125);
+}
+
+/**
+ * An Amalfi gozzo, 5 m long: a white wooden hull with a coloured band along the gunwale, a pointed stem at both ends,
+ * two thwarts and an outboard motor on the transom. Bow towards +z.
+ */
+export function gozzoModel(seed: number): CharModel {
+  const pal = new Palette();
+  const r = rng(seed);
+  const white = pal.add(0xf2efe8, { vary: 0.03 }), keel = pal.add(0x4a3a2e, { vary: 0.05 }), wood = pal.add(0xb08458, { vary: 0.06 });
+  const band = pal.add([0x2f5d9a, 0xb83a2c, 0x2f7a5a, 0xe9c23a, 0x5aa0c8][Math.floor(r() * 5)], { vary: 0.04 });
+  const motor = pal.add(0x2b2a2a, { vary: 0.03 }), cowl = pal.add(r() < 0.5 ? 0xe8e4dc : 0xd8402e, { vary: 0.03 });
+  const W = 13, H = 11, D = 40;
+  const g = new Grid(W, H, D);
+  const cx = (W - 1) / 2;
+  for (let z = 2; z < D; z++) {
+    const t = (z - 2) / (D - 3);
+    const half = (W / 2 - 0.5) * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.08)) ** 0.6;
+    for (let x = 0; x < W; x++) {
+      const dx = Math.abs(x - cx);
+      if (dx > half + 0.3) continue;
+      const rim = dx > half - 1;
+      const yb = Math.round((dx / Math.max(1, half)) * 2);
+      // the stem rises at the bow
+      for (let y = yb; y <= 5 + (t > 0.93 ? 2 : 0); y++) {
+        if (!rim && y > 1) { if (y === 2) g.set(x, y, z, wood); continue; }
+        g.set(x, y, z, y >= 4 ? band : y === 0 ? keel : white);
+      }
+    }
+  }
+  for (const z of [6, 22]) g.box(2, 3, z, W - 3, 3, z + 1, wood);
+  // outboard on the transom: the cowl above, the leg down into the water
+  g.box(5, 4, 0, 7, 6, 2, cowl);
+  g.box(6, 1, 0, 6, 3, 1, motor);
   return rigidModel(g, pal, 0.125);
 }

@@ -1,7 +1,7 @@
 {
   "name": "tastyworld",
   "private": true,
-  "version": "0.17.13",
+  "version": "0.17.14",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "check:birds": "tsx scripts/bird-check.ts",
     "check:ledges": "tsx scripts/ledge-check.ts && CITY=amalfi tsx scripts/ledge-check.ts && CITY=istanbul tsx scripts/ledge-check.ts",
     "check:chars": "tsx scripts/char-tris.ts",
+    "check:beams": "CITY=amalfi tsx scripts/beam-check.ts && CITY=istanbul tsx scripts/beam-check.ts",
     "check:lod": "tsx scripts/lod-top-check.ts && CITY=amalfi tsx scripts/lod-top-check.ts && CITY=istanbul tsx scripts/lod-top-check.ts"
   },
   "dependencies": {

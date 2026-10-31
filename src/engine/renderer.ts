@@ -103,6 +103,8 @@ export class Renderer {
   readonly shared = makeSharedUniforms();
   /** Depth texture uniform shared with particle materials (refreshed every frame). */
   readonly particleDepth: THREE.IUniform<THREE.Texture | null> = { value: null };
+  /** And the scene's colour, for light that lands on it (the halls' sun shafts). */
+  readonly particleColor: THREE.IUniform<THREE.Texture | null> = { value: null };
   quality: Quality;
   renderScale = 1;
   /** Hears each render pass start by name (the perf overlay times them on the GPU). */
@@ -290,6 +292,7 @@ export class Renderer {
     // particles into a half-res premultiplied buffer
     this.onPass?.('particles');
     this.particleDepth.value = this.rtScene.depthTexture;
+    this.particleColor.value = this.rtScene.texture;
     gl.setRenderTarget(this.rtParticles);
     gl.setClearColor(0x000000, 0);
     gl.clear(true, false, false);

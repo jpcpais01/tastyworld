@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.14',
+    date: '2026-10-31',
+    title: 'Light through stained glass',
+    items: [
+      'Sunbeams in Sant\'Andrea and Istanbul\'s mosques now start exactly at the windows they come through and follow the sun. They no longer hang in front of walls and paintings, pass through the arcades, or start where there is no window.',
+      'Each beam takes its colour from its window\'s glass, softened to a warm glow. The rose window throws a wheel of red, gold, blue and green across the floor, the aisle windows leave coloured panes of light on the marble, and the mosques\' coloured lights tint the carpet.',
+      'The beams are now soft, dusty light instead of flat sheets. A pier or a pew in front of a beam hides the light behind it, and the light lands on the floor, the pews and the walls where it really falls.',
+    ],
+  },
+  {
     version: '0.17.13',
     date: '2026-10-31',
     title: 'The mountains above Amalfi, reshaped',

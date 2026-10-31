@@ -2259,7 +2259,7 @@ function minaret(ctx: Ctx, cxM: number, czM: number, yM: number, h: number, balc
  * A mosque: the square prayer hall under a great dome on four half-domes, corner turrets, windows in rows and
  * the courtyard in front with its arcade of little domes and the fountain in the middle.
  */
-function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, number, number, number], court: readonly [number, number, number, number] | null, y: number, domeR: number, wallH: number): number {
+function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, number, number, number], court: readonly [number, number, number, number] | null, y: number, domeR: number, wallH: number, minarets: readonly (readonly number[])[] = []): number {
   const { b, c } = ctx;
   const g = b.grid;
   const X0 = Math.round(hall[0] / V), Z0 = Math.round(hall[1] / V), X1 = Math.round(hall[2] / V) - 1, Z1 = Math.round(hall[3] / V) - 1;
@@ -2358,8 +2358,10 @@ function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, num
     id, X0, Z0, X1, Z1, Y, H, cx, cz, R, DY, rich,
     semis: semis.map(([sx, sz]) => [sx, sz, Math.round(semi * 0.75)] as [number, number, number]),
     door: [Math.floor(cx) - 3, Math.floor(cx) + 2],
-    opening: (x, yy, z) => windowCols.has(wallCell(x, yy, z)),
+    // (a minaret built against the wall leaves no window there)
+    opening: (x, yy, z) => windowCols.has(wallCell(x, yy, z)) && !minarets.some(([mx, mz]) => Math.hypot(x + 0.5 - mx / V, z + 0.5 - mz / V) < 6),
     upper: (yy) => yy - Y >= up,
+    clear: c.glassLit,
     stone: c.lime, lead: c.lead,
   });
   else b.block(hall[0], hall[1], hall[2], hall[3]);
@@ -2504,8 +2506,9 @@ const HAZIRE_TREES: [number, number][] = [[-143.5, -32.1], [-131, -30.3], [-125.
 function suleymaniye(ctx: Ctx): void {
   const { b, c, plan } = ctx;
   const g = b.grid;
-  const suley = mosque(ctx, 'suleymaniye', false, SULEY.hall, SULEY.court, HILLTOP_Y, 8.5, 11);
-  for (const [x, z, h] of [[-147, -5, 124], [-127, -5, 124], [-147, 11, 100], [-127, 11, 100]] as const) minaret(ctx, x, z, HILLTOP_Y, h, h > 110 ? 2 : 1, suley);
+  const minarets = [[-147, -5, 124], [-127, -5, 124], [-147, 11, 100], [-127, 11, 100]] as const;
+  const suley = mosque(ctx, 'suleymaniye', false, SULEY.hall, SULEY.court, HILLTOP_Y, 8.5, 11, minarets);
+  for (const [x, z, h] of minarets) minaret(ctx, x, z, HILLTOP_Y, h, h > 110 ? 2 : 1, suley);
   // the precinct wall with its windows, gates on the east and to the terrace
   const [px0, pz0, px1, pz1] = SULEY.precinct;
   const X0 = Math.round(px0 / V), Z0 = Math.round(pz0 / V), X1 = Math.round(px1 / V) - 1, Z1 = Math.round(pz1 / V) - 1;

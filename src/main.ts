@@ -2035,7 +2035,8 @@ class Game {
       const viewR = this.cam.fp ? Math.min(80, this.viewDist * 0.65) : this.cam.zoom * 1.3 + 8;
       this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends, viewR);
       this.perf.lap('crowd');
-      const threats: Threat[] = [{ x: pl.position.x, z: pl.position.z, speed: pl.speed }];
+      // up in a hotel room you are no bother to the birds in the street
+      const threats: Threat[] = this.upstairs ? [] : [{ x: pl.position.x, z: pl.position.z, speed: pl.speed }];
       for (const [x, z] of friends) threats.push({ x, z, speed: 1 });
       const food: [number, number] | null = (this.eatT > 0 || this.meal) && pl.speed < 0.1 ? [pl.position.x, pl.position.z] : null;
       this.birds.setVisible(true);

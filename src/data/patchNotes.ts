@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.13.0',
+    date: '2026-10-31',
+    title: 'Birds in the city',
+    items: [
+      'Tokyo has birds. Flocks of pigeons work the squares, the station and the shrine, in five street colours from blue-grey to chequered, dark, red and pale.',
+      'Tree sparrows hop along the lanes, jungle crows sit on the rooftops, white wagtails dash about the canal with their tails bobbing, and brown-eared bulbuls and turtle doves keep to the green.',
+      'Keep an eye on the canal banks: now and then a kingfisher sits there, and it may plunge into the water while you watch. It is shy, so stop well back.',
+      'Birds peck, hop, nod as they walk, preen and look around. Walk up to them and the pigeons waddle off; run, cycle or bring a dog and the whole flock goes up, onto the roof edges and the overhead wires, or round in a loop and back down.',
+      'Stand still with something to eat and the pigeons and sparrows come to see if you drop anything.',
+      'They keep the clock too: up at dawn, off to roost on the roofs and wires at dusk, asleep with their heads tucked in at night.',
+    ],
+  },
+  {
     version: '0.12.1',
     date: '2026-10-31',
     title: 'A much lighter city',

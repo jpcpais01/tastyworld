@@ -277,8 +277,8 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
     const r = 40 + Math.pow(rnd(), 1.6) * 1500, a = rnd() * Math.PI * 2;
     const x = mx + Math.cos(a) * r * 1.1, z = mz + Math.sin(a) * r;
     const o = outside(x, z);
-    if (o < 5) continue;
     const w = 6 + rnd() * 8, dd = 6 + rnd() * 8;
+    if (o < Math.max(w, dd) / 2 + 0.5) continue;
     if (wet(x, z) > -w * 0.6 || parkAt(x, z)) continue;
     const hs4 = [H(x - w / 2, z - dd / 2), H(x + w / 2, z - dd / 2), H(x - w / 2, z + dd / 2), H(x + w / 2, z + dd / 2)];
     const lo = Math.min(...hs4), hi = Math.max(...hs4);
@@ -292,8 +292,8 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
   const pack = (ax: number, bx: number, az: number, bz: number, tries: number, lo0: number, hi0: number) => {
     for (let i = 0; i < tries; i++) {
       const x = ax + rnd() * (bx - ax), z = az + rnd() * (bz - az);
-      if (outside(x, z) < 5) continue;
       const w = 5 + rnd() * 7, dd = 5 + rnd() * 7;
+      if (outside(x, z) < Math.max(w, dd) / 2 + 0.5) continue;
       if (wet(x, z) > -w * 0.5 || parkAt(x, z)) continue;
       const hs4 = [H(x - w / 2, z - dd / 2), H(x + w / 2, z - dd / 2), H(x - w / 2, z + dd / 2), H(x + w / 2, z + dd / 2)];
       const lo = Math.min(...hs4), hi = Math.max(...hs4);
@@ -302,6 +302,9 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
     }
   };
   pack(-320, 140, HORN_N - 6, 520, 1500, 7, 17);
+  // and right up against the map's west and south sides, so the town's own houses run on into these without a gap
+  pack(x0 - 70, x0, z0 - 70, z1, 1400, 5, 12);
+  pack(x0, x1, z0 - 70, z0, 1400, 5, 12);
   pack(400, 640, -420, 240, 900, 6, 15);
   // the landmarks, readable from the quays: Galata's tower on its hill across the Horn
   {

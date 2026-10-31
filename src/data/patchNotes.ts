@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.34',
+    date: '2026-10-31',
+    title: 'Where Istanbul ends',
+    items: [
+      'Istanbul no longer stops on a straight line. Its edge now wanders through the old city, and past it the houses and gardens carry on over the hill.',
+      'Every way out is closed by the city itself. Lanes end at iron garden gates with the garden showing through. The tram avenue and the quays are closed by blue and white roadworks hoardings. The hilltop terrace ends at its balustrade, and open ground runs up to tiled garden walls with fig, Judas and cypress trees behind them.',
+      'The Galata Bridge now has its bascule towers, with their gates closed across the deck.',
+      'Beyond the map, the far city is built right up against the town, so the streets you walk run on into Fatih and towards Sultanahmet without a gap.',
+    ],
+  },
+  {
     version: '0.16.33',
     date: '2026-10-31',
     title: 'Through the headland',

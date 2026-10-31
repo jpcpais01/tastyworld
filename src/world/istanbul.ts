@@ -600,6 +600,27 @@ function headstone(c: IC2, seed: number): Prop {
   return p;
 }
 
+/**
+ * A street juice stand: pyramids of pomegranates and oranges on a white cart, the chrome lever press, glasses
+ * of ruby juice and a striped sunshade. Faces +z, the seller behind it.
+ */
+function juiceStand(c: IC2, seed: number): Prop {
+  const p = new Prop(14, 22, 9);
+  p.box(1, 0, 1, 12, 6, 7, (x, y, z) => (y === 6 ? c.marble : y === 0 ? c.trimDark : z === 7 && y > 1 && y < 5 && x % 4 === 1 ? c.cartRed : c.white));
+  for (const x of [1, 12]) for (const z of [1, 7]) p.box(x, 7, z, x, 15, z, c.chrome);
+  p.box(0, 16, 0, 13, 16, 8, (x) => (x % 4 < 2 ? c.awnRed : c.awnWhite));
+  p.box(1, 17, 1, 12, 17, 7, (x) => (x % 4 < 2 ? c.awnRed : c.awnWhite));
+  // the fruit in stepped heaps, pomegranates on one side and oranges on the other
+  for (let k = 0; k < 3; k++) {
+    p.box(2 + k, 7 + k, 3 + k, 6 - k, 7 + k, 7 - k, (x, y, z) => (hash3(x, y, z + seed) < 0.15 ? c.leafLight : c.spiceRed));
+    p.box(8 + k, 7 + k, 3 + k, 11 - k, 7 + k, 7 - k, (x, y, z) => (hash3(x, y, z + seed) < 0.15 ? c.leafLight : c.apricot2));
+  }
+  // the press and a row of glasses
+  p.box(6, 7, 1, 7, 10, 2, c.chrome); p.box(6, 11, 1, 9, 11, 1, c.chrome);
+  for (let x = 2; x <= 11; x += 2) p.set(x, 7, 1, c.tea);
+  return p;
+}
+
 function catHouse(c: IC2): Prop {
   const p = new Prop(8, 7, 6);
   p.box(0, 0, 0, 5, 4, 5, c.woodBare);
@@ -2293,7 +2314,7 @@ function streetLife(ctx: Ctx): void {
   // keep the doorways of the shops and hotels clear
   const doors = b.rooms.map((rm) => rm.door);
   const nearDoor = (x: number, z: number) => doors.some(([dx, dz]) => Math.hypot(dx - x, dz - z) < 2.6);
-  let fountains = 0;
+  let fountains = 0, juices = 0;
   for (const s of plan.segs) {
     if (s.kind !== K.Lane && s.kind !== K.Street && s.kind !== K.Stair && s.kind !== K.Tram) continue;
     const [ax, , az] = s.a, [bx, , bz] = s.b;
@@ -2317,7 +2338,15 @@ function streetLife(ctx: Ctx): void {
       const pick = r();
       if (s.kind === K.Street || s.kind === K.Tram) {
         if (pick < 0.35) { b.place(produce(c, Math.floor(r() * 1e4)), ex, ey, ez, turn); b.block(ex - 0.8, ez - 0.8, ex + 0.8, ez + 0.8); }
-        else if (pick < 0.6) {
+        else if (pick < 0.5 && s.w >= 5 && juices < 10) {
+          // a juice stand out from the wall, its seller between it and the wall
+          juices++;
+          const jx = ex + nx * side * 1.2, jz = ez + nz * side * 1.2;
+          b.place(juiceStand(c, Math.floor(r() * 1e4)), jx, ey, jz, turn);
+          const hx = Math.abs(nx) * 0.5 + Math.abs(nz) * 0.85, hz = Math.abs(nz) * 0.5 + Math.abs(nx) * 0.85;
+          b.block(jx - hx, jz - hz, jx + hx, jz + hz);
+          ctx.keepers.push({ pos: [ex + nx * side * 0.3, ey, ez + nz * side * 0.3], face: Math.atan2(nx * side, nz * side), seed: 700 + juices });
+        } else if (pick < 0.6) {
           b.place(teaTable(c, Math.floor(r() * 1e4)), ex, ey, ez); b.block(ex - 0.35, ez - 0.35, ex + 0.35, ez + 0.35);
           const ux = (bx - ax) / len, uz = (bz - az) / len;
           for (const k of [-1, 1]) { const sx = ex + ux * 0.6 * k, sz = ez + uz * 0.6 * k; b.place(tabure(c, c.woodBare), sx, ey, sz); b.stools.push([sx, sz, Math.atan2(-ux * k, -uz * k), ey]); }
@@ -2405,6 +2434,15 @@ function washingLines(ctx: Ctx): void {
           const id = b.addSway({ ...SWAY.laundry, pivot: [(vx + 0.5) * V, (Y + 0.5 - G) * V, (vz + 0.5) * V], axis: [ax2, 0, az2], reach: 0 });
           const col2 = (j >> 1) % 3 === 2 ? c.white : c.flagRed;
           for (let yy = Y - 2; yy < Y; yy++) if (!g.get(vx, yy, vz)) { g.set(vx, yy, vz, col2); b.swayCell(vx, yy, vz, id); }
+        }
+        b.wires.push([x0, z0, x1, z1, (Y + 1 - G) * V, 0.05]);
+        continue;
+      }
+      if (s.kind === K.Lane && hash3(Math.floor(cx), 17, Math.floor(cz)) < 0.3) {
+        // a café's string of bulbs instead of washing, glowing warm after dark
+        for (let j = 1; j < cells.length - 1; j += 2) {
+          const [vx, vz] = cells[j];
+          if (g.touches(vx, vz, vx, vz) && !g.get(vx, Y - 1, vz)) g.set(vx, Y - 1, vz, c.lampGlow);
         }
         b.wires.push([x0, z0, x1, z1, (Y + 1 - G) * V, 0.05]);
         continue;

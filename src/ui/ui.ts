@@ -147,6 +147,7 @@ export class UI {
   onParty: (() => void) | null = null;
   onWave: (() => void) | null = null;
   onPhoto: (() => void) | null = null;
+  onPace: (() => void) | null = null;
   onEndTrip: (() => void) | null = null;
   open: string | null = null;
   /** On a co-op trip as a guest: the leader's sky is shared, so the time of day setting waits. */
@@ -204,12 +205,13 @@ export class UI {
       <div class="hud-bl">
         <div class="controls" id="h-keys">
           <button class="glass kb" id="h-kb" title="Controls" aria-label="Show controls">${G.keyboard}</button>
-          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> run</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span></div>
+          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> pace</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span></div>
         </div>
       </div>
       <div class="hud-br">
         <div class="glass bar">
           <button id="h-wave" class="hidden" title="Wave (G)" aria-label="Wave to your friends">${G.wave}</button>
+          <button id="h-pace" title="Walking pace: normal (Shift)" aria-label="Walking pace: normal">${G.pace2}</button>
           <button id="h-photo" title="Photo mode (C)" aria-label="Photo mode">${G.camera}</button>
           <button id="h-view" title="First-person view (V)" aria-label="First-person view" aria-pressed="false">${G.eye}</button>
           <button id="h-rl" title="Rotate left (Q)" aria-label="Rotate left">${G.rotL}</button>
@@ -231,6 +233,7 @@ export class UI {
     tap('h-rr', () => this.onRotate?.(1));
     tap('h-view', () => this.onView?.());
     tap('h-photo', () => this.onPhoto?.());
+    tap('h-pace', () => this.onPace?.());
     tap('h-track', () => {
       if (this.goalInfo) return this.map();
       // a reward to claim opens the missions page right at it
@@ -304,6 +307,14 @@ export class UI {
     this.open = 'overlay';
     this.closeHook = onClose;
     this.hooks.panel(true);
+  }
+
+  /** Walking pace button: 0 slow, 1 normal, 2 fast. */
+  setPace(i: number): void {
+    const b = $('h-pace'), name = ['slow', 'normal', 'fast'][i];
+    b.innerHTML = [G.pace1, G.pace2, G.pace3][i];
+    b.title = `Walking pace: ${name} (Shift)`;
+    b.setAttribute('aria-label', `Walking pace: ${name}`);
   }
 
   /** First-person HUD: crosshair on, view button lit. */

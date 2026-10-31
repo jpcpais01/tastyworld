@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.7',
+    date: '2026-10-31',
+    title: 'Pick your pace',
+    items: [
+      'Shift no longer has to be held to run. Each press now changes how fast you walk: slow, normal, fast, and round to slow again. Slow is a gentle stroll for taking in the street, fast is a run.',
+      'A new pace button in the bottom right corner shows the pace you are on with one, two or three arrows. Tap or click it to change pace, which also works on phones. Double-tapping or dragging the joystick far out still breaks into a run there.',
+      'Your pace is remembered for your next visit.',
+    ],
+  },
+  {
     version: '0.17.6',
     date: '2026-10-31',
     title: 'The cloister and the Ruga dei Mercanti',

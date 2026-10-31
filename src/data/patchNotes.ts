@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.5',
+    date: '2026-10-31',
+    title: 'Paving that holds up from afar',
+    items: [
+      'Paving, tiles, lawns and roofs no longer turn to bare earth in the distance. The simplified far-away version of each street now keeps the colour you actually see on top, instead of the soil or filler underneath, in Tokyo, Amalfi and Istanbul alike.',
+      'The sea bed far out in Amalfi and Istanbul no longer has gaps in it.',
+    ],
+  },
+  {
     version: '0.17.4',
     date: '2026-10-31',
     title: 'Every step you can climb',

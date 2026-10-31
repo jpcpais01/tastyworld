@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.55',
+    date: '2026-10-31',
+    title: 'Auto-walk takes the stairs',
+    items: [
+      'When you tap somewhere or follow a map pin, your traveller now goes round by the stairs or a ramp instead of jumping down walls and terrace edges, even when the way round is a few dozen metres longer. They still hop down when there is no other way.',
+      'Walking to a map pin and the route guide can now use those hops too, so a spot below a ledge no longer says there is no way there on foot.',
+    ],
+  },
+  {
     version: '0.16.54',
     date: '2026-10-31',
     title: 'Clear cathedral steps',

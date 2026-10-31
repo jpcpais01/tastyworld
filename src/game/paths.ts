@@ -1,12 +1,16 @@
 import type { NavData } from '../world/bake';
 import type { PathIn, PathOut } from './pathworker';
+import type { Reach } from './nav';
 
 type V2 = [number, number];
 
 /** Finds walking routes without blocking the caller (see PathService). */
 export interface Router {
-  /** Starts a search; `done` gets the waypoints (or null when there is no way). False when too busy to take it now. */
-  find(ax: number, az: number, bx: number, bz: number, done: (path: V2[] | null) => void): boolean;
+  /**
+   * Starts a search; `done` gets the waypoints (or null when there is no way). False when too busy to take it now.
+   * `reach` is how far the walker may step and drop (townsfolk keep to the stairs by default).
+   */
+  find(ax: number, az: number, bx: number, bz: number, done: (path: V2[] | null) => void, reach?: Reach): boolean;
 }
 
 /**
@@ -31,11 +35,11 @@ export class PathService implements Router {
     this.worker.postMessage({ type: 'init', nav: { ...nav, height: nav.height.slice() } } satisfies PathIn);
   }
 
-  find(ax: number, az: number, bx: number, bz: number, done: (path: V2[] | null) => void): boolean {
+  find(ax: number, az: number, bx: number, bz: number, done: (path: V2[] | null) => void, reach?: Reach): boolean {
     if (this.waiting.size >= this.maxInFlight) return false;
     const id = this.nextId++;
     this.waiting.set(id, done);
-    this.worker.postMessage({ type: 'find', id, ax, az, bx, bz } satisfies PathIn);
+    this.worker.postMessage({ type: 'find', id, ax, az, bx, bz, reach } satisfies PathIn);
     return true;
   }
 

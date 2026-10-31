@@ -1722,7 +1722,7 @@ class Game {
     };
     const p0 = this.player.position;
     // across town the search is big, so it runs off the main thread; if the worker is busy, find it here
-    if (!this.paths.find(p0.x, p0.z, pin.x, pin.z, go)) go(this.nav.findPath(p0.x, p0.z, pin.x, pin.z, PLAYER_REACH));
+    if (!this.paths.find(p0.x, p0.z, pin.x, pin.z, go, PLAYER_REACH)) go(this.nav.findPath(p0.x, p0.z, pin.x, pin.z, PLAYER_REACH));
   }
 
   private reroute(): void {
@@ -1735,7 +1735,7 @@ class Game {
       this.route = r;
       // no way there (out over the water, say): just point at it rather than searching again and again
       if (!r) this.routeT = Infinity;
-    });
+    }, PLAYER_REACH);
     this.routeT = asked ? 2.5 : 0.2;
   }
 

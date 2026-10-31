@@ -22,7 +22,7 @@ import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
 function amalfiColors(b: Builder) {
   const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
   const F = { leaf: true };
-  return {
+  const c = {
     // stone of the coast: pale limestone cliffs, tufa walls, grey basalt paving
     lime: a(0xc9bda6, 0.1), limeDark: a(0xa89c86, 0.1), limeLight: a(0xddd3bf, 0.08), cliffStreak: a(0x8f8676, 0.1),
     tufa: a(0xb9a07e, 0.08), tufaDark: a(0x9a8466, 0.08), mortar: a(0x8a8070, 0.05), dryStone: a(0xa8a08e, 0.12), dryStoneB: a(0x8e8676, 0.12),
@@ -55,10 +55,23 @@ function amalfiColors(b: Builder) {
     fishNet: a(0x2f6b5a, 0.08), fishNetB: a(0xc8582e, 0.06), float: a(0xe8e2d4, 0.03), floatRed: a(0xd23a2a, 0.03),
     crateBlue: a(0x2f6fb0, 0.04), rope: a(0xc9b48a, 0.05), kiosk: a(0x2a5d8f, 0.03), sign: a(0xf4f0e4, 0.02),
     lampGlow: a(0xffd89a, 0.03, { emit: 0.9, night: true }), lampGlowAlways: a(0xffd89a, 0.03, { emit: 0.85 }),
+    // the small things on a house front: a white air conditioner, the brass of a knocker, an aerial on the roof
+    acWhite: a(0xe6e4de, 0.03), acGrille: a(0x8e8c86, 0.04), brass: a(0xb8923e, 0.05), piperno: a(0x7c7a76, 0.08),
   };
+  // each plaster's weathered shades: the damp that rises from the street, the streaks the rain leaves under a sill
+  const shade = (i: number, k: number, warm = 0) => {
+    const f = (v: number, w: number) => Math.max(0, Math.min(255, Math.round(v * k + w)));
+    return (f(b.pal.r[i], warm) << 16) | (f(b.pal.g[i], warm * 0.6) << 8) | f(b.pal.b[i], 0);
+  };
+  const walls = [...new Set(PASTELS(c))];
+  const dirt = new Map(walls.map((i) => [i, a(shade(i, 0.84, -4), 0.07)] as const));
+  const damp = new Map(walls.map((i) => [i, a(shade(i, 0.92, 2), 0.08)] as const));
+  return { ...c, dirt, damp };
 }
 
 type AC = ReturnType<typeof amalfiColors>;
+/** A plain colour of the town (not one of the shade tables). */
+type ACol = { [K in keyof AC]: AC[K] extends number ? K : never }[keyof AC];
 
 // ------------------------------------------------------------------------------------------- props
 
@@ -815,7 +828,8 @@ function carvePassages(b: Builder, c: AC, plan: Plan): void {
   }
 }
 
-const PASTELS = (c: AC) => [c.white, c.white, c.whiteWarm, c.cream, c.cream, c.yellow, c.lemonWall, c.ochre, c.peach, c.pink, c.rose, c.terracotta, c.sky, c.sage, c.plasterOld];
+type PastelKey = 'white' | 'whiteWarm' | 'cream' | 'yellow' | 'lemonWall' | 'ochre' | 'peach' | 'pink' | 'rose' | 'terracotta' | 'sky' | 'sage' | 'plasterOld';
+const PASTELS = (c: Record<PastelKey, number>) => [c.white, c.white, c.whiteWarm, c.cream, c.cream, c.yellow, c.lemonWall, c.ochre, c.peach, c.pink, c.rose, c.terracotta, c.sky, c.sage, c.plasterOld];
 
 /**
  * The ground-floor room of a house, hollow so that a house cut away in front of the player opens like a dollhouse
@@ -880,7 +894,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   // (a house built over a covered passage keeps its ground floor solid: the passage is carved through it, and a
   // hollow room there would open onto the vault, tiles, table and all)
   else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14 && !overPassage(plan, lt)) room(b, c, lt);
-  // corner quoins on taller houses, a cornice under the roof
+  // a cornice under the roof, flush; the finish below picks out the rest
   g.box(x0, top - 1, z0, x1, top - 1, z1, trim);
   // what stands outside a facade cell: the ground level and whether a neighbour's wall is there
   const outside = (x: number, z: number): number => {
@@ -899,9 +913,33 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   const floors = Math.floor((top - base) / 12);
   // a hotel's guest rooms open their own French windows on the view
   const view = lt.hotel ? viewSide(plan, lt) : null;
+  // this house's own finish, hashed from its seed so the lot's rng (and the roof, chimney and climbers drawn
+  // from it below) stays as it was
+  const H = (k: number) => hash3(lt.seed, 41, k);
+  const pale = wall === c.white || wall === c.whiteWarm || wall === c.cream;
+  const frameC = pale ? [c.sill, c.sky, c.yellow, c.sill, c.sage][Math.floor(H(1) * 5)] : trim;
+  const framed = H(2) < 0.8; // stucco surrounds round the windows
+  const hoods = H(3) < 0.4; // a little cornice over each upstairs window
+  const bands = trim !== wall && H(4) < 0.55; // a string course at every floor
+  const pilasters = !pale && H(5) < 0.3; // painted corner pilasters
+  const dado = H(6) < 0.4; // a darker painted base
+  const corniced = H(7) < 0.75; // the roof cornice stands out from the wall
+  const dirt = c.dirt.get(wall) ?? c.plasterOld, damp = c.damp.get(wall) ?? c.plasterOld;
+  const isWall = (x: number, y: number, z: number) => g.get(x, y, z) === wall;
+  const paint = (x: number, y: number, z: number, v: number) => { if (g.get(x, y, z) === wall) g.set(x, y, z, v); };
+  const stick = (x: number, y: number, z: number, v: number) => { if (!g.get(x, y, z)) g.set(x, y, z, v); };
+  // a cell out from the wall at height y is above head height over whatever is walked on there
+  const overhead = (x: number, z: number, y: number) => outside(x, z) + 9 < y;
   for (const f of faces) {
     const front = f.side === lt.side;
-    // window bays: 3 voxels of glass, 2 of wall and shutter either side
+    const [fx0, fz0] = f.at(0), [ox0, oz0] = f.out(0);
+    const nx = ox0 - fx0, nz = oz0 - fz0;
+    // the door, on the level of the path in front, keeps its bay clear of windows
+    const dl = lt.door, da = Math.floor(f.n / 2) - 1;
+    const shopLevel = front && lt.shop && Math.abs(dl - base) <= 2;
+    const own = front && !lt.food && !lt.hotel && dl >= base && dl <= top - 10;
+    const shopFront = own && shopLevel, door = own && !shopLevel;
+    // window bays: 3 voxels of glass in a stucco frame, a louvred shutter folded back either side
     const bays: number[] = [];
     for (let a = 3; a + 4 < f.n; a += 7 + (lt.seed % 2)) bays.push(a);
     for (let fl = 0; fl < floors; fl++) {
@@ -912,56 +950,168 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
         const ground = outside(ox, oz);
         if (ground > yb + 3) continue; // buried in the hill or against the neighbour
         if (ox >= VX0 && oz >= VZ0 && ox < VX0 + SX && oz < VZ0 + SZ && plan.kind[col(ox, oz)] === K.Covered) continue; // onto a covered passage: its vault and the house over it
-        const [wx, wz] = f.at(a), [wx2, wz2] = f.at(a + 2);
+        const [wx, wz] = f.at(a);
         const groundFloor = fl === 0 || ground > yb - 6;
         // shops on the piazza and the main street open arches at street level instead
-        if (fl === 0 && front && lt.shop && Math.abs(lt.door - base) <= 2) continue;
+        if (fl === 0 && shopLevel) continue;
         const sy0 = yb + 3, sy1 = yb + 8;
-        g.box(Math.min(wx, wx2), sy0, Math.min(wz, wz2), Math.max(wx, wx2), sy1, Math.max(wz, wz2), hash3(wx, yb, wz) < 0.35 ? c.glassLit : c.glass);
-        // shutters: open, folded back against the wall beside the window
-        const [sx0, sz0] = f.at(a - 1), [sx1, sz1] = f.at(a + 3);
+        if (door && a + 4 >= da - 1 && a - 2 <= da + 3 && sy1 + 2 >= dl && sy0 - 1 <= dl + 10) continue;
+        const pane = hash3(wx, yb, wz) < 0.35 ? c.glassLit : c.glass;
         const closed = hash3(wx, yb + 1, wz) < 0.25;
-        if (closed) g.box(Math.min(wx, wx2), sy0, Math.min(wz, wz2), Math.max(wx, wx2), sy1, Math.max(wz, wz2), (_x, y) => (y % 2 ? shutter : c.shutterDeep));
-        else { g.box(sx0, sy0, sz0, sx0, sy1, sz0, shutter); g.box(sx1, sy0, sz1, sx1, sy1, sz1, shutter); }
+        const grate = groundFloor && hash3(wx, yb, 81) < 0.55;
+        // the glass sits in the thickness of the wall, so the reveal throws its shadow; closed shutters are flush
+        for (let u = a; u <= a + 2; u++) {
+          const [px, pz] = f.at(u);
+          for (let y = sy0; y <= sy1; y++) {
+            if (closed) { g.set(px, y, pz, y % 2 ? shutter : c.shutterDeep); continue; }
+            if (g.get(px - nx, y, pz - nz) === wall) {
+              g.set(px - nx, y, pz - nz, pane);
+              g.set(px, y, pz, grate && (u === a + 1 || y === sy0 + 1 || y === sy1 - 1) ? c.iron : 0);
+            } else g.set(px, y, pz, pane);
+          }
+        }
+        if (framed) {
+          for (const u of [a - 1, a + 3]) { const [px, pz] = f.at(u); for (let y = sy0; y <= sy1 + 1; y++) paint(px, y, pz, frameC); }
+          for (let u = a; u <= a + 2; u++) { const [px, pz] = f.at(u); paint(px, sy1 + 1, pz, frameC); }
+        }
+        // persiane: louvred shutters, open, folded back beside the frame; upstairs they stand a little off the wall
+        if (!closed) {
+          const out = !groundFloor && ground + 9 < sy0 && hash3(wx, yb, 83) < 0.65;
+          for (const u of framed ? [a - 2, a + 4] : [a - 1, a + 3]) {
+            const [px, pz] = f.at(u);
+            for (let y = sy0; y <= sy1; y++) {
+              const v = (y - sy0) % 2 ? shutter : c.shutterDeep;
+              if (out && !g.get(px + nx, y, pz + nz) && overhead(px + nx, pz + nz, sy0)) g.set(px + nx, y, pz + nz, v);
+              else paint(px, y, pz, v);
+            }
+          }
+        }
         // sill, and on upper floors sometimes a little balcony with a rail and geraniums
         const [o0x, o0z] = f.out(a), [o2x, o2z] = f.out(a + 2);
+        let balcony = false;
         if (!groundFloor && ground + 10 < yb && hash3(wx, yb, 77) < 0.35) {
+          balcony = true;
           const [bx0, bz0] = f.out(a - 1), [bx1, bz1] = f.out(a + 3);
           g.box(Math.min(bx0, bx1), yb + 2, Math.min(bz0, bz1), Math.max(bx0, bx1), yb + 2, Math.max(bz0, bz1), c.sill);
+          // the slab sits on two little stone brackets
+          for (const i of [-1, 3]) { const [px, pz] = f.out(a + i); if (overhead(px, pz, yb + 1)) stick(px, yb + 1, pz, c.sill); }
           for (let i = -1; i <= 3; i++) { const [px, pz] = f.out(a + i); g.box(px, yb + 3, pz, px, yb + 5, pz, i % 2 === 0 ? c.iron : 0); g.set(px, yb + 6, pz, c.iron); }
           if (hash3(wx, yb, 78) < 0.6) for (let i = -1; i <= 3; i += 2) { const [px, pz] = f.out(a + i); g.set(px, yb + 3, pz, hash3(px, yb, pz) < 0.5 ? c.geranium : c.leaf); }
           // a balcony door instead of a window
-          g.box(Math.min(wx, wx2), yb + 1, Math.min(wz, wz2), Math.max(wx, wx2), yb + 2, Math.max(wz, wz2), c.glass);
+          for (let u = a; u <= a + 2; u++) {
+            const [px, pz] = f.at(u);
+            for (let y = yb + 1; y <= yb + 2; y++) {
+              if (!closed && g.get(px - nx, y, pz - nz) === wall) { g.set(px - nx, y, pz - nz, pane); g.set(px, y, pz, 0); } else g.set(px, y, pz, c.glass);
+            }
+          }
         } else if (ground + 2 < sy0) {
           g.box(Math.min(o0x, o2x), sy0 - 1, Math.min(o0z, o2z), Math.max(o0x, o2x), sy0 - 1, Math.max(o0z, o2z), trim);
-          if (!groundFloor && hash3(wx, yb, 79) < 0.3) g.box(Math.min(o0x, o2x), sy0, Math.min(o0z, o2z), Math.max(o0x, o2x), sy0, Math.max(o0z, o2z), (x, y, z) => (hash3(x, y, z) < 0.5 ? c.geranium : c.leafLight));
+          // upstairs the sill runs on under the frame
+          if (framed && !groundFloor) for (const u of [a - 1, a + 3]) { const [px, pz] = f.out(u); if (overhead(px, pz, sy0 - 1)) stick(px, sy0 - 1, pz, trim); }
+          if (!groundFloor && hash3(wx, yb, 79) < 0.3) {
+            const [p0x, p0z] = f.out(a), [p2x, p2z] = f.out(a + 2);
+            g.box(Math.min(p0x, p2x), sy0, Math.min(p0z, p2z), Math.max(p0x, p2x), sy0, Math.max(p0z, p2z), (x, y, z) => (hash3(x, y, z) < 0.5 ? c.geranium : c.leafLight));
+          }
+          // the rain has run off the sill and down the plaster
+          const st = hash3(wx, yb, 84);
+          if (st < 0.4) {
+            const [px, pz] = f.at(a + 1 + (st < 0.12 ? -1 : 0));
+            const len = 2 + Math.floor(st * 10);
+            for (let y = sy0 - 2; y >= Math.max(yb + 1, sy0 - 1 - len); y--) paint(px, y, pz, dirt);
+          }
+        }
+        // a hood moulding over the upstairs windows
+        if (hoods && !groundFloor) for (let u = a - 1; u <= a + 3; u++) { const [px, pz] = f.out(u); if (overhead(px, pz, sy1 + 2)) stick(px, sy1 + 2, pz, trim); }
+        // on the sides and backs, now and then an air conditioner under a window, its drip stain below
+        if (!front && !groundFloor && !balcony && ground + 10 < sy0 - 4 && hash3(wx, yb, 85) < 0.16) {
+          let free = true;
+          for (let u = a; u <= a + 2 && free; u++) { const [px, pz] = f.out(u); if (!overhead(px, pz, sy0 - 4)) free = false; for (let y = sy0 - 4; y <= sy0 - 3; y++) if (g.get(px, y, pz)) free = false; }
+          if (free) {
+            for (let u = a; u <= a + 2; u++) { const [px, pz] = f.out(u); g.set(px, sy0 - 4, pz, c.acWhite); g.set(px, sy0 - 3, pz, u === a + 1 ? c.acGrille : c.acWhite); }
+            const [px, pz] = f.at(a + 2);
+            for (let y = sy0 - 5; y >= sy0 - 8; y--) paint(px, y, pz, dirt);
+          }
         }
       }
     }
-    if (!front || lt.food || lt.hotel) continue;
-    // the door, on the level of the path in front
-    const dl = lt.door;
-    if (dl >= base && dl <= top - 10) {
-      const a = Math.floor(f.n / 2) - 1;
-      const [dx0, dz0] = f.at(a), [dx1, dz1] = f.at(a + 2);
-      const shopFront = lt.shop && Math.abs(dl - base) <= 2;
-      if (shopFront) {
-        // arched shop openings across the front, warm inside
-        for (let s = 2; s + 4 < f.n; s += 6) {
-          const [ax0, az0] = f.at(s), [ax1, az1] = f.at(s + 3);
-          const X0 = Math.min(ax0, ax1), X1 = Math.max(ax0, ax1), Z0 = Math.min(az0, az1), Z1 = Math.max(az0, az1);
-          g.box(X0, dl, Z0, X1, dl + 9, Z1, c.shopLit);
-          g.box(X0, dl + 10, Z0, X1, dl + 10, Z1, c.stripeTufa);
-          const [ix, iz] = f.at(s + 1), [jx, jz] = f.at(s + 2);
-          g.set(ix, dl + 10, iz, c.shopLit); g.set(jx, dl + 10, jz, c.shopLit);
-          const [lx, lz] = f.out(s + 1.5);
-          b.lamp((lx + 0.5) * V, (dl - G) * V + 2, (lz + 0.5) * V, WARM, 3.5, 0.55);
+    if (shopFront) {
+      // arched shop openings across the front, warm inside
+      for (let s = 2; s + 4 < f.n; s += 6) {
+        const [ax0, az0] = f.at(s), [ax1, az1] = f.at(s + 3);
+        const X0 = Math.min(ax0, ax1), X1 = Math.max(ax0, ax1), Z0 = Math.min(az0, az1), Z1 = Math.max(az0, az1);
+        g.box(X0, dl, Z0, X1, dl + 9, Z1, c.shopLit);
+        g.box(X0, dl + 10, Z0, X1, dl + 10, Z1, c.stripeTufa);
+        const [ix, iz] = f.at(s + 1), [jx, jz] = f.at(s + 2);
+        g.set(ix, dl + 10, iz, c.shopLit); g.set(jx, dl + 10, jz, c.shopLit);
+        const [lx, lz] = f.out(s + 1.5);
+        b.lamp((lx + 0.5) * V, (dl - G) * V + 2, (lz + 0.5) * V, WARM, 3.5, 0.55);
+      }
+    }
+    // the shop's name on a majolica panel over its arches, the coast's painted tiles
+    if (shopFront && dl <= top - 14 && f.n >= 10) {
+      const sy = dl + 11;
+      for (let a = 2; a <= f.n - 3; a++) {
+        const [px, pz] = f.at(a);
+        for (let y = sy; y <= sy + 2; y++) {
+          const end = a === 2 || a === f.n - 3;
+          const v = end ? c.majolicaYellow : y !== sy + 1 ? c.majolicaBlue : a > 3 && a < f.n - 4 && hash3(a, y, lt.seed) < 0.55 ? c.majolicaBlue : c.majolicaWhite;
+          paint(px, y, pz, v);
         }
+      }
+    }
+    // a string course at each floor, painted corner pilasters
+    if (bands) for (let fl = 1; fl < floors; fl++) for (let a = 0; a < f.n; a++) { const [px, pz] = f.at(a); paint(px, base + fl * 12, pz, trim); }
+    if (pilasters && f.n >= 10) for (const a of [0, 1, f.n - 2, f.n - 1]) { const [px, pz] = f.at(a); for (let y = base + 2; y < top - 1; y++) paint(px, y, pz, trim); }
+    // the cornice stands a voxel proud of the wall, with a row of dentils under it, wherever it is open to the sky
+    if (corniced) for (let a = 0; a < f.n; a++) {
+      const [px, pz] = f.out(a);
+      if (!overhead(px, pz, top - 2)) continue;
+      stick(px, top - 1, pz, trim);
+      if (a % 2 === 0) stick(px, top - 2, pz, trim);
+    }
+    // the street end of the wall: a painted dado, or the damp creeping up from the paving
+    for (let a = 0; a < f.n; a++) {
+      const [px, pz] = f.at(a), [qx, qz] = f.out(a);
+      const gl = outside(qx, qz);
+      if (gl > base + 2) continue;
+      const y0 = Math.max(base + 2, gl);
+      if (dado) {
+        for (let y = y0; y <= base + 4; y++) paint(px, y, pz, y === base + 4 ? trim : dirt);
       } else {
-        g.box(Math.min(dx0, dx1), dl, Math.min(dz0, dz1), Math.max(dx0, dx1), dl + 8, Math.max(dz0, dz1), r() < 0.5 ? c.door : c.doorGreen);
-        g.box(Math.min(dx0, dx1), dl + 9, Math.min(dz0, dz1), Math.max(dx0, dx1), dl + 9, Math.max(dz0, dz1), trim);
+        const wave = Math.sin(a * 0.55 + lt.seed) + Math.sin(a * 0.21 + lt.seed * 0.3);
+        const h = Math.max(0, Math.round(1.2 + wave * 1.3));
+        for (let y = y0; y < y0 + h; y++) paint(px, y, pz, damp);
       }
     }
+    // rain streaks down from the cornice, and patches where the plaster has fallen to show the tufa underneath
+    for (let a = 1; a < f.n - 1; a++) {
+      const [px, pz] = f.at(a);
+      const h = hash3(px, top, pz + 7);
+      if (h < 0.07) for (let y = top - 2; y >= top - 3 - Math.floor(h * 100); y--) paint(px, y, pz, dirt);
+    }
+    const patches = Math.floor(H(10 + faces.indexOf(f)) * 3.4);
+    for (let i = 0; i < patches && f.n > 8 && top - base > 10; i++) {
+      const ha = hash3(lt.seed, i, 50 + faces.indexOf(f)), hy = hash3(lt.seed, i, 60 + faces.indexOf(f));
+      const pa = 1 + Math.floor(ha * (f.n - 6)), py = base + 3 + Math.floor(hy * hy * (top - base - 8));
+      const pw = 3 + Math.floor(ha * 7) % 3, ph = 2 + Math.floor(hy * 5) % 2;
+      for (let u = 0; u < pw; u++) for (let v = 0; v < ph; v++) {
+        if ((u === 0 || u === pw - 1) && (v === 0 || v === ph - 1)) continue; // ragged corners
+        const [px, pz] = f.at(pa + u);
+        paint(px, py + v, pz, ((u + (v & 1) * 2) % 4 === 3) ? c.mortar : (v & 1) ? c.tufaDark : c.tufa);
+      }
+    }
+    if (!door) continue;
+    // the front door: two-panelled leaves under a fanlight, in a frame of grey piperno stone with a keystone,
+    // the house number on a majolica tile beside it and a brass knocker
+    const doorC = r() < 0.5 ? c.door : c.doorGreen;
+    const [dx0, dz0] = f.at(da), [dx1, dz1] = f.at(da + 2);
+    g.box(Math.min(dx0, dx1), dl, Math.min(dz0, dz1), Math.max(dx0, dx1), dl + 8, Math.max(dz0, dz1), (_x, y) => (y === dl + 8 ? (hash3(lt.seed, 3, 9) < 0.5 ? c.glassLit : c.glass) : y === dl + 3 || y === dl + 6 ? c.keel : doorC));
+    { const [kx, kz] = f.at(da + 1); g.set(kx, dl + 5, kz, c.brass); }
+    const stone = (x: number, y: number, z: number) => { const v = g.get(x, y, z); if (v === wall || v === c.plinth || v === trim || v === dirt || v === damp) g.set(x, y, z, c.piperno); };
+    for (const u of [da - 1, da + 3]) { const [px, pz] = f.at(u); for (let y = dl; y <= dl + 9; y++) stone(px, y, pz); }
+    for (let u = da; u <= da + 2; u++) { const [px, pz] = f.at(u); stone(px, dl + 9, pz); }
+    { const [px, pz] = f.at(da + 1); stone(px, dl + 10, pz); }
+    { const [px, pz] = f.at(da + 4); if (isWall(px, dl + 6, pz) || g.get(px, dl + 6, pz) === trim) { g.set(px, dl + 6, pz, c.majolicaBlue); g.set(px, dl + 7, pz, c.majolicaYellow); } }
   }
   // the roof
   const w = x1 - x0 + 1, d = z1 - z0 + 1;
@@ -984,13 +1134,22 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
       if (dd <= rr) g.set(x, top + 1 + y, z, c.roofWhite);
     }
   } else if (roof < 0.62) {
-    // tiled hip roof
+    // tiled hip roof, its eaves a tile out over the walls wherever the air is free
     for (let y = 0; y < Math.min(w, d) / 2; y++) g.box(x0 + y, top + y, z0 + y, x1 - y, top + y, z1 - y, (x, _y, z) => ((x + z) % 2 ? c.roofTile : c.roofTileB));
+    g.box(x0 - 1, top, z0 - 1, x1 + 1, top, z1 + 1, (x, y, z) => {
+      const v = g.get(x, y, z);
+      return v || ((x === x0 - 1 || x === x1 + 1 || z === z0 - 1 || z === z1 + 1) && overhead(x, z, y) ? c.roofTileB : 0);
+    });
   } else {
     // a flat terrace with a parapet, often a pergola, potted lemons or a line of washing
     g.box(x0, top, z0, x1, top, z1, c.terraceTile);
-    g.box(x0, top + 1, z0, x1, top + 3, z0, trim); g.box(x0, top + 1, z1, x1, top + 3, z1, trim);
-    g.box(x0, top + 1, z0, x0, top + 3, z1, trim); g.box(x1, top + 1, z0, x1, top + 3, z1, trim);
+    // the parapet in the wall's own plaster under a coping of white stone, terracotta on some
+    const coping = hash3(lt.seed, 41, 20) < 0.3 ? c.cottoB : trim;
+    const para = (_x: number, y: number) => (y === top + 3 ? coping : wall);
+    g.box(x0, top + 1, z0, x1, top + 3, z0, para); g.box(x0, top + 1, z1, x1, top + 3, z1, para);
+    g.box(x0, top + 1, z0, x0, top + 3, z1, para); g.box(x1, top + 1, z0, x1, top + 3, z1, para);
+    // a spout through the parapet at the low corner, and its stain down the wall
+    { const sx = x0 + 2; if (!g.get(sx, top + 1, z0 - 1) && overhead(sx, z0 - 1, top + 1)) { g.set(sx, top + 1, z0 - 1, c.cotto); for (let y = top; y > top - 6; y--) if (g.get(sx, y, z0) === wall || g.get(sx, y, z0) === trim) g.set(sx, y, z0, dirt); } }
     const pr = r();
     if (pr < 0.45) {
       // pergola of chestnut poles under vines or bougainvillea
@@ -1030,6 +1189,17 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
       }
     }
   }
+  // a television aerial on one roof in four, standing on whatever is highest there
+  if (H(30) < 0.25 && w >= 8 && d >= 8) {
+    const ax = x0 + 2 + Math.floor(H(31) * (w - 4)), az = z0 + 2 + Math.floor(H(32) * (d - 4));
+    let ay = top + 12;
+    while (ay > top && !g.get(ax, ay - 1, az)) ay--;
+    if (ay > top - 1 && g.get(ax, ay - 1, az) !== c.leaf && g.get(ax, ay - 1, az) !== c.leafDark) {
+      g.box(ax, ay, az, ax, ay + 7, az, c.iron);
+      const alongX = H(33) < 0.5;
+      for (const [k, half] of [[ay + 5, 2], [ay + 7, 1]] as const) for (let i = -half; i <= half; i++) if (i) stick(alongX ? ax + i : ax, k, alongX ? az : az + i, c.iron);
+    }
+  }
   // Amalfi chimneys: a little hooded stack
   if (r() < 0.5) {
     const cx = x0 + 2 + Math.floor(r() * (w - 4)), cz = z0 + 2 + Math.floor(r() * (d - 4));
@@ -1046,7 +1216,8 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
       const gl = outside(ox, oz);
       if (gl >= top) continue;
       const len = 6 + Math.floor(hash3(ox, 3, oz) * 18);
-      for (let y = top - 1; y > Math.max(gl + 4, top - 1 - len); y--) if (hash3(ox, y, oz) < 0.8) g.set(ox, y, oz, hash3(ox, y + 1, oz) < 0.6 ? c.bougain : c.leaf);
+      const [ax, az] = f.at(a);
+      for (let y = top - 1; y > Math.max(gl + 4, top - 1 - len); y--) if (hash3(ox, y, oz) < 0.8 && g.get(ax, y, az)) g.set(ox, y, oz, hash3(ox, y + 1, oz) < 0.6 ? c.bougain : c.leaf);
     }
   }
   // a terracotta downpipe from the gutter to the ground at a corner of the front, clipped to the wall
@@ -2505,7 +2676,7 @@ function eatTable(c: AC, cloth: number, cloth2: number, wood: number): Prop {
   return p;
 }
 
-const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank' | 'marble' | 'tile'; wall: keyof AC; wain: keyof AC; cloth: [keyof AC, keyof AC]; front: keyof AC; awning: [keyof AC, keyof AC] }> = {
+const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank' | 'marble' | 'tile'; wall: ACol; wain: ACol; cloth: [ACol, ACol]; front: ACol; awning: [ACol, ACol] }> = {
   duomo: { floor: 'check', wall: 'cream', wain: 'shutterGreen', cloth: ['white', 'white'], front: 'shutterGreen', awning: ['shutterGreen', 'white'] },
   gemma: { floor: 'cotto', wall: 'whiteWarm', wain: 'terracotta', cloth: ['hullRed', 'white'], front: 'doorGreen', awning: ['hullRed', 'white'] },
   saraceno: { floor: 'majolica', wall: 'white', wain: 'majolicaBlue', cloth: ['umbrellaC', 'white'], front: 'shutterBlue', awning: ['umbrellaC', 'white'] },
@@ -2783,7 +2954,7 @@ function viewSide(plan: Plan, lt: LotPlan): Side {
   return lt.side;
 }
 
-const HOTEL_THEME: Record<string, { floor: [keyof AC, keyof AC, keyof AC]; wall: keyof AC; wain: keyof AC; duvet: keyof AC; runner: keyof AC; wood: keyof AC; shutter: keyof AC; sign: keyof AC }> = {
+const HOTEL_THEME: Record<string, { floor: [ACol, ACol, ACol]; wall: ACol; wain: ACol; duvet: ACol; runner: ACol; wood: ACol; shutter: ACol; sign: ACol }> = {
   marina: { floor: ['majolicaBlue', 'majolicaWhite', 'majolicaYellow'], wall: 'white', wain: 'majolicaBlue', duvet: 'white', runner: 'shutterBlue', wood: 'door', shutter: 'shutterBlue', sign: 'majolicaBlue' },
   limoni: { floor: ['majolicaYellow', 'majolicaWhite', 'majolicaGreen'], wall: 'whiteWarm', wain: 'majolicaYellow', duvet: 'cream', runner: 'lemonDeep', wood: 'door', shutter: 'shutterGreen', sign: 'majolicaGreen' },
   palazzo: { floor: ['marble', 'marbleGrey', 'stripeTufa'], wall: 'cream', wain: 'stripeDark', duvet: 'white', runner: 'hullRed', wood: 'stripeDark', shutter: 'shutterDeep', sign: 'stripeDark' },
@@ -2896,7 +3067,7 @@ function frameOps(b: Builder, f: Frame, F: number) {
 }
 
 /** Vietri tiles: a motif every four voxels in the hotel's colourway. */
-const tiles = (c: AC, [m, k, f]: [keyof AC, keyof AC, keyof AC], marble: boolean) => (a: number, d: number) => {
+const tiles = (c: AC, [m, k, f]: [ACol, ACol, ACol], marble: boolean) => (a: number, d: number) => {
   if (marble) return ((a >> 1) + (d >> 1)) % 2 ? c[m] : (a + d) % 8 === 0 ? c[f] : c[k];
   const u = a & 3, v = d & 3;
   return (u === 1 || u === 2) && (v === 1 || v === 2) ? c[m] : u === 0 && v === 0 ? c[f] : c[k];

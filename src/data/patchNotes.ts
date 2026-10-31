@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.8',
+    date: '2026-10-31',
+    title: 'Lived-in house fronts',
+    items: [
+      'Amalfi\'s houses are finished like the real coast: the glass now sits back in the thickness of the wall inside a stucco frame, green and blue louvred shutters stand open beside it, and upstairs windows carry a little cornice and a stone sill. Fronts have string courses at each floor, painted corner pilasters, and a cornice with dentils under the roof.',
+      'The plaster has aged: damp creeping up from the paving or a painted dado along the street, rain streaks from sills and gutters, and patches where it has fallen away to show the tufa stone beneath. Front doors stand in grey stone frames with a fanlight, a brass knocker and a majolica house number. Ground-floor windows have iron grilles.',
+      'Amalfi shops have their names on majolica tile panels over their arches. Air conditioners hang on side walls, terraces have parapets with stone or terracotta coping and a spout, tiled roofs have proper eaves, and TV aerials stand on some roofs.',
+      'Istanbul\'s plaster and brick blocks have recessed upstairs windows, damp and rain streaks, plaster flaking off the brick, zinc downpipes, the odd satellite dish, and roller-shutter housings over the shops.',
+      'In Tokyo, upstairs windows have slim rain hoods, older houses have the boxes their night shutters slide into, walls carry grime runs under sills, and bare concrete shows its grid of form-tie holes.',
+    ],
+  },
+  {
     version: '0.17.7',
     date: '2026-10-31',
     title: 'Pick your pace',

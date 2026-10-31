@@ -66,6 +66,12 @@
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
   --gut: 14px;
+  /* Phone UI scale. Every menu, sheet and HUD piece is sized in px for a desktop-ish screen; on phones the
+     same layout is CSS-zoomed by --z (see .zui below). Inside a zoomed element 100vw/100vh shrink with it,
+     so those rules use --vw/--vh, which undo the zoom. Never use --vw/--vh on an unzoomed element. */
+  --z: 1;
+  --vw: calc(100vw / var(--z));
+  --vh: calc(100vh / var(--z));
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -242,7 +248,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 
 @media (max-width: 560px) {
   :root { --gut: 10px; }
-  .hud-tl { max-width: calc(100vw - 218px - var(--safe-l) - var(--safe-r)); }
+  .hud-tl { max-width: calc(var(--vw) - 218px - var(--safe-l) - var(--safe-r)); }
   .place { height: 36px; padding-right: 12px; gap: 7px; }
   .tod { width: 26px; height: 26px; }
   .place-name { font-size: 14px; }
@@ -258,7 +264,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 /* ---------------------------------------------------------------- interaction prompt */
 #prompt { position: absolute; z-index: 12; left: 50%; bottom: calc(22px + var(--safe-b)); transform: translateX(-50%); display: flex; gap: 11px; align-items: center;
   padding: 6px 6px 6px 6px; border-radius: 99px; pointer-events: auto; background: rgba(38, 27, 21, 0.8); color: #fff4e4; box-shadow: inset 0 0 0 1px rgba(255, 236, 210, 0.14), 0 10px 30px rgba(20, 12, 8, 0.3);
-  animation: pop 0.3s var(--spring); cursor: pointer; max-width: calc(100vw - 150px); }
+  animation: pop 0.3s var(--spring); cursor: pointer; max-width: calc(var(--vw) - 150px); }
 #prompt .pk { width: 42px; height: 42px; border-radius: 50%; background: rgba(255, 236, 210, 0.12); display: grid; place-items: center; font-size: 22px; flex: none; }
 #prompt .pt { flex: 1; font-family: var(--display); font-weight: 600; font-size: 16px; line-height: 1.15; min-width: 0; padding-right: 4px; }
 #prompt .pt small { display: block; font-family: var(--body); font-weight: 700; font-size: 12px; color: rgba(255, 238, 215, 0.62); margin-top: 2px; }
@@ -288,7 +294,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 @keyframes ring { from { transform: scale(0.3) rotateX(55deg); opacity: 1; } to { transform: scale(1.4) rotateX(55deg); opacity: 0; } }
 
 /* ---------------------------------------------------------------- toasts */
-#toasts { position: absolute; z-index: 40; top: calc(var(--gut) + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(380px, calc(100vw - 24px)); }
+#toasts { position: absolute; z-index: 40; top: calc(var(--gut) + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(380px, calc(var(--vw) - 24px)); }
 @media (max-width: 760px) { #toasts { top: calc(100px + var(--safe-t)); } }
 @media (max-width: 560px) { #toasts { top: calc(92px + var(--safe-t)); } }
 .toast { display: flex; gap: 12px; align-items: center; background: rgba(38, 27, 21, 0.9); color: var(--on-dark-2); padding: 8px 16px 8px 8px; border-radius: 18px; box-shadow: inset 0 0 0 1px rgba(255, 236, 210, 0.14), 0 12px 30px rgba(20, 12, 8, 0.35);
@@ -307,11 +313,11 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 #panel-root { position: absolute; inset: 0; z-index: 35; pointer-events: none; }
 .scrim { position: absolute; inset: 0; background: rgba(29, 21, 18, 0.42); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); pointer-events: auto; animation: fadeIn 0.25s ease; }
 @keyframes fadeIn { from { opacity: 0; } }
-.panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(540px, calc(100vw - 32px)); max-height: calc(100vh - 40px - var(--safe-t) - var(--safe-b)); overflow: auto; overscroll-behavior: contain;
+.panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(540px, calc(var(--vw) - 32px)); max-height: calc(var(--vh) - 40px - var(--safe-t) - var(--safe-b)); overflow: auto; overscroll-behavior: contain;
   background: var(--paper) radial-gradient(rgba(120, 80, 40, 0.05) 1px, transparent 1.3px) 0 0 / 9px 9px; border-radius: var(--r-l); box-shadow: var(--shadow-2), inset 0 0 0 1px rgba(255, 236, 210, 0.08); pointer-events: auto; animation: panelIn 0.4s var(--spring); scrollbar-width: thin; scrollbar-color: rgba(92, 58, 28, 0.25) transparent; }
 @keyframes panelIn { from { transform: translate(-50%, -46%) scale(0.95); opacity: 0; } }
 @media (max-width: 560px) {
-  .panel { top: auto; bottom: 0; transform: translateX(-50%); width: 100vw; border-radius: var(--r-l) var(--r-l) 0 0; max-height: 90vh; padding-bottom: var(--safe-b); animation: sheetIn 0.4s cubic-bezier(0.2, 1.05, 0.4, 1); }
+  .panel { top: auto; bottom: 0; transform: translateX(-50%); width: var(--vw); border-radius: var(--r-l) var(--r-l) 0 0; max-height: calc(var(--vh) * 0.9); padding-bottom: var(--safe-b); animation: sheetIn 0.4s cubic-bezier(0.2, 1.05, 0.4, 1); }
   .panel::before { content: ''; position: sticky; z-index: 3; top: 0; display: block; width: 40px; height: 5px; margin: 0 auto -5px; border-radius: 9px; background: rgba(255, 236, 210, 0.35); transform: translateY(8px); }
   .panel:has(> .taste-hero)::before { background: rgba(92, 58, 28, 0.25); }
   @keyframes sheetIn { from { transform: translate(-50%, 50%); opacity: 0.5; } }
@@ -394,7 +400,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .taste-hero .close { background: rgba(255, 255, 255, 0.75); }
 
 /* after a meal: a small card, not a page */
-.savour { position: absolute; z-index: 34; left: 50%; bottom: calc(96px + var(--safe-b)); transform: translateX(-50%); width: min(440px, calc(100vw - 24px)); display: flex; gap: 14px; align-items: flex-start;
+.savour { position: absolute; z-index: 34; left: 50%; bottom: calc(96px + var(--safe-b)); transform: translateX(-50%); width: min(440px, calc(var(--vw) - 24px)); display: flex; gap: 14px; align-items: flex-start;
   padding: 14px 16px 12px 12px; background: var(--cream); border-radius: var(--r-l); box-shadow: var(--shadow-2), inset 0 0 0 1px var(--line); color: var(--ink); animation: savourIn 0.6s var(--spring); pointer-events: auto; }
 .savour.out { animation: savourOut 0.38s ease forwards; }
 @keyframes savourIn { from { transform: translateX(-50%) translateY(30px) scale(0.92); opacity: 0; } }
@@ -453,7 +459,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 @media (max-width: 560px) { .taste-foot { padding: 14px 16px 20px; } }
 
 /* passport */
-.passport { width: min(700px, calc(100vw - 32px)); background: var(--indigo); color: var(--cream); }
+.passport { width: min(700px, calc(var(--vw) - 32px)); background: var(--indigo); color: var(--cream); }
 .passport .panel-head { padding-bottom: 12px; margin-bottom: 0; background: none; box-shadow: none; }
 .passport .ph-icon { background: rgba(255, 226, 168, 0.14); color: #ffe2a8; box-shadow: inset 0 0 0 1.5px rgba(255, 226, 168, 0.45); }
 .passport .panel-head h2 { color: #ffe2a8; letter-spacing: 0.04em; }
@@ -534,7 +540,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 /* world map */
 
 /* dialogue */
-.dialogue { position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%); width: min(600px, calc(100vw - 24px)); background: rgba(38, 27, 21, 0.9); color: var(--on-dark); border-radius: 24px; padding: 24px 22px 14px;
+.dialogue { position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%); width: min(600px, calc(var(--vw) - 24px)); background: rgba(38, 27, 21, 0.9); color: var(--on-dark); border-radius: 24px; padding: 24px 22px 14px;
   box-shadow: inset 0 0 0 1px rgba(255, 236, 210, 0.14), 0 16px 40px rgba(20, 12, 8, 0.4); pointer-events: auto; animation: sheetUp 0.35s var(--spring); cursor: pointer; }
 @keyframes sheetUp { from { transform: translate(-50%, 30px); opacity: 0; } }
 .dialogue .dn { position: absolute; left: 18px; top: -14px; background: var(--tomato); color: #fff; font-family: var(--display); font-weight: 600; font-size: 14px; padding: 6px 14px 7px; border-radius: 99px; box-shadow: 0 3px 0 var(--tomato-deep); transform: rotate(-2deg); }
@@ -561,7 +567,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .set-row .seg button { padding: 7px 11px; font-size: 12.5px; }
 @media (max-width: 420px) { .set-row { flex-wrap: wrap; } .set-row .seg { width: 100%; } .set-row .seg button { flex: 1; justify-content: center; } }
 /* volume slider */
-.vol { -webkit-appearance: none; appearance: none; width: min(190px, 46vw); height: 28px; background: none; margin: 0; cursor: pointer; --p: 50%; }
+.vol { -webkit-appearance: none; appearance: none; width: min(190px, calc(var(--vw) * 0.46)); height: 28px; background: none; margin: 0; cursor: pointer; --p: 50%; }
 .vol::-webkit-slider-runnable-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--matcha) var(--p), var(--cream-3) var(--p)); box-shadow: inset 0 1px 2px rgba(60, 34, 16, 0.15); }
 .vol::-moz-range-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, var(--matcha) var(--p), var(--cream-3) var(--p)); box-shadow: inset 0 1px 2px rgba(60, 34, 16, 0.15); }
 .vol::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -7px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 1px 3px rgba(60, 34, 16, 0.3); }
@@ -583,7 +589,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .notes li + li { margin-top: 6px; }
 
 /* ---------------------------------------------------------------- cooking */
-.cook { width: min(580px, calc(100vw - 32px)); }
+.cook { width: min(580px, calc(var(--vw) - 32px)); }
 .cook-steps { display: flex; gap: 6px; padding: 0 24px 14px; }
 .cook-steps i { flex: 1; height: 8px; border-radius: 9px; background: var(--cream-3); transition: background-color 0.3s; }
 .cook-steps i.done { background: var(--matcha); }
@@ -723,7 +729,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .trip-from .g { width: 18px; height: 18px; color: #ffc76b; }
 .trip-from b { color: #fffaf2; }
 
-.trip-sheet { position: absolute; z-index: 4; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); width: min(560px, calc(100vw - 28px)); background: var(--cream); border-radius: var(--r-l); box-shadow: var(--shadow-2);
+.trip-sheet { position: absolute; z-index: 4; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%); width: min(560px, calc(var(--vw) - 28px)); background: var(--cream); border-radius: var(--r-l); box-shadow: var(--shadow-2);
   padding: 14px 16px 16px; animation: sheetUp 0.45s var(--spring) 0.1s both; transition: opacity 0.4s, transform 0.4s; }
 .dest-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 2px 16px 12px; scroll-padding: 0 16px; }
 .dest-strip::-webkit-scrollbar { display: none; }
@@ -759,7 +765,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .trip.flying .trip-sheet { opacity: 0; transform: translate(-50%, 40px); pointer-events: none; }
 .trip.flying .trip-top { opacity: 0; transform: translateY(-20px); pointer-events: none; }
 @media (min-width: 900px) {
-  .trip-sheet { left: calc(20px + var(--safe-l)); top: 96px; bottom: auto; transform: none; width: 400px; max-height: calc(100vh - 116px - var(--safe-b)); overflow: auto; animation-name: sheetLeft; }
+  .trip-sheet { left: calc(20px + var(--safe-l)); top: 96px; bottom: auto; transform: none; width: 400px; max-height: calc(var(--vh) - 116px - var(--safe-b)); overflow: auto; animation-name: sheetLeft; }
   .trip.flying .trip-sheet { transform: translateX(-40px); }
   .dest-strip { flex-wrap: wrap; overflow: visible; }
 }
@@ -768,7 +774,7 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
   .trip-top { padding-top: calc(12px + var(--safe-t)); }
   .trip-title h2 { font-size: 23px; }
   .trip-from { display: none; }
-  .trip-sheet { width: 100vw; bottom: 0; border-radius: var(--r-l) var(--r-l) 0 0; padding: 12px 14px calc(14px + var(--safe-b)); }
+  .trip-sheet { width: var(--vw); bottom: 0; border-radius: var(--r-l) var(--r-l) 0 0; padding: 12px 14px calc(14px + var(--safe-b)); }
   .dest-strip { margin: 0 -14px; padding: 2px 14px 10px; }
   .dc-blurb { font-size: 13.5px; margin: 8px 0; }
   .dc-flag { font-size: 30px; }
@@ -1125,8 +1131,8 @@ body.photo-mode #hud, body.photo-mode #labels, body.photo-mode #prompt { display
   .ph-done span { display: none; }
   .ph-done { padding: 0 11px; }
   .ph-bottom { gap: 26px; }
-  .ph-hint { white-space: normal; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
-  .ph-shot { left: 50%; right: auto; transform: translateX(-50%); width: min(260px, calc(100vw - 32px)); }
+  .ph-hint { white-space: normal; text-align: center; width: max-content; max-width: calc(var(--vw) - 32px); }
+  .ph-shot { left: 50%; right: auto; transform: translateX(-50%); width: min(260px, calc(var(--vw) - 32px)); }
   .ph-shot.in { animation: none; }
 }
 
@@ -1143,9 +1149,9 @@ body.photo-mode #hud, body.photo-mode #labels, body.photo-mode #prompt { display
 .album .snap:hover { transform: rotate(0) scale(1.03); }
 .album .snap img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 5px; display: block; background: #1d1512; }
 .album .snap small { font-size: 11.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 2px; }
-.photo-view { width: min(980px, calc(100vw - 32px)); }
+.photo-view { width: min(980px, calc(var(--vw) - 32px)); }
 .pv-pic { position: relative; margin: 0 22px; }
-.pv-pic img { display: block; width: 100%; max-height: calc(100vh - 260px); object-fit: contain; border-radius: var(--r-s); background: #1d1512; }
+.pv-pic img { display: block; width: 100%; max-height: calc(var(--vh) - 260px); object-fit: contain; border-radius: var(--r-s); background: #1d1512; }
 .pv-step { position: absolute; top: 50%; width: 42px; height: 42px; margin-top: -21px; border-radius: 50%; display: grid; place-items: center; background: rgba(38, 27, 21, 0.7); color: #fff4e4; box-shadow: inset 0 0 0 1px rgba(255, 236, 210, 0.15); transition: transform 0.1s; }
 .pv-step .g { width: 20px; height: 20px; }
 .pv-step:active { transform: scale(0.9); }
@@ -1155,7 +1161,7 @@ body.photo-mode #hud, body.photo-mode #labels, body.photo-mode #prompt { display
 .pv-foot .g { width: 17px; height: 17px; }
 .pv-del { margin-left: auto; }
 .pv-del.sure { background: var(--tomato-soft); color: var(--tomato-deep); }
-@media (max-width: 560px) { .pv-pic { margin: 0 14px; } .pv-pic img { max-height: 58vh; } .pv-foot { padding: 14px 14px 18px; } }
+@media (max-width: 560px) { .pv-pic { margin: 0 14px; } .pv-pic img { max-height: calc(var(--vh) * 0.58); } .pv-foot { padding: 14px 14px 18px; } }
 .pp-flag.it { background: linear-gradient(90deg, #009246 0 33.3%, #fff 33.3% 66.6%, #ce2b37 66.6%); }
 .pp-flag.it i { display: none; }
 /* Turkey: a white crescent and star on red */
@@ -1166,3 +1172,43 @@ body.photo-mode #hud, body.photo-mode #labels, body.photo-mode #prompt { display
 .pp-other { margin-top: 22px; padding-top: 16px; border-top: 2px dashed var(--line); }
 .stamps.small { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
 .stamps.small .slot .sn { font-size: 11px; }
+
+/* ---------------------------------------------------------------- phone scale
+   Phones get the same layouts, zoomed down so they fit: landscape phones are only ~360-430px tall, and
+   portrait phones only ~360-430px wide. Only UI chrome is zoomed; anything placed from JS in screen pixels
+   (world labels, globe pins, map canvases) stays at 1, with just its tags zoomed. */
+@media (orientation: portrait) and (max-width: 440px) { :root { --z: 0.9; } }
+@media (orientation: portrait) and (max-width: 370px) { :root { --z: 0.84; } }
+@media (orientation: landscape) and (max-height: 520px) { :root { --z: 0.78; } }
+@media (orientation: landscape) and (max-height: 400px) { :root { --z: 0.72; } }
+#hud, #prompt, #toasts, .title-card, .title-hint, .panel, .savour, .dialogue,
+.trip-top, .trip-sheet, .trip-skip, .landed, .bp-wrap > *, .pin-tag,
+.cm-title, .cm-close, .cm-tools, .cm-legend, .cm-hint, .cm-card,
+.ph-top, .ph-bottom, .ph-hint, .ph-shot { zoom: var(--z); }
+
+/* a destination strip that scrolls sideways shows it: the last chip fades out instead of being cut */
+.dest-strip { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 34px), transparent); mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 34px), transparent); }
+@media (min-width: 900px) { .dest-strip { -webkit-mask-image: none; mask-image: none; } }
+
+/* landscape phones: the trip sheet moves beside the globe instead of covering it */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 899px) {
+  .trip-top { padding-top: calc(10px + var(--safe-t)); padding-bottom: 8px; }
+  .trip-title h2 { font-size: 24px; }
+  .trip-sheet { left: calc(12px + var(--safe-l)); top: calc(78px + var(--safe-t)); bottom: auto; transform: none; width: 340px; max-height: calc(var(--vh) - 90px - var(--safe-t) - var(--safe-b));
+    overflow: auto; overscroll-behavior: contain; scrollbar-width: none; padding: 12px 14px 14px; animation-name: sheetLeft; }
+  .trip.flying .trip-sheet { transform: translateX(-40px); }
+  .dest-strip { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0 0 10px; -webkit-mask-image: none; mask-image: none; }
+  .dchip { padding: 6px 10px 6px 8px; font-size: 12.5px; }
+  .dest-card { padding: 10px 12px; }
+  .dc-trip { margin-top: 8px; }
+  .trip-cta { margin-top: 10px; }
+  .trip-cta .btn-hero { padding: 13px 20px; font-size: 18px; }
+  .pin:not(.sel):not(.home) .pin-tag { padding: 5px 7px; gap: 3px; }
+  .pin:not(.sel):not(.home) .nm { display: none; }
+  .bp-wrap { padding-top: calc(10px + var(--safe-t)); padding-bottom: calc(10px + var(--safe-b)); }
+}
+/* short landscape: popups that sit above the prompt need to stay clear of the top HUD */
+@media (orientation: landscape) and (max-height: 520px) {
+  .savour { bottom: calc(76px + var(--safe-b)); }
+  .panel { max-height: calc(var(--vh) - 20px - var(--safe-t) - var(--safe-b)); }
+}

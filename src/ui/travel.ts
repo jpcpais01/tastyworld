@@ -254,8 +254,8 @@ export class Travel {
     };
     const layout = () => {
       const r = trip.getBoundingClientRect(), sr = sheet.getBoundingClientRect(), tr = top.getBoundingClientRect();
-      const side = r.width >= 900;
-      // wide screens: the sheet sits on the left; otherwise it covers the bottom
+      // wide or short-landscape screens: the sheet sits on the left; otherwise it covers the bottom
+      const side = sr.width < r.width * 0.6 && sr.left < r.width * 0.2;
       map.setInsets(tr.bottom - r.top, side ? 0 : r.bottom - sr.top, side ? sr.right - r.left : 0, 0);
     };
     (top.querySelector('[data-a="back"]') as HTMLElement).onclick = () => { this.audio.play('click'); this.hooks.close(); };

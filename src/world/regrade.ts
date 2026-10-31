@@ -131,8 +131,8 @@ export function gardenFlights(walk: Uint8Array, kind: Uint8Array, lot: Uint16Arr
    * Cut a flight from the edge column `top` (on the higher side) inwards along `d`, down to `low`: a voxel a step
    * where there is room, steeper (never more than two a step) where the terrace is shallow.
    */
-  const fits = (top: number, d: number, low: number, owner: number) => {
-    const rise = walk[top] - low, alongX = Math.abs(d) === 1, step = Math.sign(d);
+  const fits = (top: number, d: number, low: number, owner: number, inner = false) => {
+    const alongX = Math.abs(d) === 1, step = Math.sign(d);
     const tx = top % SX, tz = Math.floor(top / SX);
     /** Column of step k, w across the flight (or -1 off the map). */
     const at = (k: number, w: number) => {
@@ -143,12 +143,15 @@ export function gardenFlights(walk: Uint8Array, kind: Uint8Array, lot: Uint16Arr
     // every step is on this patch in its middle and at least one column beside it (an edge running on the slant
     // leaves a corner off); the outer columns are cut where they are on it too
     const row = (k: number) => ok(at(k, 0)) && (ok(at(k, -1)) || ok(at(k, 1)));
+    // a voxel a step until the flight meets the terrace's own ground (which may climb on away from the edge)
     let len = 0;
-    while (len < rise && row(len)) len++;
-    if (len < Math.ceil(rise / 2)) return null;
+    while (row(len) && len < walk[at(len, 0)] - low) len++;
+    if (len < 1) return null;
+    const rise = walk[at(len - 1, 0)] - low;
+    if (rise > 2 * len) return null;
     // the foot lands on the lower side (beside it, the patch's own corner may stand)
     const foot = at(-1, 0);
-    if (foot < 0 || comp[foot] === owner || Math.abs(walk[foot] - low) > 2 || !(reach(foot) || comp[foot] >= 0)) return null;
+    if (foot < 0 || (comp[foot] === owner && !inner) || Math.abs(walk[foot] - low) > 2 || !(reach(foot) || comp[foot] >= 0)) return null;
     for (const w of [-1, 1]) {
       const f = at(-1, w);
       if (f < 0 || ok(f)) continue;
@@ -168,50 +171,112 @@ export function gardenFlights(walk: Uint8Array, kind: Uint8Array, lot: Uint16Arr
    * path's level `high` down onto the patch: steps standing on the patch, a voxel a step where there is room.
    */
   const stands = (first: number, d: number, high: number, owner: number) => {
-    const rise = high - walk[first], alongX = Math.abs(d) === 1, step = Math.sign(d);
+    const alongX = Math.abs(d) === 1, step = Math.sign(d);
     const tx = first % SX, tz = Math.floor(first / SX);
     const at = (k: number, w: number) => {
       const x = tx + (alongX ? step * k : w), z = tz + (alongX ? w : step * k);
       return x < 0 || z < 0 || x >= SX || z >= SZ ? -1 : z * SX + x;
     };
     const ok = (c: number) => c >= 0 && comp[c] === owner && kind[c] === ground && walk[c] <= high;
+    // the ground at the top: the path, or the terrace above
+    const up = (c: number) => c >= 0 && comp[c] !== owner && Math.abs(walk[c] - high) <= 2 && (reach(c) || comp[c] >= 0);
+    // where the wall runs on the slant, a short landing at the top level first fills the corner it leaves
+    let k0 = 0;
+    const full = (k: number) => { for (let w = -2; w <= 2; w++) if (!ok(at(k, w))) return false; return true; };
+    while (k0 < 4 && !full(k0)) {
+      for (let w = -2; w <= 2; w++) { const c = at(k0, w); if (!ok(c) && !up(c)) return null; }
+      k0++;
+    }
+    if (!full(k0)) return null;
+    // the top meets the higher ground across the middle three columns
+    for (let w = -1; w <= 1; w++) {
+      let k = k0 - 1;
+      while (k >= 0 && ok(at(k, w))) k--;
+      if (!up(at(k, w))) return null;
+    }
+    const rise0 = high - walk[at(k0, 0)];
     // room for the flight and a landing at its foot
     let len = 0;
-    for (; len <= rise; len++) {
-      let row = true;
-      for (let w = -2; w <= 2 && row; w++) row = ok(at(len, w));
-      if (!row) break;
-    }
-    len = Math.min(rise, len - 1);
-    if (len < Math.ceil(rise / 2)) return null;
-    // the top step meets the path across the whole width
-    for (let w = -1; w <= 1; w++) {
-      const f = at(-1, w);
-      if (f < 0 || Math.abs(walk[f] - high) > 2 || !reach(f)) return null;
-    }
+    for (; len <= rise0; len++) if (!full(k0 + len)) break;
+    len = Math.min(rise0, len - 1);
+    if (len < 1) return null;
+    // the steps come down to the landing's own level (the ground under a flight may fall away along it)
+    const rise = high - walk[at(k0 + len, 0)];
+    if (rise > 2 * (len + 1)) return null;
     const out: [number, number][] = [];
+    for (let k = 0; k < k0; k++) for (let w = -2; w <= 2; w++) { const c = at(k, w); if (ok(c)) out.push([c, high]); }
     // (five wide: where the flight stands proud of the patch its outer columns carry the parapets)
     for (let k = 0; k < len; k++)
-      for (let w = -2; w <= 2; w++) out.push([at(k, w), Math.max(walk[at(k, w)], high - Math.ceil((k * rise) / len))]);
+      for (let w = -2; w <= 2; w++) { const c = at(k0 + k, w); out.push([c, Math.max(walk[c], high - Math.ceil(((k + 1) * rise) / (len + 1)))]); }
     return out;
   };
+  /** Whether the walk from `a` to `b` within their patch is a long one (over 24 m), or there is none. */
+  const far = (a: number, b: number, id: number) => {
+    const dist = new Map<number, number>([[a, 0]]);
+    const q = [a];
+    for (let k = 0; k < q.length; k++) {
+      const c = q[k], dc = dist.get(c)!;
+      if (c === b) return false;
+      if (dc >= 96) continue;
+      for (const d of DIRS) {
+        const j = c + d;
+        if (j < 0 || j >= n || dist.has(j) || comp[j] !== id || (Math.abs(d) === 1 && Math.floor(j / SX) !== Math.floor(c / SX)) || Math.abs(walk[j] - walk[c]) > 2) continue;
+        // (a ridge a column wide is no way round)
+        if (j !== b && DIRS.filter((e) => j + e >= 0 && j + e < n && comp[j + e] === id).length < 3) continue;
+        dist.set(j, dc + 1); q.push(j);
+      }
+    }
+    return true;
+  };
   /** Where a patch meets the joined ground: level spots (open already) and risers a flight could climb. */
-  const contacts = (id: number) => {
+  const contacts = (id: number, inner = false) => {
     const level: number[] = [];
-    const cand: { top: number; d: number; low: number; owner: number; at: number; raise?: boolean }[] = [];
+    const cand: { top: number; d: number; low: number; owner: number; at: number; nb: number; raise?: boolean; inner?: boolean }[] = [];
+    const nbOf = (j: number) => (comp[j] >= 0 ? comp[j] : -1);
     for (const c of cells[id])
       for (const d of DIRS) {
         const j = c + d;
-        if (j < 0 || j >= n || (Math.abs(d) === 1 && Math.floor(j / SX) !== Math.floor(c / SX)) || comp[j] === id || !reach(j)) continue;
+        if (j < 0 || j >= n || (Math.abs(d) === 1 && Math.floor(j / SX) !== Math.floor(c / SX))) continue;
         const dh = walk[c] - walk[j];
+        // a riser inside the terrace itself (its two levels meet only a long way round): steps cut into the upper one
+        if (comp[j] === id) {
+          if (inner && dh > 2 && dh <= maxRise && far(j, c, id)) cand.push({ top: c, d: -d, low: walk[j], owner: id, at: c, nb: id, inner: true });
+          continue;
+        }
+        if (!reach(j)) continue;
         if (Math.abs(dh) <= 2) level.push(c);
-        // this patch higher: steps cut into it; lower: into the joined patch above (never into a path)
-        else if (dh > 2 && dh <= maxRise) cand.push({ top: c, d: -d, low: walk[j], owner: id, at: c });
-        else if (-dh > 2 && -dh <= maxRise && comp[j] >= 0) cand.push({ top: j, d, low: walk[c], owner: comp[j], at: c });
+        // this patch higher: steps cut into it; lower: into the joined patch above (never into a path); and where
+        // the higher terrace is too narrow for that, a flight built up on the lower one against its wall instead
+        else if (dh > 2 && dh <= maxRise) {
+          cand.push({ top: c, d: -d, low: walk[j], owner: id, at: c, nb: nbOf(j) });
+          if (comp[j] >= 0) cand.push({ top: j, d, low: walk[c], owner: comp[j], at: c, nb: nbOf(j), raise: true });
+        } else if (-dh > 2 && -dh <= maxRise && comp[j] >= 0) {
+          cand.push({ top: j, d, low: walk[c], owner: comp[j], at: c, nb: nbOf(j) });
+          cand.push({ top: c, d: -d, low: walk[j], owner: id, at: c, nb: nbOf(j), raise: true });
+        }
         // under a path's parapet: a flight built up against the wall, down from the path onto this patch
-        else if (-dh > 2 && -dh <= maxRise) cand.push({ top: c, d: -d, low: walk[j], owner: id, at: c, raise: true });
+        else if (-dh > 2 && -dh <= maxRise) cand.push({ top: c, d: -d, low: walk[j], owner: id, at: c, nb: nbOf(j), raise: true });
       }
     return { level, cand };
+  };
+  /** Nor cut its terrace in two: every column of it is still walkable from the flight, past the steps' sides. */
+  const whole = (f: [number, number][], owner: number) => {
+    const h = new Map(f);
+    const height = (i: number) => h.get(i) ?? walk[i];
+    const seen = new Set<number>([f[0][0]]);
+    const st = [f[0][0]];
+    while (st.length) {
+      const c = st.pop()!;
+      for (const d of DIRS) {
+        const j = c + d;
+        if (j < 0 || j >= n || seen.has(j) || (Math.abs(d) === 1 && Math.floor(j / SX) !== Math.floor(c / SX))) continue;
+        if ((comp[j] !== owner && !h.has(j)) || Math.abs(height(j) - height(c)) > 2) continue;
+        seen.add(j); st.push(j);
+      }
+    }
+    let lost = 0;
+    for (const c of cells[owner]) if (!seen.has(c)) lost++;
+    return lost <= 4;
   };
   /** A flight may not run beside a path it doesn't step onto (it would leave a riser between the two). */
   const clear = (f: [number, number][]) => {
@@ -224,9 +289,9 @@ export function gardenFlights(walk: Uint8Array, kind: Uint8Array, lot: Uint16Arr
       }
     return true;
   };
-  const cut = (c: { top: number; d: number; low: number; owner: number; raise?: boolean }) => {
-    const f = c.raise ? stands(c.top, c.d, c.low, c.owner) : fits(c.top, c.d, c.low, c.owner);
-    if (!f || !clear(f)) return false;
+  const cut = (c: { top: number; d: number; low: number; owner: number; raise?: boolean; inner?: boolean }) => {
+    const f = c.raise ? stands(c.top, c.d, c.low, c.owner) : fits(c.top, c.d, c.low, c.owner, c.inner);
+    if (!f || !clear(f) || !whole(f, c.owner)) return false;
     for (const [col, h] of f) { walk[col] = h; kind[col] = stair; }
     flights++;
     return true;
@@ -246,16 +311,39 @@ export function gardenFlights(walk: Uint8Array, kind: Uint8Array, lot: Uint16Arr
     }
   }
   // then more flights along long edges, so no stretch of path runs far beside a terrace with no way up
-  const gap2 = spacing * spacing;
+  // (measured walking along the edge, on either side of it: a house between two spots is a long way round)
+  const ways = new Map<string, Set<number>>();
+  const on = (j: number, a: number, b: number) => comp[j] === a || (b >= 0 ? comp[j] === b : comp[j] < 0 && path(kind[j]) && !lot[j]) || kind[j] === stair;
+  const along = (from: number, a: number, b: number, into: Set<number>) => {
+    const dist = new Map<number, number>([[from, 0]]);
+    const q = [from];
+    for (let k = 0; k < q.length; k++) {
+      const c = q[k], dc = dist.get(c)!;
+      into.add(c);
+      if (dc >= spacing) continue;
+      for (const d of DIRS) {
+        const j = c + d;
+        if (j < 0 || j >= n || dist.has(j) || (Math.abs(d) === 1 && Math.floor(j / SX) !== Math.floor(c / SX))) continue;
+        // (not through a gap a column wide: it may well be closed by a pot or a doorstep)
+        if (!on(j, a, b) || DIRS.filter((e) => j + e >= 0 && j + e < n && on(j + e, a, b)).length < 3) continue;
+        dist.set(j, dc + 1); q.push(j);
+      }
+    }
+  };
   for (let id = 0; id < cells.length; id++) {
     if (!joined[id] || cells[id].length < minPatch) continue;
     // (a level contact counts for joining but not here: the builder may wall it, a gate pier or a yard wall)
-    const { cand } = contacts(id);
-    const ways: number[] = [];
+    const { cand } = contacts(id, true);
+    // (counted for each pair of neighbours on its own: a flight down to one terrace is no way up from another)
     for (const c of cand) {
-      const cx = c.at % SX, cz = Math.floor(c.at / SX);
-      if (ways.some((w) => (w % SX - cx) ** 2 + (Math.floor(w / SX) - cz) ** 2 < gap2)) continue;
-      if (cut(c)) ways.push(c.at);
+      const key = c.nb < 0 ? `${id}` : `${Math.min(id, c.nb)}:${Math.max(id, c.nb)}`;
+      const served = ways.get(key);
+      if (served?.has(c.at)) continue;
+      if (cut(c)) {
+        const set = served ?? new Set<number>();
+        along(c.at, id, c.nb, set);
+        ways.set(key, set);
+      }
     }
   }
   let stranded = 0;

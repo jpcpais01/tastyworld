@@ -11,6 +11,7 @@ import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { amalfiPlan, K, col, layerOf, hillY, headlandY, isFoot, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, PORTAL_Y, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan, type PathSeg } from './amalfiPlan';
 import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
+import { paintColors, picture, hangIn, type PaintColors } from './paintings';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -788,8 +789,9 @@ function covered(b: Builder, c: AC, plan: Plan): void {
           // (a tunnel's lining is a few courses of stone; above it is the headland's own limestone)
           g.box(x, crown, z, x, top, z, (xx, y, zz) => (y === crown ? c.stripeTufa : y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : s.kind === K.Tunnel && y > top - 2 ? c.grassDry : s.kind === K.Tunnel && y > crown + 6 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, false) === c.mortar ? c.mortar : wall));
         } else if (plan.kind[ci] !== s.kind && t > 0 && t < 1) {
-          // side walls only: the two ends stay open
-          g.box(x, floor, z, x, top, z, (xx, y, zz) => (y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : y < floor + 2 ? c.plinth : s.kind === K.Tunnel && y > spring + 8 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, s.kind !== K.Tunnel)));
+          // side walls only: the two ends stay open (and they reach down to the ground where it falls away beside
+          // the passage, so a shop let into the wall never opens a hole down to the terrace below)
+          g.box(x, Math.min(floor, plan.walk[ci]), z, x, top, z, (xx, y, zz) => (y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : y < floor + 2 ? c.plinth : s.kind === K.Tunnel && y > spring + 8 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, s.kind !== K.Tunnel)));
         }
       }
     // lamps along the tunnel's vault (a covered passage has lanterns on its walls, see passages())
@@ -1236,9 +1238,12 @@ function duomo(b: Builder, c: AC): void {
   // nave x -58..-28, z 6..22, the front faces the steps at x = -27
   const X0 = -58 / V, X1 = -27 / V - 1, Z0 = 4 / V, Z1 = 24 / V - 1;
   const H = Math.round(15 / V);
-  b.occlude(X0, Z0, X1, Z1, DUOMO_Y + 24, DUOMO_Y + 0.95, 'landmark');
+  // (the footprint takes in the portico, and it claims the whole front screen, X1 + 1 .. X1 + 12 across
+  // Z0 - 6 .. Z1 + 6, over the houses' lots either side: the front falls with the rest of its side, never in strips)
+  b.occlude(X0, Z0, X1 + 12, Z1, DUOMO_Y + 24, DUOMO_Y + 0.95, 'landmark');
   // the nave is walked into from the portico like a shop: the cutaway opens it 6 m over its floor
-  Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, room: HALL_ROOM, walls: DUOMO_WALLS, shell: 3 });
+  const hallOcc = b.occluders.length - 1;
+  Object.assign(b.occluders[hallOcc], { floor: DUOMO_Y, room: HALL_ROOM, walls: DUOMO_WALLS, shell: 3, claim: [(X1 + 1) * V, (Z0 - 6) * V, (X1 + 13) * V, (Z1 + 7) * V] });
   if (g.touches(X0, Z0 - 30, X1 + 30, Z1 + 30)) {
     g.box(X0, Y, Z0, X1, Y + H, Z1, (_x, y) => (y < Y + 2 ? c.marbleGrey : ((y - Y) >> 1) % 6 === 0 ? c.stripeTufa : c.cream));
     // pitched roof along the nave
@@ -1289,10 +1294,11 @@ function duomo(b: Builder, c: AC): void {
   }
   // inside: the baroque nave, the apse and the crypt (registers its anchors in every worker)
   duomoInterior(b, { X0, X1, Z0, Z1, Y, H, FX: X1 + 1, zc: (Z0 + Z1) >> 1, roof: [c.roofTile, c.roofTileB] });
+  b.occluders[hallOcc].air = b.halls[b.halls.length - 1].rect;
   // the bell tower (1180), finished with a drum of interlaced arches and green and yellow tiles
   const TX0 = -40 / V, TZ0 = 25 / V, TS = 22;
   b.occlude(TX0, TZ0, TX0 + TS - 1, TZ0 + TS - 1, DUOMO_Y + 40, DUOMO_Y + 0.95, 'landmark');
-  b.occluders[b.occluders.length - 1].floor = DUOMO_Y;
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, follow: hallOcc });
   if (g.touches(TX0, TZ0, TX0 + TS, TZ0 + TS)) {
     const TH = 116;
     g.box(TX0, Y, TZ0, TX0 + TS - 1, Y + TH, TZ0 + TS - 1, (_x, y) => (((y - Y) % 28) < 2 ? c.stripeDark : c.tufa));
@@ -2412,14 +2418,12 @@ function lanes(b: Builder, c: AC, plan: Plan): void {
 }
 
 /** A wayside shrine: the Madonna in majolica in a marble niche under a little tiled roof, flowers and a red lamp on its ledge. Back to the wall at z = 0. */
-function shrine(c: AC, seed: number): Prop {
+function shrine(c: AC, pc: PaintColors, seed: number): Prop {
   const p = new Prop(8, 14, 4);
   p.box(0, 1, 0, 7, 12, 0, c.majolicaWhite);
-  // the picture: a blue mantle, a face, a gold halo, on yellow tiles in a blue border
-  p.box(1, 2, 0, 6, 10, 0, (x, y) => (x === 1 || x === 6 || y === 2 || y === 10 ? c.majolicaBlue : c.majolicaYellow));
-  p.box(2, 3, 0, 5, 7, 0, c.majolicaBlue);
-  p.box(3, 7, 0, 4, 8, 0, c.peach);
-  p.box(2, 9, 0, 5, 9, 0, c.mosaicGold); p.set(2, 8, 0, c.mosaicGold); p.set(5, 8, 0, c.mosaicGold);
+  // the picture: the Madonna and Child in a blue mantle under a gold halo, on yellow tiles in a blue border
+  const im = picture(pc, 'madonna', 6, 9, seed);
+  for (let v = 0; v < 9; v++) for (let u = 0; u < 6; u++) p.set(1 + u, 2 + v, 0, im.get(u, v));
   // the marble surround and the ledge
   p.box(0, 1, 1, 0, 11, 1, c.marble); p.box(7, 1, 1, 7, 11, 1, c.marble);
   p.box(0, 0, 0, 7, 1, 3, c.marble);
@@ -2479,7 +2483,7 @@ function laneDress(b: Builder, c: AC, plan: Plan): void {
       const side = r() < 0.5 ? 1 : -1;
       const w = wallAt(t, side, 0.5, 1.1, 3.2);
       if (!w) continue;
-      b.place(shrine(c, Math.floor(r() * 1e4)), w.x, w.y + 1.3, w.z, w.turn);
+      b.place(shrine(c, paintColors(b), Math.floor(r() * 1e4)), w.x, w.y + 1.3, w.z, w.turn);
       b.lamp(w.x, w.y + 1.6, w.z, [1, 0.55, 0.35], 2.2, 0.45);
     }
     // Vespas against the wall of the wider streets, along the kerb
@@ -3148,7 +3152,7 @@ function hotelHouse(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   { const [x, z] = L.P(2, D - 3); b.block(x - 0.4, z - 0.4, x + 0.4, z + 0.4); }
   // majolica plates on the left wall, a painting of the coast over the sofa
   for (let d = 10; d < D - 8; d += 4) box(0, 7, d, 0, 8, d + 1, (_a, y, dd) => ((y + dd) % 2 ? c.majolicaYellow : c.majolicaBlue));
-  box(0, 6, 3, 0, 9, 8, (_a, y, d) => (y === 6 || y === 9 || d === 3 || d === 8 ? c.mosaicGold : y < 8 ? c.umbrellaC : c.sky));
+  hangIn(b, picture(paintColors(b), 'coast', 12, 8, lt.seed), L.P, 1, 6, 1, 0, (F + 6 - G) * V);
   // a chandelier in the palazzo, a ceiling lamp elsewhere
   box(mid, 10, (D >> 1) - 1, mid + 1, 11, D >> 1, ic.brass);
   if (palazzo) {
@@ -3198,7 +3202,7 @@ function hotelHouse(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
     }
     const [b0] = rp.beds[0], b1 = rp.beds[rp.beds.length - 1][1];
     // a majolica plate or a gilt picture over the bed, little tables with lamps either side
-    o.box(0, 5, b0 + 1, 0, 8, b1 - 1, (_a, y, v) => (y === 5 || y === 8 || v === b0 + 1 || v === b1 - 1 ? (palazzo ? c.mosaicGold : c.majolicaYellow) : (v + y) % 3 ? c.sky : c.umbrellaC));
+    hangIn(b, picture(paintColors(b), i % 2 ? 'lemons' : 'coast', (b1 - b0 - 1) * 2, 8, lt.seed + i), R.P, 1, (b0 + b1 + 1) / 2, 1, 0, (f.yb + 5 - G) * V);
     for (const v of [b0 - 2, b1 + 1]) {
       o.box(1, 1, v, 2, 2, v + 1, wood); o.box(1, 3, v, 1, 3, v, c.iron); o.box(1, 4, v, 1, 4, v, ic.shade);
       lamp(R, 1.5, v + 0.5, Y + 1.1, WARM, 2.6, 0.55);

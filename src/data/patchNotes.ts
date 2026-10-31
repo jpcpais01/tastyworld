@@ -8,13 +8,67 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.17.9',
+    version: '0.17.14',
     date: '2026-10-31',
     title: 'Light through stained glass',
     items: [
       'Sunbeams in Sant\'Andrea and Istanbul\'s mosques now start exactly at the windows they come through and follow the sun. They no longer hang in front of walls and paintings, pass through the arcades, or start where there is no window.',
       'Each beam takes its colour from its window\'s glass, softened to a warm glow. The rose window throws a wheel of red, gold, blue and green across the floor, the aisle windows leave coloured panes of light on the marble, and the mosques\' coloured lights tint the carpet.',
       'The beams are now soft, dusty light instead of flat sheets. A pier or a pew in front of a beam hides the light behind it, and the light lands on the floor, the pews and the walls where it really falls.',
+    ],
+  },
+  {
+    version: '0.17.13',
+    date: '2026-10-31',
+    title: 'The mountains above Amalfi, reshaped',
+    items: [
+      'The Lattari mountains behind Amalfi have real form now: spurs and deep gullies running down to the sea, ridges with peaks and saddles, and the Valle dei Mulini winding inland as a narrow gorge with steep wooded walls, its far end lost in blue haze.',
+      'The slopes climb in limestone bands, pale grey cliffs streaked dark by the rain with scrub on every ledge, instead of one huge speckled wall. Holm oak woods fill the gullies, chestnuts take over higher up, the maquis between has dark clumps and pale drifts of broom, and the lemon terraces gather round the villages.',
+      'Trees on the mountainside come in more kinds (scrub bushes, olives by the houses) and no two stand quite alike. They grow in groves, and the lemons stand in rows on their terraces.',
+      'The hillside villages sit properly on the slope: every house stands on a dry-stone terrace wall with a little terrace in front of its door, instead of hanging in the trees. Atrani is back on dry land in its cove.',
+      'Stepped mule paths climb from the edge of town up the Valle dei Mulini and in switchbacks up both flanks towards Pogerola, Pontone and Ravello.',
+    ],
+  },
+  {
+    version: '0.17.12',
+    date: '2026-10-31',
+    title: 'More steps up the terraces',
+    items: [
+      'Amalfi\'s and Istanbul\'s terraces now have steps between them too, not only down to the lane: where one garden terrace stands a storey over the next, a flight joins the two, every few houses along the edge.',
+      'Terraces whose wall runs on the slant, or that are too narrow to cut steps into, get a flight built up against the wall instead, with a small landing at the top.',
+      'Steps cut into a terrace that climbs away from its edge now go all the way up to its ground, and no flight cuts a terrace in two any more.',
+      'In the Ruga dei Mercanti the walls reach down to the gardens beside it, so a shop let into the wall no longer opens a hole down to the terrace below.',
+    ],
+  },
+  {
+    version: '0.17.11',
+    date: '2026-10-31',
+    title: 'Every painting at one grain, and great halls that open side by side',
+    items: [
+      'Every painting in the game is now drawn at the same fine grain as the Duomo\'s canvases. Christ in glory over the high altar is repainted from scratch at that grain, with his blessing hand, the orb, the halo and the clouds at his feet.',
+      'New paintings at that grain: saints frescoed round the Duomo crypt, evangelists in gilt medallions over the nave arches, the Madonna and Child in the wayside shrines, the Amalfi coast and lemon still lifes in the hotels, a ferry on the Bosphorus in Istanbul\'s guest rooms, Mount Fuji and a flowering plum on the hanging scrolls of Tokyo, and wave and Fuji prints in its shops.',
+      'Pictures now hang on the wall instead of being painted into it, so none of them shows through on a building\'s outside any more, and the prints that used to hide behind shop shelves now go only where the wall is bare.',
+      'Inside the Duomo and the mosques, each side of the building now drops or stands as one piece. The Duomo\'s striped front and its portico no longer fall in separate strips, and when you turn the view past a corner the two sides ease over in a moment instead of snapping.',
+      'The Duomo\'s bell tower, and the mosques\' minarets and courtyards, fall with the side of the hall they stand on. On the far side they stay whole.',
+    ],
+  },
+  {
+    version: '0.17.10',
+    date: '2026-10-31',
+    title: 'Blocky hills all the way out',
+    items: [
+      'The mountains past Amalfi and the hills across the water in Istanbul no longer melt into smooth ramps where they sink out of the way of the camera. Every block of ground now sinks as a whole, flat on top, so the hills nearest you step down in clean voxel terraces like the rest of the world.',
+    ],
+  },
+  {
+    version: '0.17.9',
+    date: '2026-10-31',
+    title: 'Eminönü\'s waterfront, round the point',
+    items: [
+      'Istanbul\'s quay no longer ends in a sharp square corner by the New Mosque. The promenade now reaches a few metres further into the water and swings round the point in short stretches of stone, stepping out here and tucking into a little bay there, like a quay rebuilt piece by piece.',
+      'Two sets of granite steps lead down into the water, one on the Golden Horn and one in the Bosphorus bay, with rowing boats tied up at the bottom and a lifebuoy at the top.',
+      'Real landing stages: the Bosphorus ferry now docks at a floating pontoon at the end of a stone jetty, reached through the terminal and down a gangway. On the Horn side a second pontoon with a canopy and a bench serves a Bosphorus tour boat with a striped awning over its top deck.',
+      'Big paving flags of mixed stone along every quay, iron bollards where the balık ekmek boats tie up, and lamps, benches facing the water and plane trees in round planters all the way round the point.',
     ],
   },
   {

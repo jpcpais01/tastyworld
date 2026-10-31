@@ -60,6 +60,8 @@ export interface Plan {
   segs: PathSeg[];
   nodes: [number, number][];
   edges: [number, number][];
+  /** Columns of the crags where the hill comes down to the shore road: natural cliff, no steps cut there. */
+  crag: Uint8Array;
 }
 
 // ------------------------------------------------------------------------------------------- terrain
@@ -413,6 +415,7 @@ export function amalfiPlan(): Plan {
   // every riser left where a stair meets a square or two paths cross on different grades becomes steps
   regradePaths(walk, kind, { adjustable: new Set([K.Stair, K.Lane, K.Street]), fixed: new Set([K.Road, K.Walk, K.Piazza, K.Steps, K.Quay, K.Pier, K.Church, K.Sand]) });
   const lots = placeLots(walk, kind, lot, segs);
+  const crag = new Uint8Array(SX * SZ);
   // where the hill comes down to the shore road it does so in crags, a metre a step, like the headland across the
   // road (after the houses are placed, so the town stays as it was and only the bare slope round them is cut)
   for (let z = VZ0; z < VZ0 + SZ; z++)
@@ -420,7 +423,7 @@ export function amalfiPlan(): Plan {
       const c = col(x, z);
       if (kind[c] !== K.Rock) continue;
       const foot = footY((x + 0.5) * V, (z + 0.5) * V);
-      if (foot < Infinity) walk[c] = Math.min(walk[c], layerOf(Math.floor(foot)));
+      if (foot < Infinity && layerOf(Math.floor(foot)) < walk[c]) { walk[c] = layerOf(Math.floor(foot)); crag[c] = 1; }
     }
   // a house on the slope above the road no longer stands on a bare plinth where the crags fall away round it: its
   // walls carry on down to the rock, a storey or two taller, the way Amalfi's houses cling to their cliffs
@@ -437,16 +440,35 @@ export function amalfiPlan(): Plan {
     for (let z = lt.z0; z <= lt.z1; z++) for (let x = lt.x0; x <= lt.x1; x++) { const c = col(x, z); if (lot[c] === lt.id) walk[c] = lt.base; }
   }
   // and every garden terrace left between the houses gets its steps down to the lane (the wild slopes above the
-  // town and the headland's crags stay as they are)
-  gardenFlights(walk, kind, lot, { ground: K.Rock, stair: K.Stair, path: (k) => isPath(k) && k !== K.Covered && k !== K.Tunnel, wild: (x, z) => wildRock(x, z, walk[col(x, z)]) });
+  // town and the headland's crags stay as they are, and nothing lands where a passage's vault walls stand)
+  const vaulted = vaultWalls(segs);
+  gardenFlights(walk, kind, lot, { ground: K.Rock, stair: K.Stair, path: (k) => isPath(k) && k !== K.Covered && k !== K.Tunnel, wild: (x, z) => vaulted[col(x, z)] === 1 || crag[col(x, z)] === 1 || wildRock(x, z, walk[col(x, z)]) });
   const nodeList = ids.map((id) => [nodes[id].x, nodes[id].z] as [number, number]);
   const index = new Map(ids.map((id, i) => [id, i]));
   // the walkers' graph: the old straight line from the cloister door to the garden would cross the arcade, and the
   // flight from the garden up to the lane above is walled off by the cloister (both stay painted, so the town
   // keeps its shape, but nobody walks them)
   const walked = edges.filter(([a, b]) => !(a === 'c0' && b === 'c1') && !(a === 'c1' && b !== 'c3'));
-  cached = { walk, kind, lot, lots, segs, nodes: nodeList, edges: walked.map(([a, b]) => [index.get(a)!, index.get(b)!]) };
+  cached = { walk, kind, lot, lots, segs, crag, nodes: nodeList, edges: walked.map(([a, b]) => [index.get(a)!, index.get(b)!]) };
   return cached;
+}
+
+/** Columns the builder's vaults stand on: a covered passage or a tunnel and its side walls (as amalfi.ts covered()). */
+function vaultWalls(segs: PathSeg[]): Uint8Array {
+  const out = new Uint8Array(SX * SZ);
+  for (const s of segs) {
+    if (!s.roof) continue;
+    const r = s.w / 2 + 1;
+    const [ax, , az] = s.a, [bx, , bz] = s.b;
+    const dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz || 1;
+    for (let z = Math.max(VZ0, Math.floor((Math.min(az, bz) - r) / V)); z <= Math.min(VZ0 + SZ - 1, Math.ceil((Math.max(az, bz) + r) / V)); z++)
+      for (let x = Math.max(VX0, Math.floor((Math.min(ax, bx) - r) / V)); x <= Math.min(VX0 + SX - 1, Math.ceil((Math.max(ax, bx) + r) / V)); x++) {
+        const px = (x + 0.5) * V, pz = (z + 0.5) * V;
+        const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2));
+        if (Math.hypot(px - (ax + dx * t), pz - (az + dz * t)) <= r) out[col(x, z)] = 1;
+      }
+  }
+  return out;
 }
 
 function rect(x0: number, z0: number, x1: number, z1: number, y: number, k: K, walk: Uint8Array, kind: Uint8Array, best: Float32Array): void {

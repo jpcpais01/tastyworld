@@ -3,7 +3,7 @@ import { Prop } from './props';
 import { V, G } from './layout';
 import { Builder, WARM, WHITEWARM } from './tokyo';
 import { PANE, type Beam, type BeamRoom } from '../engine/shafts';
-import { paintColors, toProp, altarpiece, apostle, ceilingScene, sideAltar } from './paintings';
+import { paintColors, toProp, altarpiece, apostle, ceilingScene, sideAltar, fresco, medallion, hang } from './paintings';
 
 /**
  * The great interiors one walks into straight from the street: Sant'Andrea's nave in Amalfi and the prayer halls of
@@ -393,10 +393,10 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
   // the paintings: pixel art on fine voxels laid over their canvases (see world/paintings.ts)
   {
     const pc = paintColors(b), F = 0.0625;
-    // the altarpiece on the apse wall, facing down the nave (+x): Christ in glory, at twice the others' density and
-    // faintly lit from within, as the altar candles keep it after dark
+    // the altarpiece on the apse wall, facing down the nave (+x): Christ in glory, faintly lit from within, as the
+    // altar candles keep it after dark
     const z0 = Math.floor(cz) - 6, z1 = Math.ceil(cz) + 5, y0 = Y + 10, y1 = Y + 34;
-    b.place(toProp(altarpiece(paintColors(b, 0.06), (z1 - z0 + 1) * 4, (y1 - y0 + 1) * 4), 'x', true, false, F), m(IX0 + 1) + F / 2, yM(y0), m((z0 + z1 + 1) / 2));
+    b.place(toProp(altarpiece(paintColors(b, 0.06), (z1 - z0 + 1) * 2, (y1 - y0 + 1) * 2), 'x', true), m(IX0 + 1) + F, yM(y0), m((z0 + z1 + 1) / 2));
     b.lamp(m(IX0 + 6), floorY + 5.2, m(cz), WARM, 7, 0.55);
     // apostles over the arcades, facing into the nave from both sides
     piers.forEach((px, i) => {
@@ -628,12 +628,9 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
       const x0 = px + 5, x1 = px + 14, y0 = Y + 35, y1 = Y + 51;
       g.box(x0, y0, zn, x1, y1, zn, (x, y) => framed(k, x - x0, y - y0, x1 - x0 + 1, y1 - y0 + 1, i * 13 + zn));
       g.box(x0 + 3, Y + 33, zn, x1 - 3, Y + 33, zn, k.gold);
-      const mx = px + 9.5, my = ENT + 7;
-      for (let y = my - 4; y <= my + 4; y++) for (let x = px + 5; x <= px + 14; x++) {
-        const e = Math.hypot((x + 0.5 - mx) / 4.6, (y + 0.5 - my) / 3.6);
-        if (e > 1) continue;
-        g.set(x, y, zn, e > 0.78 ? k.gold : Math.hypot(x + 0.5 - mx, y + 1 - my) < 1.3 ? k.pFlesh : y < my - 1 ? (i % 2 ? k.pRed : k.pBlue) : k.pSky);
-      }
+      // the medallion: an evangelist half-length in an oval of gold, in fine voxels like the canvases
+      const face = zn === NZ0 ? 1 : -1;
+      hang(b, medallion(paintColors(b), 20, 18, i * 2 + (face > 0 ? 0 : 1)), m(px + 10), yM(ENT + 3), face > 0 ? m(zn + 1) : m(zn), 0, face);
     });
   }
   // the coffered ceiling: gilt beams, painted canvases down the middle, blue coffers with gold rosettes either side
@@ -783,14 +780,28 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
     if (Math.abs(u - v) < 1 || Math.abs(u - (8 - v)) < 1) return k.goldDeep;
     return hash3(x, y, z) < 0.12 ? k.goldLight : k.pSkyDeep;
   });
-  // its walls painted with saints between gilt pilasters, where the room meets the rock
-  for (const [x0, z0, x1, z1] of [[CR.x0, CR.z0 - 1, CR.x1, CR.z0 - 1], [CR.x0, CR.z1 + 1, CR.x1, CR.z1 + 1], [CR.x0 - 1, CR.z0, CR.x0 - 1, CR.z1], [CR.x1 + 1, CR.z0, CR.x1 + 1, CR.z1]] as const)
+  // its walls painted with saints between gilt pilasters, where the room meets the rock: each fresco in fine
+  // voxels laid on the plaster, a panel of plain ground behind it
+  const fpc = paintColors(b);
+  for (const [x0, z0, x1, z1, nx, nz] of [[CR.x0, CR.z0 - 1, CR.x1, CR.z0 - 1, 0, 1], [CR.x0, CR.z1 + 1, CR.x1, CR.z1 + 1, 0, -1], [CR.x0 - 1, CR.z0, CR.x0 - 1, CR.z1, 1, 0], [CR.x1 + 1, CR.z0, CR.x1 + 1, CR.z1, -1, 0]] as const) {
     g.box(x0, CR.y0, z0, x1, CR.y1, z1, (x, y, z) => {
       const u = x0 === x1 ? z : x;
       if (pm(u, 9) === 0) return k.gold;
-      if (y < CR.y0 + 3) return k.marbleGrey;
-      return painting(k, pm(u, 9) - 1, y - CR.y0 - 3, 8, CR.y1 - CR.y0 - 2, Math.floor(u / 9) * 5 + x0);
+      return y < CR.y0 + 3 ? k.marbleGrey : k.cream;
     });
+    const along = x0 === x1, u0 = along ? z0 : x0, u1 = along ? z1 : x1;
+    const wall = along ? (nx > 0 ? m(x0 + 1) : m(x0)) : (nz > 0 ? m(z0 + 1) : m(z0));
+    for (let u = u0; u <= u1; u++) {
+      if (pm(u, 9) === 0 || (u > u0 && pm(u, 9) !== 1)) continue;
+      let e = u;
+      while (e < u1 && pm(e + 1, 9) !== 0) e++;
+      const im = fresco(fpc, (e - u + 1) * 2, (CR.y1 - CR.y0 - 2) * 2, pm(Math.floor(u / 9) * 5 + x0, 997));
+      const mid = m((u + e + 1) / 2);
+      if (along) hang(b, im, wall, yM(CR.y0 + 3), mid, nx, 0);
+      else hang(b, im, mid, yM(CR.y0 + 3), wall, 0, nz);
+      u = e;
+    }
+  }
   g.box(CR.x0, CR.y0, IZ0 + 3, CR.x0 + 2, CR.y0 + 3, IZ0 + 10, (x, y) => (y === CR.y0 + 3 ? k.marble : x === CR.x0 + 2 ? k.gold : k.marbleWarm));
   // the well: an opening in the aisle floor railed with marble balusters
   g.box(CW.x0, Y - 3, CW.z0, CW.x1, Y - 1, CW.z1, 0);

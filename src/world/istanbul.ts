@@ -683,6 +683,11 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
     for (let x = wx0; x < wx1; x++) {
       const ci = col(x, z), w = plan.walk[ci], kd = plan.kind[ci];
       const y0 = Math.max(0, ((w - 4) & ~7) - 8);
+      // a strip of ground left between a bazaar hall and its shops is the hall's own stone floor, never a verge
+      let hallSide = false;
+      if (kd === K.Ground) for (let k = 1; k <= 12 && !hallSide; k++) for (const [dx, dz] of [[k, 0], [-k, 0], [0, k], [0, -k]]) {
+        if (inMap(x + dx, z + dz) && plan.kind[col(x + dx, z + dz)] === K.Covered && Math.abs(plan.walk[col(x + dx, z + dz)] - w) <= 2) { hallSide = true; break; }
+      }
       g.box(x, y0, z, x, w - 1, z, (xx, y, zz) => {
         const d = w - 1 - y;
         switch (kd) {
@@ -707,6 +712,7 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
           default: {
             // the ground between the houses: cobbled yards worn to earth, weeds in the joints, and here and there a
             // walled kitchen garden of grass and clover (in 2 m patches, so it reads as yards and gardens, not lawn)
+            if (hallSide) return d === 0 ? ((xx + zz) % 2 ? c.slab : c.marbleGrey) : blockWall(c, xx, y, zz);
             // the Grand Bazaar's plateau is all stone: the courtyards of its hans between the halls
             if (xx * V > GRAND[0] && xx * V < GRAND[2] && zz * V > GRAND[1] && zz * V < GRAND[3]) {
               if (d === 0) return (xx % 8 === 0 || zz % 8 === 0) ? c.marbleGrey : hash3(xx >> 1, 7, zz >> 1) < 0.5 ? c.slab : c.sett;

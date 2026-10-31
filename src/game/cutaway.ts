@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ISTANBUL } from '../world/cityId';
 import type { Occluder } from '../world/tokyo';
 import { SHELL, SPILL, type Field, type GridRect, type Owned, type Owners } from '../world/owners';
 
@@ -29,7 +30,12 @@ import { SHELL, SPILL, type Field, type GridRect, type Owned, type Owners } from
  */
 
 const V = 0.25;
-const ROOM_TOP = 2.95; // just under the ground-floor ceiling slab (3.0 m)
+/**
+ * Just under the ground-floor ceiling slab: 3.0 m in Tokyo and Amalfi; Istanbul's rooms are 2.75 m high (their
+ * floors stack every 3 m with the slab in the top quarter metre), so its cut runs just under 2.75 m, never through
+ * the slab (which would draw a section cap across the whole room).
+ */
+const ROOM_TOP = ISTANBUL ? 2.7 : 2.95;
 const HOLD = 0.45; // seconds an occluder stays lowered after it stops blocking
 /** Metres either side of the player (across the screen) that are kept in view too, so a clear band opens around you. */
 const SIDES = [1.0, 2.0];

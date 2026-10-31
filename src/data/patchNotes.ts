@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.24',
+    date: '2026-10-31',
+    title: 'Look around on the way',
+    items: [
+      'While you walk to a pin or a spot you tapped, you can look around freely and the view no longer swings back to face the way you\'re going. In first person, look with the mouse, a drag or Q and E. From above, drag to turn the view while the walk carries on.',
+    ],
+  },
+  {
     version: '0.16.23',
     date: '2026-10-31',
     title: 'Number plates',

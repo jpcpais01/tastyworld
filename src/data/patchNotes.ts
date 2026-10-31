@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.21',
+    date: '2026-10-31',
+    title: 'Our own icons',
+    items: [
+      'Every emoji in the game has been replaced with hand-drawn icons made for Tasty World: the prompts, notices, passport missions, souvenirs, gachapon charms, shop menus, cooking ingredients and the travel map.',
+      'Icons now look the same on every phone and computer, in the same warm line style as the rest of the interface.',
+      'The flags on the travel map and boarding pass are small painted flags of their own.',
+    ],
+  },
+  {
     version: '0.10.20',
     date: '2026-10-31',
     title: 'Lighter when zoomed far out',

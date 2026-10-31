@@ -1,5 +1,5 @@
 /** Small hand-drawn style line icons for the interface (24px grid, round caps). */
-const svg = (body: string, fill = false) =>
+export const svg = (body: string, fill = false) =>
   `<svg class="g" viewBox="0 0 24 24" aria-hidden="true" fill="${fill ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
 
 export const G = {

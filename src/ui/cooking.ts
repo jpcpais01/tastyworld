@@ -2,6 +2,7 @@ import type { Recipe, Step, Ingredient } from '../data/stalls';
 import type { Audio } from '../game/audio';
 import { DISH } from '../data/dishes';
 import { G } from './glyphs';
+import { E, icon } from './emblems';
 
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
   const e = document.createElement(tag);
@@ -97,7 +98,7 @@ export class CookingGame {
     const grid = h('div', 'ing-grid');
     let got = 0, mistakes = 0;
     all.forEach((ing) => {
-      const b = h('button', 'ing', `<span class="e">${ing.icon}</span>${ing.name}`);
+      const b = h('button', 'ing', `<span class="e">${icon(ing.icon)}</span>${ing.name}`);
       b.onclick = () => {
         if (b.classList.contains('ok')) return;
         if (want.includes(ing)) {
@@ -185,7 +186,7 @@ export class CookingGame {
     const needle = h('div', 'needle');
     gauge.append(zone, needle);
     const label = h('div', 'gauge-label');
-    const btn = h('button', 'btn btn-red big-tap', `🔥 ${step.label ?? 'Now'}!`);
+    const btn = h('button', 'btn btn-red big-tap', `${E.fire}${step.label ?? 'Now'}!`);
     this.stage.append(gauge, label, btn);
     let pos = 0, dir = 1, zc = 0.5, zw = 0.16;
     const setup = () => {
@@ -243,7 +244,7 @@ export class CookingGame {
     }
     const knife = h('div', 'knife');
     board.appendChild(knife);
-    const btn = h('button', 'btn btn-red big-tap', '🔪 Chop!');
+    const btn = h('button', 'btn btn-red big-tap', `${E.knife}Chop!`);
     this.stage.append(board, btn);
     let pos = 0.05, dir = 1, lastT = performance.now();
     const speed = (step.speed ?? 1) * 0.55;
@@ -291,13 +292,13 @@ export class CookingGame {
     const unique: Ingredient[] = [];
     for (const s of seq) if (!unique.find((u) => u.name === s.name)) unique.push(s);
     shuffle(unique).forEach((ing) => {
-      const b = h('button', 'ing', `<span class="e">${ing.icon}</span>${ing.name}`);
+      const b = h('button', 'ing', `<span class="e">${icon(ing.icon)}</span>${ing.name}`);
       b.style.minWidth = '96px';
       b.onclick = () => {
         if (k >= seq.length) return;
         if (seq[k].name === ing.name) {
           const s = slots.children[k] as HTMLElement;
-          s.textContent = ing.icon;
+          s.innerHTML = icon(ing.icon);
           s.classList.add('f');
           k++;
           this.audio.play('pop');

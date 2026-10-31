@@ -1,9 +1,10 @@
+import type { IconName } from '../ui/emblems';
 import type { FoodId } from '../world/food';
 import type { Look } from '../world/characters';
 
 export type StepKind = 'pick' | 'mix' | 'heat' | 'chop' | 'order' | 'flip';
 
-export interface Ingredient { name: string; icon: string; }
+export interface Ingredient { name: string; icon: IconName; }
 
 export interface Step {
   kind: StepKind;
@@ -35,7 +36,7 @@ export interface StallInfo {
   restaurant?: boolean;
 }
 
-const I = (name: string, icon: string): Ingredient => ({ name, icon });
+const I = (name: string, icon: IconName): Ingredient => ({ name, icon });
 
 export const STALLS: StallInfo[] = [
   {
@@ -46,7 +47,7 @@ export const STALLS: StallInfo[] = [
     recipe: {
       dish: 'ningyoyaki',
       steps: [
-        { kind: 'pick', title: 'Gather the batter', hint: 'Choose the four batter ingredients and the filling.', items: [I('Flour', '🌾'), I('Egg', '🥚'), I('Honey', '🍯'), I('Sugar', '🧂'), I('Red bean', '🫘')], decoys: [I('Wasabi', '🟢'), I('Soy sauce', '🥢'), I('Garlic', '🧄')] },
+        { kind: 'pick', title: 'Gather the batter', hint: 'Choose the four batter ingredients and the filling.', items: [I('Flour', 'flour'), I('Egg', 'egg'), I('Honey', 'honey'), I('Sugar', 'sugar'), I('Red bean', 'bean')], decoys: [I('Wasabi', 'paste'), I('Soy sauce', 'soy'), I('Garlic', 'garlic')] },
         { kind: 'mix', title: 'Whisk until silky', hint: 'Draw circles in the bowl. Smooth and steady.', rounds: 6 },
         { kind: 'heat', title: 'Bake in the iron mould', hint: 'Stop the needle in the golden zone. Three moulds.', rounds: 3, speed: 1.1, label: 'Golden' },
       ],
@@ -61,7 +62,7 @@ export const STALLS: StallInfo[] = [
       dish: 'taiyaki',
       steps: [
         { kind: 'mix', title: 'Make the batter', hint: 'Circle the whisk to mix flour, egg and milk.', rounds: 5 },
-        { kind: 'order', title: 'Fill the fish mould', hint: 'Tap the steps in the right order.', items: [I('Pour batter', '🥣'), I('Add red bean', '🫘'), I('Top with batter', '🥣'), I('Close the mould', '🐟')] },
+        { kind: 'order', title: 'Fill the fish mould', hint: 'Tap the steps in the right order.', items: [I('Pour batter', 'mixbowl'), I('Add red bean', 'bean'), I('Top with batter', 'mixbowl'), I('Close the mould', 'fish')] },
         { kind: 'heat', title: 'Toast both sides', hint: 'Flip when the fish is crisp and golden.', rounds: 2, speed: 1.3, label: 'Crisp' },
       ],
     },
@@ -75,9 +76,9 @@ export const STALLS: StallInfo[] = [
       dish: 'yakitori',
       steps: [
         { kind: 'chop', title: 'Cut the chicken', hint: 'Tap when the knife is over each line.', rounds: 4, speed: 1.0 },
-        { kind: 'order', title: 'Thread the negima', hint: 'Alternate chicken and leek on the skewer.', items: [I('Chicken', '🍗'), I('Leek', '🥬'), I('Chicken', '🍗'), I('Leek', '🥬')] },
+        { kind: 'order', title: 'Thread the negima', hint: 'Alternate chicken and leek on the skewer.', items: [I('Chicken', 'chicken'), I('Leek', 'leek'), I('Chicken', 'chicken'), I('Leek', 'leek')] },
         { kind: 'heat', title: 'Grill over binchōtan', hint: 'Turn the skewer at the perfect char. Twice.', rounds: 2, speed: 1.5, label: 'Charred' },
-        { kind: 'pick', title: 'Glaze it', hint: 'Pick the ingredients of a classic tare.', items: [I('Soy sauce', '🥢'), I('Mirin', '🍶'), I('Sugar', '🧂')], decoys: [I('Ketchup', '🍅'), I('Milk', '🥛'), I('Chocolate', '🍫')] },
+        { kind: 'pick', title: 'Glaze it', hint: 'Pick the ingredients of a classic tare.', items: [I('Soy sauce', 'soy'), I('Mirin', 'sake'), I('Sugar', 'sugar')], decoys: [I('Ketchup', 'tomato'), I('Milk', 'milk'), I('Chocolate', 'chocolate')] },
       ],
     },
   },
@@ -90,8 +91,8 @@ export const STALLS: StallInfo[] = [
       dish: 'ramen',
       steps: [
         { kind: 'heat', title: 'Boil the noodles', hint: 'Lift them at the springy, al dente moment.', rounds: 1, speed: 1.6, label: 'Springy' },
-        { kind: 'order', title: 'Build the bowl', hint: 'Tap in the order a ramen master would.', items: [I('Shōyu tare', '🥢'), I('Hot broth', '🍲'), I('Noodles', '🍜'), I('Toppings', '🥚')] },
-        { kind: 'pick', title: 'Choose the toppings', hint: 'Classic Tokyo shōyu toppings only.', items: [I('Chāshū', '🥓'), I('Ajitama egg', '🥚'), I('Menma', '🎋'), I('Naruto', '🍥'), I('Nori', '🟩')], decoys: [I('Pineapple', '🍍'), I('Cheese', '🧀'), I('Ketchup', '🍅')] },
+        { kind: 'order', title: 'Build the bowl', hint: 'Tap in the order a ramen master would.', items: [I('Shōyu tare', 'soy'), I('Hot broth', 'pot'), I('Noodles', 'ramen'), I('Toppings', 'egg')] },
+        { kind: 'pick', title: 'Choose the toppings', hint: 'Classic Tokyo shōyu toppings only.', items: [I('Chāshū', 'pork'), I('Ajitama egg', 'egg'), I('Menma', 'bamboo'), I('Naruto', 'naruto'), I('Nori', 'nori')], decoys: [I('Pineapple', 'pineapple'), I('Cheese', 'cheese'), I('Ketchup', 'tomato')] },
       ],
     },
   },
@@ -103,9 +104,9 @@ export const STALLS: StallInfo[] = [
     recipe: {
       dish: 'takoyaki',
       steps: [
-        { kind: 'pick', title: 'Prep the batter', hint: 'Choose what goes inside a takoyaki.', items: [I('Batter', '🥣'), I('Octopus', '🐙'), I('Tenkasu', '🍤'), I('Green onion', '🌿'), I('Red ginger', '🫚')], decoys: [I('Banana', '🍌'), I('Chocolate', '🍫'), I('Strawberry', '🍓')] },
+        { kind: 'pick', title: 'Prep the batter', hint: 'Choose what goes inside a takoyaki.', items: [I('Batter', 'mixbowl'), I('Octopus', 'octopus'), I('Tenkasu', 'crumbs'), I('Green onion', 'leek'), I('Red ginger', 'ginger')], decoys: [I('Banana', 'banana'), I('Chocolate', 'chocolate'), I('Strawberry', 'strawberry')] },
         { kind: 'flip', title: 'Flip the takoyaki', hint: 'Tap each ball when it turns golden. Not raw, not burnt!', rounds: 9 },
-        { kind: 'order', title: 'Dress them up', hint: 'Sauce, mayo, aonori, then dancing bonito flakes.', items: [I('Takoyaki sauce', '🟤'), I('Mayonnaise', '⚪'), I('Aonori', '🟢'), I('Katsuobushi', '🐟')] },
+        { kind: 'order', title: 'Dress them up', hint: 'Sauce, mayo, aonori, then dancing bonito flakes.', items: [I('Takoyaki sauce', 'sauce'), I('Mayonnaise', 'mayo'), I('Aonori', 'sprinkle'), I('Katsuobushi', 'bonito')] },
       ],
     },
   },
@@ -132,7 +133,7 @@ export const STALLS: StallInfo[] = [
       dish: 'purin',
       steps: [
         { kind: 'heat', title: 'Make the caramel', hint: 'Stop when the sugar turns deep amber, not black.', rounds: 1, speed: 1.2, label: 'Amber' },
-        { kind: 'pick', title: 'Mix the custard', hint: 'Pick what goes into a kissaten purin.', items: [I('Eggs', '🥚'), I('Milk', '🥛'), I('Sugar', '🧂'), I('Vanilla', '🌼')], decoys: [I('Soy sauce', '🥢'), I('Miso', '🟤'), I('Ketchup', '🍅')] },
+        { kind: 'pick', title: 'Mix the custard', hint: 'Pick what goes into a kissaten purin.', items: [I('Eggs', 'egg'), I('Milk', 'milk'), I('Sugar', 'sugar'), I('Vanilla', 'vanilla')], decoys: [I('Soy sauce', 'soy'), I('Miso', 'miso'), I('Ketchup', 'tomato')] },
         { kind: 'mix', title: 'Stir gently', hint: 'Slow circles. Bubbles make holes in the custard.', rounds: 4 },
         { kind: 'heat', title: 'Steam until set', hint: 'Firm in the middle, glossy on top. Twice.', rounds: 2, speed: 1.0, label: 'Set' },
       ],
@@ -146,7 +147,7 @@ export const STALLS: StallInfo[] = [
     recipe: {
       dish: 'zarusoba',
       steps: [
-        { kind: 'pick', title: 'Measure the flour', hint: 'Classic ni-hachi soba: eight parts buckwheat, two parts wheat.', items: [I('Buckwheat flour', '🌾'), I('Wheat flour', '🍞'), I('Cold water', '💧')], decoys: [I('Rice flour', '🍚'), I('Milk', '🥛'), I('Sugar', '🧂')] },
+        { kind: 'pick', title: 'Measure the flour', hint: 'Classic ni-hachi soba: eight parts buckwheat, two parts wheat.', items: [I('Buckwheat flour', 'flour'), I('Wheat flour', 'flour'), I('Cold water', 'drop')], decoys: [I('Rice flour', 'rice'), I('Milk', 'milk'), I('Sugar', 'sugar')] },
         { kind: 'mix', title: 'Knead the dough', hint: 'Work it in circles until it is smooth as a pebble.', rounds: 6 },
         { kind: 'chop', title: 'Cut the noodles', hint: 'Thin, even strands. Tap as the knife crosses each line.', rounds: 5, speed: 1.3 },
         { kind: 'heat', title: 'Boil and rinse', hint: 'Just a minute! Lift them while they still have bite.', rounds: 1, speed: 1.7, label: 'Bite' },

@@ -95,23 +95,23 @@ type KitFn = (style: Style, o: Partial<MealKit>) => MealKit;
 function snackKit(icon: string, kit: KitFn, pal: Palette, c: FC): MealKit {
   const a = (hex: number, vary = 0.05) => pal.add(hex, { vary });
   switch (icon) {
-    case '🥤': return kit('sip', { held: can(a(0x2f7ad8), a(0xf4f1ea), c), drink: true, bites: 2 });
-    case '☕': return kit('sip', { held: cup(c.plate, a(0x5a3218), c), drink: true, bites: 2, steam: 0.7 });
-    case '🧋': return kit('sip', { held: glass(a(0x9cc46a), c, true), drink: true, bites: 2 });
-    case '🍵': return kit('sip', { held: glass(a(0xc08a3a), c, true), drink: true, bites: 2 });
-    case '🧃': return kit('sip', { held: bottle(a(0x7a3a12, 0.03), a(0xf2c74a), c), drink: true, bites: 1 });
-    case '🍙': return kit('bite', { held: onigiri(c), biteR: 4 });
-    case '🥪': return kit('bite', { held: sando(c, a(0xf6dc6a)), biteR: 4 });
-    case '🍞': return kit('bite', { held: sando(c, c.bean), biteR: 4.4 });
-    case '🥟': return kit('bite', { held: bun(a(0xf8f4ea, 0.03), a(0xe6dccb, 0.03), a(0xb06a40)), biteR: 4.4, steam: 0.7 });
-    case '🍈': return kit('bite', { held: bun(a(0xe8c25a, 0.06), a(0xd8a640, 0.06), a(0xfbf0d0)), biteR: 4.4, crunch: true });
-    case '🍛': return kit('bite', { held: bun(a(0xc8803a, 0.12), a(0x9a5a24, 0.1), a(0xb8742a)), biteR: 4.4, crunch: true });
-    case '🥯': return kit('bite', { held: bun(a(0xc87a3a, 0.06), a(0xa85a2a, 0.06), c.bean, true), biteR: 4.4 });
-    case '🍗': return kit('pick', { vessel: karaageCup(c), held: stick(c, c.pick, 15), bites: 2, bitesPer: 2, biteR: 2.6, crunch: true });
-    case '🍢': return kit('bite', { held: chikuwa(a(0xf2e6c8, 0.03), a(0xb8742a, 0.1), c), biteR: 3.6 });
-    case '🐟': return kit('bite', { held: saba(a(0xd9d2c4, 0.06), a(0x6a6f7a, 0.08), c), biteR: 4 });
-    case '🫛': return kit('pop', { vessel: bowlOf(c, a(0x6fae4a, 0.1), a(0x8cc65a, 0.08)) });
-    case '🥒': return kit('chopsticks', { vessel: bowlOf(c, a(0x8cc65a, 0.08), a(0xf2d84a, 0.05)), held: chopsticks(c), bitesPer: 1 });
+    case 'can': return kit('sip', { held: can(a(0x2f7ad8), a(0xf4f1ea), c), drink: true, bites: 2 });
+    case 'coffee': return kit('sip', { held: cup(c.plate, a(0x5a3218), c), drink: true, bites: 2, steam: 0.7 });
+    case 'latte': return kit('sip', { held: glass(a(0x9cc46a), c, true), drink: true, bites: 2 });
+    case 'tea': return kit('sip', { held: glass(a(0xc08a3a), c, true), drink: true, bites: 2 });
+    case 'vitamin': return kit('sip', { held: bottle(a(0x7a3a12, 0.03), a(0xf2c74a), c), drink: true, bites: 1 });
+    case 'onigiri': return kit('bite', { held: onigiri(c), biteR: 4 });
+    case 'sando': return kit('bite', { held: sando(c, a(0xf6dc6a)), biteR: 4 });
+    case 'toast': return kit('bite', { held: sando(c, c.bean), biteR: 4.4 });
+    case 'nikuman': return kit('bite', { held: bun(a(0xf8f4ea, 0.03), a(0xe6dccb, 0.03), a(0xb06a40)), biteR: 4.4, steam: 0.7 });
+    case 'melonpan': return kit('bite', { held: bun(a(0xe8c25a, 0.06), a(0xd8a640, 0.06), a(0xfbf0d0)), biteR: 4.4, crunch: true });
+    case 'currypan': return kit('bite', { held: bun(a(0xc8803a, 0.12), a(0x9a5a24, 0.1), a(0xb8742a)), biteR: 4.4, crunch: true });
+    case 'anpan': return kit('bite', { held: bun(a(0xc87a3a, 0.06), a(0xa85a2a, 0.06), c.bean, true), biteR: 4.4 });
+    case 'chicken': return kit('pick', { vessel: karaageCup(c), held: stick(c, c.pick, 15), bites: 2, bitesPer: 2, biteR: 2.6, crunch: true });
+    case 'chikuwa': return kit('bite', { held: chikuwa(a(0xf2e6c8, 0.03), a(0xb8742a, 0.1), c), biteR: 3.6 });
+    case 'fish': return kit('bite', { held: saba(a(0xd9d2c4, 0.06), a(0x6a6f7a, 0.08), c), biteR: 4 });
+    case 'edamame': return kit('pop', { vessel: bowlOf(c, a(0x6fae4a, 0.1), a(0x8cc65a, 0.08)) });
+    case 'pickles': return kit('chopsticks', { vessel: bowlOf(c, a(0x8cc65a, 0.08), a(0xf2d84a, 0.05)), held: chopsticks(c), bitesPer: 1 });
   }
   return kit('bite', { held: bun(c.batter, c.batterDark, c.bean), biteR: 4.4 });
 }

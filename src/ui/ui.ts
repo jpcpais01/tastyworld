@@ -9,6 +9,7 @@ import { PATCH_NOTES } from '../data/patchNotes';
 import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
 import { G } from './glyphs';
+import { icon, IconName } from './emblems';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -39,9 +40,9 @@ function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: n
   return out;
 }
 
-const MISSION_ICONS: Record<string, string> = {
-  'first-bite': '🥢', trio: '🍡', sweet: '🍯', apprentice: '👩‍🍳', alley: '🏮', night: '🌙', cats: '🐱', secret: '🚪', stars: '⭐', master: '🏆',
-  browse: '🛍️', tables: '🍽️', gacha: '🎰', 'gacha-all': '👑', shelf: '📚', daruma: '🔴',
+const MISSION_ICONS: Record<string, IconName> = {
+  'first-bite': 'chopsticks', trio: 'dango', sweet: 'honey', apprentice: 'chef', alley: 'lantern', night: 'moon', cats: 'cat', secret: 'door', stars: 'star', master: 'trophy',
+  browse: 'bag', tables: 'bowl', gacha: 'capsule', 'gacha-all': 'crown', shelf: 'book', daruma: 'daruma',
 };
 /** Items that can be worn by the traveller. */
 export const WEARABLE = ['headband', 'happi', 'charm', 'chefhat'];
@@ -321,11 +322,11 @@ export class UI {
   }
 
   // ------------------------------------------------------------------ prompt, toasts, labels
-  prompt(key: string, icon: string, text: string, sub = ''): void {
+  prompt(key: string, ic: string, text: string, sub = ''): void {
     if (key === this.promptKey) return;
     this.promptKey = key;
     if (!key) { this.promptEl.classList.add('hidden'); return; }
-    this.promptEl.innerHTML = `<span class="pk">${icon}</span><span class="pt">${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="pgo"><span class="key">SPACE</span><span class="tap">${G.arrow}</span></span>`;
+    this.promptEl.innerHTML = `<span class="pk">${icon(ic)}</span><span class="pt">${esc(text)}${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="pgo"><span class="key">SPACE</span><span class="tap">${G.arrow}</span></span>`;
     this.promptEl.classList.remove('hidden');
     // restart the pop animation
     this.promptEl.style.animation = 'none';
@@ -333,10 +334,10 @@ export class UI {
     this.promptEl.style.animation = '';
   }
 
-  toast(icon: string, title: string, text: string, gold = false): void {
+  /** A short notice at the top. The icon is an emblem or glyph name, or a dish picture. */
+  toast(ic: string, title: string, text: string, gold = false): void {
     const t = h('div', 'toast' + (gold ? ' gold' : ''));
-    const ic = icon.startsWith('data:') ? `<img src="${icon}" alt="">` : icon;
-    t.innerHTML = `<span class="ti">${ic}</span><span><b>${esc(title)}</b>${esc(text)}</span>`;
+    t.innerHTML = `<span class="ti">${icon(ic)}</span><span><b>${esc(title)}</b>${esc(text)}</span>`;
     this.toasts.appendChild(t);
     while (this.toasts.children.length > 3) this.toasts.firstElementChild!.remove();
     setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, gold ? 4200 : 3000);
@@ -357,8 +358,9 @@ export class UI {
     return l.el;
   }
 
-  bubble(key: string, text: string, pos: [number, number, number], seconds = 3.2): void {
-    this.label(key, esc(text), 'bubble', pos);
+  /** A speech bubble over something in the world; with an icon name it shows that icon instead of text. */
+  bubble(key: string, text: string, pos: [number, number, number], seconds = 3.2, ic?: IconName): void {
+    this.label(key, ic ? icon(ic) : esc(text), ic ? 'bubble icon' : 'bubble', pos);
     this.labels.get(key)!.until = performance.now() + seconds * 1000;
   }
 
@@ -465,7 +467,7 @@ export class UI {
       card.querySelector<HTMLButtonElement>('[data-a="taste"]')!.onclick = () => {
         if (!this.hooks.buy(id, st)) {
           this.audio.play('fail');
-          this.toast('👛', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.');
+          this.toast('purse', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.');
           return;
         }
         // the vendor plates it up and hands it over in the street (see game/meal.ts)
@@ -489,14 +491,14 @@ export class UI {
     const menu = h('div', 'menu');
     for (const it of items) {
       const card = h('div', 'dish-card', `
-        <div class="dimg"><span class="emo">${it.icon}</span></div>
+        <div class="dimg"><span class="emo">${icon(it.icon)}</span></div>
         <div>
           <h3>${esc(it.name)}</h3>
           <p>${esc(it.text)}</p>
           <div class="row"><button class="btn btn-red">Buy · ${yen(it.price)}</button></div>
         </div>`);
       card.querySelector('button')!.onclick = () => {
-        if (!buy(it)) { this.audio.play('fail'); this.toast('👛', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
+        if (!buy(it)) { this.audio.play('fail'); this.toast('purse', 'Not enough yen', 'Help a vendor cook to earn tips, or finish missions in your passport.'); return; }
         this.close();
       };
       menu.appendChild(card);
@@ -641,7 +643,7 @@ export class UI {
       slot.onclick = () => {
         this.audio.play('click');
         if (has) this.taste(d.id, false);
-        else this.toast('🧭', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? 'Some say the lucky cats know the way.' : `${st?.street ?? 'Somewhere in Tokyo'}.`);
+        else this.toast('compass', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? 'Some say the lucky cats know the way.' : `${st?.street ?? 'Somewhere in Tokyo'}.`);
       };
       grid.appendChild(slot);
     }
@@ -656,9 +658,9 @@ export class UI {
       const claimed = this.s.claimed.includes(m.id);
       const done = a >= b;
       const secret = m.id === 'secret' && !this.s.hiddenFound && !done;
-      const rw = [m.reward.yen ? yen(m.reward.yen) : '', m.reward.item ? `${ITEMS[m.reward.item].icon} ${ITEMS[m.reward.item].name}` : '', m.reward.title ? `“${m.reward.title}”` : ''].filter(Boolean).join('<br>');
+      const rw = [m.reward.yen ? yen(m.reward.yen) : '', m.reward.item ? `<span class="rwi">${icon(ITEMS[m.reward.item].icon)}${esc(ITEMS[m.reward.item].name)}</span>` : '', m.reward.title ? `“${m.reward.title}”` : ''].filter(Boolean).join('<br>');
       const row = h('div', 'mission' + (claimed ? ' done' : done ? ' ready' : ''), `
-        <div class="mi">${claimed ? G.check : MISSION_ICONS[m.id] ?? '🎯'}</div>
+        <div class="mi">${claimed ? G.check : icon(MISSION_ICONS[m.id] ?? 'target')}</div>
         <div><h5>${secret ? '???' : esc(m.name)}</h5><p>${secret ? 'Somewhere in this district hides a counter with no sign.' : esc(m.desc)}</p>
           ${claimed ? '' : `<div class="mbar"><span><i style="width:${Math.min(100, (a / b) * 100)}%"></i></span>${Math.min(a, b)}/${b}</div>`}</div>
         <div class="rw"></div>`);
@@ -674,11 +676,11 @@ export class UI {
 
   private ppItems(page: HTMLElement) {
     // little finds first: daruma and gachapon capsules
-    const caps = h('div', 'sec finds', `<h4>Finds</h4><p>🔴 Daruma found: <b>${this.s.darumas.length}/8</b> · 🎰 Capsule charms: <b>${this.s.capsules.length}/${CAPSULES.length}</b></p>`);
+    const caps = h('div', 'sec finds', `<h4>Finds</h4><p><span>${icon('daruma')}Daruma found: <b>${this.s.darumas.length}/8</b></span><span>${icon('capsule')}Capsule charms: <b>${this.s.capsules.length}/${CAPSULES.length}</b></span></p>`);
     const grid = h('div', 'capsules');
     for (const c of CAPSULES) {
       const got = this.s.capsules.includes(c.id);
-      grid.appendChild(h('div', 'cap' + (got ? ' got' : '') + (c.rare ? ' rare' : ''), `<span>${got ? c.icon : '?'}</span><small>${got ? esc(c.name) : c.rare ? 'Rare' : '???'}</small>`));
+      grid.appendChild(h('div', 'cap' + (got ? ' got' : '') + (c.rare ? ' rare' : ''), `<span>${got ? icon(c.icon) : '?'}</span><small>${got ? esc(c.name) : c.rare ? 'Rare' : '???'}</small>`));
     }
     caps.appendChild(grid);
     page.appendChild(caps);
@@ -690,7 +692,7 @@ export class UI {
     for (const id of this.s.items) {
       const it = ITEMS[id];
       if (!it) continue;
-      const card = h('div', 'item', `<div class="ii">${it.icon}</div><h5>${esc(it.name)}</h5><div>${esc(it.desc)}</div>`);
+      const card = h('div', 'item', `<div class="ii">${icon(it.icon)}</div><h5>${esc(it.name)}</h5><div>${esc(it.desc)}</div>`);
       if (WEARABLE.includes(id)) {
         card.appendChild(toggle(!!this.s.wear[id], (v) => {
           this.s.wear[id] = v;

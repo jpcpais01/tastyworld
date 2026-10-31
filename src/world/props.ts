@@ -63,6 +63,26 @@ export class Prop {
           if (dx * dx + dz * dz <= r * r) this.set(x, y, z, typeof c === 'function' ? c(x, y, z) : c);
         }
   }
+  /** Drop every voxel not joined face to face to the one at (x, y, z), so nothing in the model floats. */
+  keepConnected(x: number, y: number, z: number): void {
+    const g = this.grid, d = g.data, seen = new Uint8Array(d.length);
+    const s0 = y * g.sxz + z * g.sx + x;
+    if (!d[s0]) return;
+    const stack = [s0];
+    seen[s0] = 1;
+    while (stack.length) {
+      const i = stack.pop()!;
+      const px = i % g.sx, pz = Math.floor(i / g.sx) % g.sz, py = Math.floor(i / g.sxz);
+      const visit = (j: number) => { if (d[j] && !seen[j]) { seen[j] = 1; stack.push(j); } };
+      if (px > 0) visit(i - 1);
+      if (px < g.sx - 1) visit(i + 1);
+      if (pz > 0) visit(i - g.sx);
+      if (pz < g.sz - 1) visit(i + g.sx);
+      if (py > 0) visit(i - g.sxz);
+      if (py < g.sy - 1) visit(i + g.sxz);
+    }
+    for (let i = 0; i < d.length; i++) if (d[i] && !seen[i]) d[i] = 0;
+  }
 }
 
 type SwayPreset = Omit<SwayBody, 'pivot' | 'axis' | 'reach'>;

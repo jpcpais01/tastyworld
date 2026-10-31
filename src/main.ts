@@ -40,7 +40,7 @@ import { PATCH_NOTES } from './data/patchNotes';
 import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable } from './data/places';
 import type { RoomAnchor } from './world/interiors';
 import type { HotelAnchor, HotelRoomAnchor } from './world/hotels';
-import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo } from './data/hotels';
+import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo, byStairs } from './data/hotels';
 import { UI, GameHooks } from './ui/ui';
 import { renderDishIcons } from './ui/icons';
 import { PhotoUI, capture } from './ui/photo';
@@ -766,7 +766,7 @@ class Game {
       if (!info || !lift) continue;
       // Istanbul's hotels are placed by the city builder: they take the name of the street they open onto
       if (!info.street) info.street = zoneAt(ha.entrance[0], ha.entrance[1])?.name ?? TEXT.name;
-      const stairs = info.theme === 'ryokan';
+      const stairs = byStairs(info);
       const icon = stairs ? 'stairs' : 'lift';
       this.interactables.push({
         key: `lift-${ha.id}`, x: lift.pick[0], z: lift.pick[2], stand: lift.stand, pick: lift.pick, r: 1.5, inside: false,
@@ -790,12 +790,12 @@ class Game {
           const h = this.tod.hour;
           return [rm.type === 'tatami' ? 'futon' : 'bed', ROOM_TYPE[rm.type].name, h >= 17 || h < 6 ? 'Sleep until morning' : 'Take a nap'];
         }, () => { this.player.targetFacing = rm.bed.facing; void this.sleepIn(rm); });
-        it('win', rm.window.stand, rm.window.pick, () => ['skyline', 'The window', 'Look out over the city'], () => this.lookOut(rm));
-        it('tea', rm.tea.stand, rm.tea.pick, () => ['tea', rm.type === 'tatami' ? 'Tea set' : TEXT.tea.name, TEXT.tea.act], () => {
+        it('win', rm.window.stand, rm.window.pick, () => ['skyline', 'The window', TEXT.tea.view], () => this.lookOut(rm));
+        it('tea', rm.tea.stand, rm.tea.pick, () => [TEXT.tea.icon, rm.type === 'tatami' ? 'Tea set' : TEXT.tea.name, TEXT.tea.act], () => {
           this.player.targetFacing = rm.tea.facing;
           this.audio.play('pop');
-          this.ui.toast('tea', TEXT.tea.title, rm.type === 'tatami' ? 'The okami left a pot of sencha and two rice crackers. Perfect.' : TEXT.tea.text);
-          this.startMeal('tea', null, () => {});
+          this.ui.toast(TEXT.tea.icon, TEXT.tea.title, rm.type === 'tatami' ? 'The okami left a pot of sencha and two rice crackers. Perfect.' : TEXT.tea.text);
+          this.startMeal(TEXT.tea.icon, null, () => {});
         });
       }
     }
@@ -826,7 +826,7 @@ class Game {
     setTimeout(() => this.audio.play('ding'), 380);
     const info = HOTEL[ha.id];
     const t = ROOM_TYPE[rm.type];
-    this.ui.toast('key', `${t.name} · Room ${roomNo(rm.floor)}`, `Checked in at ${info.name}. Take the ${info.theme === 'ryokan' ? 'stairs' : 'lift'} up whenever you like, and sleep before it gets late.`, true);
+    this.ui.toast('key', `${t.name} · Room ${roomNo(rm.floor)}`, `Checked in at ${info.name}. Take the ${byStairs(info) ? 'stairs' : 'lift'} up whenever you like, and sleep before it gets late.`, true);
     this.player.flash = 1;
     if (this.s.pin?.id === `hotel-${ha.id}`) this.setPin(null);
     this.afterChange();
@@ -925,7 +925,7 @@ class Game {
     this.sleeping = false;
     if (first) {
       this.audio.play('chime');
-      const n = this.s.stays.length;
+      const n = this.s.stays.filter((id) => HOTEL[id]).length;
       this.ui.toast('sunrise', `A night at ${info?.name ?? 'the hotel'}`, rm.type === 'tatami'
         ? 'You slept on a futon on fresh tatami. The okami says the yukata is yours to keep.'
         : `${n} of ${HOTELS.length} hotels slept in. Check out at the lobby whenever you like.`, true);
@@ -956,7 +956,6 @@ class Game {
 
   /** The HUD goal while the traveller still needs a bed tonight, and a nudge when the sun starts to set. */
   private hotelGoal(): void {
-    if (AMALFI) return; // no hotels to find on the coast yet
     if (!this.w.anchors.hotels.length) return;
     const h = this.tod.hour, b = this.s.hotel;
     let g: { icon: string; title: string; sub: string } | null = null;
@@ -2398,7 +2397,8 @@ class Game {
         this.ui.toast('skyline', 'The Süleymaniye terrace', 'The Golden Horn below, Galata across it, Asia beyond the Bosphorus. Worth every step.', true);
         this.afterChange();
       }
-      const rn = rm ? roomName(rm.kind, rm.nth, rm.hotel) : null;
+      const rs = rm?.stall ? STALL[rm.stall] : undefined;
+      const rn = rs ? [rs.name, rs.jp] : rm ? roomName(rm.kind, rm.nth, rm.hotel) : null;
       const up = this.upstairs, hi = up && HOTEL[up.hotel.id];
       const z = this.inside ? { name: TEXT.hidden.name, jp: TEXT.hidden.local } : up && hi ? { name: `${hi.name} · ${roomNo(up.room.floor)}`, jp: hi.jp } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: TEXT.name, jp: TEXT.local };
       this.hotelGoal();

@@ -37,8 +37,8 @@ export interface CityText {
   meal: { serve: string[]; start: string; startDrink: string; yum: string[]; yumDrink: string };
   /** The line on waking from a daytime nap. */
   nap: string;
-  /** The kettle in a hotel room: its name, the prompt, and the toast once it is made. */
-  tea: { name: string; act: string; title: string; text: string };
+  /** The kettle in a hotel room (the drink it makes, its name, the prompt, the toast once made) and the window's prompt. */
+  tea: { icon: 'tea' | 'coffee'; name: string; act: string; title: string; text: string; view: string };
   /** One euro is 100 of the wallet's units; Tokyo shows them as yen. */
   money: (n: number) => string;
   currency: string;
@@ -86,7 +86,7 @@ const TOKYO: CityText = {
   hiddenKind: 'Omakase counter',
   meal: { serve: ['Hai, dōzo!', 'Here you go!', 'Hai, omachi dō sama!', 'Enjoy it while it\'s hot!'], start: 'Itadakimasu!', startDrink: 'Kanpai!', yum: ['Oishii~!', 'Umai!', 'Mmm, oishii!'], yumDrink: 'Ahh~ ♪' },
   nap: 'Two hours later, fresh as a daikon.',
-  tea: { name: 'Kettle', act: 'Make a cup of green tea', title: 'Green tea', text: 'The kettle clicks off. A tea bag from the tray, hot water and a moment to yourself.' },
+  tea: { icon: 'tea', view: 'Look out over the city', name: 'Kettle', act: 'Make a cup of green tea', title: 'Green tea', text: 'The kettle clicks off. A tea bag from the tray, hot water and a moment to yourself.' },
   money: (n) => `¥${n.toLocaleString('en-US')}`,
   currency: '¥',
   startPurse: '3,000',
@@ -127,8 +127,8 @@ const AMALFI_TEXT: CityText = {
   panels: { settings: 'Impostazioni', notes: 'Novità' },
   hiddenKind: 'Hidden kitchen',
   meal: { serve: ['Ecco qua!', 'Here you go!', 'Prego!', 'Buon appetito!'], start: 'Buon appetito!', startDrink: 'Salute!', yum: ['Buonissimo!', 'Che bontà!', 'Mmm, delizioso!'], yumDrink: 'Ahh, che fresco!' },
-  nap: 'Two hours later, rested like a cat on a warm step.',
-  tea: { name: 'Moka pot', act: 'Make a little coffee', title: 'Caffè', text: 'The moka gurgles on the ring. A thimble of strong coffee, a twist of lemon peel and a moment to yourself.' },
+  nap: 'Two hours later, fresh as a lemon.',
+  tea: { icon: 'coffee', view: 'Look out over the coast', name: 'Moka pot', act: 'Make a little coffee', title: 'Caffè', text: 'The moka gurgles on the little stove. A spoon of sugar, the shutters open, the sea below.' },
   money: (n) => `€${(n / 100).toFixed(2)}`,
   currency: '€',
   startPurse: '30.00',
@@ -171,7 +171,7 @@ const ISTANBUL_TEXT: CityText = {
   hiddenKind: 'Hidden kitchen',
   meal: { serve: ['Buyrun!', 'Here you go!', 'Afiyet olsun!', 'Sıcak sıcak, buyrun!'], start: 'Afiyet olsun!', startDrink: 'Şerefe!', yum: ['Çok güzel!', 'Nefis!', 'Mmm, harika!'], yumDrink: 'Ohh, oh!' },
   nap: 'Two hours later, rested like a ferry cat in the sun.',
-  tea: { name: 'Çaydanlık', act: 'Brew a glass of çay', title: 'Çay', text: 'The double kettle hisses. Strong tea from the top pot, hot water from the bottom, a tulip glass and two sugar cubes.' },
+  tea: { icon: 'tea', view: 'Look out over the city', name: 'Çaydanlık', act: 'Brew a glass of çay', title: 'Çay', text: 'The double kettle hisses. Strong tea from the top pot, hot water from the bottom, a tulip glass and two sugar cubes.' },
   // one euro is about forty-five lira
   money: (n) => `₺${Math.max(1, Math.round(n * 0.45)).toLocaleString('en-US')}`,
   currency: '₺',

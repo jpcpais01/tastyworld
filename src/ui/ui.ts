@@ -5,7 +5,7 @@ import type { StallInfo } from '../data/stalls';
 import { DISHES, DISH, OTHER_MENUS } from '../data/dishes';
 import { STALL } from '../data/stalls';
 import { MISSIONS, ITEMS, Mission, trackedMission, SECRET_MISSION } from '../data/missions';
-import { ROOM_TYPE, roomNo, type HotelInfo, type HotelRoomSpec } from '../data/hotels';
+import { ROOM_TYPE, roomNo, byStairs, type HotelInfo, type HotelRoomSpec } from '../data/hotels';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { TEXT, localName } from '../data/cityText';
 import { CAPSULES, Buyable } from '../data/places';
@@ -557,7 +557,7 @@ export class UI {
         <div>
           <h3>${esc(t.name)} · ${roomNo(rm.floor)}<span class="jp">${t.jp}</span></h3>
           <p>${esc(t.text)}</p>
-          <div class="row">${mine ? `<button class="btn btn-soft" disabled>${G.check}Key in hand · take the ${ho.theme === 'ryokan' ? 'stairs' : 'lift'}</button>` : `<button class="btn btn-red">Book tonight · ${yen(rm.price)}</button>`}</div>
+          <div class="row">${mine ? `<button class="btn btn-soft" disabled>${G.check}Key in hand · take the ${byStairs(ho) ? 'stairs' : 'lift'}</button>` : `<button class="btn btn-red">Book tonight · ${yen(rm.price)}</button>`}</div>
         </div>`);
       const btn = card.querySelector<HTMLButtonElement>('.btn-red');
       if (btn) btn.onclick = () => {

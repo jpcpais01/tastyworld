@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.16',
+    date: '2026-10-31',
+    title: 'Phones out',
+    items: [
+      'People looking at their phones now actually hold one: a little phone with a glowing screen appears in their hands, standing, walking or sitting on a bench, and slips away again when they put it back.',
+      'They hold it a bit lower, between the hands in front of the chest, so their heads no longer hide it.',
+    ],
+  },
+  {
     version: '0.15.15',
     date: '2026-10-31',
     title: 'Feet on the ground',

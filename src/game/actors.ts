@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { meshGrid, mergeMeshes, STRIDE, MeshData } from '../world/mesher';
-import { CharModel, PART, PART_COUNT, CHAR_SCALE } from '../world/characters';
+import { CharModel, PART, PART_COUNT, CHAR_SCALE, PROP_SCALE } from '../world/characters';
 import { POSE, type CharacterBatch } from './charbatch';
 import type { LightMap2D } from '../world/bake';
 
@@ -127,6 +127,8 @@ export class Actor {
   private locoW = 0;
   private runW = 0;
   private holdW = 0;
+  /** How far the phone is out (0 put away, 1 in the hand); see writePose. */
+  private phoneW = 0;
   private held: Hold = 'none';
   private turn = 0;
   private fidget = -1;
@@ -166,6 +168,10 @@ export class Actor {
       }
       md = mergeMeshes([md, cm]) ?? md;
     }
+    if (model.prop) {
+      const pm = meshGrid({ pal: model.pal, scale: PROP_SCALE, origin: model.prop.origin, grid: model.prop.grid, parts: model.prop.parts });
+      md = mergeMeshes([md, pm]) ?? md;
+    }
     // drawn (and shadowed) by the batch, posed by the texels this actor writes
     this.body = this.batch.add(md, piv, this.root);
     this.texels = this.batch.data.subarray(this.body * 32 * 4, (this.body + 1) * 32 * 4);
@@ -199,6 +205,8 @@ export class Actor {
     const o = this.texels;
     if (!o) return;
     for (let i = 0; i < NP; i++) this.rot[i].toArray(o, (POSE.rot + i) * 4);
+    // the phone grows out of the fist as the hands come up, and shrinks back into it
+    o[(POSE.rot + PART.phone) * 4 + 3] = 1 - sstep(0.3, 0.8, this.phoneW);
     this.uOffset.value.toArray(o, POSE.offset * 4);
     o[POSE.offset * 4 + 3] = this.uFlash.value;
   }
@@ -251,6 +259,7 @@ export class Actor {
     this.runW += ((this.anim === 'run' ? 1 : 0) - this.runW) * expK(5, dt);
     if (this.hold !== 'none') this.held = this.hold;
     this.holdW += ((this.hold !== 'none' ? 1 : 0) - this.holdW) * expK(6, dt);
+    this.phoneW += ((this.hold === 'phone' || this.anim === 'phone' ? 1 : 0) - this.phoneW) * expK(6, dt);
 
     // cross-fade whenever the underlying action changes
     const base: Anim = moving ? 'idle' : this.anim;
@@ -512,9 +521,11 @@ export class Actor {
 
   private phoneArms(p: Float32Array, t: number, w: number): void {
     const scroll = Math.max(0, Math.sin(t * 3.1)) * 0.06;
-    lerpPart(p, PART.armR, -0.6, -0.45, 0, w); lerpPart(p, PART.foreR, -1.25 - scroll, 0, 0, w);
-    lerpPart(p, PART.armL, -0.6, 0.45, 0, w); lerpPart(p, PART.foreL, -1.25, 0, 0, w);
-    p[PART.head * 3] += 0.4 * w;
+    // elbows in and forearms level, so the phone sits between the hands below the chin, where the big head
+    // looking down at it doesn't hide it
+    lerpPart(p, PART.armR, -0.2, -0.45, 0, w); lerpPart(p, PART.foreR, -1.3 - scroll, 0, 0, w);
+    lerpPart(p, PART.armL, -0.2, 0.45, 0, w); lerpPart(p, PART.foreL, -1.3, 0, 0, w);
+    p[PART.head * 3] += 0.45 * w;
   }
 
   private fidgetPose(p: Float32Array, t: number): void {

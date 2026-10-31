@@ -12,16 +12,16 @@ const WIDTH = 2048;
 const ROWS = Math.ceil(MAX_BODIES * ROW / WIDTH);
 /** Where each body's values sit among its ROW texels (4 floats each), starting at texel id * ROW. */
 export const POSE = {
-  /** 12 texels: pitch, yaw, roll of each part. */
+  /** 13 texels: pitch, yaw, roll of each part, and how far it is shrunk to its pivot (1 = gone). */
   rot: 0,
-  /** 12 texels: each part's pivot (fixed for a body). */
-  pivot: 12,
+  /** 13 texels: each part's pivot (fixed for a body). */
+  pivot: 13,
   /** root offset xyz, hit flash */
-  offset: 24,
+  offset: 26,
   /** baked sun, sky, highlight */
-  light: 25,
+  light: 27,
   /** lamp rgb */
-  lamp: 26,
+  lamp: 28,
 } as const;
 
 /**

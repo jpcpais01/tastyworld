@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.8',
+    date: '2026-10-31',
+    title: 'Crown gates',
+    items: [
+      'The New Mosque and the Süleymaniye each have a crown gate on their courtyard: a tall marble portal with a stalactite hood, a gold inscription on blue and a cresting along its top.',
+      'Their courtyard walls are lower now, so the row of arcade domes shows above them from the street. Each dome sits on a little windowed drum.',
+      'Under each dome the wall has a tall grilled window framed in marble, with a red and white arch above it and a small light higher up.',
+      'Inside the courtyards, pointed arches in red and white stone run from column to column.',
+    ],
+  },
+  {
     version: '0.16.7',
     date: '2026-10-31',
     title: 'Hotels worth checking into',

@@ -1522,11 +1522,36 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
   // the courtyard: an arcade of little domes on marble columns round three sides, the fountain in the middle
   const CX0 = Math.round(court[0] / V), CZ0 = Math.round(court[1] / V), CX1 = Math.round(court[2] / V) - 1, CZ1 = Math.round(court[3] / V) - 1;
   const AD = 14;
-  b.occlude(CX0, CZ0, CX1, CZ1, y + 6.5, y + 0.95, 'landmark');
+  b.occlude(CX0, CZ0, CX1, CZ1, y + 7, y + 0.95, 'landmark');
   b.occluders[b.occluders.length - 1].floor = y;
   const fx = (CX0 + CX1 + 1) / 2, fz = (CZ0 + CZ1 + 1) / 2;
   b.block((fx - 6) * V, (fz - 6) * V, (fx + 6) * V, (fz + 6) * V);
   if (!g.touches(CX0 - 2, CZ0 - 2, CX1 + 2, CZ1 + 2)) return;
+  // the bays of the arcade run from the corners, the last one on each side taking up whatever is left; walls,
+  // columns, arches and domes all keep to them
+  const bays = (lo: number, hi: number) => { const out: number[] = []; for (let v = lo; v + AD <= hi + 1; v += AD) out.push(v); if (out.length && out[out.length - 1] + AD <= hi) out.push(hi + 1 - AD); return out; };
+  const xs = bays(CX0, CX1), zs = bays(CZ0, CZ1);
+  const gateHi = court[1] >= hall[3] - 0.5;
+  const inBay = (v: number, list: number[]) => { let s0 = list[0]; for (const q of list) if (q <= v) s0 = q; return v - s0; };
+  /**
+   * The crown gate: a tall portal standing above the courtyard wall, its pointed arch under a hood of stalactites in
+   * marble, the inscription panel in gold on blue above, a cresting along its top.
+   */
+  const portal = (x: number, z: number, dx: number) => {
+    const ad = Math.abs(dx);
+    g.box(x, Y, z, x, Y + 27, z, (_xx, yy) => {
+      const row = yy - Y;
+      const archTop = 12 + Math.round(Math.sqrt(Math.max(0, 16 - dx * dx)) * 0.9);
+      if (ad < 4 && row < archTop) return 0;
+      if (row === 27) return ad < 7 && Math.round(dx + 8) % 2 === 0 ? c.limeLight : 0; // the cresting
+      if (row === 26) return c.limeLight;
+      if (ad >= 6.5) return row % 4 === 0 ? c.marble : c.limeLight; // the frame
+      if (row >= 22 && row <= 24) return (Math.round(dx * 2) + row) % 3 === 0 ? c.gold : c.cobalt; // the inscription
+      if (row === 21 || row === 25) return c.marble;
+      if (ad < 5.5 && row >= archTop && row <= 20) return (Math.floor(ad) + row) % 2 ? c.marble : row > 17 ? c.limeLight : c.marbleGrey; // the stalactite hood
+      return c.marble;
+    });
+  };
   for (let z = CZ0; z <= CZ1; z++)
     for (let x = CX0; x <= CX1; x++) {
       const inner = x >= CX0 + AD && x <= CX1 - AD && z >= CZ0 + AD && z <= CZ1 - AD;
@@ -1534,19 +1559,48 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
       const nearHall = court[1] >= hall[3] - 0.5 ? z < CZ0 + AD : z > CZ1 - AD;
       if (inner || nearHall) continue;
       if (outer) {
-        // the outer wall with a window between each pair of columns; a gate in the middle of the far side
-        const gateHere = (court[1] >= hall[3] - 0.5 ? z === CZ1 : z === CZ0) && Math.abs(x + 0.5 - fx) < 4;
-        g.box(x, Y, z, x, Y + 20, z, (xx, yy, zz) => (gateHere && yy < Y + 16 ? 0 : yy > Y + 18 ? c.leadDark : yy > Y + 6 && yy < Y + 12 && (xx + zz) % 10 < 3 ? c.glass : yy % 8 === 0 ? c.limeLight : c.lime));
+        // the outer wall up to the arcade's roof, so its domes show above it from the street: under each dome a
+        // tall grilled window in a marble frame with a pointed relieving arch, a small arched light above it
+        const gateSide = court[1] >= hall[3] - 0.5 ? z === CZ1 : z === CZ0;
+        const dx = x + 0.5 - fx;
+        if (gateSide && Math.abs(dx) < 8) { portal(x, z, dx); continue; }
+        const bay = x === CX0 || x === CX1 ? inBay(z, zs) : inBay(x, xs);
+        g.box(x, Y, z, x, Y + 16, z, (_xx, yy) => {
+          const row = yy - Y;
+          if (row === 16) return c.leadDark;
+          if (row === 15) return c.limeLight;
+          if (bay === 0 || bay === AD - 1) return row < 2 ? c.limeDark : c.lime; // the pier between bays
+          const inWin = bay >= 5 && bay <= 8;
+          if (inWin && row >= 3 && row <= 8) return (bay === 5 || bay === 8 || row === 3 || row === 8) ? c.marble : row % 2 === 0 || bay === 6 ? c.iron : c.glassDark;
+          if (bay >= 4 && bay <= 9 && (row === 9 || row === 10)) return row === 10 && (bay === 4 || bay === 9) ? c.lime : (bay + row) % 2 ? c.marble : c.paintRed;
+          if ((bay === 6 || bay === 7) && row >= 11 && row <= 13) return row === 13 ? c.marble : c.glassLit;
+          return row < 2 ? c.limeDark : (row >> 1) % 4 === 0 ? c.limeLight : c.lime;
+        });
         continue;
       }
       // columns at the inner edge every 14 voxels, the arcade roof of little domes above
       const ix = x === CX0 + AD - 1 || x === CX1 - AD + 1, iz = z === CZ0 + AD - 1 || z === CZ1 - AD + 1;
-      if ((ix || iz) && ((ix ? z : x) - CX0) % AD === 0) g.box(x, Y, z, x, Y + 13, z, c.marble);
+      const k = ix ? inBay(z, zs) : inBay(x, xs);
+      if ((ix || iz) && k === 0) g.box(x, Y, z, x, Y + 13, z, c.marble);
+      else if (ix || iz) {
+        // pointed arches from column to column, their voussoirs in red and white stone
+        const m = Math.min(k, AD - k);
+        g.box(x, Y + 9 + Math.round(4 * Math.sqrt(m / (AD / 2))), z, x, Y + 13, z, (xx, yy, zz) => ((xx + zz + (yy >> 1)) % 2 ? c.brick : c.marble));
+      }
       g.box(x, Y + 14, z, x, Y + 16, z, c.lime);
     }
-  for (let z = CZ0; z + AD <= CZ1 + 1; z += AD) for (let x = CX0; x + AD <= CX1 + 1; x += AD) {
-    const inner = x >= CX0 + AD && x + AD <= CX1 - AD + 1 && z >= CZ0 + AD && z + AD <= CZ1 - AD + 1;
-    if (!inner) leadDome(g, c, x + AD / 2, z + AD / 2, Y + 17, 6, false);
+  // the arcade's domes, one over each bay, each on a low drum so the row of them reads above the outer wall
+  for (const z of zs) for (const x of xs) {
+    const sideBay = x === xs[0] || x === xs[xs.length - 1];
+    const gateBay = gateHi ? z === zs[zs.length - 1] : z === zs[0];
+    const hallBay = gateHi ? z < CZ0 + AD : z > CZ1 - AD;
+    if (!(gateBay || (sideBay && !hallBay))) continue;
+    const ox = x + AD / 2, oz = z + AD / 2;
+    for (let yy = 0; yy < 2; yy++) for (let zz = Math.floor(oz - 6); zz <= oz + 6; zz++) for (let xx = Math.floor(ox - 6); xx <= ox + 6; xx++) {
+      const d = Math.hypot(xx + 0.5 - ox, zz + 0.5 - oz);
+      if (d <= 6 && d > 4.5) g.set(xx, Y + 17 + yy, zz, yy === 1 && Math.floor((Math.atan2(zz + 0.5 - oz, xx + 0.5 - ox) + Math.PI) * 8 / Math.PI) % 2 ? c.glassDark : c.lime);
+    }
+    leadDome(g, c, ox, oz, Y + 19, 6, true);
   }
   // the şadırvan: an octagonal fountain with taps all round under a wide eaved roof on columns
   for (let yy = 0; yy < 22; yy++) for (let z = Math.floor(fz - 7); z <= fz + 7; z++) for (let x = Math.floor(fx - 7); x <= fx + 7; x++) {

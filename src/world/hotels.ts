@@ -33,6 +33,19 @@ export interface HotelRoomAnchor {
   bed: { stand: P2; pick: P3; facing: number };
   window: { stand: P2; pick: P3; facing: number };
   tea: { stand: P2; pick: P3; facing: number };
+  /** The room's window panes, seen from inside as clear glass (see game/roomglass.ts): each runs along its
+   *  wall's outer face from (x0, z0) to (x1, z1) metres, y0..y1 high, n pointing out to the street. */
+  panes?: Pane[];
+}
+
+export interface Pane { x0: number; z0: number; x1: number; z1: number; y0: number; y1: number; nx: number; nz: number }
+
+/** A pane on the plane where facade depth d meets d - 1 (the outward side), cells a0..a1, metres y0..y1. */
+export function paneOf(m: (a: number, d: number) => [number, number], a0: number, a1: number, d: number, y0: number, y1: number, half = 0): Pane {
+  const [x0, z0] = m(a0 - half, d - half), [x1, z1] = m(a1 + 1 - half, d - half);
+  const [ox, oz] = m(a0, d - 1), [ix, iz] = m(a0, d);
+  const l = Math.hypot(ox - ix, oz - iz) || 1;
+  return { x0, z0, x1, z1, y0, y1, nx: (ox - ix) / l, nz: (oz - iz) / l };
 }
 
 export interface HotelAnchor {
@@ -131,9 +144,11 @@ export function hotelFloors(lot: Lot, info: HotelInfo, lobby: RoomAnchor, style:
     // the front: open this floor's windows right through, curtains (or shoji) drawn back either side
     const tall = style === 'apartment' ? 1 : 3, top = style === 'machiya' ? 7 : 8;
     let best: [number, number] | null = null;
+    const panes: Pane[] = [];
     for (const [s0, s1] of spans) {
       const a0 = Math.max(s0, A0), a1 = Math.min(s1, A1);
       if (a1 < a0) continue;
+      panes.push(paneOf((a, d) => lot.m(a, d), a0, a1, 1, (base + tall) * V, (base + top + 1) * V));
       lot.box(a0, base + tall, 1, a1, base + top, 1, (a, y, d) => (lot.get(a, y, d) === c.trim ? c.trim : 0));
       for (const ca of [s0 - 1, s1 + 1]) if (ca >= A0 && ca <= A1) lot.box(ca, base + Math.max(0, tall - 1), 2, ca, base + 8, 2, t.curtain);
       lot.box(Math.max(A0, s0 - 1), base + 9, 2, Math.min(A1, s1 + 1), base + 9, 2, ryokan ? c.woodDark : t.wood);
@@ -261,6 +276,7 @@ export function hotelFloors(lot: Lot, info: HotelInfo, lobby: RoomAnchor, style:
       bed: { stand: bedStand, pick: bedPick, facing: bedFace },
       window: { stand: winStand, pick: [...M(wu, 0), F + 1.5] as P3, facing: ang(winStand, M(wu, -2)) },
       tea,
+      panes,
     };
   }
 }

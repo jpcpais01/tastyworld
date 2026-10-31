@@ -45,8 +45,8 @@ function istanbulColors(b: Builder) {
     paintRed: a(0x9c3428, 0.05), paintBlue: a(0x3a5a86, 0.05), paintCream: a(0xefe4c8, 0.03), paintGold: a(0xc9a44a, 0.05),
     // plants
     leaf: a(0x3f6e2e, 0.14, F), leafDark: a(0x2c5422, 0.14, F), leafLight: a(0x5e8f3a, 0.14, F), plane: a(0x5a8a3a, 0.14, F), planeB: a(0x47782f, 0.14, F), planeLight: a(0x7aa64a, 0.12, F),
-    cypress: a(0x2c4a2e, 0.1, F), judas: a(0xc8508a, 0.1, F), judasB: a(0xe07aa8, 0.1, F), fig: a(0x4f7a32, 0.12, F), rose2: a(0xd23a4a, 0.08, F), tulip: a(0xe0402e, 0.06, F), tulipY: a(0xf0c23a, 0.06, F),
-    trunk: a(0x6a5440, 0.1), bark: a(0x9a8a72, 0.1), barkB: a(0xc4b8a2, 0.08),
+    cypress: a(0x2c4a2e, 0.1, F), judas: a(0xc8508a, 0.1, F), judasB: a(0xe07aa8, 0.1, F), fig: a(0x4f7a32, 0.12, F), rose2: a(0xd23a4a, 0.08, F), geranium: a(0xe8485a, 0.08, F), wisteria: a(0x9a7ac8, 0.1, F), wisteriaB: a(0xbfa2e0, 0.1, F), ivy: a(0x355f2a, 0.14, F), tulip: a(0xe0402e, 0.06, F), tulipY: a(0xf0c23a, 0.06, F),
+    trunk: a(0x6a5440, 0.1), terracotta: a(0xb86a44, 0.06), bark: a(0x9a8a72, 0.1), barkB: a(0xc4b8a2, 0.08),
     // the water's edge, boats and ferries
     hullWhite: a(0xf2efe8, 0.03), hullDark: a(0x22262c, 0.04), hullRed: a(0xa83a2c, 0.04), hullBlue: a(0x2f5d9a, 0.04), hullGreen: a(0x2f7a5a, 0.04), hullYellow: a(0xe9c23a, 0.04),
     gilt: a(0xd8a940, 0.06), deck: a(0xb08458, 0.06), funnel: a(0xe8b830, 0.03), funnelBlack: a(0x1e1f22, 0.03), ferryBand: a(0x1f3b66, 0.03), rope: a(0xc9b48a, 0.05),
@@ -918,6 +918,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
     const doorA = Math.floor(fr.W / 2) - 2;
     for (let fl = front && (o.shopFront || o.room) ? 1 : 0; fl < floors; fl++) {
       const yb = base + fl * 12;
+      const balcony = !o.wooden && !o.han && fl > 0 && front && fr.W >= 18 && hash3(lt.seed, fl, 3) < 0.55;
       for (const a of bays) {
         if (ground(a + 1) > yb + 2) continue;
         if (front && fl === 0 && a + 3 >= doorA - 1 && a - 1 <= doorA + 4) continue; // the door has this bay
@@ -936,9 +937,25 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
           fr.box(g, a, sy1 + 2, -1, a + 2, sy1 + 2, -1, o.trim);
           if (hash3(a, yb, 7) < 0.6) { fr.box(g, a - 1, sy0, -1, a - 1, sy1, -1, o.shutter); fr.box(g, a + 3, sy0, -1, a + 3, sy1, -1, o.shutter); }
         }
+        // under the sill: a box of geraniums trailing ivy, or on the plaster blocks now and then an air conditioner
+        if (fl > 0 && !balcony) {
+          const h = hash3(a, yb, lt.seed + 17);
+          if (h < 0.36) {
+            fr.box(g, a - 1, sy0 - 2, -2, a + 3, sy0 - 1, -2, o.wooden ? c.woodBare : c.terracotta);
+            const bloom = [c.geranium, c.rose2, c.white, c.tulipY][Math.floor(hash3(a, yb, lt.seed + 5) * 4)];
+            fr.box(g, a - 1, sy0, -2, a + 3, sy0 + 1, -2, (aa, y) => {
+              const k = hash3(aa, y, lt.seed + a);
+              return y === sy0 ? (k < 0.55 ? bloom : c.leafLight) : k < 0.35 ? bloom : 0;
+            });
+            for (let aa = a - 1; aa <= a + 3; aa++) { const k = hash3(aa, yb, lt.seed + 9); if (k < 0.45) fr.box(g, aa, sy0 - 3 - (k < 0.15 ? 1 : 0), -2, aa, sy0 - 3, -2, c.ivy); }
+          } else if (h > 0.9 && !o.wooden) {
+            fr.box(g, a, sy0 - 4, -1, a + 2, sy0 - 2, -2, (aa, y, d) => (d === -2 && aa === a + 1 && y === sy0 - 3 ? c.grey : c.white));
+            fr.box(g, a + 2, sy0 - 5, -1, a + 2, sy0 - 5, -1, c.grey);
+          }
+        }
       }
       // balconies on the stone blocks: an iron rail along a stone shelf, flowers here and there
-      if (!o.wooden && !o.han && fl > 0 && front && fr.W >= 18 && hash3(lt.seed, fl, 3) < 0.55) {
+      if (balcony) {
         const a0 = 2, a1 = fr.W - 3;
         fr.box(g, a0, yb + 2, -1, a1, yb + 2, -2, o.trim);
         fr.box(g, a0, yb + 3, -2, a1, yb + 5, -2, (a, y) => (y === yb + 5 || a % 2 === 0 ? c.iron : 0));
@@ -959,6 +976,7 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       // the brackets under it
       for (const a of [a0, a0 + 4, a1]) for (let i = 1; i <= 2; i++) fr.box(g, a, y0 - i, -1, a, y0 - i, -(3 - i), c.eave);
     }
+    if (front && !o.han) vine(ctx, fr, lt, floors, ground);
     if (!front) continue;
     // the ground floor: a shopfront of glass, or a door
     const a0 = 1, a1 = fr.W - 2, yb = base;
@@ -977,6 +995,41 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
       fr.box(g, da - 1, yb + 9, -1, da + 4, yb + 9, -1, o.trim);
       const [lx, lz] = fr.m(da + 1.5, -0.4);
       if (hash3(lt.seed, 3, 3) < 0.5) { b.place(wallLantern(c), lx, (yb - G) * V + 2.4, lz, fr.turnOut); b.lamp(lx, (yb - G) * V + 2.4, lz, WARM, 4.5, 0.6); }
+    }
+  }
+}
+
+/**
+ * A climber up a house corner: wisteria hanging in purple tassels, bougainvillea in magenta, or plain ivy.
+ * The stem hugs the wall one voxel out; it spreads only above head height, so the street stays walkable.
+ */
+function vine(ctx: Ctx, fr: Frame, lt: LotPlan, floors: number, ground: (a: number) => number): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  const pick = hash3(lt.seed, 11, 19);
+  if (pick > 0.3 || fr.W < 10) return;
+  const va = hash3(lt.seed, 3, 29) < 0.5 ? 0 : fr.W - 1;
+  const gw = ground(va);
+  if (gw > lt.base + 2 || gw < lt.base - 4) return;
+  const kind = pick < 0.12 ? 'wisteria' : pick < 0.22 ? 'bougainvillea' : 'ivy';
+  const yT = Math.min(lt.top - 2, lt.base + 12 * Math.min(floors, 2) + 4);
+  const y0 = lt.base + 9;
+  fr.box(g, va, gw, -1, va, yT, -1, c.trunk);
+  const dir = va === 0 ? 1 : -1;
+  const flowers = kind === 'wisteria' ? [c.wisteria, c.wisteriaB] : kind === 'bougainvillea' ? [c.judas, c.judasB] : [c.ivy];
+  const reach = kind === 'ivy' ? 7 : 10;
+  for (let y = y0; y <= yT; y++) {
+    const spread = Math.round(reach * Math.sin(((y - y0) / Math.max(1, yT - y0)) * Math.PI * 0.9 + 0.25));
+    for (let k = 0; k <= spread; k++) {
+      const a = va + dir * k;
+      if (a < 0 || a >= fr.W) continue;
+      const h = hash3(a, y, lt.seed + 41);
+      if (h > 0.78 - k * 0.03) continue;
+      const bloom = kind !== 'ivy' && h < 0.3;
+      fr.box(g, a, y, -1, a, y, -1, bloom ? flowers[Math.floor(h * 10) % 2] : h < 0.5 ? c.leaf : c.ivy);
+      // wisteria's tassels hang a little out from the leaves
+      if (kind === 'wisteria' && h < 0.12 && y > y0 + 1) fr.box(g, a, y - 2, -2, a, y, -2, (_a, yy) => (yy === y - 2 ? c.wisteriaB : c.wisteria));
+      if (kind === 'bougainvillea' && h < 0.08) fr.box(g, a, y, -2, a, y, -2, c.judasB);
     }
   }
 }
@@ -1014,6 +1067,18 @@ function roof(ctx: Ctx, lt: LotPlan, o: { wall: number; wooden: boolean; han: bo
     g.box(x0 - 1, top - 2, z0 - 1, x1 + 1, top - 2, z1 + 1, (x, y, z) => g.get(x, y, z) || c.cornice);
     if (kind < 0.8 && w > 10 && d > 10) { const tx = x0 + 3, tz = z0 + 3; g.box(tx, top + 1, tz, tx + 4, top + 5, tz + 3, c.white); g.box(tx, top + 6, tz, tx + 4, top + 6, tz + 3, c.grey); }
     if (kind > 0.85) { const sx = x1 - 4, sz = z1 - 4; g.box(sx, top + 1, sz, sx, top + 3, sz, c.iron); g.box(sx - 1, top + 4, sz - 1, sx + 1, top + 5, sz + 1, c.white); }
+    // a pigeon loft of planks and wire on the roof, the old Istanbul hobby; pots of herbs along the parapet
+    if (w > 13 && d > 13 && o.r() < 0.45) {
+      const px = x1 - 8, pz = z0 + 2;
+      g.box(px, top + 1, pz, px + 5, top + 5, pz + 4, (x, y, z) => {
+        if (y === top + 5) return c.roofTileB;
+        const face = z === pz || z === pz + 4 || x === px || x === px + 5;
+        if (!face) return g.get(x, y, z);
+        return z === pz && y >= top + 2 && y <= top + 4 && x > px && x < px + 5 ? ((x + y) % 2 ? c.iron : 0) : c.woodBare;
+      });
+      g.box(px - 1, top + 6, pz - 1, px + 6, top + 6, pz + 5, (x, _y, z) => (x === px - 1 || x === px + 6 || z === pz - 1 || z === pz + 5 ? c.roofTile : g.get(x, top + 6, z)));
+    }
+    for (const [x, z] of [[x0 + 1, z1 - 1], [x1 - 1, z1 - 1], [x0 + 1, z0 + 1]] as const) if (o.r() < 0.5) { g.set(x, top + 1, z, c.terracotta); g.set(x, top + 2, z, o.r() < 0.5 ? c.leafLight : c.geranium); }
   }
   // chimneys
   if (o.r() < 0.6) { const cx = x0 + 2 + Math.floor(o.r() * Math.max(1, w - 4)), cz = z0 + 2 + Math.floor(o.r() * Math.max(1, d - 4)); g.box(cx, top + 1, cz, cx + 1, top + 7, cz + 1, c.brick); g.box(cx - 1, top + 8, cz - 1, cx + 2, top + 8, cz + 2, c.roofTileB); }

@@ -90,6 +90,11 @@ export interface StreamView {
   focus: THREE.Vector3;
   /** What is inside ground-floor rooms is drawn within this many metres (of the eye in first person, else of the focus). */
   inner: number;
+  /**
+   * Great halls (a cathedral, a mosque) the player is in or near, as [x0, z0, x1, z1] in metres: everything inside
+   * them is drawn however far its chunk is, so a long nave never loses its far arcades.
+   */
+  halls?: readonly (readonly number[])[];
 }
 
 /** Level-of-detail rings for a view distance (metres): full detail inside `full`, half inside `half`, quarter out to `far`. */
@@ -429,7 +434,8 @@ export class Streamer {
       if (!n) continue;
       const [x0, z0, x1, z1] = n.rect;
       const d = Math.hypot(Math.max(x0 - p.x, 0, p.x - x1), Math.max(z0 - p.z, 0, p.z - z1));
-      const want = d < view.inner + (n.t > 0 ? INNER_KEEP : 0) ? 1 : 0;
+      const hall = view.halls?.some((r) => x0 < r[2] && x1 > r[0] && z0 < r[3] && z1 > r[1]) ?? false;
+      const want = hall || d < view.inner + (n.t > 0 ? INNER_KEEP : 0) ? 1 : 0;
       // a cut building has its own material to wear, so it snaps (it is near the player anyway)
       if (c.cut) n.t = want;
       else if (n.t !== want) n.t = want ? Math.min(1, n.t + dt / FADE_TIME) : Math.max(0, n.t - dt / FADE_TIME);

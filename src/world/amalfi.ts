@@ -10,7 +10,7 @@ import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { amalfiPlan, K, col, layerOf, hillY, headlandY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
-import { duomoInterior, HALL_ROOM } from './sacred';
+import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -1051,7 +1051,7 @@ function duomo(b: Builder, c: AC): void {
   const H = Math.round(15 / V);
   b.occlude(X0, Z0, X1, Z1, DUOMO_Y + 24, DUOMO_Y + 0.95, 'landmark');
   // the nave is walked into from the portico like a shop: the cutaway opens it 6 m over its floor
-  Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, room: HALL_ROOM });
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, room: HALL_ROOM, walls: DUOMO_WALLS, shell: 3 });
   if (g.touches(X0, Z0 - 30, X1 + 30, Z1 + 30)) {
     g.box(X0, Y, Z0, X1, Y + H, Z1, (_x, y) => (y < Y + 2 ? c.marbleGrey : ((y - Y) >> 1) % 6 === 0 ? c.stripeTufa : c.cream));
     // pitched roof along the nave

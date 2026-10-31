@@ -101,7 +101,7 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
         }
         const edge = Math.min(k - i0, i1 - k, j - j0, j1 - j);
         id[c] = i + 1;
-        shell[c] = (o.kind !== 'building' && o.room === undefined) || edge < SHELL ? 255 : 0;
+        shell[c] = (o.kind !== 'building' && o.room === undefined) || edge < (o.shell ?? SHELL) ? 255 : 0;
         solid[c] = o.kind === 'tree' ? 0 : 1;
       }
   };

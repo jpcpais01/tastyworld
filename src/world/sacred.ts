@@ -34,6 +34,10 @@ export interface HallAnchor {
 
 /** How high over its floor the iso cutaway opens a great hall (metres): the arcades, the mihrab and the altar stay. */
 export const HALL_ROOM = 6;
+/** How high the Duomo's far walls stand when the cutaway opens it (metres over its floor): to the aisles' vaults. */
+export const DUOMO_WALLS = 40 * V;
+/** And a mosque's: to its painted ceiling (the last layer of air is TOP = Y + H - 2). */
+export const mosqueWalls = (H: number) => (H - 1) * V;
 
 const pm = (v: number, m: number) => ((v % m) + m) % m;
 const yM = (y: number) => (y - G) * V;
@@ -240,7 +244,7 @@ export function duomoInterior(b: Builder, f: DuomoFrame): HallAnchor {
   // nave between the arcades, aisles outside them
   const NZ0 = IZ0 + 17, NZ1 = IZ1 - 17;
   const cz = (NZ0 + NZ1 + 1) / 2;
-  const CEIL = Y + 68, AISLE = Y + 40, ENT = Y + 56;
+  const CEIL = Y + 68, AISLE = Y + Math.round(DUOMO_WALLS / V), ENT = Y + 56;
   // the apse (a conch of radius AR on the nave's axis) and the presbytery raised two steps in front of it
   const AX = IX0 + 16, AR = 19;
   const PX0 = IX0 + 30, PRES = PX0 - 1;

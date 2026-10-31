@@ -5,7 +5,7 @@ import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, Sta
 import { Prop, rotateProp, bench, bush, grassTuft } from './props';
 import { buildFood, type FoodId } from './food';
 import { SWAY } from './sway';
-import { mosqueInterior, HALL_ROOM } from './sacred';
+import { mosqueInterior, mosqueWalls, HALL_ROOM } from './sacred';
 import type { RoomAnchor, RoomKind } from './interiors';
 import { paneOf, type HotelAnchor, type HotelRoomAnchor } from './hotels';
 import { ISTANBUL_HOTELS } from '../data/hotels';
@@ -1844,7 +1844,7 @@ function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, num
   const R = Math.round(domeR / V);
   // the prayer hall is walked into through its great door like a shop: the cutaway opens it 6 m over the carpet
   b.occlude(X0, Z0, X1, Z1, y + wallH + domeR + 6, y + 0.95, 'landmark');
-  Object.assign(b.occluders[b.occluders.length - 1], { floor: y, room: HALL_ROOM });
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: y, room: HALL_ROOM, walls: mosqueWalls(H) });
   // the walls: grey stone in courses, two rows of arched windows, a band of cornice
   // bays of three metres from each corner: under each a grilled window in a marble frame with a red and white
   // relieving arch, above it a pair of tall lights in coloured glass, an oculus higher still; pilasters between

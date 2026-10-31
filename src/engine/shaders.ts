@@ -127,7 +127,8 @@ ${SWAY_FN}
 ${VOXEL_SCALES}
 // What the fragment shader needs is packed tight: a voxel face is a few pixels across, so the city is
 // millions of vertices a frame and every value passed along costs. Per face: x = aPack.x (face | scale << 3 |
-// seam << 7) | aPack.z (edges | vary << 4) << 8, y = colour rgba8 (unpacked in VOXEL_FRAG).
+// seam << 7) | aPack.z (edges | vary << 4) << 8, y = colour rgba8 (unpacked in VOXEL_FRAG); in an ATLAS mesh,
+// y is the quad's block in the atlas instead (u | v << 16), which holds its light and colours.
 flat out uvec2 vFlat;
 flat out vec3 vNormal;
 out vec3 vWorld;
@@ -136,9 +137,11 @@ out vec3 vRest; // world position before the sway: shadows are looked up where t
 #else
 out vec3 vCell; // (swaying meshes are placed in world space, where vRest gives the cell)
 #endif
-out vec4 vLight;
 out vec4 vQuad;
+#ifndef ATLAS
+out vec4 vLight;
 out vec2 vAoSky;
+#endif
 
 vec3 faceNormal(float f) {
   if (f < 0.5) return vec3(1, 0, 0);
@@ -162,8 +165,13 @@ void main() {
   float face = mod(pk, 8.0);
   float sIdx = floor(pk / 8.0 + 0.01);
   vec3 n = faceNormal(face);
+#ifdef ATLAS
+  uvec4 a8 = uvec4(aLight * 255.0 + 0.5);
+  vFlat = uvec2(uint(aPack.x + 0.5) | (uint(aPack.z + 0.5) << 8), a8.x | (a8.y << 8) | (a8.z << 16) | (a8.w << 24));
+#else
   uvec4 c8 = uvec4(aColor * 255.0 + 0.5);
   vFlat = uvec2(uint(aPack.x + 0.5) | (uint(aPack.z + 0.5) << 8), c8.r | (c8.g << 8) | (c8.b << 16) | (c8.a << 24));
+#endif
 #ifndef SWAY
   vCell = position - n * (0.5 * SCALES[int(sIdx)]);
 #endif
@@ -193,7 +201,7 @@ void main() {
   }
   p += off.xyz;
   vAoSky.y = 1.0;
-#else
+#elif !defined(ATLAS)
   vAoSky.y = aPack.w / 255.0;
 #endif
 #ifdef SWAY
@@ -212,9 +220,11 @@ void main() {
   vNormal = normalize(mat3(modelMatrix) * n);
 #endif
   vWorld = wp.xyz;
-  vLight = aLight;
   vQuad = aQuad;
+#ifndef ATLAS
+  vLight = aLight;
   vAoSky.x = aPack.y / 255.0;
+#endif
   vec4 vp = viewMatrix * wp;
   // Props (fine voxels) often sit flush on the coarse world, e.g. a sign over window trim, so their faces can be
   // coplanar with world faces and z-fight. Nudge fine voxels a hair towards the camera, along the view ray so the
@@ -326,9 +336,13 @@ in vec3 vRest;
 #else
 in vec3 vCell;
 #endif
-in vec4 vLight;
 in vec4 vQuad;
+#ifdef ATLAS
+uniform sampler2D tAtlas; // see AtlasBlocks in world/mesher.ts
+#else
+in vec4 vLight;
 in vec2 vAoSky;
+#endif
 #ifdef SWAY
 uniform mat4 modelMatrix;
 #endif
@@ -378,11 +392,35 @@ void main() {
   uint fx = vFlat.x;
   float face = float(fx & 7u);
   float vScale = SCALES[int((fx >> 3u) & 15u)];
+#ifdef ATLAS
+  // this voxel's corners, blended where the fragment lies, and its own colour, vary and edges
+  ivec2 aSize = textureSize(tAtlas, 0);
+  int plane = aSize.y / 3;
+  vec2 qSize = floor(vec2(vQuad.x + vQuad.y, vQuad.z + vQuad.w) + 0.5);
+  vec2 ql = clamp(vQuad.xz, vec2(0.0), qSize); // (MSAA shades edge pixels a little outside the quad)
+  ivec2 org = ivec2(vFlat.y & 65535u, vFlat.y >> 16u);
+  vec2 auv = (vec2(org) + ql + 0.5) / vec2(aSize);
+  vec4 aL = texture(tAtlas, auv);
+  vec2 aSA = texture(tAtlas, auv + vec2(0.0, float(plane) / float(aSize.y))).rg;
+  vec2 vox = min(floor(ql), qSize - 1.0);
+  ivec2 cellT = org + ivec2(vox);
+  vec4 aV = texelFetch(tAtlas, cellT + ivec2(0, plane), 0);
+  vec4 vColor = texelFetch(tAtlas, cellT + ivec2(0, plane * 2), 0);
+  uint ez = uint(aV.a * 255.0 + 0.5);
+  float vVary = aV.b * 255.0 * 0.02;
+  vec4 vLight = aL;
+  float vAO = aSA.g, vSky = aSA.r;
+  // the bevel looks at this voxel's own edges
+  vec2 vf = ql - vox;
+  vec4 vCellQuad = vec4(vf.x, 1.0 - vf.x, vf.y, 1.0 - vf.y);
+#else
   uint ez = fx >> 8u;
-  vec4 vEdge = vec4(uvec4(ez, ez >> 1u, ez >> 2u, ez >> 3u) & 1u);
   float vVary = float((ez >> 4u) & 15u) * 0.02;
   vec4 vColor = vec4((uvec4(vFlat.y) >> uvec4(0u, 8u, 16u, 24u)) & 255u) / 255.0;
   float vAO = vAoSky.x, vSky = vAoSky.y;
+  vec4 vCellQuad = vQuad;
+#endif
+  vec4 vEdge = vec4(uvec4(ez, ez >> 1u, ez >> 2u, ez >> 3u) & 1u);
 #ifdef SWAY
   // swaying meshes are only ever moved, never turned, so the voxel's rest position less the move is its cell
   vec3 vCell = vRest - modelMatrix[3].xyz - (face < 1.5 ? vec3(1.0 - 2.0 * face, 0, 0) : face < 3.5 ? vec3(0, 5.0 - 2.0 * face, 0) : vec3(0, 0, 9.0 - 2.0 * face)) * (0.5 * vScale);
@@ -491,7 +529,7 @@ void main() {
   }
 
   // bevel highlight on convex voxel edges
-  vec4 d4 = mix(vec4(1e3), vQuad, vEdge);
+  vec4 d4 = mix(vec4(1e3), vCellQuad, vEdge);
   float d = min(min(d4.x, d4.y), min(d4.z, d4.w));
   float fw = fwidth(vQuad.x + vQuad.z) * 0.7;
   float edge = 1.0 - smoothstep(0.0, 0.16 + fw, d);

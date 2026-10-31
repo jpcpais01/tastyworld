@@ -16,7 +16,10 @@ export type WorkerOut =
   | { type: 'ready'; init: PartInit }
   | { type: 'mesh'; id: number; ix: number; iz: number; lod: number; mesh: MeshData | null };
 
-const meshBuffers = (m: MeshData, out: Transferable[]) => out.push(m.positions.buffer, m.attrs.buffer, m.indices.buffer, m.sway.buffer);
+const meshBuffers = (m: MeshData, out: Transferable[]) => {
+  out.push(m.positions.buffer, m.attrs.buffer, m.indices.buffer, m.sway.buffer);
+  if (m.atlas) out.push(m.atlas.data.buffer);
+};
 
 let part: WorldPart | null = null;
 

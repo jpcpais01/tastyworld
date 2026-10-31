@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.12.1',
+    date: '2026-10-31',
+    title: 'A much lighter city',
+    items: [
+      'The city is now built from about a third as many pieces up close: light, shade and colours are painted onto whole walls, roofs and streets instead of being carried block by block, so the graphics card has far less to draw, above all when zoomed out.',
+      'Shading inside each block now blends smoothly between its corners, and the city takes less graphics memory.',
+    ],
+  },
+  {
     version: '0.12.0',
     date: '2026-10-31',
     title: 'Photo mode',

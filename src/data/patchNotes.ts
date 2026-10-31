@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.1',
+    date: '2026-10-31',
+    title: 'Marina Grande',
+    items: [
+      'Amalfi\'s beach is let out to lidos now, as it really is: rows of blue, orange and green umbrellas, each lido with its own striped changing cabins against the sea wall.',
+      'At the tunnel end is the free beach, with towels spread on the pebbles, umbrellas brought from home and kayaks drawn up at the water.',
+      'Ciro the lifeguard has a proper tower with a red umbrella and a rescue float.',
+      'Amalfi nights are warmer: the moonlight is softer and greyer, the street lamps reach further over the pale stone, and the café tables in Piazza Duomo glow after dark.',
+    ],
+  },
+  {
     version: '0.15.0',
     date: '2026-10-31',
     title: 'Amalfi',

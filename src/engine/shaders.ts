@@ -741,8 +741,11 @@ vec3 worldAt(vec2 uv, float depth) {
   return p.xyz / p.w;
 }
 
-// analytic water surface: sum of directional waves with derivatives
-vec3 waterNormal(vec2 p, float t) {
+// analytic water surface: sum of directional waves with derivatives.
+// fw is the screen pixel's footprint in p units: each wave fades out as it nears a few pixels long (gone by ~5 px),
+// so a zoomed-out (or far first-person) view sees calm, band-limited water instead of a moire of beating crests.
+float bandLimit(float k, float fw) { return 1.0 - smoothstep(0.4, 1.3, k * fw); }
+vec3 waterNormal(vec2 p, float t, float fw) {
   vec2 g = vec2(0.0);
   vec4 dirs[5];
   dirs[0] = vec4(normalize(vec2(1.0, 0.3)), 1.6, 0.035);
@@ -753,13 +756,16 @@ vec3 waterNormal(vec2 p, float t) {
   for (int i = 0; i < 5; i++) {
     float k = dirs[i].z;
     float ph = dot(dirs[i].xy, p) * k + t * sqrt(9.8 * k) * 0.55;
-    g += dirs[i].xy * k * dirs[i].w * cos(ph);
+    g += dirs[i].xy * k * dirs[i].w * cos(ph) * bandLimit(k, fw);
   }
-  // fine ripples
-  vec2 q = p * 3.0 + vec2(t * 0.4, -t * 0.3);
-  float e = 0.03;
-  float n0 = vnoise(q), nx = vnoise(q + vec2(e, 0.0)), nz = vnoise(q + vec2(0.0, e));
-  g += vec2(nx - n0, nz - n0) / e * 0.012;
+  // fine ripples (noise lattice turned off the world axes so it never lines up with the iso grid)
+  float rw = bandLimit(3.0 * 6.2832, fw);
+  if (rw > 0.0) {
+    vec2 q = mat2(0.8, -0.6, 0.6, 0.8) * p * 3.0 + vec2(t * 0.4, -t * 0.3);
+    float e = 0.03;
+    float n0 = vnoise(q), nx = vnoise(q + vec2(e, 0.0)), nz = vnoise(q + vec2(0.0, e));
+    g += mat2(0.8, 0.6, -0.6, 0.8) * vec2(nx - n0, nz - n0) / e * 0.012 * rw;
+  }
   return normalize(vec3(-g.x, 1.0, -g.y));
 }
 
@@ -829,21 +835,23 @@ void main() {
     // the sea: a longer swell rolling in towards the beach, and no current lines
     // (the swell's crests bend and come in sets, so it never reads as ruled lines from up high)
     vec2 warp = uSea * vec2(vnoise(sp.xz * 0.045), vnoise(sp.xz * 0.045 + 17.3)) * 7.0;
-    vec3 nrm = waterNormal(mix(sp.xz - flow * uTime, sp.xz * 0.55 + warp, uSea), uTime * mix(1.0, 0.8, uSea));
+    // metres per screen pixel at the water surface, from the projection (derivatives are not to be trusted
+    // inside this branch); every high-frequency term below is band-limited against it
+    vec4 c0 = uViewProj * vec4(sp, 1.0), c1 = uViewProj * vec4(sp + vec3(1.0, 0.0, 0.0), 1.0), c2 = uViewProj * vec4(sp + vec3(0.0, 0.0, 1.0), 1.0);
+    vec2 s0 = c0.xy / c0.w;
+    float ppm = max(length((c1.xy / c1.w - s0) * uRes), length((c2.xy / c2.w - s0) * uRes)) * 0.5;
+    float mpp = 1.0 / max(ppm, 1e-3);
+    vec3 nrm = waterNormal(mix(sp.xz - flow * uTime, sp.xz * 0.55 + warp, uSea), uTime * mix(1.0, 0.8, uSea), mpp * mix(1.0, 0.55, uSea));
     float flowLine = vnoise(vec2((sp.x - flow.x * uTime * 1.3) * 0.9, sp.z * 5.5));
-    nrm.z += (flowLine - 0.5) * 0.06 * (1.0 - uSea);
+    nrm.z += (flowLine - 0.5) * 0.06 * (1.0 - uSea) * bandLimit(5.5 * 6.2832, mpp);
     nrm.xz *= 1.0 + 0.5 * uSea;
+    // how much of the surface detail survives at this zoom (1 close up, 0 far out)
+    float detail = bandLimit(5.9, mpp * mix(1.0, 0.55, uSea));
     if (uSea > 0.5) {
       float sets = 0.55 + 0.9 * vnoise(sp.xz * 0.025 + vec2(uTime * 0.012, 0.0));
-      // zoomed far out a pixel spans several ripples: calm the normal rather than alias it into stripes
-      // (metres per pixel from the projection: derivatives are not to be trusted inside this branch)
-      vec4 c0 = uViewProj * vec4(sp, 1.0), c1 = uViewProj * vec4(sp + vec3(1.0, 0.0, 0.0), 1.0), c2 = uViewProj * vec4(sp + vec3(0.0, 0.0, 1.0), 1.0);
-      vec2 s0 = c0.xy / c0.w;
-      float ppm = max(length((c1.xy / c1.w - s0) * uRes), length((c2.xy / c2.w - s0) * uRes)) * 0.5;
-      float px = 2.0 / max(ppm, 1e-3);
-      nrm.xz *= sets * mix(1.0, 0.3, smoothstep(0.12, 0.7, px));
+      nrm.xz *= sets * mix(0.45, 1.0, detail);
     }
-    float lapA = exp(-dEdge * 2.2) * 0.09;
+    float lapA = exp(-dEdge * 2.2) * 0.09 * bandLimit(13.0, mpp);
     nrm.xz += sg * cos(dEdge * 13.0 + uTime * 2.4) * lapA;
     nrm = normalize(nrm);
     // refraction
@@ -912,7 +920,8 @@ void main() {
     vec3 water = mix(under, rcol, fres);
     // sun glint
     vec3 hv = normalize(uSunDir - rd);
-    float spec = pow(max(dot(nrm, hv), 0.0), 220.0) * 3.0 + pow(max(dot(nrm, hv), 0.0), 30.0) * 0.12;
+    float specN = max(dot(nrm, hv), 0.0);
+    float spec = pow(specN, mix(70.0, 220.0, detail)) * mix(1.2, 3.0, detail) + pow(specN, 30.0) * 0.12;
     water += uSunColor * spec;
     float slow = smoothstep(0.0, 1.6, dEdge);
     vec3 lightF = uSunColor * (0.35 + 0.65 * max(uSunDir.y, 0.0)) + uSkyHorizon * 0.6 + uSkyTop * 0.25;

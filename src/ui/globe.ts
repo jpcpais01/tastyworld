@@ -413,11 +413,6 @@ export function landmarkGeometry(id: string): THREE.BufferGeometry | null {
       b(0, 0.78, 0, 0.08, 0.05, 0.08, 0xb8c4cc);
       for (const s of [1, -1]) { b(0.62 * s, 0.75, 0.3, 0.05, 0.75, 0.05, 0xf3efe6); b(0.62 * s, 1.58, 0.3, 0.03, 0.1, 0.03, 0x8fa2ad, 600); }
       break;
-    case 'naples': // Vesuvius, with a wisp of smoke
-      for (const [y, w, c] of [[0.12, 0.9, 0x7f9a5c], [0.36, 0.68, 0x8a7a68], [0.6, 0.48, 0x7a6a5a], [0.82, 0.3, 0x6a5c50]] as const) b(0, y, 0, w, 0.12, w, c);
-      b(0.05, 1.05, 0, 0.12, 0.08, 0.12, 0xe6e2dc);
-      b(0.18, 1.25, 0.05, 0.09, 0.07, 0.09, 0xf2efea);
-      break;
     case 'amalfi': // pastel houses stacked up a green cliff, the cathedral's striped tower at the foot
       b(-0.1, 0.35, -0.2, 0.6, 0.35, 0.35, 0x6f8f4e);
       b(-0.2, 0.85, -0.35, 0.45, 0.2, 0.22, 0x7f9a5c);

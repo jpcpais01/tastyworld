@@ -39,6 +39,8 @@ export interface CityMapHost {
   /** The walking route to the pin, from the player. */
   route(): [number, number][] | null;
   setPin(p: Pin | null): void;
+  /** Pin the spot and set off walking there (the map folds away). */
+  walkTo(p: Pin): void;
   worldMap(): void;
   close(): void;
   click(): void;
@@ -388,8 +390,9 @@ export class CityMap {
   private minScale(): number { return Math.min(this.w / WORLD_W, this.h / WORLD_D) * 0.92; }
 
   private resize(): void {
-    const r = this.cv.getBoundingClientRect();
-    this.w = Math.max(1, r.width); this.h = Math.max(1, r.height);
+    // the layout size, not getBoundingClientRect: the sheet opens with a scale() animation, and a rect taken
+    // then is up to 10% small, which stretched the drawing away from where taps land
+    this.w = Math.max(1, this.cv.clientWidth); this.h = Math.max(1, this.cv.clientHeight);
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
     this.cv.width = Math.round(this.w * this.dpr); this.cv.height = Math.round(this.h * this.dpr);
     this.scale = clamp(this.scale, this.minScale(), MAX_SCALE);
@@ -618,7 +621,9 @@ export class CityMap {
     }
     const pinned = !!pin && !!guide && Math.hypot(pin.x - guide.x, pin.z - guide.z) < 0.5;
     const isPin = sel.kind === 'pin' || pinned;
-    card.innerHTML = `${html}<div class="cm-acts">${isPin ? `<button class="btn btn-soft" data-c="clear">Clear pin</button>` : `<button class="btn btn-red" data-c="guide">${G.pin}Guide me</button>`}</div><button class="cm-x" data-c="x" aria-label="Close">${G.close}</button>`;
+    const walkTo = isPin ? pin : guide;
+    const acts = isPin ? `<button class="btn btn-soft" data-c="clear">Clear pin</button>` : `<button class="btn btn-soft" data-c="guide">${G.pin}Guide me</button>`;
+    card.innerHTML = `${html}<div class="cm-acts">${acts}${walkTo ? `<button class="btn btn-red" data-c="walk">${G.walk}Walk here</button>` : ''}</div><button class="cm-x" data-c="x" aria-label="Close">${G.close}</button>`;
     card.querySelectorAll<HTMLButtonElement>('button[data-c]').forEach((b) => {
       b.onclick = (e) => {
         e.stopPropagation();
@@ -626,6 +631,7 @@ export class CityMap {
         const c = b.dataset.c;
         if (c === 'clear') this.setPin(null);
         else if (c === 'guide' && guide) { this.host.setPin(guide); this.pinT = performance.now(); this.select(sel); }
+        else if (c === 'walk' && walkTo) this.host.walkTo(walkTo);
         else this.select(null);
       };
     });

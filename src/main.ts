@@ -491,6 +491,7 @@ class Game {
       pin: () => this.s.pin ?? null,
       route: () => this.route,
       setPin: (p) => this.setPin(p),
+      walkTo: (p) => this.walkToPin(p),
       worldMap: () => this.travel.openMap('view'),
       close: () => this.ui.close(),
       click: () => this.audio.play('click'),
@@ -1627,6 +1628,29 @@ class Game {
     if (!p) { this.beacon.clear(); return; }
     this.beacon.set(p.x, this.navWorld.heightAt(p.x, p.z), p.z);
     this.reroute();
+  }
+
+  /** Pin a spot and walk there on our own, the way a tap on the street walks you to it. */
+  private walkToPin(p: Pin): void {
+    const cur = this.s.pin;
+    if (!cur || Math.hypot(cur.x - p.x, cur.z - p.z) > 0.5 || cur.name !== p.name) this.setPin(p);
+    const pin = this.s.pin!;
+    if (this.inside || this.upstairs) {
+      this.ui.toast('pin', 'Step outside first', 'Your pin is set. Head out and the compass will lead the way.');
+      return;
+    }
+    this.ui.close();
+    const go = (r: [number, number][] | null) => {
+      if (this.s.pin !== pin || this.inside || this.upstairs) return;
+      if (!r?.length) { this.ui.toast('pin', 'No way there on foot', 'Follow the beacon and look for another way round.'); return; }
+      this.path = r.map(([x, z]) => [x, z] as [number, number]);
+      this.pending = null;
+      this.joy = null;
+      this.audio.play('click');
+    };
+    const p0 = this.player.position;
+    // across town the search is big, so it runs off the main thread; if the worker is busy, find it here
+    if (!this.paths.find(p0.x, p0.z, pin.x, pin.z, go)) go(this.nav.findPath(p0.x, p0.z, pin.x, pin.z, PLAYER_REACH));
   }
 
   private reroute(): void {

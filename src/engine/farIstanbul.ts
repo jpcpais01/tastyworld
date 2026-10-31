@@ -240,6 +240,20 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
     col.set(hex);
     push([x, z, w, d, y, h, seed, kind, col.r, col.g, col.b]);
   };
+  /**
+   * A house: the walls, and on the tiled ones a low hipped roof in the town's own way, courses stepping in under the
+   * eaves (a few shrinking boxes), so the far roofs read like the voxel roofs of the streets you walk.
+   */
+  const house = (x: number, z: number, w: number, d: number, y: number, h: number, tile: number, hex: string, seed: number) => {
+    box(x, z, w, d, y, h, tile, hex, seed);
+    if (tile !== 1) return;
+    const roof = seed < 0.5 ? '#a8563a' : '#8f4530';
+    for (let t = 0; t < 4; t++) {
+      const ww = w + 0.6 - t * 1.4, dd2 = d + 0.6 - t * 1.4;
+      if (ww < 1 || dd2 < 1) break;
+      box(x, z, ww, dd2, y + h + t * 0.5, 0.5, 1, roof, seed);
+    }
+  };
   /** A dome as voxel tiers, each a little narrower and lower than the last. */
   const domeAt = (x: number, z: number, r: number, y: number, kind = 2) => {
     const tiers = Math.max(3, Math.round(r / 1.2));
@@ -277,31 +291,34 @@ export function farIstanbul(shared: SharedUniforms, rect: Rect): { ground: THREE
     const r = 40 + Math.pow(rnd(), 1.6) * 1500, a = rnd() * Math.PI * 2;
     const x = mx + Math.cos(a) * r * 1.1, z = mz + Math.sin(a) * r;
     const o = outside(x, z);
-    if (o < 5) continue;
     const w = 6 + rnd() * 8, dd = 6 + rnd() * 8;
+    if (o < Math.max(w, dd) / 2 + 0.5) continue;
     if (wet(x, z) > -w * 0.6 || parkAt(x, z)) continue;
     const hs4 = [H(x - w / 2, z - dd / 2), H(x + w / 2, z - dd / 2), H(x - w / 2, z + dd / 2), H(x + w / 2, z + dd / 2)];
     const lo = Math.min(...hs4), hi = Math.max(...hs4);
     if (lo < 0.8 || hi - lo > 8 || (hi > 140 && rnd() < 0.7)) continue;
     const tall = (o < 60 ? 6 + rnd() * 9 : 8 + rnd() * 16) * (hi > 60 ? 0.7 : 1);
     const tile = rnd() < 0.35 ? 1 : 0;
-    box(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + tall, tile, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
+    house(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + tall, tile, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
   }
   // the shores you look at from the map get the city packed tight: Karaköy and Beyoğlu climbing the hill across the
   // Horn, Üsküdar and Kadıköy across the strait; the houses step up the slopes shoulder to shoulder, never bare hill
   const pack = (ax: number, bx: number, az: number, bz: number, tries: number, lo0: number, hi0: number) => {
     for (let i = 0; i < tries; i++) {
       const x = ax + rnd() * (bx - ax), z = az + rnd() * (bz - az);
-      if (outside(x, z) < 5) continue;
       const w = 5 + rnd() * 7, dd = 5 + rnd() * 7;
+      if (outside(x, z) < Math.max(w, dd) / 2 + 0.5) continue;
       if (wet(x, z) > -w * 0.5 || parkAt(x, z)) continue;
       const hs4 = [H(x - w / 2, z - dd / 2), H(x + w / 2, z - dd / 2), H(x - w / 2, z + dd / 2), H(x + w / 2, z + dd / 2)];
       const lo = Math.min(...hs4), hi = Math.max(...hs4);
       if (lo < 0.8 || hi - lo > 10) continue;
-      box(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + lo0 + rnd() * (hi0 - lo0), rnd() < 0.45 ? 1 : 0, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
+      house(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + lo0 + rnd() * (hi0 - lo0), rnd() < 0.45 ? 1 : 0, PASTEL[Math.floor(rnd() * PASTEL.length)], rnd());
     }
   };
   pack(-320, 140, HORN_N - 6, 520, 1500, 7, 17);
+  // and right up against the map's west and south sides, so the town's own houses run on into these without a gap
+  pack(x0 - 70, x0, z0 - 70, z1, 1400, 5, 12);
+  pack(x0, x1, z0 - 70, z0, 1400, 5, 12);
   pack(400, 640, -420, 240, 900, 6, 15);
   // the landmarks, readable from the quays: Galata's tower on its hill across the Horn
   {

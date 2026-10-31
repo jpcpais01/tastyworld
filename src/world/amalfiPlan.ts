@@ -99,7 +99,7 @@ export function freeBeachTowels(): { x: number; z: number; alongX: boolean; umbr
   const r = rng(77);
   const out: { x: number; z: number; alongX: boolean; umbrella: boolean }[] = [];
   for (let i = 0; i < 16; i++) {
-    const x = 38 + r() * 9, z = -48 + r() * 17;
+    const x = 38 + r() * 9, z = -45 + r() * 14;
     const alongX = r() >= 0.5;
     out.push({ x, z, alongX, umbrella: r() < 0.35 });
   }
@@ -132,6 +132,27 @@ export function hillY(x: number, z: number): number {
   // folds in the slope so the terraces don't run ruler-straight
   h += (Math.sin(x * 0.11 + z * 0.05) + Math.sin(z * 0.13 - x * 0.04)) * 0.9 * smooth(0, 8, t);
   return h;
+}
+
+/**
+ * The headland towards Atrani, seaward of the road line (x > ROAD_X0) and south of the beach: a rocky spur that runs
+ * down from the mountain into the sea, the shore road tunnelling through its foot. Its face climbs from the pebbles
+ * in crags; over the road it is cut sheer for the tunnel's portal; its nose slopes down into the water. -99 where
+ * the headland is not.
+ */
+export function headlandY(x: number, z: number): number {
+  if (x <= ROAD_X0 || z > TUNNEL_Z + 8) return -99;
+  const n = (Math.sin(x * 0.37 + z * 0.21) + Math.sin(z * 0.29 - x * 0.17)) * 0.8;
+  // the toe on the beach: flush with the portal beside the road, bulging a few metres out over the pebbles beyond
+  const zf = TUNNEL_Z + 5 * smooth(36, 42, x) * (1 - smooth(47, 55, x)) + n * 0.7 * smooth(35, 39, x);
+  if (z > zf) return -99;
+  // the portal's headwall: a face cut sheer 12 m over the road, easing to the beach a few metres either side
+  const base = 1.5 + 10.5 * (1 - smooth(ROAD_X1 + 1, ROAD_X1 + 5, x));
+  let h = base + (zf - z) * 1.7 + n * smooth(0, 3, zf - z);
+  // the nose: the spur falls into the sea, wandering along a rocky shore
+  const xs = 51 + 3 * Math.sin(z * 0.23) + 2 * Math.sin(z * 0.61 + 1.3);
+  h = Math.min(h, (xs - x) * 2.4 + n);
+  return Math.min(h, hillY(x, z));
 }
 
 /** Height of the sea bed and the shore (m), seaward of the road. */
@@ -292,8 +313,13 @@ export function amalfiPlan(): Plan {
   for (let z = VZ0; z < VZ0 + SZ; z++)
     for (let x = VX0; x < VX0 + SX; x++) {
       const mx = (x + 0.5) * V, mz = (z + 0.5) * V, c = col(x, z);
-      if (mx > ROAD_X0 && !(mz < TUNNEL_Z && mx < 50)) {
-        const y = shoreY(mx, mz);
+      const hd = headlandY(mx, mz);
+      if (mx > ROAD_X0 && hd > SEA_Y) {
+        // the headland's crags, a metre a step
+        walk[c] = Math.min(250, layerOf(Math.floor(hd)));
+        kind[c] = K.Rock;
+      } else if (mx > ROAD_X0) {
+        const y = Math.max(shoreY(mx, mz), hd); // rocks under the water off the headland's nose
         walk[c] = Math.max(1, layerOf(y));
         kind[c] = y < SEA_Y ? K.Sea : mz > 40 && mx < 46 ? K.Quay : K.Shingle;
       } else {
@@ -400,6 +426,7 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
   const under = (k: number) => k === K.Covered || k === K.Tunnel;
   const tryLot = (x0: number, z0: number, x1: number, z1: number, side: LotPlan['side'] | null, frontLayer: number, shop: boolean): boolean => {
     if (!inMap(x0 - 1, z0 - 1) || !inMap(x1 + 1, z1 + 1) || x1 - x0 < 12 || z1 - z0 < 12) return false;
+    if ((x1 + 1) * V > ROAD_X0) return false; // nothing is built seaward of the road: the headland stays wild
     let lo = 255, hi = 0;
     for (let z = z0 - 1; z <= z1 + 1; z++)
       for (let x = x0 - 1; x <= x1 + 1; x++) {
@@ -517,7 +544,7 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
   for (let gz = VZ0 + 6; gz < VZ0 + SZ - 10; gz += 6)
     for (let gx = VX0 + 6; gx < VX0 + SX - 10; gx += 6) {
       const c = col(gx, gz);
-      if (kind[c] !== K.Rock || lot[c]) continue;
+      if (kind[c] !== K.Rock || lot[c] || gx * V > ROAD_X0) continue;
       if (walk[c] > layerOf(30)) continue; // the high slope stays lemon terraces and woods
       const w = 16 + Math.floor(r() * 16), d = 16 + Math.floor(r() * 14);
       tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, false);

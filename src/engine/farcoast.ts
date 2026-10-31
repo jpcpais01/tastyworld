@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
-import { hillY, shoreY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
+import { farHouses, type FarLot, type FarTower } from './farhouses';
+import { hillY, shoreY, headlandY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
 
 /**
  * The Amalfi Coast past the edges of the playable map. The Lattari mountains climb from the town's two flanks to
@@ -12,8 +13,8 @@ import { hillY, shoreY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
  *
  * All of it voxels, like the town: the ground is columns of blocks, 2 m at the map's edge and doubling outwards to
  * 32 m on the far ridges, wooded and terraced and broken into cliffs; stone pines, holm oaks, cypresses, chestnuts
- * and lemon trees stand on the slopes near town; the villages are boxes in pastel stucco whose windows, shutters and
- * roof terraces the shader paints. Like the far city in Tokyo, anything between the iso camera and the map squats
+ * and lemon trees stand on the slopes near town; the villages are built on the town's own rules (farhouses.ts).
+ * Like the far city in Tokyo, anything between the iso camera and the map squats
  * down so it never hides the streets.
  */
 
@@ -92,7 +93,6 @@ const VILLAGES: Village[] = [
   { x: 120, z: 480, r: 70, n: 60, seed: 8 },
   { x: 250, z: 1150, r: 120, n: 160, seed: 9 },
 ];
-const PASTEL = ['#f1e6d3', '#f3dca6', '#efc6a6', '#e9c3c7', '#f5ecc8', '#e2d5c0', '#f3d9b4', '#e8b89c', '#f7f2e8', '#dfe3d6'];
 
 /** Block size wanted at a distance (m) from the map: 2 m blocks at its edge, doubling outwards to 32 m ones. */
 const want = (d: number) => (d < 32 ? 2 : d < 120 ? 4 : d < 320 ? 8 : d < 760 ? 16 : 32);
@@ -120,7 +120,7 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
     const ex = Math.max(x0, Math.min(x1, x)), ez = Math.max(z0, Math.min(z1, z));
     if (ex < ROAD_X0) return hillY(ex, ez) - 0.4;
     if (ex <= ROAD_X1) return ez < -52 ? hillY(ex, ez) + 4 : 1.6;
-    return shoreY(ex, ez);
+    return Math.max(shoreY(ex, ez), headlandY(ex, ez));
   };
   const H = (x: number, z: number) => {
     const o = outside(x, z);
@@ -507,14 +507,12 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
   treeMesh.renderOrder = 10;
   ground.add(treeMesh);
 
-  // houses: in the villages, one by one on the slope, each a box with a terrace or a little dome on top
-  const parts: number[] = [];
-  const col = new THREE.Color();
+  // houses: in the villages, one by one on the slope, each facing downhill (see farhouses.ts)
+  const lots: FarLot[] = [];
   for (const v of VILLAGES) {
     let seed = v.seed * 7919;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    for (let i = 0; i < v.n * 3 && parts.length / 12 < 1400; i++) {
-      if (parts.length / 12 >= 1400) break;
+    for (let i = 0; i < v.n * 3 && lots.length < 1400; i++) {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * v.r;
       const x = v.x + Math.cos(a) * r, z = v.z + Math.sin(a) * r;
       if (outside(x, z) < 6) continue;
@@ -522,104 +520,14 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
       const hs4 = [groundAt(x - w / 2, z - dd / 2), groundAt(x + w / 2, z - dd / 2), groundAt(x - w / 2, z + dd / 2), groundAt(x + w / 2, z + dd / 2), groundAt(x, z)];
       const lo = Math.min(...hs4), hi = Math.max(...hs4);
       if (lo < 0.8 || hi - lo > 9) continue; // in the sea, or too steep to build on
-      const tall = 5.5 + rnd() * 7;
-      col.set(PASTEL[Math.floor(rnd() * PASTEL.length)]);
-      parts.push(x, z, w, dd, lo - 1.5, hi - lo + 1.5 + tall, rnd(), rnd() < 0.3 ? 1 : 0, col.r, col.g, col.b, 0);
+      const sides = [groundAt(x + w / 2 + 2, z), groundAt(x - w / 2 - 2, z), groundAt(x, z + dd / 2 + 2), groundAt(x, z - dd / 2 - 2)];
+      const front = sides.indexOf(Math.min(...sides));
+      lots.push({ x, z, w, d: dd, lo, hi, front, seed: Math.floor(rnd() * 1e6) + 1 });
     }
   }
   // a bell tower or two: Atrani's San Salvatore and Ravello's cathedral
-  for (const [x, z, y, c] of [[24, -258, 0, '#e8d7b0'], [-288, -200, 0, '#efe6d6']] as const) {
-    const h = groundAt(x, z);
-    col.set(c);
-    parts.push(x, z, 3.5, 3.5, h - 1, 22 + y, 0.5, 2, col.r, col.g, col.b, 0);
-  }
-  const n = parts.length / 12;
-  const g = new THREE.InstancedBufferGeometry();
-  const box = new THREE.BoxGeometry(1, 1, 1);
-  box.translate(0, 0.5, 0);
-  g.index = box.index;
-  g.setAttribute('position', box.attributes.position);
-  g.setAttribute('normal', box.attributes.normal);
-  const ib = new THREE.InstancedInterleavedBuffer(new Float32Array(parts), 12);
-  g.setAttribute('aBox', new THREE.InterleavedBufferAttribute(ib, 4, 0));
-  g.setAttribute('aPart', new THREE.InterleavedBufferAttribute(ib, 4, 4));
-  g.setAttribute('aCol', new THREE.InterleavedBufferAttribute(ib, 3, 8));
-  g.instanceCount = n;
-  const houses = new THREE.Mesh(g, new THREE.ShaderMaterial({
-    glslVersion: THREE.GLSL3,
-    uniforms: u,
-    vertexShader: /* glsl */ `
-      in vec4 aBox; in vec4 aPart; in vec3 aCol;
-      ${SQUASH}
-      out vec3 vWorld; out vec3 vN; out vec3 vLocal; out vec3 vSize; out vec4 vPart; out vec3 vCol;
-      void main() {
-        float y0 = aPart.x, h = aPart.y;
-        vLocal = vec3(position.x * aBox.z, position.y * h, position.z * aBox.w);
-        vec3 p = vec3(aBox.x + vLocal.x, y0 + vLocal.y, aBox.y + vLocal.z);
-        vWorld = p; vN = normal; vSize = vec3(aBox.z, h, aBox.w); vPart = aPart; vCol = aCol;
-        // a house on squatted ground would be a painted rug: past a point it simply isn't drawn
-        float s = squash(aBox.xy);
-        if (s < 0.6) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
-        p.y *= s;
-        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
-      }`,
-    fragmentShader: /* glsl */ `
-      precision highp float;
-      ${COMMON}
-      ${HAZE}
-      uniform vec3 uSkyColor, uGroundColor, uSunColor, uSunDir, uWindowColor;
-      uniform float uNight, uLamp;
-      in vec3 vWorld; in vec3 vN; in vec3 vLocal; in vec3 vSize; in vec4 vPart; in vec3 vCol;
-      layout(location = 0) out vec4 outColor;
-      void main() {
-        vec3 n = vN;
-        float seed = vPart.z, kind = vPart.w;
-        vec3 alb = srgb2lin(vCol);
-        float fw = fwidth(vWorld.x + vWorld.z);
-        float fine = 1.0 - smoothstep(0.25, 0.8, fw);
-        bool wall = abs(n.y) < 0.5;
-        float u = abs(n.x) > 0.5 ? vLocal.z : vLocal.x;
-        float y = vLocal.y;
-        float win = 0.0;
-        vec2 cell = vec2(0.0);
-        if (wall) {
-          // tall windows with green or blue shutters, a floor every three metres; the foot is in the ground
-          cell = vec2(floor((u + 40.0) / 2.2), floor(y / 3.0));
-          vec2 f = vec2(fract((u + 40.0) / 2.2), fract(y / 3.0));
-          win = step(0.32, f.x) * step(f.x, 0.68) * step(0.25, f.y) * step(f.y, 0.8) * step(vSize.y - y, vSize.y - 1.5) * step(y, vSize.y - 1.0);
-          float open = step(0.45, hash12(cell + seed * 37.0));
-          vec3 shutter = mix(srgb2lin(vec3(0.27, 0.42, 0.33)), srgb2lin(vec3(0.24, 0.36, 0.5)), step(0.6, seed));
-          alb = mix(alb, open > 0.5 ? srgb2lin(vec3(0.08, 0.08, 0.09)) : shutter, win * fine);
-          if (kind > 1.5) {
-            // a bell tower: majolica tiles in its little dome, an arched opening for the bells
-            float bells = step(vSize.y - 5.0, y) * step(y, vSize.y - 2.0) * step(0.3, fract(u / 3.5 + 0.5)) * step(fract(u / 3.5 + 0.5), 0.7);
-            alb = mix(alb, srgb2lin(vec3(0.1, 0.1, 0.1)), bells * fine);
-          }
-          // a band of shadow at the foot
-          alb *= mix(0.7, 1.0, smoothstep(0.0, 2.5, y - (vSize.y - vSize.y)));
-        } else if (n.y > 0.5) {
-          // roof: a white terrace, or a dome of whitewash over a vault; majolica on the towers
-          alb = kind > 1.5 ? mix(srgb2lin(vec3(0.15, 0.45, 0.32)), srgb2lin(vec3(0.85, 0.7, 0.2)), step(0.5, fract((vLocal.x + vLocal.z) * 1.2))) : kind > 0.5 ? srgb2lin(vec3(0.9, 0.88, 0.84)) : alb * 1.05;
-        }
-        float ndl = max(dot(n, uSunDir), 0.0);
-        vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
-        vec3 col = alb * (uSunColor * ndl * 0.9 + hemi);
-        // edges catch the light like the voxel bevels in town
-        vec2 fa, fe;
-        if (abs(n.x) > 0.5) { fa = vec2(vLocal.z + vSize.z * 0.5, vLocal.y); fe = vSize.zy; }
-        else if (abs(n.z) > 0.5) { fa = vec2(vLocal.x + vSize.x * 0.5, vLocal.y); fe = vSize.xy; }
-        else { fa = vLocal.xz + vSize.xz * 0.5; fe = vSize.xz; }
-        float d = min(min(fa.x, fe.x - fa.x), min(fa.y, fe.y - fa.y));
-        col *= 1.0 + (1.0 - smoothstep(0.0, 0.15 + fw * 0.7, d)) * 0.2;
-        if (win > 0.0) {
-          float on = step(hash12(cell * vec2(1.7, 3.1) + seed * 91.0 + n.xz * 7.0), 0.18 + 0.2 * uNight);
-          col += win * on * uWindowColor * uNight * 0.45;
-        }
-        outColor = vec4(haze(col, vWorld), 1.0);
-      }`,
-  }));
-  houses.frustumCulled = false;
-  houses.renderOrder = 10;
+  const towers: FarTower[] = ([[24, -258, 0xe8d7b0], [-288, -200, 0xefe6d6]] as const).map(([x, z, color]) => ({ x, z, ground: groundAt(x, z), h: 22, color }));
+  const houses = farHouses(u, SQUASH, HAZE, lots, towers);
 
   // the sea floor everywhere the ground mesh doesn't reach, deep enough that the water reads as open sea
   const R = 6000;

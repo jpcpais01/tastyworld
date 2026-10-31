@@ -11,7 +11,7 @@ import { paneOf, type HotelAnchor, type HotelRoomAnchor } from './hotels';
 import { ISTANBUL_HOTELS } from '../data/hotels';
 import {
   istanbulPlan, K, col, layerOf, inMap, hillY, isPath, shoreDist, type LotPlan, type Plan, type PathSeg,
-  QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, BAZAAR_Y, STATION, GRAND,
+  QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, BAZAAR_Y, STATION, GRAND, beyond, BRIDGE_GATE_Z,
 } from './istanbulPlan';
 
 /**
@@ -74,6 +74,8 @@ type IC2 = ReturnType<typeof istanbulColors>;
  */
 /** v mod m, never negative: world voxel coordinates run below zero west and south of the origin. */
 const pm = (v: number, m: number) => ((v % m) + m) % m;
+/** Past the town's edge, at voxel column (x, z). */
+const outCell = (x: number, z: number) => beyond((x + 0.5) * V, (z + 0.5) * V);
 
 class Frame {
   W: number; D: number; out: [number, number];
@@ -651,6 +653,8 @@ export function buildIstanbul(win?: Window): BuildResult {
   const ctx: Ctx = { b, c, plan, inWin, keepers: [] };
 
   terrain(ctx, wx0, wz0, wx1, wz1);
+  townEdge(ctx, wx0, wz0, wx1, wz1);
+  yardWalls(ctx, wx0, wz0, wx1, wz1);
   const uses = assignUses(plan);
   for (const lt of plan.lots) building(ctx, lt, uses.get(lt.id));
   halls(ctx);
@@ -688,10 +692,10 @@ export function buildIstanbul(win?: Window): BuildResult {
       { id: 'halici', pos: [-126, 0, -62] },
       { id: 'kaptan', pos: [36, 0, -4] },
     ],
-    benches: b.benches,
-    stools: b.stools,
-    cats: [...CATS, ...laneCats(plan)],
-    extras: [...anglers(), ...teaGardenFolk(), ...ctx.keepers],
+    benches: b.benches.filter(([x, z]) => !beyond(x, z)),
+    stools: b.stools.filter(([x, z]) => !beyond(x, z)),
+    cats: [...CATS, ...laneCats(plan)].filter(([x, , z]) => !beyond(x, z)),
+    extras: ([...anglers(), ...teaGardenFolk(), ...ctx.keepers] as Extra[]).filter((e) => e.indoor || !beyond(e.pos[0], e.pos[2])),
     emitters: b.emitters,
     // no fireflies over the Golden Horn's busy quays
     fireflies: [],
@@ -713,6 +717,7 @@ export function buildIstanbul(win?: Window): BuildResult {
     // the standing layer is looked for just above the ground: under a vault the roof is no floor, and a
     // building's columns start at its floor so nobody stands in its rooms or on its roof
     navTop: (x, z) => {
+      if (outCell(x, z)) return 0; // past the town's edge: never walked
       const ci = col(x, z);
       if (plan.lot[ci]) return Math.min(g.sy - 8, plan.walk[ci] + 1);
       const k = plan.kind[ci];
@@ -759,10 +764,20 @@ const NAZAR_SPOTS: [number, number, number][] = [[-36.5, 22.9, 1.2], [-15.2, 56,
 type Use = { room?: RoomKind; hotel?: number; restaurant?: { id: string; foods: [FoodId, FoodId] } };
 
 /** Which buildings hold the hotels, restaurants and food rooms: decided from the plan alone. */
+/** Whether a lot's front door opens past the town's edge (so nobody could walk in). */
+function doorBeyond(l: LotPlan): boolean {
+  const [ox, oz] = l.side === 'n' ? [0, -1] : l.side === 's' ? [0, 1] : l.side === 'w' ? [-1, 0] : [1, 0];
+  const mx = l.side === 'n' || l.side === 's' ? (l.x0 + l.x1 + 1) / 2 : l.side === 'w' ? l.x0 : l.x1 + 1;
+  const mz = l.side === 'e' || l.side === 'w' ? (l.z0 + l.z1 + 1) / 2 : l.side === 'n' ? l.z0 : l.z1 + 1;
+  if (beyond((mx + ox * 2) * V, (mz + oz * 2) * V)) return true;
+  // nor one whose back rooms reach past it (a hotel's lift, a kitchen)
+  return [[l.x0, l.z0], [l.x1 + 1, l.z0], [l.x0, l.z1 + 1], [l.x1 + 1, l.z1 + 1]].some(([x, z]) => beyond(x * V, z * V));
+}
+
 function assignUses(plan: Plan): Map<number, Use> {
   const out = new Map<number, Use>();
   const hid = hiddenLot(plan)?.id;
-  const fronted = plan.lots.filter((l) => l.door >= 0 && l.id !== hid);
+  const fronted = plan.lots.filter((l) => l.door >= 0 && l.id !== hid && !doorBeyond(l));
   const big = (l: LotPlan, w: number, d: number) => {
     const ns = l.side === 'n' || l.side === 's';
     const W = ns ? l.x1 - l.x0 + 1 : l.z1 - l.z0 + 1, D = ns ? l.z1 - l.z0 + 1 : l.x1 - l.x0 + 1;
@@ -907,6 +922,124 @@ function terrain(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): 
           b.block(mx, mz, mx + V * 0.99, mz + V * 0.99);
         }
       }
+    }
+}
+
+/**
+ * The town's edge, where the walkable town meets the band past it: never an invisible wall. A lane runs up to a
+ * garden gate of iron bars, the avenue and the quays to the roadworks' hoardings, the hilltop terrace to its
+ * balustrade, open ground to a garden wall with its tiled coping; behind them the gardens are planted with trees,
+ * and on the bridge the deck closes at the gates between the bascule towers.
+ */
+function townEdge(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): void {
+  const { b, c, plan } = ctx;
+  const g = b.grid;
+  for (let z = wz0; z < wz1; z++)
+    for (let x = wx0; x < wx1; x++) {
+      if (!outCell(x, z)) continue;
+      const ci = col(x, z), k = plan.kind[ci];
+      if (k === K.Sea || k === K.Lot || k === K.Mosque) continue;
+      // the walkable neighbour this cell closes off
+      let nk = -1, nw = 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const ax = x + dx, az = z + dz;
+        if (!inMap(ax, az) || outCell(ax, az)) continue;
+        const ak = plan.kind[col(ax, az)];
+        if (ak === K.Sea || ak === K.Lot || ak === K.Mosque) continue;
+        if (nk < 0 || isPath(ak)) { nk = ak; nw = plan.walk[col(ax, az)]; }
+      }
+      if (nk < 0) continue;
+      const w = plan.walk[ci], base = Math.min(w, nw), u = x + z;
+      if (nk === K.Bridge) {
+        // the bascule gates: iron bars between the towers, a red and white bar across at waist height
+        g.box(x, nw, z, x, nw + 9, z, (_x, y) => (y === nw + 9 ? c.iron : y === nw + 4 ? (pm(x, 4) < 2 ? c.flagRed : c.white) : pm(x, 2) === 0 ? c.iron : 0));
+      } else if (nk === K.Quay || nk === K.Tram || nk === K.Square || nk === K.Street || nk === K.Covered) {
+        // the roadworks' hoarding: panels of blue and white on iron posts, the city's crest suggested on each
+        g.box(x, base, z, x, nw + 9, z, (_x, y) => {
+          const r = y - nw;
+          if (pm(u, 12) === 0) return c.iron;
+          if (r < 0) return c.granite;
+          if (r === 9 || r === 0) return c.white;
+          if (r >= 3 && r <= 6 && pm(u, 12) >= 4 && pm(u, 12) <= 7) return r === 3 || r === 6 ? c.signBlue : c.white;
+          return r > 6 ? c.signBlue : c.awnBlue;
+        });
+      } else if (nk === K.Terrace) {
+        g.box(x, base, z, x, nw + 3, z, (_x, y) => (y === nw + 3 ? c.marble : y < nw || pm(u, 3) === 0 ? c.lime : 0));
+      } else if (nk === K.Lane || nk === K.Stair || nk === K.Steps) {
+        // a garden gate of iron bars under a stone lintel, the garden behind it showing through
+        g.box(x, base, z, x, nw + 10, z, (_x, y) => (y < nw ? c.limeDark : y >= nw + 9 ? (y === nw + 10 ? c.roofTile : c.limeLight) : pm(u, 2) === 0 || y === nw + 4 ? c.ironGreen : 0));
+      } else {
+        // a garden wall of stone and brick, its coping of tiles
+        const top = Math.max(nw, w) + 8;
+        g.box(x, base, z, x, top, z, (xx, y, zz) => (y === top ? c.roofTile : y === top - 1 ? c.limeLight : almasik(c, xx, y, zz)));
+      }
+    }
+  // the gardens past the edge: trees over the walls, so the town goes on green and lived-in
+  const r = rng(4919);
+  for (let z = Math.max(wz0, VZ0 + 2); z < Math.min(wz1, VZ0 + SZ - 2); z += 10)
+    for (let x = Math.max(wx0, VX0 + 2); x < Math.min(wx1, VX0 + SX - 2); x += 10) {
+      const jx = x + Math.floor(hash3(x, 13, z) * 8), jz = z + Math.floor(hash3(x, 14, z) * 8);
+      if (!inMap(jx, jz) || !outCell(jx, jz)) continue;
+      const ci = col(jx, jz);
+      if (plan.kind[ci] !== K.Ground || hash3(jx, 15, jz) < 0.35) continue;
+      let clear = true;
+      for (const [dx, dz] of [[4, 0], [-4, 0], [0, 4], [0, -4]]) if (!inMap(jx + dx, jz + dz) || plan.lot[col(jx + dx, jz + dz)] || !outCell(jx + dx, jz + dz)) clear = false;
+      if (!clear) continue;
+      const y = (plan.walk[ci] - G) * V, mx = (jx + 0.5) * V, mz = (jz + 0.5) * V, kind = hash3(jx, 16, jz), seed = Math.floor(r() * 1e5);
+      if (kind < 0.3) b.place(cypress(c, seed, 26 + Math.floor(kind * 30)), mx, y, mz);
+      else if (kind < 0.55) b.place(figTree(c, seed), mx, y, mz);
+      else if (kind < 0.75) b.place(judasTree(c, seed), mx, y, mz);
+      else b.place(planeTree(c, seed, false), mx, y, mz);
+    }
+  // the Galata Bridge's bascule towers either side of the gates: stone, a lead roof, windows on the water
+  const tz = Math.round(BRIDGE_GATE_Z / V) + 1, Y = layerOf(1.5);
+  if (g.touches(Math.round(-24 / V), tz, Math.round(-12 / V), tz + 10))
+    for (const tx of [Math.round(-23 / V), Math.round(-14.5 / V)]) {
+      g.box(tx, Y, tz, tx + 5, Y + 19, tz + 7, (xx, y, zz) => {
+        const row = y - Y, edge = xx === tx || xx === tx + 5 || zz === tz || zz === tz + 7;
+        if (!edge) return row === 19 ? c.lead : 0;
+        if (row === 19) return c.lead;
+        if (row === 18 || row === 0) return c.limeLight;
+        if (row >= 11 && row <= 15 && (zz === tz + 3 || zz === tz + 4 || xx === tx + 2 || xx === tx + 3)) return row === 11 ? c.marble : c.glass;
+        return row % 4 === 0 ? c.limeLight : c.lime;
+      });
+      for (let k = 0; k < 4; k++) g.box(tx + k, Y + 20 + k, tz + k, tx + 5 - k, Y + 20 + k, tz + 7 - k, c.lead);
+      g.set(tx + 2, Y + 24, tz + 3, c.gold);
+    }
+}
+
+/**
+ * The yards and gardens behind the houses are walled off from the street, so a street reads as one frontage from
+ * house to house: whitewashed or stone walls with a tiled coping, a gateway in them every few metres (a lintel
+ * overhead, low enough to walk under), the gardens' trees showing over the top.
+ */
+function yardWalls(ctx: Ctx, wx0: number, wz0: number, wx1: number, wz1: number): void {
+  const { b, c, plan } = ctx;
+  const g = b.grid;
+  const STREETS = new Set<number>([K.Street, K.Lane, K.Stair, K.Tram, K.Quay, K.Square]);
+  for (let z = wz0; z < wz1; z++)
+    for (let x = wx0; x < wx1; x++) {
+      const ci = col(x, z);
+      if (plan.kind[ci] !== K.Ground || outCell(x, z)) continue;
+      if (shoreDist(x * V, z * V) < 6) continue; // the quays stay open to the water
+      let along = -1, pw = 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ax = x + dx, az = z + dz;
+        if (!inMap(ax, az)) continue;
+        const ak = plan.kind[col(ax, az)];
+        if (ak === K.Mosque || ak === K.Court || ak === K.Park || ak === K.Terrace) { along = -1; break; }
+        if (STREETS.has(ak)) { along = dx !== 0 ? z : x; pw = plan.walk[col(ax, az)]; }
+      }
+      if (along < 0) continue;
+      const w = plan.walk[ci], base = Math.min(w, pw) , top = Math.max(w, pw) + 8;
+      const gate = pm(along, 26) < 4;
+      const white = hash3(x >> 5, 21, z >> 5) < 0.55;
+      g.box(x, base, z, x, top, z, (xx, y, zz) => {
+        if (gate && y >= Math.max(w, pw) && y < top - 1) return 0; // the gateway, a lintel over it
+        if (y === top) return c.roofTile;
+        if (y === top - 1) return gate ? c.woodDark : white ? c.trim : c.limeLight;
+        return white ? (y < base + 2 ? c.stone : c.white) : almasik(c, xx, y, zz);
+      });
     }
 }
 
@@ -2248,7 +2381,7 @@ type RodSpot = { x: number; y: number; z: number; side: number; tone: number; an
  */
 function rodSpots(): RodSpot[] {
   const r = rng(53), out: RodSpot[] = [];
-  for (let z = HORN_Z + 3.5; z < 63; z += 1.7) for (const side of [-1, 1]) {
+  for (let z = HORN_Z + 3.5; z < BRIDGE_GATE_Z - 0.5; z += 1.7) for (const side of [-1, 1]) {
     if (r() < 0.35) continue;
     out.push({ x: side < 0 ? -21.9 : -14.1, y: 1.5, z, side, tone: Math.floor(r() * 3), angler: r() < 0.6 });
   }
@@ -2405,6 +2538,7 @@ function streetLife(ctx: Ctx): void {
       const f = t / len, side = r() < 0.5 ? 1 : -1;
       const off = s.w / 2 - 0.25;
       const x = ax + (bx - ax) * f + nx * off * side, z = az + (bz - az) * f + nz * off * side;
+      if (beyond(x, z)) continue;
       const y = (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
       const vx = Math.floor((x + nx * side * 0.6) / V), vz = Math.floor((z + nz * side * 0.6) / V);
       const beside = plan.lot[col(vx, vz)];
@@ -2414,12 +2548,12 @@ function streetLife(ctx: Ctx): void {
       // across the way: something of the street's life against the wall
       const ex = ax + (bx - ax) * f - nx * off * side, ez = az + (bz - az) * f - nz * off * side;
       const ey = (plan.walk[col(Math.floor(ex / V), Math.floor(ez / V))] - G) * V;
-      if (Math.abs(ey - y) > 0.6 || nearDoor(ex, ez)) continue;
+      if (Math.abs(ey - y) > 0.6 || nearDoor(ex, ez) || beyond(ex, ez) || CATS.some(([cx, , cz]) => Math.hypot(cx - ex, cz - ez) < 1.6)) continue;
       const turn = faceTurn(nx * side, nz * side);
       const pick = r();
       if (s.kind === K.Street || s.kind === K.Tram) {
         if (pick < 0.35) { b.place(produce(c, Math.floor(r() * 1e4)), ex, ey, ez, turn); b.block(ex - 0.8, ez - 0.8, ex + 0.8, ez + 0.8); }
-        else if (pick < 0.5 && s.w >= 5 && juices < 10) {
+        else if (pick < 0.5 && s.w >= 5 && juices < 10 && Math.min(Math.abs(nx), Math.abs(nz)) < 0.15) {
           // a juice stand out from the wall, its seller between it and the wall
           juices++;
           const jx = ex + nx * side * 1.2, jz = ez + nz * side * 1.2;
@@ -2450,7 +2584,7 @@ function streetLife(ctx: Ctx): void {
       const x = ax + (bx - ax) * f + nx * off * side, z = az + (bz - az) * f + nz * off * side;
       const y = (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
       const wall = plan.lot[col(Math.floor((x + nx * side * 0.6) / V), Math.floor((z + nz * side * 0.6) / V))];
-      if (!wall || nearDoor(x, z)) continue;
+      if (!wall || nearDoor(x, z) || beyond(x, z)) continue;
       const out = faceTurn(-nx * side, -nz * side);
       const pick = r();
       if (pick < 0.4) {

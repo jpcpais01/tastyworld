@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.33',
+    version: '0.16.39',
     date: '2026-10-31',
     title: 'Inside the cathedral and the mosques',
     items: [
@@ -19,6 +19,62 @@ export const PATCH_NOTES: PatchNote[] = [
       'People keep to them: the faithful in the pews and at prayer, worshippers kneeling on the carpet and going down in prostration, readers at their stands, a few visitors taking photos. Anyone walking by may come in and sit in a pew.',
       'Inside, the town falls quiet behind the thick walls, your steps ring on the marble or go soft on the carpet, and in the Duomo an organ plays slow chords very softly.',
       'Only the hall you are near is drawn in full, and the stained glass and beams cost next to nothing, so the frame rate holds.',
+    ],
+  },
+  {
+    version: '0.16.38',
+    date: '2026-10-31',
+    title: 'Rooftops to the horizon',
+    items: [
+      'The far city around Istanbul now carries the same stepped red tile roofs as the houses you walk past, so the old town rolls on past the edge of the map as one sea of rooftops instead of flat blocks.',
+    ],
+  },
+  {
+    version: '0.16.37',
+    date: '2026-10-31',
+    title: 'A built-up old city',
+    items: [
+      'Istanbul\'s old city is far denser. About sixty more houses stand in the yards and the wedges of ground left beside the slanting streets, so the streets read as rows of houses shoulder to shoulder rather than houses dotted about open ground.',
+      'Yards and gardens are walled off from the street by whitewashed or stone and brick walls with tiled copings. Every few metres a gateway with a wooden lintel lets you in.',
+    ],
+  },
+  {
+    version: '0.16.36',
+    date: '2026-10-31',
+    title: 'Walk to your pin',
+    items: [
+      'Pins on the pocket map now land exactly where you tap or click. Before, the map could be drawn slightly larger than it measured itself, so a pin placed away from the middle landed a little off.',
+      'Every card on the map has a Walk here button. Tap it on your pin, a stall, a hotel or a friend and the map folds away while you walk there on your own, round corners and up the stairs. Move yourself at any time to take over.',
+    ],
+  },
+  {
+    version: '0.16.35',
+    date: '2026-10-31',
+    title: 'Real houses on the hills',
+    items: [
+      'The villages around Amalfi (Atrani, Ravello, Pontone and the houses up the valley and along the coast) are built like the town\'s own houses now, in the same stucco colours. Every window has dark glass, green or blue shutters folded back or shut, and a white sill. Each house has a door at the front, a white cornice and sometimes stone quoins and a terracotta downpipe.',
+      'Their upper floors have little balconies with iron railings and pots of geraniums. Their roofs are white barrel vaults, small domes, tiled hip roofs or terraces with a parapet, a pergola under vines or bougainvillea, or a room set back on top.',
+      'Atrani\'s and Ravello\'s bell towers have arched belfries and green and yellow majolica domes. At night, windows all over the hills light up.',
+    ],
+  },
+  {
+    version: '0.16.34',
+    date: '2026-10-31',
+    title: 'Where Istanbul ends',
+    items: [
+      'Istanbul no longer stops on a straight line. Its edge now wanders through the old city, and past it the houses and gardens carry on over the hill.',
+      'Every way out is closed by the city itself. Lanes end at iron garden gates with the garden showing through. The tram avenue and the quays are closed by blue and white roadworks hoardings. The hilltop terrace ends at its balustrade, and open ground runs up to tiled garden walls with fig, Judas and cypress trees behind them.',
+      'The Galata Bridge now has its bascule towers, with their gates closed across the deck.',
+      'Beyond the map, the far city is built right up against the town, so the streets you walk run on into Fatih and towards Sultanahmet without a gap.',
+    ],
+  },
+  {
+    version: '0.16.33',
+    date: '2026-10-31',
+    title: 'Through the headland',
+    items: [
+      'The headland at the end of Amalfi\'s beach no longer stops in a sheer flat wall. Its limestone now comes down to the pebbles in crags and ledges tufted with green, and its nose runs down into the sea over rocks under the water.',
+      'The shore road dives into the headland through a proper tunnel portal: a stone headwall cut into the rock face, a ring of tufa voussoirs round the arch, a cornice along the top and a marble plaque over the road, with the rock climbing away above it.',
     ],
   },
   {

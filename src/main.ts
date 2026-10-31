@@ -285,8 +285,9 @@ class Game {
   /** What the chunk streamer should keep loaded for the current camera. */
   private streamView(): StreamView {
     const fp = this.cam.fp;
-    // room contents: 20 m around you in first person; in the iso view as far as the crowd is drawn (about the screen)
-    const inner = fp ? 20 : Math.max(20, this.cam.zoom * 1.3 + 8);
+    // room contents: 20 m around you in first person; in the iso view as far as the crowd is drawn (about the
+    // screen) up to 36 m: zoomed further out, a glimpse through a doorway is a few pixels, not worth a draw each
+    const inner = fp ? 20 : Math.min(36, Math.max(20, this.cam.zoom * 1.3 + 8));
     return { cam: this.r.view, fp, focus: this.started ? this.player.position : this.cam.target, inner };
   }
 

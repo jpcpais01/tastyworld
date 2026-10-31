@@ -1062,6 +1062,9 @@ function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touched: bool
       const [ox, oz] = f.m(A1 - 2, D1 - 1);
       b.emitters.push({ kind: 'smoke', pos: [ox, y + 2.0, oz], rate: 0.4 });
     }
+    // İznik plates hung along the side walls above the dado, and coloured lanterns over the tables
+    for (const a of [A0 - 1, A1 + 1]) for (let d = D0 + 2; d + 2 < cd; d += 5) iznikPlate(ctx, f, a, base + 6, d, lt.seed + d * 3 + a);
+    if (!bazaar) for (let d = D0 + 4; d + 2 < cd; d += 7) hangingLantern(ctx, f, Math.round(W / 2) - 1 + ((d >> 1) & 1) * 2, d, base);
     if (kind === 'kahve' || kind === 'cay') {
       const [sx, sz] = f.m(ca1 - 1, cd + 0.5);
       b.place(samovar(c), sx, y + 1.25, sz);
@@ -1156,6 +1159,7 @@ function hotel(ctx: Ctx, f: Frame, lt: LotPlan, index: number, touched: boolean)
     // the lift doors at the back wall
     f.box(g, da, base, D1 + 1, da + 3, base + 8, D1 + 1, c.chrome);
     f.box(g, da + 1, base + 9, D1 + 1, da + 2, base + 9, D1 + 1, c.lampAmber);
+    lobbyDressing(ctx, f, base, A0, A1, D0, D1, da);
     const [vx0, vz0] = f.xz(A0, D0), [vx1, vz1] = f.xz(A1, D1);
     b.indoor.push([Math.min(vx0, vx1), base, Math.min(vz0, vz1), Math.max(vx0, vx1), base + 10, Math.max(vz0, vz1)]);
     const [lx, lz] = f.m(W / 2, D1 / 2);
@@ -1181,6 +1185,89 @@ function hotel(ctx: Ctx, f: Frame, lt: LotPlan, index: number, touched: boolean)
   const ha: HotelAnchor = { id: info.id, lobby: lobby.id, rect: [Math.min(fx0, fx1), Math.min(fz0, fz1), Math.max(fx0, fx1), Math.max(fz0, fz1)], entrance: lobby.door, rooms: [] };
   for (const spec of info.rooms) ha.rooms.push(guestRoom(ctx, f, lt, info.id, spec, touched, carpetA, wallC));
   b.hotels.push(ha);
+}
+
+/** A decorative İznik plate hung flat on a wall (the wall plane is at a): a coloured rim round a tulip. */
+function iznikPlate(ctx: Ctx, f: Frame, a: number, y: number, d: number, seed: number): void {
+  const { b, c } = ctx;
+  const rim = [c.iznikBlue, c.cobalt, c.iznikTeal][Math.abs(seed) % 3];
+  const mid = [c.iznikRed, c.iznikBlue, c.iznikGreen][Math.abs(seed >> 2) % 3];
+  // round at this size: a cross of rim with the white field and the tulip at its heart
+  f.box(b.grid, a, y, d + 1, a, y + 2, d + 1, rim);
+  f.box(b.grid, a, y + 1, d, a, y + 1, d + 2, rim);
+  f.box(b.grid, a, y + 1, d + 1, a, y + 1, d + 1, mid);
+}
+
+/** A potted palm: a copper pot and a fan of fronds, two voxels square. */
+function pottedPalm(ctx: Ctx, f: Frame, a: number, y: number, d: number): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  f.box(g, a, y, d, a + 1, y + 2, d + 1, (_a, yy) => (yy === y + 2 ? c.soil : c.copper));
+  f.box(g, a, y + 3, d, a, y + 5, d, c.trunk);
+  for (let k = 0; k < 4; k++) {
+    const [ea, ed] = [[-1, 0], [2, 1], [0, 2], [1, -1]][k];
+    f.box(g, Math.min(a, a + ea), y + 6 + (k & 1), Math.min(d, d + ed), Math.max(a + 1, a + ea), y + 6 + (k & 1), Math.max(d + 1, d + ed), k % 2 ? c.leaf : c.leafLight);
+  }
+  f.box(g, a, y + 7, d, a + 1, y + 8, d + 1, c.leafDark);
+}
+
+/** A hanging Ottoman lantern of coloured glass on a brass chain, from the ceiling down to about two metres. */
+function hangingLantern(ctx: Ctx, f: Frame, a: number, d: number, y: number): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  f.box(g, a, y + 9, d, a, y + 10, d, c.brass);
+  const cols = [c.lampRed, c.lampBlue, c.lampAmber, c.lampGreen];
+  // a little star of coloured glass round a brass heart, a drop of glass below
+  f.box(g, a - 1, y + 8, d, a + 1, y + 8, d, (aa) => (aa === a ? c.brass : cols[(aa + d) & 3]));
+  f.box(g, a, y + 8, d - 1, a, y + 8, d + 1, (_a, _y, dd) => (dd === d ? c.brass : cols[(dd + a + 1) & 3]));
+  f.box(g, a, y + 7, d, a, y + 7, d, cols[(a + d) & 3]);
+}
+
+/**
+ * The lobby made a lobby: an İznik tile band round the back wall, a calligraphy panel in gold, a coffee table
+ * with a tea tray by the sofa, palms in the corners, and a coloured-glass lantern hanging over the runner.
+ */
+function lobbyDressing(ctx: Ctx, f: Frame, base: number, A0: number, A1: number, D0: number, D1: number, da: number): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  f.box(g, A0, base + 4, D1 + 1, A1, base + 5, D1 + 1, (a, yy) => ((a + yy) % 2 ? c.iznikBlue : (a % 4 === 1 ? c.iznikRed : c.iznikWhite)));
+  // the calligraphy: a gold-framed panel between the corner and the lift
+  if (da - 3 > A0 + 3) f.box(g, A0 + 3, base + 6, D1 + 1, da - 3, base + 9, D1 + 1, (a, yy) => (a === A0 + 3 || a === da - 3 || yy === base + 6 || yy === base + 9 ? c.gold : hash3(a, yy, 7) < 0.35 ? c.gold : c.leafDark));
+  // the coffee table with tulip glasses, in front of the sofa
+  f.box(g, A1 - 5, base, D0 + 4, A1 - 4, base, D0 + 7, c.woodDark);
+  f.box(g, A1 - 5, base + 1, D0 + 4, A1 - 4, base + 1, D0 + 7, c.brass);
+  f.box(g, A1 - 5, base + 2, D0 + 5, A1 - 5, base + 2, D0 + 5, c.tea); f.box(g, A1 - 4, base + 2, D0 + 6, A1 - 4, base + 2, D0 + 6, c.tea);
+  // cushions on the sofa, and its back against the wall
+  f.box(g, A1, base + 3, D0 + 3, A1, base + 4, D0 + 8, c.carpetRed);
+  f.box(g, A1 - 1, base + 3, D0 + 4, A1 - 1, base + 3, D0 + 4, c.carpetGold); f.box(g, A1 - 1, base + 3, D0 + 7, A1 - 1, base + 3, D0 + 7, c.carpetBlue);
+  pottedPalm(ctx, f, A0, base, D1 - 1);
+  pottedPalm(ctx, f, A1 - 1, base, D1 - 1);
+  hangingLantern(ctx, f, da + 1, Math.round(D1 / 2), base);
+  hangingLantern(ctx, f, da + 2, Math.round(D1 / 4), base);
+}
+
+/**
+ * A guest room finished: a night table and its lamp by the bed, a wardrobe, a framed view of the Bosphorus on the
+ * side wall and a coloured lantern from the ceiling.
+ */
+function guestDressing(ctx: Ctx, f: Frame, L: number, A0: number, A1: number, D0: number, D1: number, beds: number[], w: number, bedD: number, seed: number): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  // the night table: between the twins, or to the side of the double
+  const na = beds[0] + w + 1;
+  if (na + 1 <= A1) {
+    f.box(g, na, L, bedD + 7, na + 1, L + 2, bedD + 8, c.woodDark);
+    f.box(g, na, L + 3, bedD + 8, na, L + 3, bedD + 8, c.lampAmber);
+  }
+  // the wardrobe, by the door if there is depth for it behind the bed
+  if (D1 - 3 > bedD + 9) f.box(g, A1 - 1, L, D1 - 3, A1, L + 8, D1, (_a, yy, d) => (yy === L + 8 ? c.cornice : (yy === L + 4 && (d === D1 - 2 || d === D1 - 1)) ? c.brass : c.woodDark));
+  // the picture: a ferry on blue water under a pale sky, gold-framed, on the side wall above the kilim
+  f.box(g, A0 - 1, L + 5, D0 + 4, A0 - 1, L + 8, D0 + 9, (_a, yy, d) => {
+    if (yy === L + 5 || yy === L + 8 || d === D0 + 4 || d === D0 + 9) return c.gilt;
+    if (yy === L + 6) return d === D0 + 6 + (seed & 1) ? c.hullWhite : c.iznikBlue;
+    return d === D0 + 6 + (seed & 1) ? c.hullDark : c.powder;
+  });
+  hangingLantern(ctx, f, Math.round((A0 + A1) / 2) - 3, Math.round((D0 + D1) / 2) - 3, L);
 }
 
 /** A unit direction in the lot's frame (along a, into d) as (dx, dz). */
@@ -1223,6 +1310,7 @@ function guestRoom(ctx: Ctx, f: Frame, lt: LotPlan, hotelId: string, spec: { flo
     f.box(g, A0 + 1, L, D1 + 1, A0 + 3, L + 8, D1 + 1, (a, yy) => (yy === L + 4 && a === A0 + 3 ? c.brass : (yy - L) % 4 === 0 ? c.woodDark : c.door));
     f.box(g, A0, L, D0 + 12, A0 + 1, L + 3, D0 + 14, c.woodBare);
     f.box(g, A0, L + 4, D0 + 13, A0 + 1, L + 4, D0 + 13, c.tea);
+    guestDressing(ctx, f, L, A0, A1, D0, D1, beds, twin ? 3 : spec.type === 'single' ? 3 : 5, bedD, lt.seed + spec.floor);
     const [vx0, vz0] = f.xz(A0, D0), [vx1, vz1] = f.xz(A1, D1);
     b.indoor.push([Math.min(vx0, vx1), L, Math.min(vz0, vz1), Math.max(vx0, vx1), L + 10, Math.max(vz0, vz1)]);
     const [lx, lz] = f.m((A0 + A1) / 2, (D0 + D1) / 2);

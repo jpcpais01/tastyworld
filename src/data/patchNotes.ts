@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.15',
+    date: '2026-10-31',
+    title: 'Nothing in the way',
+    items: [
+      'Istanbul\'s hotel room windows no longer have a thick glazing bar right in the middle of the view: the bars now sit either side of the pane you look out of, in every hotel.',
+    ],
+  },
+  {
     version: '0.16.14',
     date: '2026-10-31',
     title: 'A room with a view',

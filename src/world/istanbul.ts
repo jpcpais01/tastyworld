@@ -1319,7 +1319,9 @@ function guestRoom(ctx: Ctx, f: Frame, lt: LotPlan, hotelId: string, spec: { flo
     for (const [a0, d0, a1, d1] of [[A0, D1 + 1, A1, D1 + 1], [A0 - 1, D0, A0 - 1, D1], [A1 + 1, D0, A1 + 1, D1]] as const)
       f.box(g, a0, L, d0, a1, L + 9, d1, (_a, yy) => (yy === L + 3 ? c.woodDark : wallC));
     // the windows of this floor opened through to the street, curtains either side
-    f.box(g, 3, L + 2, 0, A1 - 2, L + 8, 0, (a, yy) => (a % 6 === 0 ? c.woodDark : yy === L + 2 ? c.trim : c.glass));
+    // glazing bars every 6 cells, set either side of the middle so the view from the window is a clear pane
+    const mid = Math.round(A1 / 2);
+    f.box(g, 3, L + 2, 0, A1 - 2, L + 8, 0, (a, yy) => (pm(a - mid, 6) === 3 ? c.woodDark : yy === L + 2 ? c.trim : c.glass));
     f.box(g, 2, L + 2, 1, 2, L + 8, 1, c.carpetRed); f.box(g, A1 - 1, L + 2, 1, A1 - 1, L + 8, 1, c.carpetRed);
     // the bed: a carved headboard at the back wall, white linen, a woven cover; a kilim and a chair
     const twin = spec.type === 'twin';
@@ -1349,7 +1351,7 @@ function guestRoom(ctx: Ctx, f: Frame, lt: LotPlan, hotelId: string, spec: { flo
   const spawn = f.m(A0 + 2, D1 - 2);
   const doorPick = f.m(A0 + 2, D1 + 0.6);
   const bedStand = f.m(bedA - 1.5, bedD + 4), bedPick = f.m(bedA + 2, bedD + 4);
-  const winStand = f.m(A1 / 2, D0 + 1.5), winLook = f.m(A1 / 2, D0 - 3);
+  const winStand = f.m(Math.round(A1 / 2), D0 + 1.5), winLook = f.m(Math.round(A1 / 2), D0 - 3);
   const teaStand = f.m(A0 + 3.5, D0 + 13.5), teaPick = f.m(A0 + 1.5, D0 + 13.5);
   return {
     id: `${hotelId}-${spec.floor}`, hotel: hotelId, floor: spec.floor, type: spec.type, price: spec.price, y: Y,

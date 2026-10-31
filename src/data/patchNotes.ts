@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.10',
+    date: '2026-10-31',
+    title: 'Flower boxes held up',
+    items: [
+      'The last few window sills and geranium boxes that hung in the air inside Amalfi\'s covered passages are gone: houses no longer open windows onto the vaults.',
+    ],
+  },
+  {
     version: '0.16.9',
     date: '2026-10-31',
     title: 'Amalfi among the mountains',

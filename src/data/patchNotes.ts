@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.14',
+    date: '2026-10-31',
+    title: 'A room with a view',
+    items: [
+      'Hotel room windows are clear from inside now: the glass lets almost all of the street through, with just a faint tint, a soft smear and a little more reflection when you look along it, so the view from the window is the city, not a blue wall.',
+      'In Istanbul the glass you looked at from your room no longer blocks the view. Tokyo\'s room windows, open holes until now, get a pane you look through. Amalfi\'s French windows stay thrown open onto the sea.',
+    ],
+  },
+  {
     version: '0.16.13',
     date: '2026-10-31',
     title: 'Tea by the Bosphorus',

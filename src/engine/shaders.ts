@@ -249,6 +249,7 @@ uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
 uniform vec3 uFogColor;
 uniform vec3 uWindowColor;
+uniform vec3 uClearGlass[2]; // min, max corner (metres) of glass drawn clear: see game/roomglass.ts
 uniform float uLamp;
 uniform float uNight;
 uniform float uEmitDay;
@@ -481,7 +482,13 @@ void main() {
   float rnd = float(h & 65535u) / 65535.0;
   // glass carries vary 0.30 (GLASS_VARY in world/palette.ts), a jitter nothing else uses
   bool glass = vVary > 0.29;
-  if (glass) vVary = 0.02;
+  if (glass) {
+    vVary = 0.02;
+    // the window glass of the hotel room the player is in is drawn clear here; game/roomglass.ts lays a faint
+    // pane over the opening instead, so the street shows through from inside
+    vec3 gp = vWorld - vNormal * 0.05;
+    if (all(greaterThan(gp, uClearGlass[0])) && all(lessThan(gp, uClearGlass[1]))) discard;
+  }
   vec3 albedo = srgb2lin(vColor.rgb) * (1.0 + (rnd - 0.5) * 2.0 * vVary);
 
 #ifdef CHARACTER

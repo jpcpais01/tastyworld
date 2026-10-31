@@ -142,8 +142,11 @@ export function icon(name: string): string {
 }
 
 // ---------------------------------------------------------------- flags (simplified, in their own colours)
+// No <clipPath id> inside: the same markup is stamped many times on one page, and a shared id resolves to the
+// first copy in the document. When that copy sat in a hidden list, every flag on the travel map came out blank.
+// The rounded corners are clipped by CSS (.flag clip-path) instead, which needs no ids.
 const flag = (body: string) =>
-  `<svg class="flag" viewBox="0 0 30 20" aria-hidden="true"><clipPath id="fl"><rect width="30" height="20" rx="3"/></clipPath><g clip-path="url(#fl)">${body}</g><rect width="30" height="20" rx="3" fill="none" stroke="rgba(0,0,0,.14)"/></svg>`;
+  `<svg class="flag" viewBox="0 0 30 20" preserveAspectRatio="none" aria-hidden="true">${body}<rect x=".5" y=".5" width="29" height="19" rx="2.5" fill="none" stroke="rgba(0,0,0,.16)"/></svg>`;
 const stripes = (dir: 'h' | 'v', cols: string[], w = cols.map(() => 1)) => {
   const tot = w.reduce((a, b) => a + b, 0);
   let at = 0;

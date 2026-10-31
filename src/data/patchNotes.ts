@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.41',
+    date: '2026-10-31',
+    title: 'Flags on the travel map',
+    items: [
+      'The country flags on the travel map now show up every time, on the globe pins, the destination list, the city card and your boarding pass. Before, they could come out blank or half drawn on some browsers.',
+    ],
+  },
+  {
     version: '0.16.40',
     date: '2026-10-31',
     title: 'The bazaars, rebuilt',

@@ -24,6 +24,28 @@ float vnoise(vec2 p) {
 }
 `;
 
+/**
+ * Water wave spectrum, baked into the composite shader as constants: 8 long waves whose directions scatter within
+ * about 70 degrees of the wind and whose wavelengths step down by an uneven ratio, so no two are ever in step.
+ * Each carries roughly the same slope, like a wind sea; the short chop is noise (see waterNormal),
+ * since short sines are what beat into checkers. Sorted long to short so the shader can stop early.
+ */
+const WAVE_TABLE = (() => {
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const n = 8, wind = 0.35, rows: string[] = [], phs: string[] = [];
+  let k = 1.25;
+  for (let i = 0; i < n; i++) {
+    // long swell keeps close to the wind; the short chop comes from every side
+    const a = wind + (rnd() - 0.5) * (1.6 + 1.6 * i / n) + (i % 2 ? 0.3 : -0.3);
+    const slope = 0.036 * (0.75 + 0.5 * rnd()) * (i > 5 ? 0.85 : 1);
+    rows.push(`vec4(${Math.cos(a).toFixed(4)}, ${Math.sin(a).toFixed(4)}, ${k.toFixed(4)}, ${slope.toFixed(4)})`);
+    phs.push((rnd() * Math.PI * 2).toFixed(4));
+    k *= 1.17 + 0.12 * rnd();
+  }
+  return `const int WAVES = ${n};\nconst vec4 WAVE[${n}] = vec4[${n}](${rows.join(', ')});\nconst float WAVE_PH[${n}] = float[${n}](${phs.join(', ')});`;
+})();
+
 const VOXEL_SCALES = `const float SCALES[9] = float[9](0.25, 0.125, 0.0625, 0.075, 0.025, 0.05, 0.1, 0.5, 1.0);`;
 
 /**
@@ -746,30 +768,43 @@ vec3 worldAt(vec2 uv, float depth) {
   return p.xyz / p.w;
 }
 
-// analytic water surface: sum of directional waves with derivatives.
-// fw is the screen pixel's footprint in p units: each wave fades out as it nears a few pixels long (gone by ~5 px),
-// so a zoomed-out (or far first-person) view sees calm, band-limited water instead of a moire of beating crests.
+// analytic water surface, band-limited against fw (the screen pixel's footprint in p units): each wave fades out
+// as it nears a few pixels long, so zoomed-out water calms instead of beating into a moire.
 float bandLimit(float k, float fw) { return 1.0 - smoothstep(0.4, 1.3, k * fw); }
+// value noise with its analytic gradient (xy) and value (z): one lattice lookup instead of three
+vec3 vnoiseD(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f), du = 6.0 * f * (1.0 - f);
+  float a = hash12(i), b = hash12(i + vec2(1, 0)), c = hash12(i + vec2(0, 1)), d = hash12(i + vec2(1, 1));
+  float k1 = b - a, k2 = c - a, k4 = a - b - c + d;
+  return vec3(du * vec2(k1 + k4 * u.y, k2 + k4 * u.x), a + k1 * u.x + k2 * u.y + k4 * u.x * u.y);
+}
+${WAVE_TABLE}
+const vec4 OCT_ROT[4] = vec4[4](vec4(0.8, 0.6, 0.35, -0.2), vec4(-0.28, 0.96, -0.3, 0.5), vec4(0.6, -0.8, 0.6, 0.45), vec4(-0.96, -0.28, -0.5, -0.7));
 vec3 waterNormal(vec2 p, float t, float fw) {
+  // crests bend: a slow warp keeps every wave from running as a ruled line across the whole sea
+  vec2 w = p + (vec2(vnoise(p * 0.11), vnoise(p * 0.11 + 31.7)) - 0.5) * 1.6;
+  // two patch masks: one family of waves rises where the other dies down, so the interference never tiles
+  float m0 = 0.35 + 1.3 * vnoise(p * 0.07 + vec2(t * 0.02, 5.3));
+  float m1 = 0.35 + 1.3 * vnoise(p * 0.07 + vec2(-9.1, t * 0.017));
   vec2 g = vec2(0.0);
-  vec4 dirs[5];
-  dirs[0] = vec4(normalize(vec2(1.0, 0.3)), 1.6, 0.035);
-  dirs[1] = vec4(normalize(vec2(-0.6, 1.0)), 2.3, 0.025);
-  dirs[2] = vec4(normalize(vec2(0.8, -0.9)), 3.7, 0.016);
-  dirs[3] = vec4(normalize(vec2(-1.0, -0.2)), 5.9, 0.010);
-  dirs[4] = vec4(normalize(vec2(0.2, 1.0)), 9.1, 0.006);
-  for (int i = 0; i < 5; i++) {
-    float k = dirs[i].z;
-    float ph = dot(dirs[i].xy, p) * k + t * sqrt(9.8 * k) * 0.55;
-    g += dirs[i].xy * k * dirs[i].w * cos(ph) * bandLimit(k, fw);
+  for (int i = 0; i < WAVES; i++) {
+    vec4 wv = WAVE[i];
+    float bl = bandLimit(wv.z, fw);
+    if (bl <= 0.0) break; // sorted long to short: the rest are finer still
+    float ph = dot(wv.xy, w) * wv.z + t * sqrt(9.8 * wv.z) * 0.55 + WAVE_PH[i];
+    g += wv.xy * (wv.w * bl * ((i & 1) == 0 ? m0 : m1) * cos(ph));
   }
-  // fine ripples (noise lattice turned off the world axes so it never lines up with the iso grid)
-  float rw = bandLimit(3.0 * 6.2832, fw);
-  if (rw > 0.0) {
-    vec2 q = mat2(0.8, -0.6, 0.6, 0.8) * p * 3.0 + vec2(t * 0.4, -t * 0.3);
-    float e = 0.03;
-    float n0 = vnoise(q), nx = vnoise(q + vec2(e, 0.0)), nz = vnoise(q + vec2(0.0, e));
-    g += mat2(0.8, 0.6, -0.6, 0.8) * vec2(nx - n0, nz - n0) / e * 0.012 * rw;
+  // chop and capillary ripples: rotated octaves of noise drifting with the wind. Noise has no period and no
+  // single direction, so the short scales (where sines would beat into a lattice) stay irregular
+  float f = 0.9, amp = 0.085;
+  for (int o = 0; o < 4; o++) {
+    float r = bandLimit(f * 5.0, fw);
+    if (r <= 0.0) break;
+    float c = OCT_ROT[o].x, sn = OCT_ROT[o].y;
+    vec2 q = mat2(c, -sn, sn, c) * p * f + OCT_ROT[o].zw * t;
+    g += mat2(c, sn, -sn, c) * vnoiseD(q).xy * amp * r;
+    f *= 2.13; amp *= 0.52;
   }
   return normalize(vec3(-g.x, 1.0, -g.y));
 }
@@ -880,6 +915,8 @@ void main() {
     vec3 scatterLight = uWaterScatter * (0.35 + 0.65 * clamp(length(uSunColor), 0.0, 1.5));
     vec3 under = floorCol * trans + scatterLight * (1.0 - exp(-pathLen * 0.85));
     vec3 deep = mix(uWaterDeep, uWaterDeep * vec3(0.5, 0.95, 1.55) + vec3(0.0, 0.004, 0.012), uSea);
+    // the open sea is never one flat colour: broad, slow patches of deeper and lighter blue
+    deep *= 1.0 + uSea * (vnoise(sp.xz * 0.018 + vec2(uTime * 0.004, 0.0)) - 0.5) * 0.35;
     under = mix(under, deep, 1.0 - exp(-pathLen * mix(0.45, 0.3, uSea)));
     // volumetric light shafts: march through the water column
     if (uShafts > 0.0) {

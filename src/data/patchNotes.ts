@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.11',
+    date: '2026-10-31',
+    title: 'A real skyline',
+    items: [
+      'The towers on the horizon look like real buildings now: shop podiums at the bottom, glass shafts that step back as they rise, crowns, roof plant and masts.',
+      'Their glass mirrors the sky, with a floor line at every storey and mullions you can make out from far away, and some towers have a stone grid instead.',
+      'Much less haze over the far city, especially higher up, so the skyline stands out clearly from street level. From first person you can now see it well past your view distance.',
+      'At night the towers are dotted with lit offices instead of glowing all over.',
+    ],
+  },
+  {
     version: '0.10.10',
     date: '2026-10-30',
     title: 'No more ghost outlines',

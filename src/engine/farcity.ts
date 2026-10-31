@@ -39,16 +39,21 @@ float axisRoad(float x, float a0, float a1) {
   else t = mod(x - a1 - RING, PERIOD);
   return t > BLOCK ? min(t - BLOCK, PERIOD - t) : -min(t, BLOCK - t);
 }
-// shared haze: thicker the further from the map, plus the first-person fog
+// shared haze: thicker the further from the map and close to the ground, thinner up where the towers are, so
+// the skyline stands out clearly over the street-level murk (the voxel city's own first-person fog is much
+// thicker: it has to hide where loading stops, which the far city doesn't)
 vec3 farHaze(vec3 col, vec3 w, vec4 rect, vec3 fogColor, vec4 fog) {
   vec2 o = max(rect.xy - w.xz, w.xz - rect.zw);
   float out_ = max(0.0, max(o.x, o.y));
-  col = mix(col, fogColor, 1.0 - exp(-out_ * 0.0055));
+  float lift = mix(1.0, 0.45, smoothstep(4.0, 80.0, w.y));
+  float a = (1.0 - exp(-out_ * 0.0034)) * lift;
   if (fog.w > 0.0) {
-    float fd = max(0.0, distance(w, fog.xyz) - FOG_START) * fog.w;
-    col = mix(col, fogColor, 1.0 - exp(-fd * fd));
+    float fd = max(0.0, distance(w, fog.xyz) - FOG_START) * fog.w * 0.3;
+    a = max(a, (1.0 - exp(-fd * fd)) * lift);
   }
-  return col;
+  // and all the way into the haze at the far edge of the city, where the ground plane ends
+  a = mix(min(a, 0.8), 1.0, smoothstep(230.0, 330.0, out_));
+  return mix(col, fogColor, a);
 }
 `;
 
@@ -57,7 +62,8 @@ vec3 farHaze(vec3 col, vec3 w, vec4 rect, vec3 fogColor, vec4 fog) {
 const HOUSE = ['#ddd2bd', '#c8b39a', '#9e8670', '#b9bdc2', '#e8e2d6', '#cdbfa6'];
 const ROOF = ['#4c5561', '#6b4d42', '#5a6559', '#3f4652'];
 const MID = ['#bcb8ae', '#d1c6b2', '#a9a19b', '#e0dbd1', '#94929a', '#c9b49c', '#b8c0c4'];
-const GLASS = ['#5d7891', '#6f8798', '#4e6a73', '#7b8fa6'];
+// tower frames (mullions, spandrels): pale stone, steel, near black, warm granite, blue grey
+const GLASS = ['#dcdad4', '#a9afb7', '#3e454f', '#cbbfae', '#7a8591', '#e9e7e2'];
 const SIGN = ['#e8473a', '#f2c230', '#36c6d8', '#e85aa8', '#5bd16a', '#f08a2e'];
 const TREE = ['#5c8a4a', '#4f7a43', '#6a9550', '#e9b4c4'];
 
@@ -117,14 +123,33 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         else part(cx - w / 2 - 0.5, cz + along, 1.0, 0.25, sy, sh, 5, sc);
       }
     } else {
-      // a tower: glass shaft, a set-back crown and a mast
+      // a tower: a podium of shops, the glass shaft with a set-back upper part, a crown, roof plant and a mast
       let h = 30 + rnd() * 40 + k * 40 + ne * rnd() * 90;
       h = Math.round(h / 3.6) * 3.6;
-      part(cx, cz, w, d, 0, h, 2, pick(GLASS));
-      const cw = w * (0.55 + rnd() * 0.2), cd = d * (0.55 + rnd() * 0.2), ch = 3.6 * (1 + Math.floor(rnd() * 3));
-      part(cx, cz, cw, cd, h, ch, 2, pick(GLASS));
-      part(cx, cz, w + 0.3, d + 0.3, h - 0.6, 0.6, 4, '#c8ccd2');
-      if (rnd() < 0.5) part(cx, cz, 0.35, 0.35, h + ch, 4 + rnd() * 8, 4, '#d8d8d8');
+      const frame = pick(GLASS), ts = rnd();
+      const ph = (2 + Math.floor(rnd() * 3)) * 3.2;
+      part(cx, cz, w, d, 0, ph, 1, pick(MID));
+      part(cx, cz, w - 0.2, d - 0.2, ph, 0.3, 4, '#8d8b88');
+      const sw = w * (0.72 + rnd() * 0.18), sd = d * (0.72 + rnd() * 0.18);
+      let top = h, tw = sw, td = sd;
+      if (h > 50 && rnd() < 0.7) {
+        // a set-back two thirds of the way up
+        const sb = Math.round((h * (0.55 + rnd() * 0.2)) / 3.6) * 3.6;
+        part(cx, cz, sw, sd, ph, sb - ph, 2, frame, ts);
+        part(cx, cz, sw + 0.3, sd + 0.3, sb - 0.5, 0.5, 4, '#c8ccd2');
+        tw = sw * (0.7 + rnd() * 0.15); td = sd * (0.7 + rnd() * 0.15);
+        part(cx, cz, tw, td, sb, h - sb, 2, frame, ts);
+      } else part(cx, cz, sw, sd, ph, h - ph, 2, frame, ts);
+      part(cx, cz, tw + 0.3, td + 0.3, top - 0.6, 0.6, 4, '#c8ccd2');
+      const cw = tw * (0.55 + rnd() * 0.2), cd = td * (0.55 + rnd() * 0.2), ch = 3.6 * (1 + Math.floor(rnd() * 3));
+      part(cx, cz, cw, cd, top, ch, 2, frame, ts);
+      // roof plant on the main roof beside the crown
+      for (let i = 0; i < 3; i++) {
+        const ex = (rnd() - 0.5) * (tw - 2.5), ez = (rnd() - 0.5) * (td - 2.5);
+        if (Math.abs(ex) < cw / 2 + 0.8 && Math.abs(ez) < cd / 2 + 0.8) continue;
+        part(cx + ex, cz + ez, 1.2 + rnd() * 1.6, 1.2 + rnd() * 1.6, top, 1 + rnd() * 1.4, 4, rnd() < 0.5 ? '#d6d4cc' : '#9c9a94');
+      }
+      if (rnd() < 0.6) part(cx, cz, 0.35, 0.35, top + ch, 5 + rnd() * 10, 4, '#d8d8d8');
     }
   };
 
@@ -214,9 +239,11 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       float grid(float u, float y, float pu, float fh, vec4 r, out vec2 cell) {
         cell = vec2(floor(u / pu), floor(y / fh));
         vec2 f = vec2(fract(u / pu), fract(y / fh));
-        float m = step(r.x, f.x) * step(f.x, r.y) * step(r.z, f.y) * step(f.y, r.w);
-        float aa = smoothstep(0.35, 0.8, max(fwidth(u) / pu, fwidth(y) / fh) * 3.0);
-        return mix(m, (r.y - r.x) * (r.w - r.z), aa);
+        // each axis fades to its average on its own, so floor lines survive further out than the columns
+        vec2 aa = smoothstep(vec2(0.3), vec2(0.7), vec2(fwidth(u) / pu, fwidth(y) / fh) * 1.6);
+        float mx = mix(step(r.x, f.x) * step(f.x, r.y), r.y - r.x, aa.x);
+        float my = mix(step(r.z, f.y) * step(f.y, r.w), r.w - r.z, aa.y);
+        return mx * my;
       }
       void main() {
         int kind = int(vPart.z + 0.5);
@@ -244,8 +271,16 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
             if (y < 3.2) { win = grid(u, y, 4.0, 3.2, vec4(0.06, 0.94, 0.05, 0.7), cell); }
             albedo = mix(albedo, glass + vec3(0.03), win);
           } else if (kind == 2) {
-            win = grid(u, y, 1.8, 3.6, vec4(0.06, 0.94, 0.2, 1.0), cell);
-            albedo = mix(albedo * 1.4, srgb2lin(vCol) * 0.55 + glass * 0.5, win);
+            // curtain wall: dark tinted glass that mirrors the sky (brighter higher up, a cooler bottom), thin
+            // mullions and a spandrel band at every floor in the frame colour; some towers have a stone grid
+            bool stone = seed > 0.7;
+            win = stone ? grid(u, y, 2.4, 3.6, vec4(0.22, 0.78, 0.25, 0.85), cell) : grid(u, y, 1.5, 3.6, vec4(0.05, 0.95, 0.24, 0.97), cell);
+            vec3 tint = mix(vec3(0.07, 0.11, 0.15), vec3(0.1, 0.13, 0.12), fract(seed * 7.3));
+            float up = smoothstep(0.0, 160.0, vWorld.y);
+            vec3 refl = tint + uSkyColor * mix(0.18, 0.42, up) + uFogColor * 0.08;
+            // the odd floor with blinds drawn or lights on by day, so faces aren't uniform
+            refl *= 0.88 + 0.24 * hash12(cell * vec2(0.37, 1.0) + seed * 53.0);
+            albedo = mix(albedo, refl, win);
           } else if (kind == 5) {
             // a lit sign: a column of characters
             float c = step(0.2, fract(y / 1.1)) * step(fract(y / 1.1), 0.85) * step(0.2, fract(u * 3.0 + 0.5));
@@ -256,6 +291,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
           float r = fract((abs(vSize.x) >= abs(vSize.z) ? vLocal.z : vLocal.x) * 3.0);
           albedo *= mix(0.86 + 0.14 * step(0.5, r), 0.93, smoothstep(0.1, 0.3, fw));
         }
+        float glassy = kind == 2 && wall ? win : 0.0;
         if (kind == 1 || kind == 2) { if (n.y > 0.5) albedo = srgb2lin(vec3(0.55, 0.55, 0.54)) * (0.9 + 0.1 * g); }
         if (kind == 6) albedo *= 0.85 + 0.3 * hash12(floor(vWorld.xz * 1.5) + floor(vWorld.y * 1.5) * 7.0);
 
@@ -265,6 +301,9 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         if (kind == 3 || kind == 4) ao *= 0.9;
         vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
         vec3 col = albedo * (uSunColor * ndl * (0.6 + 0.4 * ao) + hemi * ao + vec3(0.9, 0.7, 0.45) * uLamp * 0.12 * ao);
+        // glass shows the sky it reflects rather than the light falling on it, with a glint on the sunny side
+        col = mix(col, albedo * (vec3(1.0) + uSunColor * ndl * 0.6), glassy);
+        if (kind == 2) col *= 1.0 - 0.45 * uNight * (1.0 - glassy); // pale frames shouldn't glow in the dark
 
         // bevel highlight on the box edges, like the voxel edges of the real city
         vec2 fa, fe;
@@ -276,8 +315,8 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
 
         // night: a scatter of lit rooms, bright shop fronts, glowing signs
         if (win > 0.0) {
-          float on = step(hash12(cell * vec2(1.7, 3.1) + seed * 91.0 + n.xz * 7.0), (kind == 1 && y < 3.2) ? 0.7 : 0.1 + 0.16 * uNight);
-          vec3 wc = kind == 2 ? mix(uWindowColor, vec3(1.6, 1.9, 2.2), 0.5) : uWindowColor;
+          float on = step(hash12(cell * vec2(1.7, 3.1) + seed * 91.0 + n.xz * 7.0), (kind == 1 && y < 3.2) ? 0.7 : kind == 2 ? 0.06 + 0.12 * uNight : 0.1 + 0.16 * uNight);
+          vec3 wc = kind == 2 ? mix(uWindowColor, vec3(1.5, 1.7, 1.9), 0.3 * step(0.5, fract(seed * 31.0))) : uWindowColor;
           col += win * on * wc * uNight * (0.3 + 0.25 * fract(seed * 13.7 + cell.y * 0.37));
         }
         if (kind == 5) col += albedo * emit * mix(uEmitDay, 2.6, uNight);

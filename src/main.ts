@@ -29,6 +29,8 @@ import { Cutaway } from './game/cutaway';
 import { solidBase } from './world/owners';
 import { Shafts } from './engine/shafts';
 import { HALL_ROOM, type HallPose } from './world/sacred';
+/** Metres from a great hall within which all of its inside is drawn (see StreamView.halls). */
+const HALL_NEAR = 24;
 import { Audio } from './game/audio';
 import { loadState, saveState, saveNow, resetState, SaveState, viewMetres, VIEW_DEFAULT } from './game/state';
 import { DISHES, ALL_DISHES } from './data/dishes';
@@ -169,6 +171,7 @@ class Game {
   /** The faithful and the visitors inside the cathedral and the mosques. */
   private hallPeople: { actor: Actor; pose: HallPose; alt?: HallPose; t: number }[] = [];
   private shafts!: Shafts;
+  private hallRects: [number, number, number, number][] = [];
   private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number; snackT: number }[] = [];
   private roomHere: RoomAnchor | null = null;
   /** The hotel room the player is in upstairs (it has its own walk map and light), or null on the street. */
@@ -357,7 +360,10 @@ class Game {
     // room contents: 20 m around you in first person; in the iso view as far as the crowd is drawn (about the
     // screen) up to 36 m: zoomed further out, a glimpse through a doorway is a few pixels, not worth a draw each
     const inner = fp ? 20 : Math.min(36, Math.max(20, this.cam.zoom * 1.3 + 8));
-    return { cam: this.r.view, fp, focus: this.started ? this.player.position : this.cam.target, inner };
+    const focus = this.started ? this.player.position : this.cam.target;
+    // a great hall the player is in or near is drawn whole, its far end too
+    const halls = this.hallRects.filter((r) => Math.hypot(Math.max(r[0] - focus.x, 0, focus.x - r[2]), Math.max(r[1] - focus.z, 0, focus.z - r[3])) < HALL_NEAR);
+    return { cam: this.r.view, fp, focus, inner, halls };
   }
 
   private mesh(md: MeshData, mat: THREE.Material, group: THREE.Group): THREE.Mesh {
@@ -621,6 +627,7 @@ class Game {
       this.worldGroup.add(act.root);
       this.hallPeople.push({ actor: act, pose: hp.pose, alt: hp.alt, t: 4 + Math.random() * 12 });
     }
+    this.hallRects = (a.halls ?? []).map((h) => h.rect);
     // the sun falling through their windows
     this.shafts = new Shafts(this.r.scene, this.r.shared, a.halls ?? []);
 

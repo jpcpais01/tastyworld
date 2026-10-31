@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.41',
+    date: '2026-10-31',
+    title: 'Cathedral and mosque walls',
+    items: [
+      'Standing inside the Duomo or a mosque in the overhead view, the two far walls now stay up to the ceiling with their tiles, paintings and windows. Only the walls between you and the camera drop away.',
+      'The beams of sunlight now stop at the walls. With the sun low they used to run on out of the building and hang outside like ghostly panes.',
+      'In first person the whole hall is drawn while you are inside or nearby, so the far arcades, altar and mihrab no longer vanish at the end of the Duomo\'s long nave.',
+    ],
+  },
+  {
     version: '0.16.40',
     date: '2026-10-31',
     title: 'The bazaars, rebuilt',

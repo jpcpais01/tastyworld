@@ -318,7 +318,8 @@ uniform sampler2D tHeight; // per column: R top of the solid run from street lev
 uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres), shared by tHeight and tOwner
 uniform highp usampler2D tSolid; // per column: which of the 64 voxel layers from the street up are solid (two words)
 uniform sampler2D tOwner;  // per column: occluder id, owner above a split height, shell flag and split (see game/cutaway.ts)
-uniform sampler2D tCut;    // per id: shell height near side, shell height far side, inside height, far-side start
+uniform sampler2D tCut;    // per id: shell height near side, shell height far side, inside height, far-side start;
+                           // 64 rows on, a great hall's middle and half extents less its walls (see game/cutaway.ts)
 uniform mat4 uViewProj;
 float solidTop(vec2 xz) {
   vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
@@ -356,6 +357,9 @@ float cutAt(vec3 p, vec2 fwdH, out float id) {
   int ii = int(id);
   vec4 c = texelFetch(tCut, ivec2(ii % 64, ii / 64), 0);
   if (!over && shell < 0.5) return c.z;
+  // a great hall: the far side is its two walls that face away from the camera, all along them
+  vec4 r = texelFetch(tCut, ivec2(ii % 64, ii / 64 + 64), 0);
+  if (r.z > 0.0) { vec2 q = (p.xz - r.xy) * sign(fwdH); return q.x > r.z || q.y > r.w ? c.y : c.x; }
   return dot(p.xz, fwdH) > c.w ? c.y : c.x;
 }
 #endif

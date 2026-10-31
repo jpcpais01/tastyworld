@@ -61,6 +61,10 @@ export interface Occluder {
    * like a building's dollhouse, cut this many metres above its floor instead of a room's ceiling height.
    */
   room?: number;
+  /** A great hall's inside wall height (metres over its floor): standing inside, the two far walls keep it. */
+  walls?: number;
+  /** Voxels of outer wall where it is thicker than a building's (world/owners.ts SHELL). */
+  shell?: number;
 }
 
 export interface Anchors {

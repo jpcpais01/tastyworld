@@ -19,8 +19,10 @@ import { SHELL, SPILL, solidBase, type Field, type GridRect, type Owned, type Ow
  *    building that owns the column above a split height instead (B low byte, high 4 bits of G), and in A the
  *    shell flag (128: outer walls plus anything hanging off the facade, 0: inside the footprint) plus that
  *    split height in voxels;
- *  - a cut table (64 x 64, RGBA float) per id: shell height on the camera side, shell height on the far
- *    side, height inside the footprint, and the "along the view" coordinate where the far side starts.
+ *  - a cut table (64 x 128, RGBA float) per id: shell height on the camera side, shell height on the far
+ *    side, height inside the footprint, and the "along the view" coordinate where the far side starts; in the
+ *    lower half, for a great hall, its middle and half extents less its walls (x, z, hx, hz), so its two far
+ *    walls (those facing away from the camera) stand whole however long the hall is.
  *
  * Only occluders near the player are kept up to date each frame (a coarse bucket grid finds them).
  *
@@ -54,7 +56,7 @@ export class Cutaway {
   /** True for occluders currently lowered at all (drives which chunks need the cutaway material). */
   readonly active: boolean[];
   readonly occ: Occluder[];
-  private data = new Float32Array(64 * 64 * 4);
+  private data = new Float32Array(64 * 128 * 4);
   private buckets = new Map<number, number[]>();
   /** Occluders kept up to date this frame: those near the player plus any still lowered. */
   private live: number[] = [];
@@ -75,8 +77,14 @@ export class Cutaway {
     this.st = this.occ.map(() => ({ e: 0, hold: 0, c: 0, f: 0 }));
     this.active = this.occ.map(() => false);
     this.blocking = new Uint8Array(this.occ.length);
-    this.data.fill(OFF);
-    this.cut = new THREE.DataTexture(this.data, 64, 64, THREE.RGBAFormat, THREE.FloatType);
+    this.data.fill(OFF, 0, 64 * 64 * 4);
+    this.data.fill(0, 64 * 64 * 4);
+    this.occ.forEach((o, i) => {
+      if (o.room === undefined) return;
+      const [x0, z0, x1, z1] = o.rect, k = (64 * 64 + i + 1) * 4, w = ((o.shell ?? SHELL) + 0.4) * V;
+      this.data.set([(x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2 - w, (z1 - z0) / 2 - w], k);
+    });
+    this.cut = new THREE.DataTexture(this.data, 64, 128, THREE.RGBAFormat, THREE.FloatType);
     this.cut.magFilter = this.cut.minFilter = THREE.NearestFilter;
     this.cut.generateMipmaps = false;
     this.cut.needsUpdate = true;
@@ -239,8 +247,10 @@ export class Cutaway {
         // (a great hall, a cathedral's nave or a mosque's prayer hall, opens higher: its own `room` height)
         const roomH = o.top + (Math.min(o.top, Math.max(o.low, (o.room ?? ROOM_TOP) + (o.floor ?? 0)) + (rel > 0 ? rel - 0.5 : 0) * c) - o.top) * e;
         f = low;
-        b = low + (roomH - low) * c;
-        n = b;
+        // a great hall's far walls stand whole, up to its ceiling, while the inside opens at `room`
+        const farH = o.walls !== undefined ? o.top + (Math.min(o.top, o.walls + (o.floor ?? 0)) - o.top) * e : roomH;
+        b = low + (farH - low) * c;
+        n = low + (roomH - low) * c;
         back = Math.max(x0 * ax + z0 * az, x1 * ax + z0 * az, x0 * ax + z1 * az, x1 * ax + z1 * az) - (SHELL + 1) * V;
       }
       this.active[i] = f < OFF;

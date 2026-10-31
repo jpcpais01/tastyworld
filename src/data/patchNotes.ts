@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.15.15',
+    date: '2026-10-31',
+    title: 'Feet on the ground',
+    items: [
+      'Lamp posts, flower pots and lemon pots in Amalfi now stand on the ground that is really under them, instead of hanging in the air beside flights of steps and terrace edges.',
+      'The lamps up the cathedral steps stand on the steps themselves, between the people sitting along the edges.',
+      'Wall lanterns are fixed to the house walls, shop awnings sit flush against their fronts, and the lamps and benches along the seafront stand on the promenade.',
+    ],
+  },
+  {
     version: '0.15.14',
     date: '2026-10-31',
     title: 'By the sea',

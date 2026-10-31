@@ -580,7 +580,7 @@ class Game {
     // people who keep to one spot: the anglers along the Galata Bridge, a phone out now and then
     (a.extras ?? []).forEach((ex, i) => {
       const act = new Actor(buildPerson(randomLook(ex.seed)), this.chars, false, true);
-      act.position.set(ex.pos[0], this.navWorld.heightAt(ex.pos[0], ex.pos[2]), ex.pos[2]);
+      act.position.set(ex.pos[0], ex.indoor ? ex.pos[1] : this.navWorld.heightAt(ex.pos[0], ex.pos[2]), ex.pos[2]);
       act.facing = act.targetFacing = ex.face;
       act.anim = i % 6 === 2 ? 'phone' : 'idle';
       act.root.visible = false;
@@ -611,14 +611,14 @@ class Game {
     });
     this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
-    for (const ex of a.extras ?? []) this.crowd.addObstacle(ex.pos[0], ex.pos[2]);
+    for (const ex of a.extras ?? []) if (!ex.indoor) this.crowd.addObstacle(ex.pos[0], ex.pos[2]);
     const m = this.r.isMobile;
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
     // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
     this.crowd.populate(perCity({
       tokyo: m ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 } : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 },
       amalfi: m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 },
-      istanbul: m ? { walkers: 95, joggers: 2, dogs: 5, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 210, joggers: 4, dogs: 9, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
+      istanbul: m ? { walkers: 140, joggers: 3, dogs: 6, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 320, joggers: 6, dogs: 11, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
     }));
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires

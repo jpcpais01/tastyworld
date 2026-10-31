@@ -76,7 +76,8 @@ export interface Anchors {
   stepSeats?: [number, number, number][];
   cats: [number, number, number][];
   /** People who keep to one spot all day (Istanbul's anglers on the bridge): where, facing which way, their look. */
-  extras?: { pos: [number, number, number]; face: number; seed: number }[];
+  /** People who keep to one spot; `indoor` ones stand inside a shop, off the street's nav, at pos's own height. */
+  extras?: { pos: [number, number, number]; face: number; seed: number; indoor?: boolean }[];
   emitters: Emitter[];
   /** Where fireflies dance on summer nights (metres). */
   fireflies: [number, number, number][];

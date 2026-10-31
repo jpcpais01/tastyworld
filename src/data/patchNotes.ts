@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.16',
+    date: '2026-10-31',
+    title: 'A city open for business',
+    items: [
+      'Every glass shopfront in Istanbul has a shop behind it now: shelves of goods up the walls, a counter, a display table, things hanging in the window, the door propped open and the shopkeeper behind the counter. You can find grocers, Turkish delight, nuts and dried fruit, textiles, ceramics, mosaic lamps, copper, coffee, books and shoes.',
+      'Shops put their wares out front: sacks and crates on the pavement, carpets hung by the door, glass lamps under the striped awnings.',
+      'The shops in both bazaars have their keepers standing among the goods.',
+      'Many more people are out: about half as many again walk the streets, and more simit sellers carry their trays.',
+      'The streets are dressed: potted geraniums and little lemon and bay trees by the doors, shop signs on iron brackets swinging over the pavement, scooters at the kerb, Ottoman marble fountains set into the walls, and strings of red and white pennants across the shopping streets.',
+      'The mosques are dressed in stone. Their walls are laid out in bays between pilasters. Each bay has a grilled window in a marble frame under a red and white arch, a pair of tall coloured-glass lights above it, and an oculus higher up. A cresting runs along the tops.',
+      'Buttresses step down around each great dome\'s drum, and a gilded finial with its crescent crowns the dome. Each minaret stands on a square pedestal with carved stone corbelling under its balconies, and a domed portico now fronts each prayer hall.',
+    ],
+  },
+  {
     version: '0.16.13',
     date: '2026-10-31',
     title: 'Tea by the Bosphorus',

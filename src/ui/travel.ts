@@ -19,6 +19,40 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const touch = () => matchMedia('(pointer: coarse)').matches;
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const D2R = Math.PI / 180;
+
+/** Great-circle distance in km. */
+function km(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const c = Math.sin(a.lat * D2R) * Math.sin(b.lat * D2R) + Math.cos(a.lat * D2R) * Math.cos(b.lat * D2R) * Math.cos((b.lon - a.lon) * D2R);
+  return Math.acos(Math.max(-1, Math.min(1, c))) * 6371;
+}
+
+/** Local time somewhere, and whether the sun is up there (roughly). */
+function localTime(tz: string): { text: string; day: boolean } {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz }).formatToParts(new Date());
+    const hh = Number(parts.find((p) => p.type === 'hour')?.value ?? 12), mm = parts.find((p) => p.type === 'minute')?.value ?? '00';
+    return { text: `${String(hh).padStart(2, '0')}:${mm}`, day: hh >= 6 && hh < 19 };
+  } catch { return { text: '', day: true }; }
+}
+
+/** Blocky clouds that roll in over everything, hide the switch from map to city, then part. */
+function cloudVeil(): { cover(): Promise<void>; part(): void } {
+  const v = h('div', 'veil');
+  const cols = 4, rows = 4;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const x = ((c + 0.5 + (Math.random() - 0.5) * 0.5) / cols) * 100, y = ((r + 0.5 + (Math.random() - 0.5) * 0.5) / rows) * 100;
+    const len = Math.hypot(x - 50, y - 50) || 1;
+    const p = h('div', 'puff', '<i></i><i></i><i></i>');
+    p.style.cssText = `--x:${x.toFixed(1)}%;--y:${y.toFixed(1)}%;--s:${(46 + Math.random() * 22).toFixed(0)}vmax;--dx:${(((x - 50) / len) * 70).toFixed(1)}vmax;--dy:${(((y - 50) / len) * 70).toFixed(1)}vmax;--d:${(Math.random() * 0.22).toFixed(2)}s`;
+    v.appendChild(p);
+  }
+  $('app').appendChild(v);
+  return {
+    cover: async () => { void v.offsetWidth; v.classList.add('on'); await sleep(1150); },
+    part: () => { v.classList.add('out'); setTimeout(() => v.remove(), 1400); },
+  };
+}
 
 /** Cap and jacket colours a traveller can pick for co-op trips. */
 export const COLORS = [0xe9573f, 0xf4b63f, 0x4f9a6a, 0x3f6fc0, 0xe07aa8, 0x2bb3b1];
@@ -30,6 +64,8 @@ export interface TravelHooks {
   save(): void;
   /** Start the trip (from the home menu). */
   board(dest: Destination, coop: Coop | null): void;
+  /** The hour on the clock in the city when the plane lands. */
+  arrivalHour(): number;
   /** The map covers the whole screen: the 3D view can rest. */
   cover(on: boolean): void;
   notes(): void;
@@ -127,6 +163,7 @@ export class Travel {
     for (const d of DESTINATIONS) {
       const p = h('button', `pin ${d.open ? 'open' : 'soon'}`, `<span class="pin-tag"><span class="fl">${FLAGS[d.id] ?? ''}</span><span class="nm">${esc(d.city)}</span>${d.open ? '' : '<em>Soon</em>'}</span><span class="pin-dot"></span>`);
       p.setAttribute('aria-label', `${d.city}${d.open ? '' : ', coming soon'}`);
+      p.dataset.place = d.id;
       p.onclick = () => { this.audio.play('click'); select(d); };
       pins.set(d.id, p);
       map.addPin(p, d);
@@ -150,12 +187,18 @@ export class Travel {
       for (const c of strip.children) c.classList.toggle('on', (c as HTMLElement).dataset.id === d.id);
       strip.querySelector('.on')?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: snap ? 'auto' : 'smooth' });
       const isHere = here?.id === d.id;
+      const dist = km(this.home, d), lt = localTime(d.tz);
+      const hrs = dist / 850 + 0.6, dur = `${Math.floor(hrs)}h ${String(Math.round((hrs % 1) * 60 / 5) * 5).padStart(2, '0')}m`;
+      const leg = isHere ? '' : dist < 150
+        ? `<span class="dc-leg">${G.plane}<b>A lap over the city</b></span>`
+        : `<span class="dc-leg"><b>${esc(this.home.code)}</b><i>${G.plane}</i><b>${d.code}</b></span><span class="dc-dist">${Math.round(dist).toLocaleString('en-GB')} km · ${dur}</span>`;
       card.innerHTML = `
         <div class="dc-head">
           <span class="dc-flag">${FLAGS[d.id] ?? ''}</span>
           <div class="dc-name"><h3>${esc(d.city)}<span class="jp">${esc(d.local)}</span></h3><p>${esc(d.country)} · ${d.code}</p></div>
           ${isHere ? `<span class="badge red">${G.pin}You are here</span>` : d.open ? `<span class="badge">${G.check}Open</span>` : '<span class="badge gold">Coming soon</span>'}
         </div>
+        <div class="dc-trip">${leg}${lt.text ? `<span class="dc-time ${lt.day ? 'day' : 'night'}">${lt.day ? G.sun : G.moon}${lt.text} there</span>` : ''}</div>
         <p class="dc-blurb">${esc(d.blurb)}</p>
         <div class="dc-menu">${d.menu.map(([e, n]) => `<span>${icon(e)}${esc(n)}</span>`).join('')}</div>`;
       cta.innerHTML = '';
@@ -199,6 +242,10 @@ export class Travel {
     (top.querySelector('[data-a="back"]') as HTMLElement).onclick = () => { this.audio.play('click'); this.hooks.close(); };
 
     this.keyHandler = (e: KeyboardEvent) => {
+      if (trip.classList.contains('flying')) {
+        if (e.code === 'Escape' || e.code === 'Space' || e.code === 'Enter') { e.stopPropagation(); e.preventDefault(); map.skip(); }
+        return;
+      }
       if (e.code === 'Escape') { e.stopPropagation(); if (!trip.querySelector('.bp-wrap')) this.hooks.close(); }
       else if (e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
         const i = DESTINATIONS.indexOf(sel), n = DESTINATIONS.length;
@@ -255,25 +302,31 @@ export class Travel {
     trip.classList.add('flying');
     this.pending = null;
     trip.querySelector('.bp-wrap')?.remove();
-    this.audio.play('whoosh');
     const map = this.map;
     if (map) {
+      // the flight: swoop down to the runway, take off, cruise round the globe, land
+      const skip = h('button', 'trip-skip', `Skip${G.arrow}`);
+      skip.onclick = () => { this.audio.play('click'); map.skip(); skip.remove(); };
+      trip.appendChild(skip);
       map.setRoute(this.home, d);
-      map.setInsets(90, 40);
-      await map.fly(this.home.lat === d.lat && this.home.lon === d.lon ? 900 : 2600);
+      setTimeout(() => this.audio.play('jet'), 700);
+      await map.fly(this.hooks.arrivalHour());
+      skip.remove();
     }
     this.audio.play('chime');
     trip.appendChild(h('div', 'landed', `<div class="stamp-big"><span>${esc(d.local)}</span>${esc(d.city.toUpperCase())}<small>Arrived · ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</small></div>`));
     setTimeout(() => this.audio.play('stamp'), 250);
-    await sleep(1100);
-    const fade = $('fade');
-    fade.classList.add('on');
-    await sleep(650);
+    await sleep(1000);
+    // then down through the clouds and into the streets
+    const veil = cloudVeil();
+    this.audio.play('whoosh');
+    void map?.diveIn(1500);
+    await veil.cover();
     this.hooks.close();
     $('title').classList.add('hidden');
     this.hooks.board(d, coop);
-    await sleep(150);
-    fade.classList.remove('on');
+    await sleep(350);
+    veil.part();
   }
 
   private async hostPass(trip: HTMLElement, d: Destination): Promise<void> {

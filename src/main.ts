@@ -248,6 +248,7 @@ class Game {
         if (this.started && this.lookColor !== this.s.profile.color) this.rebuildPlayer();
       },
       board: (d, coop) => this.start(d, coop),
+      arrivalHour: () => this.tod.hour,
       cover: (on) => { this.covered = on; },
       notes: () => this.ui.notes(),
       coop: () => this.coop,

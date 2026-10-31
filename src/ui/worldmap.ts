@@ -1,141 +1,174 @@
-import { WORLD } from '../data/worldmap';
+import * as THREE from 'three';
+import * as GL from './globe';
+import type { LatLon } from './globe';
+
+export type { LatLon } from './globe';
 
 /**
- * The travel map: the world as a little voxel diorama seen from a tilted camera. Land is baked once
- * into an offscreen canvas; each frame draws the sea, the baked land (wrapped round horizontally),
- * drifting clouds and the flight route. Pins and the plane are DOM elements placed on top.
+ * The travel map: a little voxel planet in its own WebGL canvas. Drag to spin it, pinch or scroll to zoom; pins are
+ * DOM elements placed over it. Flying is a short film: the camera swoops down to the runway at home, the plane rolls,
+ * lifts off through the clouds, cruises along the great circle while day and night sweep past underneath, and lands
+ * on the other side, ready for the camera to dive into the city.
  */
 
-const K = 0.72; // vertical squash of the tilted view
-const UNIT = 0.42; // one voxel of height, in cells
-const MAX_H = 5;
+interface Pin { el: HTMLElement; at: LatLon; pos: THREE.Vector3; dir: THREE.Vector3; }
+/** A camera framing: look at `dir` at radius `rad`, from `dist` away, tilted `pitch` from overhead, facing `head`. */
+interface Shot { dir: THREE.Vector3; rad: number; head: number; pitch: number; dist: number; fov: number; }
 
-type Biome = 'snow' | 'tundra' | 'forest' | 'grass' | 'jungle' | 'sand' | 'rock' | 'peak';
-// [top, front] colours
-const COL: Record<Biome, [string, string]> = {
-  snow: ['#f6f3ec', '#cfd8de'],
-  tundra: ['#adc391', '#a88760'],
-  forest: ['#6aa46a', '#9c7752'],
-  grass: ['#8fc76f', '#b3865a'],
-  jungle: ['#5eae60', '#9a734e'],
-  sand: ['#f1d18f', '#d4a865'],
-  rock: ['#bba996', '#94806c'],
-  peak: ['#f7f5f0', '#c9c2b8'],
-};
-const SEA = '#9ed3d6';
-const SHALLOW = 'rgba(214, 240, 232, 0.75)';
+const LR = 0.022; // take-off roll, in globe radii
+const RUNWAY = 0.038;
+const LIFT = GL.U * 0.34; // runway surface above the airport cell
+const MAP_PITCH = 0.3;
+const MAP_FOV = 30;
+const smooth = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const wrapAng = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const coarse = () => matchMedia('(pointer: coarse)').matches;
 
-interface Cell { c: number; r: number; h: number; b: Biome; tree: boolean; shade: number; }
-export interface LatLon { lat: number; lon: number; }
-interface Pin { el: HTMLElement; lat: number; lon: number; }
-
-function hash(x: number, y: number): number {
-  let h = Math.imul(x, 374761393) + Math.imul(y, 668265263);
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
-}
-const inBox = (lat: number, lon: number, a: number, b: number, c: number, d: number) => lat >= a && lat <= b && lon >= c && lon <= d;
-
-function shadeHex(hex: string, f: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = (s: number) => Math.max(0, Math.min(255, Math.round(((n >> s) & 255) * f)));
-  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+function slerpDir(a: THREE.Vector3, b: THREE.Vector3, k: number, out: THREE.Vector3): THREE.Vector3 {
+  const d = Math.max(-1, Math.min(1, a.dot(b))), th = Math.acos(d);
+  if (th < 1e-5) return out.copy(b);
+  if (Math.PI - th < 1e-3) { out.copy(a).lerp(b, k).add(new THREE.Vector3(0, 1e-3, 0)); return out.normalize(); }
+  const s = Math.sin(th), wa = Math.sin((1 - k) * th) / s, wb = Math.sin(k * th) / s;
+  return out.set(a.x * wa + b.x * wb, a.y * wa + b.y * wb, a.z * wa + b.z * wb).normalize();
 }
 
-/** Turn the land mask into voxel columns with a biome and a height. */
-function buildCells(): Cell[] {
-  const { cols, rows, lat0, cell, land } = WORLD;
-  const isLand = (c: number, r: number) => r >= 0 && r < rows && land[r][((c % cols) + cols) % cols] === '#';
-  const out: Cell[] = [];
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    if (!isLand(c, r)) continue;
-    const lat = lat0 - (r + 0.5) * cell, lon = -180 + (c + 0.5) * cell;
-    const al = Math.abs(lat);
-    let inland = 0;
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) inland += isLand(c + dx, r + dy) ? 1 : 0;
-    const n = hash(c, r);
-    // mountain ranges, roughly
-    let m = 0;
-    if (inBox(lat, lon, 27, 40, 70, 102)) m = 3; // Himalaya and Tibet
-    else if (inBox(lat, lon, -50, 8, -80, -66) && lon < -66 - Math.max(0, lat + 20) * 0.1) m = 2; // Andes
-    else if (inBox(lat, lon, 33, 62, -128, -105)) m = 2; // Rockies
-    else if (inBox(lat, lon, 61, 84, -55, -18)) m = 2; // Greenland ice sheet
-    else if (inBox(lat, lon, 44, 48, 5, 16) || inBox(lat, lon, 38, 44, 40, 50) || inBox(lat, lon, 4, 15, 35, 42) || inBox(lat, lon, 36, 50, 66, 90)) m = 1;
-    else if (inBox(lat, lon, -78, -60, -180, 180)) m = 1;
-    let h = 1 + (m ? m - (n < 0.35 ? 1 : 0) : 0) + (inland === 9 && n > 0.78 ? 1 : 0);
-    h = Math.min(MAX_H, Math.max(1, h));
-    let b: Biome;
-    const desert = inBox(lat, lon, 15, 32, -17, 34) || inBox(lat, lon, 13, 32, 34, 60) || inBox(lat, lon, -31, -19, 117, 145) || inBox(lat, lon, 38, 47, 90, 115)
-      || inBox(lat, lon, 24, 36, 55, 72) || inBox(lat, lon, 28, 37, -117, -104) || inBox(lat, lon, -28, -19, 14, 25) || inBox(lat, lon, 39, 46, 52, 66);
-    if (al > 66 || (lat > 60 && lon > -55 && lon < -18)) b = 'snow';
-    else if (m >= 2 && h >= 3) b = h >= 4 || al > 45 ? 'peak' : 'rock';
-    else if (desert) b = 'sand';
-    else if (al > 58) b = 'tundra';
-    else if (al > 46) b = 'forest';
-    else if (al < 14) b = 'jungle';
-    else b = 'grass';
-    const tree = (b === 'forest' || b === 'jungle' || b === 'grass') && n > (b === 'grass' ? 0.86 : 0.7);
-    out.push({ c, r, h, b, tree, shade: 0.96 + hash(r, c) * 0.08 });
+/** The way from one place to another: a great circle, or a lap over the city when both are the same place. */
+class Path {
+  readonly a: THREE.Vector3;
+  readonly b: THREE.Vector3;
+  readonly theta: number;
+  readonly loop: boolean;
+  /** Length on the ground, in globe radii. */
+  readonly len: number;
+  /** Highest point of the arc above the ground. */
+  readonly top: number;
+  readonly hours: number;
+  private fwd = new THREE.Vector3();
+  private left = new THREE.Vector3();
+
+  constructor(from: LatLon, to: LatLon) {
+    this.a = GL.toDir(from.lat, from.lon);
+    this.b = GL.toDir(to.lat, to.lon);
+    this.theta = Math.acos(Math.max(-1, Math.min(1, this.a.dot(this.b))));
+    this.loop = this.theta < 0.03;
+    if (this.loop) {
+      GL.tangents(this.a, this.fwd, this.left); // head east, circle round to the north
+      this.len = Math.PI * 2 * 0.03;
+      this.top = 0.03;
+      this.hours = 0.5;
+    } else {
+      this.len = this.theta;
+      this.top = 0.05 + 0.07 * this.theta / Math.PI;
+      this.hours = (this.theta * 6371) / 850 + 0.6;
+    }
   }
-  return out;
+
+  /** Direction at s (0 = take-off, 1 = touchdown; beyond either end it carries straight on, for the runways). */
+  dirAt(s: number, out: THREE.Vector3): THREE.Vector3 {
+    if (this.loop) {
+      const r = 0.03;
+      let x: number, y: number;
+      if (s < 0) { x = s * this.len; y = 0; } else if (s > 1) { x = (s - 1) * this.len; y = 0; } else { const f = Math.PI * 2 * s; x = r * Math.sin(f); y = r * (1 - Math.cos(f)); }
+      return out.copy(this.a).addScaledVector(this.fwd, x).addScaledVector(this.left, y).normalize();
+    }
+    const th = this.theta, sn = Math.sin(th), wa = Math.sin((1 - s) * th) / sn, wb = Math.sin(s * th) / sn;
+    return out.set(this.a.x * wa + this.b.x * wb, this.a.y * wa + this.b.y * wb, this.a.z * wa + this.b.z * wb).normalize();
+  }
+
+  altAt(s: number): number { return s > 0 && s < 1 ? this.top * Math.sin(Math.PI * s) : 0; }
+
+  /** Compass heading at s, in radians clockwise from north. */
+  headingAt(s: number): number {
+    const d1 = this.dirAt(s, new THREE.Vector3()), d2 = this.dirAt(s + 1e-3, new THREE.Vector3());
+    const e = new THREE.Vector3(), n = new THREE.Vector3();
+    GL.tangents(d1, e, n);
+    d2.sub(d1);
+    return Math.atan2(d2.dot(e), d2.dot(n));
+  }
 }
+
+interface Flight {
+  path: Path;
+  t: number;
+  speed: number;
+  hold: number; roll: number; air: number; out: number;
+  /** Ground speed at lift-off and touchdown, in s per second. */
+  v: number;
+  done: (() => void) | null;
+}
+
+interface Puff { p: THREE.Vector3; age: number; }
 
 export class WorldMap {
   readonly el: HTMLElement;
   private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
+  private gl: THREE.WebGLRenderer;
+  private scene = new THREE.Scene();
+  private camera = new THREE.PerspectiveCamera(MAP_FOV, 1, 0.01, 90);
+  private u = GL.sharedUniforms();
   private pinLayer: HTMLElement;
-  private plane: HTMLElement;
-  private cells = buildCells();
-  private heights = new Uint8Array(WORLD.cols * WORLD.rows);
-  private base: HTMLCanvasElement | null = null;
-  private dots: CanvasPattern | null = null;
-  private S = 10;
-  private dpr = 1;
-  private w = 0;
-  private hgt = 0;
-  private oy = 0;
-  private cam = { x: 0, y: 0 };
-  private target = { x: 0, y: 0 };
-  private vel = { x: 0, y: 0 };
-  private insets = { top: 0, bottom: 0, left: 0, right: 0 };
-  private drag: { id: number; x: number; y: number; moved: number } | null = null;
   private pins: Pin[] = [];
-  private clouds: { x: number; y: number; s: number; v: number; seed: number }[] = [];
-  private waves: { x: number; y: number; p: number }[] = [];
-  private route: { a: LatLon; b: LatLon; t: number; flying: boolean } | null = null;
-  private follow = false;
-  private focused: LatLon | null = null;
+  private land: GL.Land | null = null;
+  private built = false;
+  // scene parts
+  private planeMesh!: THREE.Mesh;
+  private shadow!: THREE.Mesh;
+  private runways: THREE.Mesh[] = [];
+  private landmarks = new Map<string, { mesh: THREE.Mesh; at: LatLon }>();
+  private clouds!: THREE.Group;
+  private puffs!: THREE.InstancedMesh;
+  private puffFade!: THREE.InstancedBufferAttribute;
+  private trail: Puff[] = [];
+  private trailClock = 0;
+  private routeMesh: THREE.Mesh | null = null;
+  private routeMat!: THREE.ShaderMaterial;
+  private stars!: THREE.Points;
+  private disposables: { dispose(): void }[] = [];
+  // camera
+  private view: Shot = { dir: new THREE.Vector3(0, 0, 1), rad: GL.R, head: 0, pitch: MAP_PITCH, dist: 2.5, fov: MAP_FOV };
+  private target: THREE.Vector3 | null = null;
+  private zoom = 1;
+  private intro = 0;
+  private spin = { lon: 0, lat: 0 };
+  private insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  /** Where on screen the camera's focus sits (eases with the insets, and to the centre while flying). */
+  private off = { x: NaN, y: NaN };
+  private pointers = new Map<number, { x: number; y: number }>();
+  private pinch = 0;
+  // travel
+  private path: Path | null = null;
+  private flight: Flight | null = null;
+  private from: Shot | null = null;
+  private dive: { t: number; ms: number; from: Shot; done: () => void } | null = null;
+  private clock = 0;
+  private simHours = 0;
+  private flightHours = 0;
   private raf = 0;
   private last = 0;
-  private time = 0;
+  private frameNo = 0;
   private ro: ResizeObserver;
-  /** Set when the user has panned the map, so selection changes may re-centre it again. */
+  private vw = 1;
+  private vh = 1;
+  private dpr = 1;
+  /** Set when the user has spun the globe by hand. */
   panned = false;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
     this.el.className = 'wm';
-    this.canvas = document.createElement('canvas');
-    this.ctx = this.canvas.getContext('2d')!;
+    this.gl = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.gl.setClearColor(0x131a3c, 1);
+    this.canvas = this.gl.domElement;
     this.pinLayer = document.createElement('div');
     this.pinLayer.className = 'wm-pins';
-    this.plane = document.createElement('div');
-    this.plane.className = 'wm-plane hidden';
-    this.plane.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12c0-.9-.7-1.5-1.6-1.5H14L9.6 3H7.4l2.2 7.5H5.2L3.6 8.3H2l1 3.7-1 3.7h1.6l1.6-2.2h4.4L7.4 21h2.2l4.4-7.5h5.4c.9 0 1.6-.6 1.6-1.5Z"/></svg>';
-    this.el.append(this.canvas, this.pinLayer, this.plane);
+    this.el.append(this.canvas, this.pinLayer);
     parent.appendChild(this.el);
-    for (const cl of this.cells) this.heights[cl.r * WORLD.cols + cl.c] = cl.h;
-    for (let i = 0; i < 9; i++) this.clouds.push({ x: hash(i, 7) * WORLD.cols, y: 4 + hash(i, 9) * (WORLD.rows - 10), s: 0.55 + hash(i, 11) * 0.5, v: 0.25 + hash(i, 13) * 0.35, seed: i });
-    for (let i = 0; this.waves.length < 70 && i < 2000; i++) {
-      const c = Math.floor(hash(i, 21) * WORLD.cols), r = Math.floor(hash(i, 23) * WORLD.rows);
-      if (WORLD.land[r][c] === '#' || (r > 0 && WORLD.land[r - 1][c] === '#')) continue;
-      this.waves.push({ x: c + 0.5, y: r + 0.5, p: hash(i, 25) * 6.28 });
-    }
     this.canvas.addEventListener('pointerdown', (e) => this.down(e));
     this.canvas.addEventListener('pointermove', (e) => this.move(e));
     this.canvas.addEventListener('pointerup', (e) => this.up(e));
     this.canvas.addEventListener('pointercancel', (e) => this.up(e));
+    this.canvas.addEventListener('wheel', (e) => { e.preventDefault(); if (!this.busy) this.zoom = Math.max(0.7, Math.min(3.4, this.zoom * Math.exp(-e.deltaY * 0.0015))); }, { passive: false });
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(this.el);
     this.resize();
@@ -145,8 +178,14 @@ export class WorldMap {
   dispose(): void {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
+    for (const d of this.disposables) d.dispose();
+    this.routeMesh?.geometry.dispose();
+    this.gl.dispose();
+    this.gl.forceContextLoss();
     this.el.remove();
   }
+
+  private get busy(): boolean { return !!(this.flight || this.dive); }
 
   /** Screen space the map should keep its focus inside (e.g. not under the bottom sheet). */
   setInsets(top: number, bottom: number, left = 0, right = 0): void {
@@ -155,312 +194,513 @@ export class WorldMap {
 
   addPin(el: HTMLElement, at: LatLon): void {
     this.pinLayer.appendChild(el);
-    this.pins.push({ el, lat: at.lat, lon: at.lon });
+    this.pins.push({ el, at: { lat: at.lat, lon: at.lon }, pos: new THREE.Vector3(), dir: GL.toDir(at.lat, at.lon) });
   }
 
-  /** Smoothly bring a place into the middle of the free screen area. */
+  /** Smoothly turn a place to the middle of the free screen area. */
   focus(at: LatLon, snap = false): void {
-    this.focused = { lat: at.lat, lon: at.lon };
-    if (!this.w) { this.cam = { x: NaN, y: NaN }; return; } // not laid out yet: resize() comes back here
-    const p = this.toMap(at);
-    // stay on the copy of the world nearest to where we are looking
-    const W = this.w;
-    if (Number.isFinite(this.cam.x)) p.x += Math.round((this.cam.x - p.x) / W) * W;
-    this.target = { x: p.x, y: p.y };
+    const d = GL.toDir(at.lat, at.lon);
     this.panned = false;
-    if (snap || !Number.isFinite(this.cam.x)) this.cam = { ...this.target };
+    this.spin = { lon: 0, lat: 0 };
+    if (snap) {
+      // the first look: the globe turns in from the west and settles
+      this.view.dir.copy(GL.toDir(at.lat - 8, at.lon - 55));
+      this.intro = 1;
+    }
+    this.target = d;
   }
 
-  /** Show a dashed route between two places (t = how much of it has been flown). */
+  /** Show the route between two places. */
   setRoute(a: LatLon | null, b?: LatLon): void {
-    this.route = a && b ? { a, b, t: 0, flying: false } : null;
-    this.plane.classList.add('hidden');
+    if (this.flight) return;
+    this.path = a && b ? new Path(a, b) : null;
+    if (this.built) this.placeRoute();
   }
 
-  /** Fly the plane along the current route. Resolves on landing. */
-  fly(ms = 2600): Promise<void> {
-    const rt = this.route;
-    if (!rt) return Promise.resolve();
-    rt.flying = true;
-    this.follow = true;
-    this.plane.classList.remove('hidden');
-    const t0 = performance.now();
-    return new Promise((resolve) => {
-      const step = () => {
-        const k = Math.min(1, (performance.now() - t0) / ms);
-        rt.t = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-        if (k < 1) requestAnimationFrame(step);
-        else { this.follow = false; resolve(); }
-      };
-      requestAnimationFrame(step);
+  /** Speed the rest of the flight up (the skip button). */
+  skip(): void {
+    if (this.flight) this.flight.speed = 5;
+    if (this.dive) this.dive.ms = Math.min(this.dive.ms, this.dive.t + 250);
+  }
+
+  /**
+   * Fly the plane along the current route. Resolves once it has stopped on the runway. The sun runs on with the
+   * flight, so it lands at `arrive` o'clock local (sun) time when given, or after the real flight time otherwise.
+   */
+  fly(arrive?: number): Promise<void> {
+    const path = this.path;
+    if (!path || this.flight) return Promise.resolve();
+    if (arrive !== undefined) {
+      const now = new Date(), utc = now.getUTCHours() + now.getUTCMinutes() / 60;
+      const lon = GL.toLatLon(path.b).lon;
+      this.flightHours = (((arrive - lon / 15 - utc) % 24) + 24) % 24;
+    } else this.flightHours = path.hours;
+    const air = path.loop ? 3.2 : 2.6 + 2.6 * path.theta / Math.PI;
+    const roll = 1.4;
+    return new Promise((done) => {
+      this.from = { ...this.view, dir: this.view.dir.clone() };
+      this.flight = { path, t: 0, speed: 1, hold: 0.8, roll, air, out: 1, v: (2 * LR) / path.len / roll, done };
+      this.target = null;
+      this.pointers.clear();
     });
   }
 
-  // ------------------------------------------------------------------ geometry
-  private heightAt(c: number, r: number): number {
-    const cc = ((Math.floor(c) % WORLD.cols) + WORLD.cols) % WORLD.cols, rr = Math.floor(r);
-    return rr >= 0 && rr < WORLD.rows ? this.heights[rr * WORLD.cols + cc] : 0;
+  /** After landing: the camera dives down into the city. */
+  diveIn(ms = 1300): Promise<void> {
+    return new Promise((done) => {
+      this.dive = { t: 0, ms, from: { ...this.view, dir: this.view.dir.clone() }, done };
+    });
   }
 
-  /** Map-space pixel position of a place, on top of the land it stands on. */
-  private toMap(at: LatLon): { x: number; y: number } {
-    const c = (at.lon + 180) / WORLD.cell, r = (WORLD.lat0 - at.lat) / WORLD.cell;
-    const h = this.heightAt(c, r);
-    return { x: c * this.S, y: this.oy + r * this.S * K - h * UNIT * this.S + this.S * K * 0.5 };
+  // ------------------------------------------------------------------ building
+  private build(): void {
+    this.built = true;
+    const u = this.u;
+    const force = this.pins.map((p) => p.at);
+    this.land = GL.buildLand(force);
+    const voxel = GL.voxelMaterial(u);
+    const landMesh = new THREE.Mesh(this.land.geo, voxel);
+    landMesh.matrixAutoUpdate = false;
+    const ocean = new THREE.Mesh(new THREE.SphereGeometry(GL.OCEAN_R, 128, 64), GL.oceanMaterial(u, this.land.coast));
+    const atmoR = 1.1;
+    const atmo = new THREE.Mesh(new THREE.SphereGeometry(atmoR, 64, 32), GL.atmosphereMaterial(u, atmoR));
+    atmo.renderOrder = 3;
+    this.scene.add(landMesh, ocean, atmo);
+    this.disposables.push(this.land.geo, this.land.coast, voxel, ocean.geometry, ocean.material as THREE.Material, atmo.geometry, atmo.material as THREE.Material);
+    // stars
+    const n = 700, sp = new Float32Array(n * 3), size = new Float32Array(n), seed = new Float32Array(n);
+    const v = new THREE.Vector3();
+    for (let i = 0, j = 0; i < n; j++) {
+      v.set(GL.hash(j, 1) * 2 - 1, GL.hash(j, 2) * 2 - 1, GL.hash(j, 3) * 2 - 1);
+      if (v.lengthSq() > 1 || v.lengthSq() < 0.01) continue;
+      v.normalize().multiplyScalar(60);
+      sp.set([v.x, v.y, v.z], i * 3);
+      size[i] = 1 + Math.pow(GL.hash(i, 4), 6) * 2.6;
+      seed[i] = GL.hash(i, 5);
+      i++;
+    }
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+    sg.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    sg.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+    this.stars = new THREE.Points(sg, GL.starsMaterial(this.dpr));
+    this.stars.frustumCulled = false;
+    this.scene.add(this.stars);
+    this.disposables.push(sg, this.stars.material as THREE.Material);
+    // clouds, kept clear of the airports so take-off and landing stay in view
+    const away = force.map((f) => GL.toDir(f.lat, f.lon));
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const blocks: THREE.Matrix4[] = [];
+    const e = new THREE.Vector3(), nn = new THREE.Vector3(), s = new THREE.Vector3();
+    for (let i = 0, made = 0; made < 54 && i < 400; i++) {
+      const lat = -58 + GL.hash(i, 31) * 128, lon = -180 + GL.hash(i, 37) * 360;
+      const d = GL.toDir(lat, lon);
+      if (away.some((a) => a.dot(d) > Math.cos(0.13))) continue;
+      made++;
+      GL.tangents(d, e, nn);
+      const alt = 0.03 + GL.hash(i, 41) * 0.016, k = 1.1 + GL.hash(i, 43) * 1.1;
+      const parts = 3 + Math.floor(GL.hash(i, 47) * 4);
+      for (let j = 0; j < parts; j++) {
+        const ox = (GL.hash(i * 9 + j, 51) - 0.5) * 0.04 * k, oz = (GL.hash(i * 9 + j, 53) - 0.5) * 0.022 * k;
+        const sx = (0.012 + GL.hash(i * 9 + j, 57) * 0.016) * k, sy = (0.005 + GL.hash(i * 9 + j, 59) * 0.005) * k, sz = (0.01 + GL.hash(i * 9 + j, 61) * 0.012) * k;
+        const c = d.clone().multiplyScalar(GL.R + alt + (j === 0 ? sy * 0.4 : 0)).addScaledVector(e, ox).addScaledVector(nn, oz);
+        const up = c.clone().normalize();
+        const m = new THREE.Matrix4().makeBasis(e, up, nn.clone().negate());
+        m.scale(s.set(sx, j === 0 ? sy * 1.5 : sy, sz)).setPosition(c);
+        blocks.push(m);
+      }
+    }
+    const cm = new THREE.InstancedMesh(box, GL.cloudMaterial(u), blocks.length);
+    blocks.forEach((m, i) => cm.setMatrixAt(i, m));
+    cm.frustumCulled = false;
+    this.clouds = new THREE.Group();
+    this.clouds.add(cm);
+    this.scene.add(this.clouds);
+    this.disposables.push(box, cm.material as THREE.Material);
+    // the plane, its shadow and contrail
+    const pg = GL.planeGeometry();
+    this.planeMesh = new THREE.Mesh(pg, voxel);
+    this.planeMesh.matrixAutoUpdate = false;
+    this.planeMesh.visible = false;
+    this.planeMesh.frustumCulled = false;
+    const shg = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    this.shadow = new THREE.Mesh(shg, GL.shadowMaterial());
+    this.shadow.matrixAutoUpdate = false;
+    this.shadow.visible = false;
+    this.shadow.renderOrder = 1;
+    const pb = new THREE.BoxGeometry(1, 1, 1);
+    this.puffFade = new THREE.InstancedBufferAttribute(new Float32Array(140), 1);
+    this.puffFade.setUsage(THREE.DynamicDrawUsage);
+    pb.setAttribute('aFade', this.puffFade);
+    this.puffs = new THREE.InstancedMesh(pb, GL.puffMaterial(u), 140);
+    this.puffs.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.puffs.frustumCulled = false;
+    this.puffs.renderOrder = 2;
+    this.scene.add(this.planeMesh, this.shadow, this.puffs);
+    this.disposables.push(pg, shg, this.shadow.material as THREE.Material, pb, this.puffs.material as THREE.Material);
+    // runways at both ends of the route
+    const rg = GL.runwayGeometry(RUNWAY, 0.0065);
+    for (let i = 0; i < 2; i++) {
+      const m = new THREE.Mesh(rg, voxel);
+      m.matrixAutoUpdate = false;
+      m.visible = false;
+      this.runways.push(m);
+      this.scene.add(m);
+    }
+    this.disposables.push(rg);
+    // landmarks at every destination
+    for (const p of this.pins) {
+      const id = p.el.dataset.place;
+      const g = id ? GL.landmarkGeometry(id) : null;
+      if (!g || !id) continue;
+      const m = new THREE.Mesh(g, voxel);
+      m.matrixAutoUpdate = false;
+      this.landmarks.set(id, { mesh: m, at: p.at });
+      this.scene.add(m);
+      this.disposables.push(g);
+    }
+    this.routeMat = GL.routeMaterial(u);
+    this.disposables.push(this.routeMat);
+    for (const p of this.pins) p.pos.copy(p.dir).multiplyScalar(GL.groundAt(this.land, p.at) + 0.002);
+    this.placeRoute();
   }
 
-  private get focusPoint(): [number, number] {
-    const vw = this.canvas.clientWidth, vh = this.canvas.clientHeight, i = this.insets;
-    return [(i.left + vw - i.right) / 2, (i.top + vh - i.bottom) / 2];
+  /** Put a mesh on the ground at a direction, facing a heading (radians clockwise from north). */
+  private place(m: THREE.Object3D, dir: THREE.Vector3, heading: number, scale: number, rad: number): void {
+    const e = new THREE.Vector3(), n = new THREE.Vector3();
+    GL.tangents(dir, e, n);
+    const fwd = n.clone().multiplyScalar(Math.cos(heading)).addScaledVector(e, Math.sin(heading));
+    const left = new THREE.Vector3().crossVectors(dir, fwd);
+    m.matrix.makeBasis(left.multiplyScalar(scale), dir.clone().multiplyScalar(scale), fwd.multiplyScalar(scale)).setPosition(dir.clone().multiplyScalar(rad));
+    m.matrixWorldNeedsUpdate = true;
   }
 
-  private toScreen(mx: number, my: number): [number, number] {
-    const [fx, fy] = this.focusPoint;
-    let dx = mx - this.cam.x;
-    dx -= Math.round(dx / this.w) * this.w;
-    return [fx + dx, fy + my - this.cam.y];
+  private placeRoute(): void {
+    if (this.routeMesh) { this.scene.remove(this.routeMesh); this.routeMesh.geometry.dispose(); this.routeMesh = null; }
+    const p = this.path;
+    for (const r of this.runways) r.visible = !!p;
+    // landmarks stand beside their runway, or just east of town when no route is shown
+    for (const [, lm] of this.landmarks) {
+      const d = GL.toDir(lm.at.lat, lm.at.lon);
+      const atEnd = p && d.dot(p.b) > 0.99999 ? 1 : p && d.dot(p.a) > 0.99999 ? 0 : -1;
+      // the terminal is on the runway's right, so the landmark goes on its left
+      const run = atEnd < 0 || !p ? 0 : p.headingAt(atEnd ? 1 : 0), left = run - Math.PI / 2;
+      const e = new THREE.Vector3(), n = new THREE.Vector3();
+      GL.tangents(d, e, n);
+      const side = n.multiplyScalar(Math.cos(left)).addScaledVector(e, Math.sin(left));
+      const at = d.clone().addScaledVector(side, 0.012).normalize();
+      this.place(lm.mesh, at, run, 0.0045, GL.GROUND_R + GL.U * 0.24);
+    }
+    this.planeMesh.visible = !!p && !p.loop;
+    if (!p) return;
+    const pts: THREE.Vector3[] = [], d = new THREE.Vector3();
+    const N = Math.max(24, Math.round(p.len * 90));
+    for (let i = 0; i <= N; i++) {
+      const s = i / N;
+      pts.push(p.dirAt(s, d).clone().multiplyScalar(GL.GROUND_R + LIFT + 0.003 + p.altAt(s)));
+    }
+    this.routeMesh = new THREE.Mesh(GL.routeGeometry(pts), this.routeMat);
+    this.routeMesh.frustumCulled = false;
+    this.routeMesh.renderOrder = 4;
+    this.routeMat.uniforms.uLen.value = this.routeMesh.geometry.userData.len;
+    this.routeMat.uniforms.uProg.value = 0;
+    this.scene.add(this.routeMesh);
+    // runways: home along the take-off heading, destination along the landing one
+    const homeS = (-LR + RUNWAY * 0.44) / p.len, destS = 1 + (RUNWAY * 0.38) / p.len;
+    this.place(this.runways[0], p.dirAt(homeS, d), p.headingAt(homeS), 1, GL.GROUND_R);
+    this.place(this.runways[1], p.dirAt(destS, d), p.headingAt(destS), 1, GL.GROUND_R);
+    this.runways[1].visible = !p.loop;
+    // the plane waits at the start of the home runway
+    this.posePlane(p, -LR / p.len, 0);
   }
 
-  // ------------------------------------------------------------------ baking
+  // ------------------------------------------------------------------ the flight
+  /** Where the flight is at time t: path position s, and how far through the cruise (0 to 1). */
+  private flightAt(f: Flight): { s: number; air: number; ground: boolean; stopped: boolean } {
+    const s0 = -LR / f.path.len;
+    let t = f.t - f.hold;
+    if (t < 0) return { s: s0, air: 0, ground: true, stopped: false };
+    if (t < f.roll) { const k = t / f.roll; return { s: s0 * (1 - k * k), air: 0, ground: true, stopped: false }; }
+    t -= f.roll;
+    if (t < f.air) {
+      const x = t / f.air, m = f.v * f.air;
+      const s = (-2 * x ** 3 + 3 * x ** 2) + m * (x ** 3 - 2 * x ** 2 + x) + m * (x ** 3 - x ** 2); // Hermite, matching the ground speed at both ends
+      return { s, air: x, ground: false, stopped: false };
+    }
+    t = Math.min(t - f.air, f.out);
+    return { s: 1 + f.v * (t - (t * t) / (2 * f.out)), air: 1, ground: true, stopped: t >= f.out };
+  }
+
+  private planeScale(alt: number): number { return Math.min(0.042, 0.022 + 0.24 * alt); }
+
+  private posePlane(p: Path, s: number, roll: number): { dir: THREE.Vector3; rad: number; head: number; alt: number } {
+    const dir = p.dirAt(s, new THREE.Vector3()), alt = p.altAt(s);
+    const rad = GL.GROUND_R + LIFT + alt;
+    const pos = dir.clone().multiplyScalar(rad);
+    const ahead = p.dirAt(s + 2e-3, new THREE.Vector3()).multiplyScalar(GL.GROUND_R + LIFT + p.altAt(s + 2e-3));
+    const fwd = ahead.sub(pos).normalize();
+    const up = dir.clone().addScaledVector(fwd, -dir.dot(fwd)).normalize().applyAxisAngle(fwd, roll);
+    const left = new THREE.Vector3().crossVectors(up, fwd);
+    const k = this.planeScale(alt);
+    this.planeMesh.matrix.makeBasis(left.multiplyScalar(k), up.multiplyScalar(k), fwd.clone().multiplyScalar(k)).setPosition(pos);
+    this.planeMesh.matrixWorldNeedsUpdate = true;
+    // shadow on whatever is below
+    const ll = GL.toLatLon(dir);
+    const g = this.land ? GL.groundAt(this.land, ll) : GL.OCEAN_R;
+    const gs = k * (1.1 + alt * 18);
+    const sm = this.shadow.material as THREE.ShaderMaterial;
+    sm.uniforms.uAlpha.value = 0.34 * (1 - smooth(0.0, 0.07, alt));
+    this.place(this.shadow, dir, p.headingAt(s), 1, Math.max(g, GL.GROUND_R + (alt < 0.002 ? LIFT : 0)) + 0.0004);
+    this.shadow.matrix.scale(new THREE.Vector3(gs, 1, gs * 1.1));
+    return { dir, rad, head: p.headingAt(s), alt };
+  }
+
+  private chase(dir: THREE.Vector3, rad: number, head: number, kind: 'take' | 'cruise' | 'land', theta: number): Shot {
+    if (kind === 'take') return { dir, rad, head: head + 0.85, pitch: 1.12, dist: 0.11, fov: 48 };
+    if (kind === 'land') return { dir, rad, head: head - 0.8, pitch: 1.1, dist: 0.115, fov: 48 };
+    return { dir, rad, head: head + 0.35, pitch: 0.92, dist: 0.3 + 0.3 * theta / Math.PI, fov: 44 };
+  }
+
+  private mix(a: Shot, b: Shot, k: number, bump = 0): Shot {
+    const dir = slerpDir(a.dir, b.dir, k, new THREE.Vector3());
+    const sep = Math.acos(Math.max(-1, Math.min(1, a.dir.dot(b.dir))));
+    return {
+      dir,
+      rad: lerp(a.rad, b.rad, k),
+      head: a.head + wrapAng(b.head - a.head) * k,
+      pitch: lerp(a.pitch, b.pitch, k),
+      dist: Math.exp(lerp(Math.log(a.dist), Math.log(b.dist), k)) * (1 + bump * Math.sin(Math.PI * k) * sep),
+      fov: lerp(a.fov, b.fov, k),
+    };
+  }
+
+  private stepFlight(f: Flight, dt: number): void {
+    f.t += dt * f.speed;
+    const st = this.flightAt(f);
+    const p = f.path;
+    const roll = st.ground ? 0 : Math.sin(f.t * 0.9) * 0.07 * smooth(0, 0.15, st.air) * (1 - smooth(0.85, 1, st.air)) + (p.loop ? 0.35 * Math.sin(Math.PI * st.air) : 0);
+    const pl = this.posePlane(p, st.s, roll);
+    this.planeMesh.visible = true;
+    this.shadow.visible = true;
+    // the camera
+    const take = this.chase(pl.dir, pl.rad, pl.head, 'take', p.theta);
+    const cruise = this.chase(pl.dir, pl.rad, pl.head, 'cruise', p.theta);
+    const land = this.chase(pl.dir, pl.rad, pl.head, 'land', p.theta);
+    let shot = this.mix(take, cruise, smooth(0.03, 0.3, st.air));
+    shot = this.mix(shot, land, smooth(0.7, 0.97, st.air));
+    const m = smooth(0, 1.7, f.t);
+    if (m < 1 && this.from) shot = this.mix(this.from, shot, m, 0.5);
+    this.view = shot;
+    // the route fills in behind the plane and fades while the camera is down low
+    this.routeMat.uniforms.uProg.value = Math.max(0, Math.min(1, st.s));
+    this.routeMat.uniforms.uAlpha.value = smooth(0.12, 0.3, st.air) * (1 - smooth(0.72, 0.9, st.air)) * 0.9;
+    // time flies: the sun moves on as the hours pass
+    this.simHours = this.flightHours * st.air;
+    // contrail from both engines while airborne
+    this.trailClock -= dt;
+    if (!st.ground && pl.alt > 0.004 && this.trailClock <= 0) {
+      this.trailClock = 0.03;
+      const mx = this.planeMesh.matrix;
+      for (const x of [0.21, -0.21]) this.trail.push({ p: new THREE.Vector3(x, 0.07, -0.05).applyMatrix4(mx), age: 0 });
+      while (this.trail.length > 140) this.trail.shift();
+    }
+    if (st.stopped && f.done) {
+      const done = f.done;
+      f.done = null;
+      done();
+    }
+  }
+
+  private stepTrail(dt: number): void {
+    const m = new THREE.Matrix4(), e = new THREE.Vector3(), n = new THREE.Vector3(), up = new THREE.Vector3(), sv = new THREE.Vector3();
+    const k = this.planeScale(1);
+    let i = 0;
+    for (const p of this.trail) {
+      p.age += dt;
+      const life = p.age / 1.8;
+      if (life >= 1) continue;
+      up.copy(p.p).normalize();
+      GL.tangents(up, e, n);
+      const s = k * (0.07 + 0.16 * Math.sqrt(life));
+      m.makeBasis(e, up, n.negate()).scale(sv.set(s, s, s)).setPosition(p.p);
+      this.puffs.setMatrixAt(i, m);
+      this.puffFade.setX(i, (1 - life) * (1 - life) * Math.min(1, p.age * 10) * 0.8);
+      i++;
+    }
+    this.trail = this.trail.filter((p) => p.age < 1.8);
+    for (let j = i; j < 140; j++) this.puffFade.setX(j, 0);
+    this.puffs.count = Math.max(1, i);
+    this.puffs.instanceMatrix.needsUpdate = true;
+    this.puffFade.needsUpdate = true;
+  }
+
+  // ------------------------------------------------------------------ camera
   private resize(): void {
     const vw = this.el.clientWidth, vh = this.el.clientHeight;
     if (!vw || !vh) return;
-    this.dpr = Math.min(2, window.devicePixelRatio || 1);
-    this.canvas.width = Math.round(vw * this.dpr);
-    this.canvas.height = Math.round(vh * this.dpr);
-    const S = Math.round(Math.max(8, Math.min(18, Math.min(vw / 80, vh / 34))) * 2) / 2;
-    if (S !== this.S || !this.base) {
-      const fx = this.cam.x / (this.w || 1), fy = (this.cam.y - this.oy) / (this.hgt || 1);
-      this.S = S;
-      this.bake();
-      if (Number.isFinite(fx) && fx) { this.cam.x = this.target.x = fx * this.w; this.cam.y = this.target.y = this.oy + fy * this.hgt; }
-      else if (this.focused) this.focus(this.focused, true);
-    }
+    this.vw = vw; this.vh = vh;
+    this.dpr = Math.min(coarse() ? 1.75 : 2, window.devicePixelRatio || 1);
+    this.gl.setPixelRatio(this.dpr);
+    this.gl.setSize(vw, vh, false);
+    this.u.uRes.value.set(vw / 2, vh / 2);
+    if (this.stars) (this.stars.material as THREE.ShaderMaterial).uniforms.uDpr.value = this.dpr;
   }
 
-  private bake(): void {
-    const S = this.S, d = this.dpr;
-    this.w = WORLD.cols * S;
-    this.oy = MAX_H * UNIT * S + S;
-    this.hgt = WORLD.rows * S * K;
-    const cv = document.createElement('canvas');
-    cv.width = Math.ceil(this.w * d);
-    cv.height = Math.ceil((this.oy + this.hgt + S * 2) * d);
-    const g = cv.getContext('2d')!;
-    g.scale(d, d);
-    const H = S * K, U = UNIT * S;
-    const land = (c: number, r: number) => this.heightAt(c, r) > 0;
-    // shallows and the land's shadow on the water
-    g.fillStyle = SHALLOW;
-    for (const cl of this.cells) {
-      const x = cl.c * S, y = this.oy + cl.r * H;
-      g.beginPath();
-      g.roundRect(x - S * 0.55, y - H * 0.5, S * 2.1, H * 2.1, S * 0.6);
-      g.fill();
-    }
-    g.fillStyle = 'rgba(30, 80, 90, 0.16)';
-    for (const cl of this.cells) if (!land(cl.c, cl.r + 1)) g.fillRect(cl.c * S, this.oy + (cl.r + 1) * H, S, H * 0.45);
-    // voxel columns, back (north) to front (south)
-    for (const cl of this.cells) {
-      const x = cl.c * S, gy = this.oy + cl.r * H, top = gy - cl.h * U;
-      const [tc, fc] = COL[cl.b];
-      // front face, only the part that sticks out above the cell in front of it
-      const front = this.heightAt(cl.c, cl.r + 1);
-      if (front < cl.h) {
-        g.fillStyle = shadeHex(fc, cl.shade);
-        g.fillRect(x, top + H, S + 0.5, (cl.h - front) * U + 0.5);
-        g.fillStyle = 'rgba(0,0,0,0.08)';
-        g.fillRect(x, top + H + (cl.h - front) * U - Math.max(1, U * 0.2), S + 0.5, Math.max(1, U * 0.2));
-      }
-      g.fillStyle = shadeHex(tc, cl.shade);
-      g.fillRect(x, top, S + 0.5, H + 0.5);
-      // a lighter lip where the top meets a lower neighbour behind
-      if (this.heightAt(cl.c, cl.r - 1) < cl.h) { g.fillStyle = 'rgba(255,255,255,0.28)'; g.fillRect(x, top, S + 0.5, Math.max(1, H * 0.14)); }
-      if (cl.tree) {
-        const tw = S * 0.46, tx = x + (S - tw) / 2 + (hash(cl.r, cl.c * 3) - 0.5) * S * 0.3, ty = top + H * 0.45;
-        g.fillStyle = cl.b === 'forest' ? '#3f7f52' : '#4c9450';
-        g.fillRect(tx, ty - tw * 1.3, tw, tw * K);
-        g.fillStyle = cl.b === 'forest' ? '#356b46' : '#3f7d43';
-        g.fillRect(tx, ty - tw * 1.3 + tw * K, tw, tw * 0.75);
-      }
-    }
-    this.base = cv;
-    // a soft dotted texture for the sea
-    const dot = document.createElement('canvas');
-    const ds = Math.round(S * 1.5 * d);
-    dot.width = dot.height = ds;
-    const dg = dot.getContext('2d')!;
-    dg.fillStyle = 'rgba(255,255,255,0.22)';
-    dg.beginPath();
-    dg.arc(ds / 2, ds / 2, Math.max(1, d * 1.1), 0, Math.PI * 2);
-    dg.fill();
-    this.dots = this.ctx.createPattern(dot, 'repeat');
+  private get focusPoint(): [number, number] {
+    const i = this.insets;
+    return [(i.left + this.vw - i.right) / 2, (i.top + this.vh - i.bottom) / 2];
+  }
+
+  /** Camera distance that makes the globe fill the free part of the screen. */
+  private fitDist(): number {
+    const i = this.insets;
+    const fw = Math.max(200, this.vw - i.left - i.right), fh = Math.max(200, this.vh - i.top - i.bottom);
+    const rs = 0.46 * Math.min(fw, fh * 1.06) * this.zoom;
+    const T = (rs / (this.vh / 2)) * Math.tan((MAP_FOV / 2) * (Math.PI / 180));
+    return Math.max(0.3, GL.R / Math.sin(Math.atan(T)) - GL.R);
+  }
+
+  private mapShot(): Shot {
+    return { dir: this.view.dir, rad: GL.R, head: 0, pitch: MAP_PITCH, dist: this.fitDist() * (1 + this.intro * 0.5), fov: MAP_FOV };
+  }
+
+  private applyCamera(s: Shot): void {
+    const e = new THREE.Vector3(), n = new THREE.Vector3();
+    GL.tangents(s.dir, e, n);
+    const fwd = n.multiplyScalar(Math.cos(s.head)).addScaledVector(e, Math.sin(s.head));
+    const look = s.dir.clone().multiplyScalar(s.rad);
+    const cam = this.camera;
+    cam.position.copy(look).addScaledVector(s.dir, s.dist * Math.cos(s.pitch)).addScaledVector(fwd, -s.dist * Math.sin(s.pitch));
+    const floor = (this.land ? GL.groundAt(this.land, GL.toLatLon(cam.position.clone().normalize())) : GL.R) + 0.006;
+    if (cam.position.length() < floor) cam.position.setLength(floor);
+    cam.up.copy(s.dir).multiplyScalar(Math.sin(s.pitch)).addScaledVector(fwd, Math.cos(s.pitch));
+    cam.lookAt(look);
+    const alt = cam.position.length() - GL.R;
+    cam.near = Math.max(0.0015, Math.min(0.5, alt * 0.2));
+    cam.far = 90;
+    cam.fov = s.fov;
+    cam.aspect = this.vw / this.vh;
+    cam.setViewOffset(this.vw, this.vh, this.vw / 2 - this.off.x, this.vh / 2 - this.off.y, this.vw, this.vh);
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+    this.u.uCam.value.copy(cam.position);
   }
 
   // ------------------------------------------------------------------ input
   private down(e: PointerEvent): void {
+    if (this.busy) return;
     this.canvas.setPointerCapture(e.pointerId);
-    this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 };
-    this.vel = { x: 0, y: 0 };
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.spin = { lon: 0, lat: 0 };
+    if (this.pointers.size === 2) this.pinch = this.pinchDist();
+  }
+
+  private pinchDist(): number {
+    const [a, b] = [...this.pointers.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
   private move(e: PointerEvent): void {
-    const dr = this.drag;
-    if (!dr || dr.id !== e.pointerId || this.follow) return;
-    const dx = e.clientX - dr.x, dy = e.clientY - dr.y;
-    dr.x = e.clientX; dr.y = e.clientY;
-    dr.moved += Math.abs(dx) + Math.abs(dy);
-    this.cam.x -= dx; this.cam.y -= dy;
-    this.clampY();
-    this.target = { ...this.cam };
-    this.vel = { x: -dx * 60, y: -dy * 60 };
-    if (dr.moved > 6) this.panned = true;
+    const p = this.pointers.get(e.pointerId);
+    if (!p || this.busy) return;
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (this.pointers.size >= 2) {
+      const d = this.pinchDist();
+      if (this.pinch > 0) this.zoom = Math.max(0.7, Math.min(3.4, this.zoom * (d / this.pinch)));
+      this.pinch = d;
+      return;
+    }
+    // degrees per pixel at the focus point
+    const k = ((2 * this.view.dist * Math.tan((this.view.fov / 2) * Math.PI / 180)) / this.vh) * (180 / Math.PI);
+    this.turn(-dx * k, dy * k);
+    this.spin = { lon: -dx * k * 60, lat: dy * k * 60 };
+    if (Math.abs(dx) + Math.abs(dy) > 3) { this.panned = true; this.target = null; this.intro = 0; }
   }
 
   private up(e: PointerEvent): void {
-    if (this.drag?.id === e.pointerId) this.drag = null;
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.pinch = 0;
   }
 
-  private clampY(): void {
-    const vh = this.canvas.clientHeight - this.insets.top - this.insets.bottom;
-    const lo = this.oy - this.S * 2 + vh * 0.25, hi = this.oy + this.hgt - vh * 0.25;
-    this.cam.y = lo < hi ? Math.max(lo, Math.min(hi, this.cam.y)) : (this.oy + this.hgt / 2);
+  private turn(dLon: number, dLat: number): void {
+    const ll = GL.toLatLon(this.view.dir);
+    const lat = Math.max(-62, Math.min(74, ll.lat + dLat));
+    GL.toDir(lat, ll.lon + dLon / Math.max(0.3, Math.cos(lat * Math.PI / 180)), this.view.dir);
   }
 
-  // ------------------------------------------------------------------ drawing
-  private routePoint(t: number): { x: number; y: number; ang: number } | null {
-    const rt = this.route;
-    if (!rt) return null;
-    const a = this.toMap(rt.a), b = this.toMap(rt.b);
-    b.x += Math.round((a.x - b.x) / this.w) * this.w;
-    const dist = Math.hypot(b.x - a.x, b.y - a.y);
-    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2 - dist * 0.3;
-    const u = 1 - t;
-    const x = u * u * a.x + 2 * u * t * cx + t * t * b.x, y = u * u * a.y + 2 * u * t * cy + t * t * b.y;
-    const tx = 2 * u * (cx - a.x) + 2 * t * (b.x - cx), ty = 2 * u * (cy - a.y) + 2 * t * (b.y - cy);
-    return { x, y, ang: Math.atan2(ty, tx) };
-  }
-
+  // ------------------------------------------------------------------ frame
   private frame(now: number): void {
     this.raf = requestAnimationFrame((t) => this.frame(t));
     const dt = Math.min(0.05, (now - (this.last || now)) / 1000);
     this.last = now;
-    this.time += dt;
-    if (!this.base) return;
-    // camera: follow the plane, glide to the target, or coast after a fling
-    if (this.follow) {
-      const p = this.routePoint(this.route!.t);
-      if (p) this.target = { x: p.x, y: p.y };
-    }
-    if (!this.drag && (Math.abs(this.vel.x) > 1 || Math.abs(this.vel.y) > 1) && this.panned) {
-      this.cam.x += this.vel.x * dt; this.cam.y += this.vel.y * dt;
-      this.vel.x *= Math.exp(-dt * 6); this.vel.y *= Math.exp(-dt * 6);
-      this.clampY();
-      this.target = { ...this.cam };
-    } else if (!this.drag) {
-      const k = 1 - Math.exp(-dt * (this.follow ? 7 : 4.5));
-      this.cam.x += (this.target.x - this.cam.x) * k;
-      this.cam.y += (this.target.y - this.cam.y) * k;
-    }
-    const g = this.ctx, d = this.dpr, vw = this.canvas.clientWidth, vh = this.canvas.clientHeight, S = this.S;
-    g.setTransform(d, 0, 0, d, 0, 0);
-    g.fillStyle = SEA;
-    g.fillRect(0, 0, vw, vh);
-    const [ox, oy] = this.toScreen(0, 0);
-    if (this.dots) {
-      g.save();
-      g.translate(ox % (S * 1.5), oy % (S * 1.5));
-      g.fillStyle = this.dots;
-      g.fillRect(-S * 2, -S * 2, vw + S * 4, vh + S * 4);
-      g.restore();
-    }
-    // waves bobbing on the sea
-    g.strokeStyle = 'rgba(255,255,255,0.55)';
-    g.lineWidth = Math.max(1, S * 0.14);
-    g.lineCap = 'round';
-    g.beginPath();
-    for (const wv of this.waves) {
-      const [sx, sy] = this.toScreen(wv.x * S, this.oy + wv.y * S * K);
-      if (sx < -20 || sx > vw + 20 || sy < -20 || sy > vh + 20) continue;
-      const b = Math.sin(this.time * 1.6 + wv.p);
-      if (b < 0.1) continue;
-      const len = S * 0.8 * b;
-      g.moveTo(sx - len, sy + b * 1.5);
-      g.quadraticCurveTo(sx, sy - S * 0.3 + b * 1.5, sx + len, sy + b * 1.5);
-    }
-    g.stroke();
-    // the land, repeated round the globe
-    const bw = this.base.width / d, bh = this.base.height / d;
-    let x0 = ox - Math.ceil(ox / this.w) * this.w;
-    for (; x0 < vw; x0 += this.w) if (x0 + bw > 0) g.drawImage(this.base, x0, oy, bw, bh);
-    // clouds and their shadows
-    for (const cl of this.clouds) {
-      cl.x = (cl.x + cl.v * dt) % WORLD.cols;
-      const [sx, sy] = this.toScreen(cl.x * S, this.oy + cl.y * S * K - S * 3.2);
-      if (sx < -S * 6 || sx > vw + S * 6 || sy < -S * 6 || sy > vh + S * 8) continue;
-      const s = cl.s * S;
-      const puffs: [number, number, number][] = [[0, 0, 2.2], [1.5, -0.6, 1.8], [-1.4, 0.2, 1.5], [0.6, 0.5, 1.6]];
-      g.fillStyle = 'rgba(30, 70, 80, 0.10)';
-      for (const [px, py, r] of puffs) g.fillRect(sx + px * s - r * s / 2 + s * 0.8, sy + py * s + S * 3.4, r * s, r * s * K * 0.8);
-      for (const [px, py, r] of puffs) {
-        g.fillStyle = '#e4ecef';
-        g.fillRect(sx + px * s - r * s / 2, sy + py * s + r * s * K * 0.5, r * s, r * s * 0.35);
+    if (!this.vw || this.vw < 2) return;
+    if (!this.built) this.build();
+    this.clock += dt;
+    this.frameNo++;
+    // a boarding pass blurs the map behind it: no need to redraw it at full rate
+    const behind = !this.busy && !!this.el.parentElement?.querySelector('.bp-wrap');
+    if (behind && this.frameNo % 3) return;
+    const step = behind ? dt * 3 : dt;
+    this.u.uTime.value = this.clock;
+    (this.stars.material as THREE.ShaderMaterial).uniforms.uTime.value = this.clock;
+    GL.sunDir(Date.now() + this.simHours * 3600e3, this.u.uSun.value);
+    this.clouds.rotation.y += step * 0.0015;
+
+    if (this.dive) {
+      const dv = this.dive;
+      dv.t += step * 1000;
+      const k = Math.min(1, dv.t / dv.ms), ease = k * k * (3 - 2 * k);
+      const to: Shot = { dir: dv.from.dir, rad: GL.GROUND_R, head: dv.from.head + 0.6, pitch: 0.05, dist: 0.012, fov: 58 };
+      this.view = this.mix(dv.from, to, ease);
+      if (k >= 1) { this.dive = null; dv.done(); }
+    } else if (this.flight) {
+      this.stepFlight(this.flight, step);
+    } else {
+      // map mode: glide to the target, or coast after a fling
+      if (this.target) {
+        const k = 1 - Math.exp(-step * (this.intro > 0 ? 2.6 : 4.2));
+        slerpDir(this.view.dir, this.target, k, this.view.dir);
+        if (this.view.dir.dot(this.target) > 0.999999) this.target = null;
+      } else if (Math.abs(this.spin.lon) + Math.abs(this.spin.lat) > 0.01 && !this.pointers.size) {
+        this.turn(this.spin.lon * step, this.spin.lat * step);
+        const f = Math.exp(-step * 4);
+        this.spin.lon *= f; this.spin.lat *= f;
       }
-      for (const [px, py, r] of puffs) {
-        g.fillStyle = '#ffffff';
-        g.fillRect(sx + px * s - r * s / 2, sy + py * s - r * s * K * 0.5, r * s, r * s * K);
-      }
+      this.intro = Math.max(0, this.intro - step * 0.9);
+      const want = this.mapShot();
+      // ease the camera back into map framing (after a flight is cancelled, or on resize)
+      const v = this.view;
+      v.rad = lerp(v.rad, want.rad, 0.2);
+      v.head = v.head + wrapAng(want.head - v.head) * 0.2;
+      v.pitch = lerp(v.pitch, want.pitch, 0.2);
+      v.dist = Math.exp(lerp(Math.log(v.dist), Math.log(want.dist), 1 - Math.exp(-step * 6)));
+      v.fov = lerp(v.fov, want.fov, 0.2);
+      if (this.routeMesh) this.routeMat.uniforms.uAlpha.value = Math.min(1, this.routeMat.uniforms.uAlpha.value + step * 3);
     }
-    // the route
-    const rt = this.route;
-    if (rt) {
-      const N = 48;
-      const pts: [number, number][] = [];
-      for (let i = 0; i <= N; i++) {
-        const p = this.routePoint(i / N)!;
-        pts.push(this.toScreen(p.x, p.y));
-      }
-      const cut = Math.round(rt.t * N);
-      g.lineCap = 'round';
-      g.lineJoin = 'round';
-      if (cut > 0) {
-        g.setLineDash([]);
-        g.strokeStyle = 'rgba(255,255,255,0.9)';
-        g.lineWidth = Math.max(3, S * 0.42);
-        g.beginPath();
-        pts.slice(0, cut + 1).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-        g.stroke();
-        g.strokeStyle = '#e9573f';
-        g.lineWidth = Math.max(1.5, S * 0.2);
-        g.stroke();
-      }
-      g.setLineDash([S * 0.5, S * 0.55]);
-      g.lineDashOffset = -this.time * S * 1.2;
-      g.strokeStyle = '#e9573f';
-      g.lineWidth = Math.max(1.5, S * 0.2);
-      g.beginPath();
-      pts.slice(cut).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-      g.stroke();
-      g.setLineDash([]);
-      if (rt.flying) {
-        const p = this.routePoint(rt.t)!;
-        const [px, py] = this.toScreen(p.x, p.y);
-        const lift = Math.sin(rt.t * Math.PI) * S * 1.6;
-        // shadow on the ground, plane above it
-        g.fillStyle = 'rgba(30, 60, 70, 0.22)';
-        g.beginPath();
-        g.ellipse(px, py, S * 0.9, S * 0.4, 0, 0, Math.PI * 2);
-        g.fill();
-        this.plane.style.transform = `translate(${px.toFixed(1)}px, ${(py - lift).toFixed(1)}px) rotate(${p.ang.toFixed(3)}rad) scale(${(1 + lift / (S * 8)).toFixed(3)})`;
-      }
-    }
-    // pins
-    for (const pin of this.pins) {
-      const m = this.toMap(pin);
-      const [sx, sy] = this.toScreen(m.x, m.y);
-      const off = sx < -80 || sx > vw + 80 || sy < -80 || sy > vh + 80;
-      pin.el.style.visibility = off ? 'hidden' : '';
-      if (!off) pin.el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
+    this.stepTrail(step);
+    const [fx, fy] = this.busy ? [this.vw / 2, this.vh / 2] : this.focusPoint;
+    const ko = Number.isFinite(this.off.x) ? 1 - Math.exp(-step * 5) : 1;
+    this.off.x = lerp(this.off.x || fx, fx, ko);
+    this.off.y = lerp(this.off.y || fy, fy, ko);
+    this.applyCamera(this.view);
+    this.gl.render(this.scene, this.camera);
+    this.placePins();
+  }
+
+  private placePins(): void {
+    const cam = this.camera.position, v = new THREE.Vector3(), to = new THREE.Vector3();
+    for (const p of this.pins) {
+      to.subVectors(cam, p.pos).normalize();
+      const facing = p.dir.dot(to);
+      const a = this.busy ? 0 : smooth(0.0, 0.18, facing);
+      v.copy(p.pos).project(this.camera);
+      const x = (v.x + 1) / 2 * this.vw, y = (1 - v.y) / 2 * this.vh;
+      const off = a <= 0.01 || v.z > 1 || x < -80 || x > this.vw + 80 || y < -80 || y > this.vh + 80;
+      p.el.style.visibility = off ? 'hidden' : '';
+      if (off) continue;
+      p.el.style.opacity = a < 1 ? a.toFixed(2) : '';
+      p.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     }
   }
 }

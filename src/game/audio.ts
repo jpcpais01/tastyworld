@@ -9,7 +9,7 @@
 
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
 
-export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh'
+export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh' | 'jet'
   | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
 
 export interface AudioRoom { rect: [number, number, number, number]; kind: string }
@@ -294,6 +294,7 @@ export class Audio {
       case 'meow': fire('meow', t, 0.32, rand(0.92, 1.12)); break;
       case 'ding': note('bell', 88, t, 0.2); note('bell', 84, t + 0.3, 0.18); break; // the lift arrives
       case 'whoosh': fire('whoosh', t, 0.42, rand(0.95, 1.05)); break;
+      case 'jet': fire('jet', t, 0.3); break;
       case 'shutter': fire('shutter', t, 0.55); fire('shutter', t + 0.075, 0.38, 0.82); break; // curtain opens, then closes
       // eating
       case 'bite': fire('bite', t, 0.5, rand(0.9, 1.12)); fire('chew', t + 0.22, 0.2, rand(0.9, 1.1)); fire('chew', t + 0.5, 0.16, rand(0.85, 1.05)); break;
@@ -675,6 +676,10 @@ export class Audio {
       case 'whoosh': return this.render(0.55, SR, () => { const bp = new SVF(SR, 0.8); return (t) => {
         const u = t / 0.55;
         return bp.run(noise(), 350 + 1300 * Math.sin(Math.PI * u)) * Math.sin(Math.PI * u) ** 2;
+      }; });
+      case 'jet': return this.render(3.2, LSR, () => { const bp = new SVF(LSR, 0.6), lo = new SVF(LSR, 0.4); return (t) => { // engines spool up, roll, lift off
+        const spool = Math.min(1, t / 1.4), env = Math.min(1, t / 0.5) * (t > 2.2 ? Math.max(0, 1 - (t - 2.2) / 1) : 1);
+        return (bp.run(noise(), 260 + 900 * spool * spool) * 0.8 + lo.run(noise(), 90 + 60 * spool) * 1.4) * env;
       }; });
       case 'shutter': return this.render(0.07, SR, () => { const bp = new SVF(SR, 1.4); return (t) => // a small mechanical clack
         (bp.run(noise(), 2600) * 0.9 + Math.sin(TAU * 1450 * t) * 0.35) * Math.min(1, t / 0.0008) * Math.exp(-t * 85);

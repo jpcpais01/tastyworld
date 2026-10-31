@@ -319,7 +319,8 @@ uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres), shared b
 uniform highp usampler2D tSolid; // per column: which of the 64 voxel layers from the street up are solid (two words)
 uniform sampler2D tOwner;  // per column: occluder id, owner above a split height, shell flag and split (see game/cutaway.ts)
 uniform sampler2D tCut;    // per id: shell height near side, shell height far side, inside height, far-side start;
-                           // 64 rows on, a great hall's middle and half extents less its walls (see game/cutaway.ts)
+                           // 64 rows on, a great hall's air (middle, half extents); 128 on, its four sides' cut
+                           // heights (see game/cutaway.ts)
 uniform mat4 uViewProj;
 float solidTop(vec2 xz) {
   vec2 uv = (xz - uHeightRect.xy) * uHeightRect.zw;
@@ -356,10 +357,18 @@ float cutAt(vec3 p, vec2 fwdH, out float id) {
   if (id < 0.5) return 1e4;
   int ii = int(id);
   vec4 c = texelFetch(tCut, ivec2(ii % 64, ii / 64), 0);
-  if (!over && shell < 0.5) return c.z;
-  // a great hall: the far side is its two walls that face away from the camera, all along them
+  // a great hall (or its bell tower, minarets, court): inside its air the inside height; outside it, whatever
+  // stands on one of its four sides (walls, front, portico, apse) is cut at that side's height, as one piece.
+  // A corner belongs to both sides and keeps the taller cut.
   vec4 r = texelFetch(tCut, ivec2(ii % 64, ii / 64 + 64), 0);
-  if (r.z > 0.0) { vec2 q = (p.xz - r.xy) * sign(fwdH); return q.x > r.z || q.y > r.w ? c.y : c.x; }
+  if (!over && r.z > 0.0) {
+    vec2 q = p.xz - r.xy, ex = abs(q) - r.zw;
+    if (ex.x <= 0.0 && ex.y <= 0.0) return c.z;
+    vec4 s = texelFetch(tCut, ivec2(ii % 64, ii / 64 + 128), 0);
+    float hx = q.x < 0.0 ? s.x : s.y, hz = q.y < 0.0 ? s.z : s.w;
+    return ex.x > 0.0 && ex.y > 0.0 ? max(hx, hz) : ex.x > 0.0 ? hx : hz;
+  }
+  if (!over && shell < 0.5) return c.z;
   return dot(p.xz, fwdH) > c.w ? c.y : c.x;
 }
 #endif

@@ -1,3 +1,4 @@
+import { paintColors, picture, toProp } from './paintings';
 import { SparseGrid, rng, hash3 } from './grid';
 import { Palette } from './palette';
 import type { Lamp } from './lighting';
@@ -66,6 +67,15 @@ export interface Occluder {
   walls?: number;
   /** Voxels of outer wall where it is thicker than a building's (world/owners.ts SHELL). */
   shell?: number;
+  /**
+   * A great hall's air, its floor plan inside the walls (metres): everything of the hall outside it (walls, front,
+   * portico, apse) belongs to one of its four sides, and each side falls or stands as one piece.
+   */
+  air?: [number, number, number, number];
+  /** Index of the great hall (in the same list) this one falls with, side by side: its bell tower, minarets, court. */
+  follow?: number;
+  /** Columns (metres) it owns even where a building's footprint overlaps them: a front wider than its neighbours' lots. */
+  claim?: [number, number, number, number];
 }
 
 export interface Anchors {
@@ -1840,8 +1850,7 @@ function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
   // tokonoma alcove with a hanging scroll and ikebana
   g.box(44, G, 2, 56, G + 12, 4, c.plaster);
   g.box(44, G, 2, 56, G + 1, 6, c.woodDark);
-  g.box(48, G + 4, 4, 52, G + 11, 4, c.templeWhite);
-  g.box(49, G + 6, 4, 51, G + 9, 4, c.cedar);
+  place(toProp(picture(paintColors(b), 'fuji', 10, 16, 7, true), 'z', false), 50.5 * V, 1.0, 5 * V + 0.0625);
   // hinoki counter (L-shaped) with chef area behind
   g.box(8, G, 22, 44, G + 2, 25, c.hinoki);
   g.box(8, G + 3, 21, 44, G + 3, 26, c.counterTop);

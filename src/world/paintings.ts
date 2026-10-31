@@ -33,6 +33,7 @@ export function paintColors(b: Builder, glow = 0) {
   };
 }
 type P = ReturnType<typeof paintColors>;
+export type PaintColors = P;
 
 export class Img {
   readonly px: Uint16Array;
@@ -373,6 +374,161 @@ function andrew(k: P, w: number, h: number, seed: number): Img {
   return im;
 }
 
+/**
+ * A fresco on the crypt's walls, w x h: a saint standing on a strip of ground under a pale sky that warms to gold
+ * round his head, each with his robe colours and what he carries. Narrow panels (where the wall runs out) get
+ * the sky alone, with a cherub.
+ */
+export function fresco(k: P, w: number, h: number, seed: number): Img {
+  const im = new Img(w, h, k.skyLight);
+  for (let v = 0; v < h; v++) for (let u = 0; u < w; u++) {
+    const t = v / Math.max(1, h - 1) + (hash3(u, v, seed) - 0.5) * 0.12;
+    im.set(u, v, t > 0.8 ? k.sky : t > 0.45 ? k.skyLight : k.cloud);
+  }
+  im.rect(0, 0, w - 1, 1, (u, v) => (v === 1 && hash3(u, v, seed + 1) < 0.5 ? k.green : k.greenDark));
+  if (w < 9) { cherub(im, k, Math.floor(w / 2), Math.round(h * 0.7)); return im; }
+  const ROBES = [[k.red, k.blue], [k.green, k.ochre], [k.purple, k.white], [k.blue, k.red], [k.ochre, k.green], [k.white, k.purple]] as const;
+  const [robe, mantle] = ROBES[seed % ROBES.length];
+  const old = seed % 3 !== 2;
+  const H = Math.round(h * 0.8);
+  glory(im, k, w / 2, 2 + H - 1, H * 0.22, 8);
+  const f = figure(im, k, Math.floor(w / 2), 2, H, { robe, mantle, hair: old ? k.hairGrey : k.hairBrown, beard: old ? k.hairGrey : undefined, halo: true, arms: seed % 2 ? 'hold' : 'pray' });
+  if (seed % 2) {
+    const [lh, rh] = f.hands;
+    if (seed % 4 === 1) im.line(rh[0], rh[1] - 4, rh[0], rh[1] + 5, k.brownDark); // a staff
+    else { im.line(rh[0] - 2, rh[1] - 3, rh[0] + 2, rh[1] + 4, k.brown); im.line(rh[0] + 2, rh[1] - 3, rh[0] - 2, rh[1] + 4, k.brown); } // the saltire
+    im.rect(lh[0] - 1, lh[1], lh[0], lh[1] + 1, k.redDark); // a book
+  }
+  return im;
+}
+
+/** The painted medallion in the attic over a bay: an oval in a gilt rim, an evangelist half-length against the sky. */
+export function medallion(k: P, w: number, h: number, seed: number): Img {
+  const im = new Img(w, h, k.skyLight);
+  for (let v = 0; v < h; v++) for (let u = 0; u < w; u++) im.set(u, v, v > h * 0.6 + (hash3(u, v, seed) - 0.5) * 2 ? k.sky : k.skyLight);
+  glory(im, k, w / 2, h * 0.62, Math.min(w, h) * 0.22, 8);
+  const robes = [[k.red, k.blue], [k.green, k.red], [k.blue, k.ochre], [k.purple, k.green]] as const;
+  const [robe, mantle] = robes[seed % robes.length];
+  const f = figure(im, k, Math.floor(w / 2), -Math.round(h * 0.55), Math.round(h * 1.2), { robe, mantle, hair: seed % 2 ? k.hairGrey : k.hairBrown, beard: seed % 2 ? k.hairGrey : undefined, halo: true, arms: 'hold' });
+  im.rect(f.hands[1][0] - 1, f.hands[1][1], f.hands[1][0] + 1, f.hands[1][1] + 2, k.white); // his gospel, open
+  // the oval: outside it nothing (the wall shows), its rim in gold lit from above
+  const cu = w / 2, cv = h / 2;
+  for (let v = 0; v < h; v++) for (let u = 0; u < w; u++) {
+    const e = Math.hypot((u + 0.5 - cu) / (w / 2), (v + 0.5 - cv) / (h / 2));
+    if (e > 1) im.px[v * w + u] = 0;
+    else if (e > 0.84) im.px[v * w + u] = v + 0.5 > cv ? k.goldLight : k.gold;
+  }
+  return im;
+}
+
+/**
+ * A small framed picture for a house, a hotel or a shop, w x h with its frame: `kind` picks the subject, the frame
+ * is gilt, dark wood, or brocade-mounted silk for a hanging scroll.
+ */
+export type PictureKind = 'coast' | 'lemons' | 'bosphorus' | 'fuji' | 'plum' | 'wave' | 'madonna';
+export function picture(k: P, kind: PictureKind, w: number, h: number, seed: number, scroll = false): Img {
+  const im = new Img(w, h, k.white);
+  const f0 = scroll || kind === 'madonna' ? 0 : 1; // frame width
+  const W = w - 2 * f0, H = h - 2 * f0;
+  const set = (u: number, v: number, c: number) => { if (u >= 0 && v >= 0 && u < W && v < H) im.set(u + f0, v + f0, c); };
+  const fill = (fn: (u: number, v: number) => number) => { for (let v = 0; v < H; v++) for (let u = 0; u < W; u++) set(u, v, fn(u, v)); };
+  const n = (u: number, v: number, s = 0) => hash3(u, v, seed + s);
+  switch (kind) {
+    case 'coast': {
+      // the Amalfi coast: blue sea, the cliffs with a white town, a sail
+      const sea = Math.round(H * 0.4);
+      fill((u, v) => (v < sea ? (n(u, v) < 0.2 ? k.seaLight : k.sea) : v > H - 2 ? k.sky : k.skyLight));
+      for (let u = 0; u < W; u++) {
+        const top = sea + Math.round((1 - u / W) * (H - sea) * 0.85);
+        for (let v = sea; v < top; v++) set(u, v, v < top - 1 && (u + v) % 3 === 0 ? k.stone : u < W * 0.35 && v > sea + 1 ? k.roof : k.hill);
+      }
+      set(Math.round(W * 0.7), sea, k.white); set(Math.round(W * 0.7), sea + 1, k.white);
+      break;
+    }
+    case 'lemons': {
+      // a still life: lemons and a blue jug on a white cloth, a dark ground
+      fill((u, v) => (v < H * 0.35 ? k.whiteShade : n(u, v) < 0.2 ? k.bgLight : k.bg));
+      for (let i = 0; i < 3; i++) { const lu = Math.round(W * (0.25 + i * 0.18)), lv = Math.round(H * 0.4); set(lu, lv, k.goldLight); set(lu + 1, lv, k.gold); set(lu, lv + 1, k.goldLight); }
+      for (let v = Math.round(H * 0.38); v < H * 0.8; v++) { set(W - 3, v, k.blue); set(W - 2, v, k.blueDark); }
+      set(Math.round(W * 0.42), Math.round(H * 0.55), k.green);
+      break;
+    }
+    case 'bosphorus': {
+      // a ferry crossing the Bosphorus, the far shore with a mosque's dome and minarets, a pale sky
+      const sea = Math.round(H * 0.45);
+      fill((u, v) => (v < sea ? (n(u, v) < 0.15 ? k.seaLight : k.sea) : v === sea ? k.hillFar : k.skyLight));
+      const du = Math.round(W * 0.6);
+      set(du, sea + 1, k.stone); set(du + 1, sea + 1, k.stone); set(du - 1, sea + 1, k.stone); set(du, sea + 2, k.stone);
+      for (const mu of [du - 3, du + 3]) for (let v = sea + 1; v < sea + 4; v++) set(mu, v, k.white);
+      const fu = Math.round(W * (0.2 + 0.2 * (seed & 1)));
+      for (let u = fu; u < fu + 4; u++) set(u, sea - 2, k.white);
+      for (let u = fu; u < fu + 4; u++) set(u, sea - 3, u === fu ? k.blueDark : k.white);
+      set(fu + 2, sea - 1, k.ochre); set(fu + 2, sea - 1, k.ochre);
+      set(fu + 1, sea - 1, k.white);
+      break;
+    }
+    case 'madonna': {
+      // the shrine's majolica Madonna: blue mantle, white veil, a gold halo, on yellow tiles in a blue border
+      fill((u, v) => (u === 0 || v === 0 || u === W - 1 || v === H - 1 ? k.blue : (u + v) % 2 ? k.goldLight : k.glow));
+      const cu = Math.floor(W / 2);
+      for (let v = 1; v < H - 3; v++) for (let u = cu - 2 + (v > H * 0.6 ? 1 : 0); u <= cu + 1 - (v > H * 0.6 ? 1 : 0) + (v < 3 ? 1 : 0); u++) set(u, v, u === cu + 1 && v < H * 0.6 ? k.blueDark : k.blue);
+      set(cu - 1, H - 4, k.flesh); set(cu, H - 4, k.flesh); set(cu - 1, H - 3, k.white); set(cu, H - 3, k.white);
+      set(cu - 2, H - 3, k.gold); set(cu + 1, H - 3, k.gold); set(cu - 1, H - 2, k.gold); set(cu, H - 2, k.gold);
+      set(cu - 1, Math.round(H * 0.45), k.flesh); set(cu, Math.round(H * 0.45), k.white); // the child in her arms
+      break;
+    }
+    case 'fuji': case 'plum': case 'wave': {
+      // ink and a little colour on paper: Fuji over a band of mist under a red sun, a plum branch in flower, a wave
+      const paper = (u: number, v: number) => (n(u, v, 3) < 0.1 ? k.whiteShade : k.white);
+      const p0 = scroll ? 2 : 0, p1 = scroll ? H - 3 : H; // a scroll's brocade mounts, top and bottom
+      fill((u, v) => (v < p0 || v >= p1 ? (v === 0 || v === H - 1 ? k.brownDark : k.ochreDark) : paper(u, v)));
+      const PW = W, PH = p1 - p0;
+      const at = (u: number, v: number, c: number) => { if (u >= 0 && u < PW && v >= 0 && v < PH) set(u, p0 + v, c); };
+      if (kind === 'fuji') {
+        const cu = (PW - 1) / 2, base = Math.max(1, Math.round(PH * 0.2)), peak = Math.round(PH * 0.72);
+        for (let v = base; v < PH; v++) for (let u = 0; u < PW; u++) at(u, v, v > PH * 0.78 ? k.sky : k.skyLight); // the sky, graded
+        for (let v = base; v <= peak; v++) {
+          const t = (v - base) / Math.max(1, peak - base), half = (1 - t) * PW * 0.5 + 0.3;
+          for (let u = Math.round(cu - half); u <= Math.round(cu + half); u++) {
+            const snow = t > 0.58 - (u % 2) * 0.12;
+            at(u, v, snow ? (u > cu ? k.whiteShade : k.white) : u > cu ? k.blueDark : k.steelDark);
+          }
+        }
+        for (let u = 0; u < PW; u++) at(u, base, n(u, 0, 4) < 0.6 ? k.cloud : k.cloudShade); // the mist at its foot
+        for (let v = 0; v < base; v++) for (let u = 0; u < PW; u++) at(u, v, (u + v) % 3 ? k.greenDark : k.oliveDark);
+        at(PW - 2, PH - 2, k.red); if (PW > 6) { at(PW - 3, PH - 2, k.red); at(PW - 2, PH - 3, k.red); at(PW - 3, PH - 3, k.red); }
+      } else if (kind === 'plum') {
+        // an old branch rising from the lower left, twigs off it, blossoms red and white along them
+        const pts: [number, number][] = [];
+        for (let v = 0; v < PH; v++) pts.push([Math.round(v * (PW - 2) / Math.max(1, PH - 1) + (v % 3 === 1 ? 1 : 0)), v]);
+        for (const [u, v] of pts) at(u, v, k.hairDark);
+        for (let i = 1; i < pts.length - 1; i += 2) {
+          const [u, v] = pts[i];
+          const side = i % 4 === 1 ? -1 : 1;
+          at(u + side, v + 1, k.hairDark);
+          at(u + side * 2, v + 1, i % 3 ? k.red : k.white);
+          at(u - side, v, k.red);
+        }
+        at(PW - 1, PH - 1, k.red); // the seal
+      } else {
+        // the great wave curling over, its foam claws, Fuji small in the trough
+        for (let v = 0; v < PH; v++) for (let u = 0; u < PW; u++) {
+          const crest = PH * (0.35 + 0.45 * Math.max(0, 1 - Math.abs(u - PW * 0.3) / (PW * 0.45)));
+          if (v < crest) at(u, v, v >= crest - 1 ? k.white : (u + 2 * v) % 5 === 0 ? k.skyLight : k.blueDark);
+        }
+        at(PW - 2, Math.round(PH * 0.35), k.steelDark); at(PW - 2, Math.round(PH * 0.35) + 1, k.white);
+      }
+      break;
+    }
+  }
+  // the frame: gilt for the south, dark wood for Japan's prints
+  if (f0) for (let v = 0; v < h; v++) for (let u = 0; u < w; u++) {
+    if (u > 0 && v > 0 && u < w - 1 && v < h - 1) continue;
+    im.set(u, v, kind === 'wave' || kind === 'fuji' ? k.brownDark : v === h - 1 || u === 0 ? k.goldLight : k.gold);
+  }
+  return im;
+}
+
 /** The ceiling's canvases, from the altar back to the doors. */
 export function ceilingScene(k: P, i: number, w: number, h: number): Img {
   const f = [gloryOfAndrew, calling, martyrdom, arrival, immaculata][i % 5];
@@ -381,137 +537,89 @@ export function ceilingScene(k: P, i: number, w: number, h: number): Img {
   return im;
 }
 
-/** Sketch helpers on an Img drawn as if it were 48 x 100: thick segments with their side, ellipses with their offsets. */
-function sketch(im: Img, seed: number) {
-  const S = im.h / 100;
-  const X = (u: number) => u * im.w / 48, Y = (v: number) => v * S;
-  const noise = (u: number, v: number, s = 0) => hash3(u, v, seed + s);
-  // pixels within r of a-b, told which side they lie on (-1..1 across, + to the left of a->b) and how far along (0..1)
-  const seg = (a: [number, number], b: [number, number], r: number, c: (u: number, v: number, side: number, t: number) => number) => {
-    const [ax, ay] = [X(a[0]), Y(a[1])], [bx, by] = [X(b[0]), Y(b[1])], R = r * S;
-    const dx = bx - ax, dy = by - ay, L2 = Math.max(1e-6, dx * dx + dy * dy), L = Math.sqrt(L2);
-    for (let v = Math.floor(Math.min(ay, by) - R - 1); v <= Math.ceil(Math.max(ay, by) + R + 1); v++)
-      for (let u = Math.floor(Math.min(ax, bx) - R - 1); u <= Math.ceil(Math.max(ax, bx) + R + 1); u++) {
-        const px = u + 0.5 - ax, py = v + 0.5 - ay;
-        const t = Math.max(0, Math.min(1, (px * dx + py * dy) / L2));
-        const ex = px - dx * t, ey = py - dy * t;
-        if (ex * ex + ey * ey > R * R) continue;
-        im.set(u, v, c(u, v, (px * -dy + py * dx) / L / R, t));
-      }
-  };
-  const disc = (cu: number, cv: number, ru: number, rv: number, c: number | ((u: number, v: number, du: number, dv: number) => number)) =>
-    im.ell(X(cu), Y(cv), ru * S, rv * S, (u, v) => (typeof c === 'number' ? c : c(u, v, (u + 0.5 - X(cu)) / (ru * S), (v + 0.5 - Y(cv)) / (rv * S))));
-  // a shape given by its half width at each height (sketch units): c gets the offset across (-1..1) and the height
-  const body = (v0: number, v1: number, mid: (v: number) => number, half: (v: number) => number, c: (u: number, v: number, du: number, sv: number) => number) => {
-    for (let v = Math.round(Y(v0)); v <= Math.round(Y(v1)); v++) {
-      const sv = v / S, m = mid(sv), hw = half(sv);
-      if (hw <= 0) continue;
-      for (let u = Math.round(X(m - hw)); u <= Math.round(X(m + hw)) - 1; u++) im.set(u, v, c(u, v, (u + 0.5 - X(m)) / X(hw), sv));
-    }
-  };
-  return { S, X, Y, noise, seg, disc, body };
+/**
+ * Pixel sprite: rows from the top, one character per pixel ('.' leaves what is there), placed with its top-left
+ * pixel at (u0, vTop).
+ */
+function sprite(im: Img, rows: string[], u0: number, vTop: number, map: Record<string, number>): void {
+  rows.forEach((row, r) => [...row].forEach((ch, i) => { if (ch !== '.' && ch !== ' ') im.set(u0 + i, vTop - r, map[ch]); }));
 }
 
+/** Christ in glory, standing on the clouds: hair, face, beard, the red robe, the blue mantle, the blessing hand, the orb. */
+const CHRIST = [
+  '.......HHHHH......',
+  '......HHHDHHH.....',
+  '......HLLFFSH.....',
+  '.....HHLEFESHD....',
+  '..L..HHLFSFSHD....',
+  '..LF.HDLFFFSHD....',
+  '.LFF.HDBBMBBHD....',
+  '.LFFS.D.BBBu.D....',
+  '..FS..RRBBBUUu....',
+  '..RR.RRRRBUUUUu...',
+  '..RrRRRRRrUUUUuu..',
+  '...RrRRRRrUUUUUu..',
+  '...rRRRRRrUUUUUu..',
+  '....RRRRRrUUUUuU..',
+  '....RRRRRrUUUUgu..',
+  '....RRrRRrUUUWKk..',
+  '....RRrRRrUUUKKk..',
+  '....RRrRRrUUUFkk..',
+  '....UUORRrUUuFF...',
+  '....uUUOORrUUu....',
+  '.....uUUUOOUUu....',
+  '.....RRuUUUOOUu...',
+  '.....RRRruUUUUu...',
+  '.....RRrRRuUUUUu..',
+  '....RRRrRRUUuUUu..',
+  '....RRRrRRUUuUUu..',
+  '....RRRRrRUUuUUUu.',
+  '....RRRRrRUUUuUUu.',
+  '...RRRRRrRUUUuUUu.',
+  '...RRRRRrRUUUuUUu.',
+  '...rRRRRrRrUUUuUu.',
+  '...rRRRRRrrUUUuUu.',
+  '...rrRRRRrrUUUUuu.',
+  '....rrrrrrrruuuuu.',
+  '.....LF..FS.......',
+];
+
 /**
- * The altarpiece: Christ in glory, the Redeemer standing on the clouds in a blaze of gold. Red robe, blue mantle
- * over his shoulder, the right hand raised in blessing, the left holding the orb of the world with its cross, the
- * halo with the cross in it; two angels kneel on the clouds at his feet, cherubs about him. Drawn at twice the
- * fine voxels' density (about 48 x 100) so his face and hands read.
+ * The altarpiece: Christ in glory, the Redeemer standing on the clouds in a blaze of gold, his right hand raised in
+ * blessing, the orb of the world in his left, the halo with its cross behind his head, cherubs in the clouds.
+ * Pixel art at the fine voxels' density, like every painting in the game (24 x 50, frame included).
  */
 export function altarpiece(k: P, w: number, h: number): Img {
   const im = new Img(w, h, k.goldDeep);
-  const { S, X, Y, noise, seg, disc, body } = sketch(im, 5);
-  const Hc: [number, number] = [23.5, 75.5]; // his head
-
-  // ---- the glory: white gold at his head, deepening to amber at the edges, rays all round
+  const seed = 5;
+  const u0 = Math.round(w / 2 - 9), top = h - 5; // the sprite's top-left
+  const hc: [number, number] = [u0 + 9, top - 3]; // the middle of his face
+  // the glory: white gold round his head, deepening to amber at the edges, rays all round
   for (let v = 0; v < h; v++) for (let u = 0; u < w; u++) {
-    const su = u * 48 / w, sv = v / S;
-    const dx = su - Hc[0], dy = (sv - Hc[1]) * 0.62;
-    const d = Math.hypot(dx, dy), n = (noise(u, v) - 0.5) * 3;
-    const ray = Math.abs(Math.sin(Math.atan2(dy, dx) * 12)) < 0.32;
-    im.set(u, v, d < 9 + n ? k.glowHot : d < 15 + n ? (ray ? k.glowHot : k.glow) : d < 23 + n ? (ray ? k.glow : k.goldLight) : d < 31 + n ? (ray ? k.goldLight : k.gold) : ray ? k.gold : k.goldDeep);
+    const dx = u + 0.5 - hc[0], dy = (v + 0.5 - hc[1]) * 0.6;
+    const d = Math.hypot(dx, dy), n = (hash3(u, v, seed) - 0.5) * 1.6;
+    const ray = Math.abs(Math.sin(Math.atan2(dy, dx) * 8)) < 0.3;
+    im.set(u, v, d < 5 + n ? k.glowHot : d < 8 + n ? (ray ? k.glowHot : k.glow) : d < 12 + n ? (ray ? k.glow : k.goldLight) : d < 16 + n ? (ray ? k.goldLight : k.gold) : ray ? k.gold : k.goldDeep);
   }
-
-  // ---- clouds under his feet and up the sides, lit from above, cherubs peeping out of them
-  const puffs: [number, number, number][] = [
-    [4, 8, 6], [13, 6, 6], [24, 5, 7], [35, 6, 6], [44, 8, 6], [8, 16, 5], [40, 16, 5], [17, 13, 5], [31, 13, 5], [24, 14, 5],
-    [3, 24, 4], [45, 24, 4], [2, 34, 3], [46, 34, 3],
-  ];
-  for (const [cu, cv, r] of puffs) disc(cu, cv, r * 1.2, r, (u, v, du, dv) => (dv > 0.45 ? k.cloud : dv > -0.15 ? (noise(u, v, 2) < 0.2 ? k.cloud : k.cloudShade) : du > 0.3 || dv < -0.6 ? k.cloudDark : k.cloudShade));
-  const cherub2 = (cu: number, cv: number, flip: number) => {
-    disc(cu - 1.7 * flip, cv + 0.4, 1.5, 0.8, k.white); disc(cu + 1.7 * flip, cv + 0.4, 1.5, 0.8, k.whiteShade);
-    disc(cu, cv, 1.2, 1.3, (_u, _v, du) => (du * flip > 0.4 ? k.fleshShade : k.flesh));
-    disc(cu, cv + 1.0, 1.2, 0.55, k.hairBrown);
-  };
-  cherub2(10, 10, 1); cherub2(38, 10, -1); cherub2(24, 8, 1);
-
-  // ---- two angels kneeling on the clouds either side, wings up, hands joined, faces turned to him
-  const angel = (cu: number, side: number, robe: number) => {
-    disc(cu - side * 2.6, 31, 2.0, 6.0, (u, v, du) => (du * side < -0.3 ? k.whiteShade : noise(u, v, 3) < 0.2 ? k.whiteShade : k.white)); // wing
-    body(17, 29, () => cu, (sv) => 3.2 - (sv - 17) * 0.1, (_u, _v, du) => (du * side < -0.45 ? DARK(k).get(robe) ?? robe : robe));
-    disc(cu + side * 1.2, 18.6, 3.2, 2.0, (_u, _v, du) => (du * side < -0.3 ? DARK(k).get(robe) ?? robe : robe)); // the knee
-    seg([cu + side * 0.6, 27], [cu + side * 2.6, 25], 0.75, () => k.flesh); // forearms to the joined hands
-    disc(cu + side * 2.9, 25.4, 0.7, 0.9, k.fleshLight);
-    disc(cu + side * 0.4, 31.2, 1.35, 1.5, (_u, _v, du) => (du * side < -0.3 ? k.fleshShade : k.flesh));
-    disc(cu - side * 0.2, 32.1, 1.4, 0.9, k.hairBrown); // curls
-  };
-  angel(9, 1, k.green); angel(39, -1, k.white);
-
-  // ---- Christ
-  // the halo first, behind him: a gold disc with the cross in it, rimmed
-  disc(Hc[0] + 0.5, Hc[1] + 0.8, 8.4, 8.4, (_u, _v, du, dv) => {
-    const r = Math.hypot(du, dv);
-    if (r > 0.86) return k.goldDeep;
-    const arm = (Math.abs(du) < 0.14 && dv > 0.35) || (Math.abs(dv) < 0.14 && Math.abs(du) > 0.4);
-    return arm ? k.red : r > 0.7 ? k.gold : k.goldLight;
+  // the clouds he stands on, lit from above, cherubs' heads among them
+  for (const [cu, cv, r] of [[3, 4, 3.4], [8, 3, 3.2], [13, 3.5, 3.4], [18, 3, 3.2], [22, 4.5, 3], [5, 8, 2.6], [19, 8, 2.6], [12, 7.5, 2.8], [2, 12, 2], [22, 12, 2]] as [number, number, number][])
+    im.ell(cu * w / 24, cv, r * 1.25, r, (u, v) => (v + 0.5 > cv + r * 0.4 ? k.cloud : v + 0.5 > cv - r * 0.2 ? (hash3(u, v, seed + 1) < 0.25 ? k.cloud : k.cloudShade) : k.cloudDark));
+  for (const [cu, cv] of [[3, 9], [20, 9]]) {
+    im.set(cu - 1, cv, k.white); im.set(cu + 1, cv, k.whiteShade);
+    im.set(cu, cv, k.flesh); im.set(cu, cv + 1, k.hairBrown);
+  }
+  // the halo with its cross, behind his head
+  im.ell(hc[0], hc[1] + 0.5, 4.6, 4.6, (u, v) => {
+    const du = u + 0.5 - hc[0], dv = v + 0.5 - hc[1] - 0.5, r = Math.hypot(du, dv);
+    if (r > 3.9) return k.goldDeep;
+    if ((Math.abs(du) < 0.6 && dv > 1.5) || (Math.abs(dv) < 0.6 && Math.abs(du) > 2.2)) return k.red;
+    return r > 3.0 ? k.gold : k.goldLight;
   });
-  // feet, bare, on the cloud
-  disc(21.6, 17.2, 1.5, 0.8, k.flesh); disc(26.6, 17.0, 1.5, 0.8, k.fleshShade);
-  // the red robe, hem to neck, falling in folds; light from the upper left
-  body(17.6, 69, (sv) => 24 + (sv < 30 ? (30 - sv) * 0.04 : 0), (sv) => (sv > 64 ? 4.2 + (sv - 64) * -0.25 : 4.2 + (64 - sv) * 0.085),
-    (_u, _v, du, sv) => {
-      const fold = sv < 52 && (Math.abs(du + 0.22 - Math.sin(sv * 0.25) * 0.05) < 0.1 || Math.abs(du - 0.3) < 0.08);
-      return du < -0.62 || du > 0.62 || fold ? k.redDark : k.red;
-    });
-  // the blue mantle: over his left shoulder (our right), across his body from the right hip down to the hem
-  body(17.6, 70.5, (sv) => (sv > 46 ? 27.4 + (sv - 46) * 0.03 : 24 + (sv - 17.6) * 0.12), (sv) => (sv > 46 ? 3.6 - Math.max(0, sv - 66) * 0.6 : 3.4 + (46 - sv) * 0.12),
-    (_u, _v, du, sv) => (du > 0.5 || (sv < 44 && Math.abs(du + 0.1 - (44 - sv) * 0.01) < 0.12) ? k.blueDark : k.blue));
-  // the mantle's swag across the waist, its lining turned out in gold
-  seg([19.2, 42.4], [27.6, 46.4], 1.4, (_u, _v, s) => (s > 0.4 ? k.ochre : s < -0.4 ? k.blueDark : k.blue));
-  // the right arm raised in blessing (our left): red sleeve, the hand up with two fingers raised
-  seg([20.0, 66.4], [15.6, 57.6], 1.7, (_u, _v, s) => (s > 0.2 ? k.red : k.redDark));
-  seg([15.6, 57.6], [14.2, 65.0], 1.45, (_u, _v, s) => (s < -0.2 ? k.red : k.redDark));
-  disc(14.0, 66.6, 1.05, 1.3, (_u, _v, du) => (du > 0.3 ? k.fleshShade : k.flesh));
-  seg([13.6, 67.6], [13.6, 69.2], 0.36, () => k.flesh); seg([14.4, 67.6], [14.5, 69.0], 0.36, () => k.fleshLight);
-  // the left arm bent at the waist, holding up the orb with its little gold cross
-  seg([28.2, 66.4], [30.6, 56.4], 1.6, (_u, _v, s) => (s < -0.2 ? k.blueDark : k.blue));
-  seg([30.6, 56.4], [31.4, 52.4], 1.2, (_u, _v, s) => (s > 0 ? k.red : k.redDark));
-  disc(31.4, 50.8, 2.0, 2.0, (_u, _v, du, dv) => (Math.abs(dv + 0.15) < 0.16 ? k.gold : du + dv * -0.6 < -0.3 ? k.skyLight : du > 0.35 ? k.blueDark : k.sky));
-  seg([31.4, 52.8], [31.4, 55.2], 0.3, () => k.goldLight); seg([30.6, 54.3], [32.2, 54.3], 0.3, () => k.goldLight);
-  disc(30.0, 49.8, 0.95, 0.9, k.flesh); // the hand under it
-  // the head, pixel by pixel: long brown hair parted in the middle and falling to the shoulders, the face lit from
-  // our left, eyes looking out at us, a short beard a little forked
-  const HEAD = [
-    '...HHHH...',
-    '..HHHDHH..',
-    '.HHHLDHHH.',
-    '.HHLLFFSHD',
-    'HHLLFFFSHD',
-    'HHLEFFESHD',
-    'HHLFFNFSHD',
-    'HHLFFNSSHD',
-    'HDLBFFFBSD',
-    'HDBBMMBBBD',
-    'HD.BBBBB.D',
-    'HD..BBB..D',
-    'HD...B...D',
-  ];
-  const HC: Record<string, number> = { H: k.hairBrown, D: k.hairDark, L: k.fleshLight, F: k.flesh, S: k.fleshShade, E: k.hairDark, N: k.fleshShade, B: k.hairBrown, M: k.fleshDeep };
-  HEAD.forEach((row, r) => [...row].forEach((ch, i) => { if (ch !== '.') im.set(Math.round(X(19 + i)), Math.round(Y(81 - r)), HC[ch]); }));
-  // the beard's shading on the far side
-  im.set(Math.round(X(26)), Math.round(Y(71)), k.hairDark);
-
-  frame(im, k, 2);
+  sprite(im, CHRIST, u0, top, {
+    H: k.hairBrown, D: k.hairDark, L: k.fleshLight, F: k.flesh, S: k.fleshShade, E: k.hairDark, B: k.hairBrown, M: k.fleshDeep,
+    R: k.red, r: k.redDark, U: k.blue, u: k.blueDark, O: k.ochre, W: k.skyLight, K: k.sky, k: k.blueDark, g: k.goldLight,
+  });
+  frame(im, k, 1);
   return im;
 }
 
@@ -533,4 +641,20 @@ export function toProp(im: Img, plane: 'x' | 'y' | 'z', flip: boolean, flipV = f
     else p.set(vv, 0, uu, c);
   }
   return p;
+}
+
+/**
+ * Hang a picture flat on a wall, in fine voxels like every painting in the game: (x, z) is a point on the wall's
+ * face in metres (the middle of the picture along the wall), y its bottom, (nx, nz) the way it faces (along x or z).
+ */
+export function hang(b: Builder, im: Img, x: number, y: number, z: number, nx: number, nz: number): void {
+  const F = 0.0625;
+  if (Math.abs(nx) > Math.abs(nz)) b.place(toProp(im, 'x', nx > 0), x + Math.sign(nx) * F, y, z);
+  else b.place(toProp(im, 'z', nz < 0), x, y, z + Math.sign(nz) * F);
+}
+
+/** hang() in a lot's own coordinates: `m` maps (a, d) to metres, (a, d) is on the wall's face, (da, dd) points into the room. */
+export function hangIn(b: Builder, im: Img, m: (a: number, d: number) => [number, number], a: number, d: number, da: number, dd: number, y: number): void {
+  const [x, z] = m(a, d), [x1, z1] = m(a + da, d + dd);
+  hang(b, im, x, y, z, x1 - x, z1 - z);
 }

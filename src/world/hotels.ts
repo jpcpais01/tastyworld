@@ -1,3 +1,4 @@
+import { paintColors, picture, hang } from './paintings';
 import type { Builder, Lot, Style } from './tokyo';
 import { G, V } from './layout';
 import { hash3 } from './grid';
@@ -189,7 +190,7 @@ export function hotelFloors(lot: Lot, info: HotelInfo, lobby: RoomAnchor, style:
       const teaStand = M(11.5, 12.2);
       tea = { stand: teaStand, pick: [...M(11.5, 9.5), F + 0.7] as P3, facing: ang(teaStand, M(11.5, 9.5)) };
       box(0, 0, Dr - 4, 4, 0, Dr - 1, ic.plankDark);
-      box(1, 3, Dr, 3, 8, Dr, (u, y) => (y === 3 || y === 8 ? c.woodDark : u === 2 && (y === 5 || y === 6) ? ic.ink : ic.paper));
+      { const [x, z] = M(2.5, Dr), [x1, z1] = M(2.5, Dr - 1); hang(b, picture(paintColors(b), 'plum', 6, 12, info.lot[0] + info.lot[1], true), x, F + 3 * V, z, x1 - x, z1 - z); }
       set(2, 1, Dr - 2, ic.bottleD); set(2, 2, Dr - 2, ic.stem); set(2, 3, Dr - 2, ic.flowerR); set(3, 3, Dr - 2, ic.stem);
       // the window seat (hiroen): boards, two chairs and a little table, behind a shoji partition
       box(0, 0, 3, 1, 9, 3, (u, y) => (y % 3 === 0 || u === 0 ? c.woodDark : c.shoji));

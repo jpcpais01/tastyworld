@@ -19,10 +19,12 @@ import { SHELL, SPILL, solidBase, type Field, type GridRect, type Owned, type Ow
  *    building that owns the column above a split height instead (B low byte, high 4 bits of G), and in A the
  *    shell flag (128: outer walls plus anything hanging off the facade, 0: inside the footprint) plus that
  *    split height in voxels;
- *  - a cut table (64 x 128, RGBA float) per id: shell height on the camera side, shell height on the far
- *    side, height inside the footprint, and the "along the view" coordinate where the far side starts; in the
- *    lower half, for a great hall, its middle and half extents less its walls (x, z, hx, hz), so its two far
- *    walls (those facing away from the camera) stand whole however long the hall is.
+ *  - a cut table (64 x 192, RGBA float) per id: shell height on the camera side, shell height on the far
+ *    side, height inside the footprint, and the "along the view" coordinate where the far side starts; 64 rows
+ *    on, for a great hall (or what falls with one), the middle and half extents of its air (x, z, hx, hz); 128
+ *    rows on, the cut height of each of its four sides (-x, +x, -z, +z). Everything of a hall outside its air
+ *    belongs to one side, and a side goes down or stands as one piece: the two facing away from the camera stand
+ *    whole, the near two drop to the waist, and when the view turns past a corner they trade places smoothly.
  *
  * Only occluders near the player are kept up to date each frame (a coarse bucket grid finds them).
  *
@@ -44,6 +46,7 @@ const SIDES = [1.0, 2.0];
 const OFF = 1e4;
 const BUCKET = 8; // metres per cell of the lookup grid
 const REACH = 64; // metres around the player that can hold something between it and the camera
+const SIDE_T = 0.4; // seconds a great hall's side takes to rise or fall when the view turns past a corner
 
 /** e: lowered, c: holding the player (dollhouse), f: floor height of the room the player is in (metres). */
 interface State { e: number; hold: number; c: number; f: number }
@@ -56,7 +59,11 @@ export class Cutaway {
   /** True for occluders currently lowered at all (drives which chunks need the cutaway material). */
   readonly active: boolean[];
   readonly occ: Occluder[];
-  private data = new Float32Array(64 * 128 * 4);
+  private data = new Float32Array(64 * 192 * 4);
+  /** Per great hall: how far each side (-x, +x, -z, +z) is turned away from the camera (0 near, 1 far), eased. */
+  private sides = new Map<number, Float32Array>();
+  /** Occluders that fall side by side with a great hall: [index, the hall's index]. */
+  private followers: [number, number][] = [];
   private buckets = new Map<number, number[]>();
   /** Occluders kept up to date this frame: those near the player plus any still lowered. */
   private live: number[] = [];
@@ -80,11 +87,12 @@ export class Cutaway {
     this.data.fill(OFF, 0, 64 * 64 * 4);
     this.data.fill(0, 64 * 64 * 4);
     this.occ.forEach((o, i) => {
+      if (o.follow !== undefined && this.occ[o.follow]?.room !== undefined) this.followers.push([i, o.follow]);
       if (o.room === undefined) return;
-      const [x0, z0, x1, z1] = o.rect, k = (64 * 64 + i + 1) * 4, w = ((o.shell ?? SHELL) + 0.4) * V;
-      this.data.set([(x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2 - w, (z1 - z0) / 2 - w], k);
+      this.data.set(this.airOf(i), (64 * 64 + i + 1) * 4);
+      this.sides.set(i, new Float32Array(4));
     });
-    this.cut = new THREE.DataTexture(this.data, 64, 128, THREE.RGBAFormat, THREE.FloatType);
+    this.cut = new THREE.DataTexture(this.data, 64, 192, THREE.RGBAFormat, THREE.FloatType);
     this.cut.magFilter = this.cut.minFilter = THREE.NearestFilter;
     this.cut.generateMipmaps = false;
     this.cut.needsUpdate = true;
@@ -100,6 +108,14 @@ export class Cutaway {
           l.push(i);
         }
     });
+  }
+
+  /** A great hall's air as middle and half extents (x, z, hx, hz): its own, or its footprint less its walls. */
+  private airOf(i: number): [number, number, number, number] {
+    const o = this.occ[i];
+    if (o.air) { const [x0, z0, x1, z1] = o.air; return [(x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z1 - z0) / 2]; }
+    const [x0, z0, x1, z1] = o.rect, w = ((o.shell ?? SHELL) + 0.4) * V;
+    return [(x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2 - w, (z1 - z0) / 2 - w];
   }
 
   /** Occluders whose (spilled) footprint overlaps a rect in metres. */
@@ -221,6 +237,8 @@ export class Cutaway {
     for (let li = 0; li < live.length; li++) {
       const i = live[li];
       const o = this.occ[i], st = this.st[i];
+      // (one that falls with an open great hall takes its cut from the hall, below)
+      if (o.follow !== undefined && this.data[(o.follow + 1) * 4] < OFF && this.sides.has(o.follow)) continue;
       const mine = i >= sc.from && i < sc.to;
       const [x0, z0, x1, z1] = o.rect;
       const contain = on && mine && enterable(o) && p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1;
@@ -259,8 +277,49 @@ export class Cutaway {
         d[j] = f; d[j + 1] = b; d[j + 2] = n; d[j + 3] = back;
         dirty = true;
       }
+      // a great hall: each side eases between standing (turned away from the camera) and dropped (towards it)
+      const sw = this.sides.get(i);
+      if (sw) {
+        const far = [ax < 0, ax > 0, az < 0, az > 0];
+        for (let k = 0; k < 4; k++) sw[k] = f < OFF ? Math.max(0, Math.min(1, sw[k] + (far[k] ? dt : -dt) / SIDE_T)) : far[k] ? 1 : 0;
+        if (this.setSides(i, f, b, false)) dirty = true;
+      }
+    }
+    // what falls with a hall (its bell tower, its minarets, its court) takes the hall's sides while the hall is open:
+    // on a near side down to the waist with the wall, on a far side standing whole, as it hides nothing there
+    for (const [i, h] of this.followers) {
+      const hj = (h + 1) * 4, j = (i + 1) * 4, d = this.data;
+      const open = d[hj] < OFF;
+      const r = open ? this.airOf(h) : [0, 0, 0, 0];
+      const k = (64 * 64 + i + 1) * 4;
+      if (d[k] !== r[0] || d[k + 1] !== r[1] || d[k + 2] !== r[2] || d[k + 3] !== r[3]) { d.set(r, k); dirty = true; }
+      if (open) {
+        this.active[i] = true;
+        if (d[j] !== d[hj] || d[j + 2] !== d[hj + 2]) { d[j] = d[hj]; d[j + 1] = d[hj]; d[j + 2] = d[hj + 2]; d[j + 3] = 0; dirty = true; }
+        if (this.setSides(i, d[hj], this.occ[i].top, true, h)) dirty = true;
+      } else if (!live.includes(i) && d[j] !== OFF) {
+        // (one the nearby set no longer updates goes back up with the hall)
+        this.active[i] = false;
+        d[j] = OFF; d[j + 1] = OFF; d[j + 2] = OFF; d[j + 3] = 0;
+        dirty = true;
+      }
     }
     if (dirty) this.cut.needsUpdate = true;
+  }
+
+  /**
+   * Writes the four side heights of hall i (or of a follower of hall h): from `low` on a near side to `high` on a
+   * far one, by how far each side has turned. A follower on a far side stands whole (OFF).
+   */
+  private setSides(i: number, low: number, high: number, follower: boolean, h = i): boolean {
+    const sw = this.sides.get(h)!, k = (64 * 128 + i + 1) * 4, d = this.data;
+    let changed = false;
+    for (let s = 0; s < 4; s++) {
+      const t = sw[s] * sw[s] * (3 - 2 * sw[s]);
+      const v = low >= OFF ? OFF : follower && t >= 1 ? OFF : low + (high - low) * t;
+      if (d[k + s] !== v) { d[k + s] = v; changed = true; }
+    }
+    return changed;
   }
 }
 

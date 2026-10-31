@@ -105,9 +105,15 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
         solid[c] = o.kind === 'tree' ? 0 : 1;
       }
   };
-  // trunks, then landmarks, then buildings (later ones win where footprints overlap)
+  // trunks, then landmarks, then buildings (later ones win where footprints overlap), then what a landmark claims
   for (const kind of ['tree', 'landmark', 'building'] as const)
     for (let i = from; i < occ.length; i++) if (occ[i].kind === kind) paint(i, true);
+  for (let i = from; i < occ.length; i++) {
+    const cl = occ[i].claim;
+    if (!cl) continue;
+    const [i0, j0, i1, j1] = span({ ...occ[i], rect: cl });
+    for (let j = j0; j <= j1; j++) for (let k = i0; k <= i1; k++) { const c = j * g.sx + k; id[c] = i + 1; shell[c] = 255; solid[c] = 1; }
+  }
   const registered = occ.length;
   if (auto) {
     // flood unowned tall columns into connected masses, split into tiles, and give each its own id

@@ -1,6 +1,6 @@
 // npx tsx scripts/paintings-preview.ts <out dir>
 // Writes the Duomo's paintings (world/paintings.ts) as PNGs, eight pixels per fine voxel, to look them over.
-import { paintColors, altarpiece, apostle, ceilingScene, sideAltar, Img } from '../src/world/paintings';
+import { paintColors, altarpiece, apostle, ceilingScene, sideAltar, fresco, medallion, picture, Img } from '../src/world/paintings';
 import { writeFileSync } from 'fs';
 import { deflateSync } from 'zlib';
 const hex: number[] = [0];
@@ -23,7 +23,20 @@ function png(im: Img, file: string, S = 8) {
   writeFileSync(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
 }
 const out = process.argv[2];
-png(altarpiece(k, 48, 100), `${out}/altar.png`, 6);
+png(altarpiece(k, 24, 50), `${out}/altar.png`, 12);
 for (let i = 0; i < 5; i++) png(ceilingScene(k, i, 20, 36), `${out}/ceil${i}.png`);
 for (let i = 0; i < 5; i++) png(apostle(k, 20, 34, i), `${out}/apostle${i}.png`);
 for (let i = 0; i < 2; i++) png(sideAltar(k, i, 12, 28), `${out}/side${i}.png`);
+for (let i = 0; i < 4; i++) png(fresco(k, 16, 16, i), `${out}/fresco${i}.png`);
+png(fresco(k, 6, 16, 1), `${out}/fresco-narrow.png`);
+for (let i = 0; i < 2; i++) png(medallion(k, 20, 18, i), `${out}/medallion${i}.png`);
+png(picture(k, 'coast', 12, 8, 1), `${out}/pic-coast.png`);
+png(picture(k, 'coast', 18, 8, 2), `${out}/pic-coast-wide.png`);
+png(picture(k, 'lemons', 18, 8, 3), `${out}/pic-lemons.png`);
+png(picture(k, 'bosphorus', 12, 8, 1), `${out}/pic-bosphorus.png`);
+png(picture(k, 'madonna', 6, 9, 1), `${out}/pic-madonna.png`);
+png(picture(k, 'fuji', 10, 16, 1, true), `${out}/pic-fuji.png`);
+png(picture(k, 'plum', 6, 12, 1, true), `${out}/pic-plum.png`);
+png(picture(k, 'fuji', 10, 10, 1), `${out}/pic-fuji-print.png`);
+png(picture(k, 'wave', 6, 6, 1), `${out}/pic-wave.png`);
+png(picture(k, 'fuji', 6, 6, 2), `${out}/pic-fuji-small.png`);

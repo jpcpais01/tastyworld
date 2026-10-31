@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.26',
+    date: '2026-10-31',
+    title: 'Clear cathedral steps',
+    items: [
+      'The grand stairway up to Amalfi\'s cathedral is clear again: the row of lamp posts is gone, leaving a single pair near the top that frames the portico and lights the steps at night.',
+    ],
+  },
+  {
     version: '0.16.25',
     date: '2026-10-31',
     title: 'Naples leaves the map',

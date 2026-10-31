@@ -465,8 +465,9 @@ export function buildAmalfi(win?: Window): BuildResult {
   const interior = grotta(b, c, anchors);
   return {
     grid: g, pal: b.pal, props: b.props, lamps: b.lamps, anchors, interior, indoor: b.indoor, sway: b.sway, swayCells: b.swayCells,
-    // the standing layer is looked for just above the path: under an arch or a vault the roof is no floor
-    navTop: (x, z) => Math.min(g.sy - 8, plan.walk[col(x, z)] + 3),
+    // the standing layer is looked for just above the path: under an arch or a vault the roof is no floor;
+    // houses are hollow on the ground floor: start their columns at the floor so nobody stands in the rooms
+    navTop: (x, z) => Math.min(g.sy - 8, plan.walk[col(x, z)] + (plan.lot[col(x, z)] ? 0 : 3)),
     groundAt: (x, z) => {
       const ci = col(x, z);
       const kd = plan.kind[ci];
@@ -686,6 +687,43 @@ function carvePassages(b: Builder, c: AC, plan: Plan): void {
 
 const PASTELS = (c: AC) => [c.white, c.white, c.whiteWarm, c.cream, c.cream, c.yellow, c.lemonWall, c.ochre, c.peach, c.pink, c.rose, c.terracotta, c.sky, c.sage, c.plasterOld];
 
+/**
+ * The ground-floor room of a house, hollow so that a house cut away in front of the player opens like a dollhouse
+ * onto a majolica floor, a table and a dresser instead of a slab of solid stucco. Upstairs stays solid: the cut
+ * never reaches it.
+ */
+function room(b: Builder, c: AC, lt: LotPlan): void {
+  const g = b.grid;
+  const { x0, z0, x1, z1, base } = lt;
+  g.box(x0 + 1, base + 1, z0 + 1, x1 - 1, base + 10, z1 - 1, 0);
+  // lit softly from within, and its contents drawn only near the player
+  b.indoor.push([x0 + 1, base + 1, z0 + 1, x1 - 1, base + 10, z1 - 1]);
+  // Vietri tiles: a motif every four voxels, in one of the coast's three colourways
+  const ways = [
+    [c.majolicaYellow, c.majolicaBlue, c.majolicaWhite],
+    [c.majolicaGreen, c.majolicaYellow, c.majolicaWhite],
+    [c.majolicaBlue, c.majolicaWhite, c.majolicaYellow],
+  ];
+  const [mid, corner, field] = ways[Math.floor(hash3(x0, base, z0) * ways.length)];
+  g.box(x0 + 1, base, z0 + 1, x1 - 1, base, z1 - 1, (x, _y, z) => {
+    const u = (x - x0) & 3, v = (z - z0) & 3;
+    return (u === 1 || u === 2) && (v === 1 || v === 2) ? mid : u === 0 && v === 0 ? corner : field;
+  });
+  // a dark wooden table in the middle with a cloth runner, a dresser against the back wall, a plant in a pot;
+  // all below the cut, so they stand whole when the house is cut away
+  const cx = Math.floor((x0 + x1) / 2) - 1, cz = Math.floor((z0 + z1) / 2) - 1;
+  for (const [lx, lz] of [[cx, cz], [cx + 3, cz], [cx, cz + 3], [cx + 3, cz + 3]]) g.set(lx, base + 1, lz, c.door);
+  g.box(cx, base + 2, cz, cx + 3, base + 2, cz + 3, c.door);
+  g.box(cx + 1, base + 2, cz, cx + 2, base + 2, cz + 3, c.white);
+  const along = x1 - x0 >= z1 - z0;
+  if (along) g.box(x0 + 2, base + 1, z0 + 1, Math.min(x1 - 2, x0 + 6), base + 2, z0 + 2, (_x, y) => (y === base + 2 ? c.sill : c.shutterBrown));
+  else g.box(x0 + 1, base + 1, z0 + 2, x0 + 2, base + 2, Math.min(z1 - 2, z0 + 6), (_x, y) => (y === base + 2 ? c.sill : c.shutterBrown));
+  g.set(x1 - 2, base + 1, z1 - 2, c.terracotta);
+  g.set(x1 - 2, base + 2, z1 - 2, c.leaf);
+  // after dark most rooms have a lamp on
+  if (hash3(x0, base, z1) < 0.7) b.lamp((x0 + x1 + 1) / 2 * V, (base - G) * V + 2.2, (z0 + z1 + 1) / 2 * V, WARM, 3.2, 0.6);
+}
+
 /** One Amalfi house: stucco cube on its terrace, shuttered windows, balconies, and a vault, dome or terrace on top. */
 function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   const g = b.grid;
@@ -700,6 +738,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   const trim = r() < 0.6 ? c.white : c.sill;
   const roof = r();
   g.box(x0, base, z0, x1, top - 1, z1, (_x, y) => (y < base + 2 ? c.plinth : wall));
+  if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14) room(b, c, lt);
   // corner quoins on taller houses, a cornice under the roof
   g.box(x0, top - 1, z0, x1, top - 1, z1, trim);
   // what stands outside a facade cell: the ground level and whether a neighbour's wall is there

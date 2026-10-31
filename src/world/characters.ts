@@ -1,20 +1,13 @@
 import { AMALFI, ISTANBUL, perCity } from './cityId';
 import { Grid, rng } from './grid';
 import { Palette } from './palette';
+import { PART, PART_COUNT, CHAR_SCALE } from './charparts';
+import { refinePerson, type Ink } from './persondetail';
 
 /** Procedural voxel people and cats. Each voxel carries a part id so the shader can animate limbs. */
 
-export const CHAR_SCALE = 0.075;
+export { PART, PART_COUNT, CHAR_SCALE, CHAR_FINE, PROP_SCALE } from './charparts';
 export const CAT_SCALE = 0.05;
-
-/**
- * Part ids. People have a small skeleton: thighs hang from the hips, shins from the knees, forearms
- * from the elbows, and head and arms ride on the torso (see PARENT in the voxel shader).
- */
-export const PART = { body: 0, head: 1, armL: 2, armR: 3, legL: 4, legR: 5, tail: 6, hips: 7, shinL: 8, shinR: 9, foreL: 10, foreR: 11, phone: 12 };
-export const PART_COUNT = 13;
-/** Voxel size of the small things people carry in their hands (a phone), finer than the body. */
-export const PROP_SCALE = 0.025;
 
 export interface CharModel {
   grid: Grid;
@@ -33,6 +26,11 @@ export interface CharModel {
    * pose while it is put away), meshed at PROP_SCALE from `origin`.
    */
   prop?: { grid: Grid; parts: Uint8Array; origin: [number, number, number] };
+  /**
+   * People only: the look this body was built from. Close up a person is drawn with the finer body that
+   * buildFinePerson makes from it (same skeleton, half-size voxels); this model is their stand-in further away.
+   */
+  look?: Look;
 }
 
 export interface Look {
@@ -88,7 +86,18 @@ export function randomLook(seed: number): Look {
 
 const SCARVES = [0xc9a9a6, 0x7a8fa8, 0xe8dcc8, 0x9a6a7a, 0x5a6e5a, 0xd8b88a, 0x3e4a6a, 0xb86a5a, 0xf0e6ea, 0x8a7aa8];
 
+/** A person as seen from a little way off: chunky voxels, cheap to build and draw (see CharModel.look). */
 export function buildPerson(look: Look): CharModel {
+  return coarsePerson(look).model;
+}
+
+/** The same person close up: twice the voxel resolution and finished in finer detail (world/persondetail.ts). */
+export function buildFinePerson(look: Look): CharModel {
+  const { model, ink } = coarsePerson(look);
+  return refinePerson(model, look, ink);
+}
+
+function coarsePerson(look: Look): { model: CharModel; ink: Ink } {
   const W = 10, H = 25, D = 8;
   const grid = new Grid(W, H, D);
   const parts = new Uint8Array(W * H * D);
@@ -195,7 +204,8 @@ export function buildPerson(look: Look): CharModel {
   if (look.glasses) { box(2, 18, 6, 7, 18, 6, dark, PART.head); set(3, 18, 6, white, PART.head); set(6, 18, 6, white, PART.head); }
   set(2, 17, 6, blush, PART.head); set(7, 17, 6, blush, PART.head);
   set(4, 16, 6, mouth, PART.head); set(5, 16, 6, mouth, PART.head);
-  if (look.moustache) box(3, 17, 6, 6, 17, 6, C(look.hair === 0xb9b6b0 || look.hair === 0x6b6b70 ? look.hair : 0x1d1a1c), PART.head);
+  const moustache = look.moustache ? C(look.hair === 0xb9b6b0 || look.hair === 0x6b6b70 ? look.hair : 0x1d1a1c) : -1;
+  if (look.moustache) box(3, 17, 6, 6, 17, 6, moustache, PART.head);
 
   // hair
   const hs = look.hairStyle;
@@ -296,7 +306,8 @@ export function buildPerson(look: Look): CharModel {
     [ox + 9 * s, 12 * s, oz + 4 * s],
     [ox + 9 * s, 8.5 * s, oz + 4.5 * s], // phone: tucked into the right fist while it is put away
   ];
-  return { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots, caps, prop: phone(pal, look, [ox + 6.75 * s, 6.4 * s, oz + 5.02 * s]) };
+  const coarse: CharModel = { grid, parts, pal, scale: s, origin: [ox, 0, oz], pivots, caps, look, prop: phone(pal, look, [ox + 6.75 * s, 6.4 * s, oz + 5.02 * s]) };
+  return { model: coarse, ink: { skin, hair, top, accent, bottom, shoes, dark, white, blush, mouth, moustache } };
 }
 
 const PHONE_CASES = [0x26262c, 0xe9e5dc, 0xd9748f, 0x4f7fae, 0xe8b84a, 0x5f9a78, 0x8a6fb0];

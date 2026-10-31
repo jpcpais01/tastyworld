@@ -1,7 +1,9 @@
 import * as THREE from 'three';
-import { meshGrid, mergeMeshes, STRIDE, MeshData } from '../world/mesher';
-import { CharModel, PART, PART_COUNT, CHAR_SCALE, PROP_SCALE } from '../world/characters';
+import { STRIDE, MeshData } from '../world/mesher';
+import { CharModel, PART, PART_COUNT, CHAR_SCALE } from '../world/characters';
+import { meshBody } from '../world/bodymesh';
 import { POSE, type CharacterBatch } from './charbatch';
+import type { BodyDetails } from './details';
 import type { LightMap2D } from '../world/bake';
 
 export function geometryFrom(m: MeshData): THREE.BufferGeometry {
@@ -159,24 +161,8 @@ export class Actor {
   /** Builds the body if it is not there yet (lazy actors are built the first time they are shown). */
   ensure(): void {
     if (this.body >= 0 || !this.batch) return;
-    const model = this.model, piv = this.piv;
-    const opts = { pal: model.pal, scale: model.scale, origin: model.origin };
-    let md = meshGrid({ ...opts, grid: model.grid, parts: model.parts });
-    if (model.caps) {
-      // shrink the joint caps a hair towards their hinge so they never z-fight the limb they hide in
-      const cm = meshGrid({ ...opts, grid: model.caps.grid, parts: model.caps.parts });
-      for (let v = 0; v < cm.vertexCount; v++) {
-        const c = piv[cm.attrs[v * STRIDE + 3]];
-        for (let k = 0; k < 3; k++) cm.positions[v * 3 + k] = c.getComponent(k) + (cm.positions[v * 3 + k] - c.getComponent(k)) * 0.96;
-      }
-      md = mergeMeshes([md, cm]) ?? md;
-    }
-    if (model.prop) {
-      const pm = meshGrid({ pal: model.pal, scale: PROP_SCALE, origin: model.prop.origin, grid: model.prop.grid, parts: model.prop.parts });
-      md = mergeMeshes([md, pm]) ?? md;
-    }
     // drawn (and shadowed) by the batch, posed by the texels this actor writes
-    this.body = this.batch.add(md, piv, this.root);
+    this.body = this.batch.add(meshBody(this.model), this.piv, this.root);
     this.texels = this.batch.data.subarray(this.body * 32 * 4, (this.body + 1) * 32 * 4);
     this.writePose();
     this.writeLight();
@@ -193,6 +179,70 @@ export class Actor {
     this.batch?.remove(this.body);
     this.body = -1;
     this.texels = null;
+    this.fine = 0;
+    this.fineOn = false;
+    this.ticket++;
+    Actor.fineHeld.delete(this);
+  }
+
+  /** Builds people's close-up bodies; null (tests, or no workers) keeps everyone in their plain body. */
+  static details: BodyDetails | null = null;
+  /** The frame clock the close-up choice runs on (the caller steps it once a frame, see prefer). */
+  static detailFrame = 0;
+  /** Bodies holding a close-up mesh, so ones not chosen for a while can give it back (see sweepDetail). */
+  private static fineHeld = new Set<Actor>();
+  /** The close-up mesh: 0 none, 1 asked for, 2 in the batch. */
+  private fine = 0;
+  private fineOn = false;
+  /** The last frame this body was chosen for its close-up. */
+  private fineFrame = -1e9;
+  /** Bumped whenever the body is freed, so an answer for the old one is dropped. */
+  private ticket = 0;
+
+  /** People only: whether this actor has a close-up body to show (see CharModel.look). */
+  get detailed(): boolean {
+    return !!this.model.look;
+  }
+
+  /** Whether this body was chosen for its close-up last frame (for the caller's hysteresis). */
+  get preferred(): boolean {
+    return this.fineFrame >= Actor.detailFrame - 1;
+  }
+
+  /** Chooses this person's close-up body for this frame; it is asked for, then swapped in when it arrives. */
+  prefer(): void {
+    this.fineFrame = Actor.detailFrame;
+  }
+
+  /** Each frame, before choosing: steps the clock and gives back close-up meshes not wanted for ~6 s. */
+  static sweepDetail(): void {
+    const f = ++Actor.detailFrame;
+    for (const a of Actor.fineHeld) if (f - a.fineFrame > 720) a.dropDetail();
+  }
+
+  private dropDetail(): void {
+    if (this.body >= 0 && this.fine === 2) this.batch?.dropDetail(this.body);
+    this.fine = 0;
+    this.fineOn = false;
+    Actor.fineHeld.delete(this);
+  }
+
+  /** Swaps between the plain and close-up bodies as chosen (see prefer). */
+  private detailStep(): void {
+    if (this.body < 0 || !this.batch || !this.model.look) return;
+    const want = this.fineFrame >= Actor.detailFrame - 1;
+    if (want && this.fine === 0 && Actor.details) {
+      const ticket = this.ticket, batch = this.batch;
+      const asked = Actor.details.request(this.model.look, (md) => {
+        if (ticket !== this.ticket || this.body < 0 || this.fine !== 1) return;
+        batch.addDetail(this.body, md);
+        this.fine = 2;
+        Actor.fineHeld.add(this);
+      });
+      if (asked) this.fine = 1;
+    }
+    const on = want && this.fine === 2;
+    if (on !== this.fineOn) { this.batch.detail(this.body, on); this.fineOn = on; }
   }
 
   /** Light uniforms shared with things held in the hands, so they are lit like the body. */
@@ -256,6 +306,7 @@ export class Actor {
 
   update(dt: number): void {
     this.ensure();
+    this.detailStep();
     this.animT += dt;
     this.baseT += dt;
     if (this.anim === 'ride') this.pedal += dt * this.speed * 2.6;

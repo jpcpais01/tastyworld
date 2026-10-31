@@ -12,13 +12,14 @@ import type { WorkerIn, WorkerOut } from './world/worker';
 import { Streamer, StreamView } from './engine/streamer';
 import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
-import { buildPerson, buildCat, buildDog, randomLook, Look } from './world/characters';
+import { buildPerson, buildCat, buildDog, randomLook, Look, CHAR_FINE } from './world/characters';
 import { bikeModel, scooterModel, swanBoatModel, gozzoModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
 import { Nav, PLAYER_REACH } from './game/nav';
 import { PathService } from './game/paths';
+import { BodyDetails } from './game/details';
 import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { CharacterBatch } from './game/charbatch';
@@ -155,6 +156,8 @@ class Game {
   /** Scratch list of people near the player, nearest first, for the sway shader. */
   private nudgers: [number, Actor][] = [];
   private drawn: Actor[] = [];
+  /** Scratch for picking who is drawn with a close-up body (see the close-up choice in frame). */
+  private fineD2 = new Float64Array(4096);
   private animFrame = 0;
   /** Every character's body, drawn in one call. */
   private chars: CharacterBatch;
@@ -484,6 +487,7 @@ class Game {
     this.r.composite.uniforms.uShoreRect.value.set(w.nav.ox, w.nav.oz, 1 / (w.nav.sx * 0.25), 1 / (w.nav.sz * 0.25));
     this.navWorld = new Nav(w.nav);
     this.paths = new PathService(w.nav);
+    Actor.details ??= new BodyDetails();
     this.navInside = new Nav(w.interiorNav);
     this.nav = this.navWorld;
     this.lm = w.lightmap;
@@ -1110,6 +1114,30 @@ class Game {
     return null;
   }
 
+  /**
+   * Who is drawn with a close-up body (twice the voxel detail): the nearest people, as many as the quality
+   * tier allows, and only while a fine voxel still spans a pixel or more on screen. Returns the squared
+   * distance from the player within which people are chosen; you are always.
+   */
+  private closeUps(all: Actor[], pl: THREE.Vector3): number {
+    Actor.sweepDetail();
+    this.player.prefer();
+    const FINE_PX = 1.1, h = this.r.pixelHeight;
+    let far: number;
+    if (this.cam.fp) far = CHAR_FINE * h / (2 * Math.tan(this.r.persp.fov * Math.PI / 360) * FINE_PX);
+    else far = CHAR_FINE * h / this.cam.zoom >= FINE_PX ? Infinity : 0;
+    const max = this.r.quality === 'low' ? 24 : this.r.quality === 'medium' ? 56 : 96;
+    const ds = this.fineD2;
+    let n = 0;
+    for (const a of all) {
+      if (!a.detailed || n >= ds.length) continue;
+      const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
+      ds[n++] = dx * dx + dz * dz;
+    }
+    let cut = far * far;
+    if (n > max) cut = Math.min(cut, ds.subarray(0, n).sort()[max - 1]);
+    return cut;
+  }
   private setDoor(open: boolean): void {
     this.doorClosed.visible = !open;
     this.doorOpen.visible = open;
@@ -2381,9 +2409,12 @@ class Game {
     // animation level of detail: limbs are posed every frame close up, every 2nd or 3rd frame further out
     const full = Math.max(18, viewR * 0.4) ** 2, half = Math.max(30, viewR * 0.75) ** 2;
     const frame = this.animFrame++;
+    const fine2 = this.closeUps(all, pl);
     for (const a of all) {
       const dx = a.position.x - pl.x, dz = a.position.z - pl.z;
       const d2 = dx * dx + dz * dz;
+      // a little slack for whoever is close-up already, so people at the edge of the choice do not flicker
+      if (a.detailed && (d2 <= fine2 || (a.preferred && d2 <= fine2 * 1.3))) a.prefer();
       if (a.step(dt, d2 < full ? 1 : d2 < half ? 2 : 3, frame)) a.light(this.lm);
       if (d2 < 900) {
         if (!a.noBlob) this.blobs.add(a.position.x, a.position.y + 0.02, a.position.z, a.isCat ? 0.4 : 0.6, 0.45);

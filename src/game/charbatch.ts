@@ -39,6 +39,8 @@ export class CharacterBatch {
   readonly data = new Float32Array(WIDTH * ROWS * 4);
   private pose: THREE.DataTexture;
   private geo = new Map<number, number>();
+  /** Bodies that also hold a close-up mesh: its geometry, and whether it is the one drawn. */
+  private fine = new Map<number, { gid: number; on: boolean }>();
   private roots = new Map<number, THREE.Object3D>();
   private shown = new Map<number, boolean>();
   private copies = new Set<number>();
@@ -69,16 +71,8 @@ export class CharacterBatch {
 
   /** Adds a body; returns its id (its row in `data`). `root` places it and decides whether it shows. */
   add(md: MeshData, pivots: THREE.Vector3[], root: THREE.Object3D): number {
-    const g = bodyGeometry(md);
     const m = this.mesh;
-    const nv = md.vertexCount, ni = md.indices.length;
-    if (m.unusedVertexCount < nv || m.unusedIndexCount < ni) m.optimize();
-    if (m.unusedVertexCount < nv || m.unusedIndexCount < ni) {
-      const used = (max: number, unused: number) => max - unused;
-      const mv = used(m.geometry.attributes.position.count, m.unusedVertexCount), mi = used(m.geometry.index!.count, m.unusedIndexCount);
-      m.setGeometrySize(Math.ceil((mv + nv) * 1.5), Math.ceil((mi + ni) * 1.5));
-    }
-    const gid = m.addGeometry(g);
+    const gid = this.geometry(md);
     const id = m.addInstance(gid);
     this.geo.set(id, gid);
     this.roots.set(id, root);
@@ -95,13 +89,45 @@ export class CharacterBatch {
    * addCopy. Kept for the life of the batch.
    */
   shared(md: MeshData): number {
+    return this.geometry(md);
+  }
+
+  /** Adds a mesh to the batch's buffers (making room first), returning its geometry id. */
+  private geometry(md: MeshData): number {
     const g = bodyGeometry(md), m = this.mesh;
-    if (m.unusedVertexCount < md.vertexCount || m.unusedIndexCount < md.indices.length) m.optimize();
-    if (m.unusedVertexCount < md.vertexCount || m.unusedIndexCount < md.indices.length) {
+    const nv = md.vertexCount, ni = md.indices.length;
+    if (m.unusedVertexCount < nv || m.unusedIndexCount < ni) m.optimize();
+    if (m.unusedVertexCount < nv || m.unusedIndexCount < ni) {
       const mv = m.geometry.attributes.position.count - m.unusedVertexCount, mi = m.geometry.index!.count - m.unusedIndexCount;
-      m.setGeometrySize(Math.ceil((mv + md.vertexCount) * 1.5), Math.ceil((mi + md.indices.length) * 1.5));
+      m.setGeometrySize(Math.ceil((mv + nv) * 1.5), Math.ceil((mi + ni) * 1.5));
     }
     return m.addGeometry(g);
+  }
+
+  /**
+   * Gives body `id` a second, close-up mesh with the same skeleton (a person's fine body). It is not drawn
+   * until detail(id, true); the pose texels are the body's, so the two can swap on any frame.
+   */
+  addDetail(id: number, md: MeshData): void {
+    if (!this.geo.has(id) || this.fine.has(id)) return;
+    this.fine.set(id, { gid: this.geometry(md), on: false });
+  }
+
+  /** Draws body `id` with its close-up mesh (true) or its plain one. */
+  detail(id: number, on: boolean): void {
+    const f = this.fine.get(id);
+    if (!f || f.on === on) return;
+    f.on = on;
+    this.mesh.setGeometryIdAt(id, on ? f.gid : this.geo.get(id)!);
+  }
+
+  /** Frees body `id`'s close-up mesh (it goes back to the plain one). */
+  dropDetail(id: number): void {
+    const f = this.fine.get(id);
+    if (!f) return;
+    this.detail(id, false);
+    this.mesh.deleteGeometry(f.gid);
+    this.fine.delete(id);
   }
 
   /**
@@ -137,6 +163,7 @@ export class CharacterBatch {
     if (this.copies.delete(id)) { this.mesh.deleteInstance(id); return; }
     const gid = this.geo.get(id);
     if (gid === undefined) return;
+    this.dropDetail(id);
     this.mesh.deleteGeometry(gid); // (and its instance)
     this.geo.delete(id);
     this.roots.delete(id);

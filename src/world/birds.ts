@@ -1,9 +1,10 @@
 import { Grid } from './grid';
 import { Palette } from './palette';
 import { PART, PART_COUNT, type CharModel } from './characters';
+import { AMALFI } from './cityId';
 
 /** The birds of the city, commonest first. */
-export type Species = 'pigeon' | 'sparrow' | 'crow' | 'wagtail' | 'bulbul' | 'dove' | 'kingfisher';
+export type Species = 'pigeon' | 'sparrow' | 'crow' | 'wagtail' | 'bulbul' | 'dove' | 'kingfisher' | 'gull';
 
 /** Bird voxels are 2.5 cm; small birds are drawn smaller still by their placement (see BIRD.size). */
 export const BIRD_SCALE = 0.025;
@@ -42,6 +43,7 @@ const SHAPES: Record<Species, Shape> = {
   wagtail: { L: 5, W: 3, H: 3, leg: 2, tail: 7, tailW: 0, tailDrop: 0, head: 3, neck: 0, beak: 1, span: 6, chord: 2 },
   bulbul: { L: 5, W: 3, H: 4, leg: 1, tail: 5, tailW: 0, tailDrop: 1, head: 3, neck: 1, beak: 1, span: 6, chord: 2 },
   kingfisher: { L: 4, W: 3, H: 3, leg: 1, tail: 1, tailW: 0, tailDrop: 0, head: 3, neck: 0, beak: 3, span: 5, chord: 2 },
+  gull: { L: 11, W: 7, H: 6, leg: 3, tail: 4, tailW: 1, tailDrop: 0, head: 4, neck: 1, beak: 3, beakH: 2, span: 19, chord: 4 },
 };
 
 type Colours = Partial<Record<Region, number>> & { base: number };
@@ -59,6 +61,8 @@ function flat(pal: Palette, c: Colours, touch?: (r: Region, u: number, v: number
 
 /** Plumages of each species: pigeons come in the street colours (blue bar, chequer, dark, red, pied). */
 function plumage(sp: Species, variant: number, pal: Palette): Paint {
+  const local = AMALFI ? italian(sp, pal) : null;
+  if (local) return local;
   switch (sp) {
     case 'pigeon': {
       const morphs = [
@@ -134,11 +138,53 @@ function plumage(sp: Species, variant: number, pal: Palette): Paint {
         if (r === 'crown' && (Math.round(u * 4) + v) % 2 === 0) return col(0x46b8dc);
         return undefined;
       });
+    case 'gull': // yellow-legged gull: white, a pale grey mantle, black wing tips with white mirrors, a yellow bill
+      return flat(pal, {
+        base: 0xf2f1ee, back: 0xa9b0ba, rump: 0xf2f1ee, wing: 0xa9b0ba, wingTip: 0x1d1d22, flank: 0xeceae6, breast: 0xf4f3f0,
+        belly: 0xf4f3f0, tail: 0xf2f1ee, tailTip: 0xf2f1ee, head: 0xf5f4f1, crown: 0xf5f4f1, face: 0xf5f4f1, throat: 0xf5f4f1,
+        neck: 0xf2f1ee, eye: 0xe8d070, beak: 0xe8c43a, leg: 0xe2c048,
+      }, (r, u, v, w, col) => {
+        if (r === 'wingTip' && (Math.round(u * 5) + v + w) % 4 === 0) return col(0xf2f1ee); // the white mirrors
+        if (r === 'wing' && w === 0 && v > 0.2) return col(0xf2f1ee); // the white trailing edge
+        if (r === 'beak' && v > 0 && u > 0.5) return col(0xd2402e); // the red spot
+        return undefined;
+      });
+  }
+}
+
+/** Amalfi's own birds where they differ from Tokyo's: Italian sparrows, hooded crows, collared doves. */
+function italian(sp: Species, pal: Palette): Paint | null {
+  switch (sp) {
+    case 'sparrow': // Italian sparrow: chestnut crown, white cheeks, a black bib
+      return flat(pal, {
+        base: 0x8a6643, back: 0x92683f, rump: 0x847262, wing: 0x7e5432, wingTip: 0x4a3626, flank: 0xbdb3a2, breast: 0xd2cbbb,
+        belly: 0xdcd5c6, tail: 0x5f4632, tailTip: 0x4c3828, head: 0xf0ece2, crown: 0x9a4a24, face: 0xf0ece2, throat: 0x1e1a1c,
+        neck: 0x9a4a24, eye: 0x161416, beak: 0x2a2526, leg: 0xb38c6a,
+      }, (r, u, v, w, col) => {
+        if (r === 'back' && (u * 9 + w * 3) % 4 < 1) return col(0x2e2218);
+        if (r === 'breast' && v === 0 && u > 0.5) return col(0x1e1a1c); // the bib runs onto the breast
+        if (r === 'wing' && v < 0.35 && w === 1) return col(0xefe6d6);
+        return undefined;
+      });
+    case 'crow': // hooded crow: ash grey body, black head, wings and tail
+      return flat(pal, {
+        base: 0x8d8d93, back: 0x8f8f95, rump: 0x88888e, flank: 0x8a8a90, breast: 0x8d8d93, belly: 0x939399,
+        wing: 0x1c1b21, wingTip: 0x15151b, tail: 0x1d1f2c, tailTip: 0x15151b, head: 0x1c1b21, crown: 0x1c1b21, face: 0x1c1b21,
+        throat: 0x1c1b21, neck: 0x8d8d93, eye: 0x0c0c0e, beak: 0x121216, leg: 0x16161a,
+      });
+    case 'dove': // Eurasian collared dove: pale buff-grey, a black half collar
+      return flat(pal, {
+        base: 0xc2b3a6, back: 0xb3a597, wing: 0xb1a294, wingTip: 0x5a5452, rump: 0xa9a6a8, tail: 0xa8a29c, tailTip: 0xe8e4dc,
+        head: 0xc8bcb4, crown: 0xbdb5b2, face: 0xcabfb6, throat: 0xd2c8c0, breast: 0xcbb5ae, belly: 0xd6cbc2,
+        neck: 0xc2b3a6, eye: 0xb02a2a, beak: 0x2a2526, leg: 0xb8606a,
+      }, (r, _u, v, w, col) => (r === 'neck' && w !== 0 && v === 0 ? col(0x1c1a1c) : undefined));
+    default:
+      return null;
   }
 }
 
 /** How many plumages a species has. */
-export const VARIANTS: Record<Species, number> = { pigeon: 5, dove: 1, sparrow: 1, crow: 1, wagtail: 1, bulbul: 1, kingfisher: 1 };
+export const VARIANTS: Record<Species, number> = { pigeon: 5, dove: 1, sparrow: 1, crow: 1, wagtail: 1, bulbul: 1, kingfisher: 1, gull: 1 };
 
 /**
  * A bird on the character skeleton, standing on the origin and facing +z. The wings are built spread

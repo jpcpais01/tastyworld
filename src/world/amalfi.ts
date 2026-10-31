@@ -47,6 +47,8 @@ function amalfiColors(b: Builder) {
     umbrellaA: a(0xe8743a, 0.03), umbrellaB: a(0xf4efe4, 0.03), umbrellaC: a(0x2f6fae, 0.03), umbrellaD: a(0xe6c23a, 0.03), umbrellaE: a(0x3f9a6a, 0.03),
     bed: a(0xf1ede2, 0.03), bedFrame: a(0x8a6a4a, 0.05), hullWhite: a(0xf2efe8, 0.03), hullBlue: a(0x2f5d9a, 0.04), hullRed: a(0xb83a2c, 0.04), hullGreen: a(0x2f7a5a, 0.04),
     hullYellow: a(0xe9c23a, 0.04), deckWood: a(0xb08458, 0.06), keel: a(0x4a3a2e, 0.05), ferry: a(0xf4f4f0, 0.02), ferryBlue: a(0x23406a, 0.03), lighthouse: a(0xc8372d, 0.03),
+    fishNet: a(0x2f6b5a, 0.08), fishNetB: a(0xc8582e, 0.06), float: a(0xe8e2d4, 0.03), floatRed: a(0xd23a2a, 0.03),
+    crateBlue: a(0x2f6fb0, 0.04), rope: a(0xc9b48a, 0.05), kiosk: a(0x2a5d8f, 0.03), sign: a(0xf4f0e4, 0.02),
     lampGlow: a(0xffd89a, 0.03, { emit: 0.9, night: true }), lampGlowAlways: a(0xffd89a, 0.03, { emit: 0.85 }),
   };
 }
@@ -149,20 +151,21 @@ function sunbed(c: AC): Prop {
 
 /** A changing cabin of a lido: painted planks in the lido's colour and white, a door, a little flat roof. */
 function cabin(c: AC, col: number, seed: number): Prop {
-  const p = new Prop(6, 10, 6);
-  p.box(0, 0, 0, 5, 8, 5, (x, _y, z) => ((x + z) % 2 ? col : c.white));
-  p.box(1, 1, 1, 4, 8, 4, 0);
-  p.box(2, 0, 0, 3, 6, 0, hash3(seed, 3, 7) < 0.3 ? 0 : c.door);
-  p.box(0, 9, 0, 5, 9, 5, c.white);
-  p.set(1, 7, 0, c.iron);
+  const p = new Prop(11, 19, 11);
+  p.box(0, 0, 0, 10, 16, 10, (x, _y, z) => (((x + z) >> 1) % 2 ? col : c.white));
+  p.box(1, 1, 1, 9, 16, 9, 0);
+  p.box(3, 0, 0, 7, 13, 0, hash3(seed, 3, 7) < 0.3 ? 0 : c.door);
+  p.box(0, 17, 0, 10, 17, 10, c.white);
+  p.box(0, 18, 1, 10, 18, 9, col);
+  p.set(6, 7, 0, c.iron);
   return p;
 }
 
 /** A beach towel spread on the pebbles, striped. */
 function towel(c: AC, seed: number): Prop {
-  const p = new Prop(4, 1, 8);
+  const p = new Prop(7, 1, 14);
   const a = [c.umbrellaA, c.umbrellaC, c.umbrellaD, c.umbrellaE, c.pink, c.sky][seed % 6];
-  p.box(0, 0, 0, 3, 0, 7, (_x, _y, z) => ((z >> 1) % 2 ? a : c.umbrellaB));
+  p.box(0, 0, 0, 6, 0, 13, (_x, _y, z) => ((z >> 1) % 2 ? a : c.umbrellaB));
   return p;
 }
 
@@ -183,11 +186,11 @@ function lifeguardTower(c: AC): Prop {
 /** A kayak drawn up at the water's edge. */
 function kayak(c: AC, seed: number): Prop {
   const col = [c.umbrellaD, c.hullRed, c.umbrellaE][seed % 3];
-  const p = new Prop(3, 2, 14);
-  for (let z = 0; z < 14; z++) {
-    const half = Math.sin(Math.PI * (z + 0.5) / 14) * 1.6;
-    for (let x = 0; x < 3; x++) if (Math.abs(x - 1) <= half) p.set(x, 0, z, col);
-    if (z > 1 && z < 12) p.set(1, 1, z, z > 5 && z < 9 ? c.iron : col);
+  const p = new Prop(5, 3, 24);
+  for (let z = 0; z < 24; z++) {
+    const half = Math.sin(Math.PI * (z + 0.5) / 24) * 2.6;
+    for (let x = 0; x < 5; x++) if (Math.abs(x - 2) <= half) { p.set(x, 0, z, col); if (Math.abs(x - 2) > half - 1) p.set(x, 1, z, col); }
+    if (z > 9 && z < 14) p.set(2, 1, z, c.iron);
   }
   return p;
 }
@@ -301,6 +304,53 @@ function bitt(c: AC): Prop {
   const p = new Prop(3, 4, 3);
   p.box(1, 0, 1, 1, 2, 1, c.iron);
   p.box(0, 3, 0, 2, 3, 2, c.iron);
+  return p;
+}
+
+/** A heap of fishing net drying on the quay, a line of floats along its edge. */
+function netPile(c: AC, seed: number): Prop {
+  const p = new Prop(12, 5, 9);
+  const col = seed % 2 ? c.fishNet : c.fishNetB;
+  p.ellipsoid(5.5, 0, 4, 5.5, 3.6, 4, (x, y, z) => (hash3(x + seed, y, z) < 0.12 ? (seed % 2 ? c.fishNetB : c.fishNet) : col));
+  for (let i = 0; i < 6; i++) { const a = i * 1.05 + seed; p.set(Math.round(5.5 + Math.cos(a) * 5), 0, Math.round(4 + Math.sin(a) * 3.6), i % 2 ? c.float : c.floatRed); }
+  return p;
+}
+
+/** Lobster pots stacked three high. */
+function creels(c: AC): Prop {
+  const p = new Prop(10, 10, 5);
+  const pot = (x: number, y: number) => {
+    p.box(x, y, 0, x + 4, y + 3, 4, (xx, yy, zz) => ((xx + yy + zz) % 2 ? c.net : 0));
+    p.box(x, y, 0, x + 4, y, 4, c.pole);
+  };
+  pot(0, 0); pot(5, 0); pot(2, 4);
+  return p;
+}
+
+/** A coil of mooring rope. */
+function ropeCoil(c: AC): Prop {
+  const p = new Prop(5, 1, 5);
+  for (let z = 0; z < 5; z++) for (let x = 0; x < 5; x++) if (Math.hypot(x - 2, z - 2) > 0.8 && Math.hypot(x - 2, z - 2) < 2.6) p.set(x, 0, z, c.rope);
+  return p;
+}
+
+/** Blue fish crates, some with the morning's catch on ice. */
+function fishCrates(c: AC, seed: number): Prop {
+  const p = new Prop(9, 5, 6);
+  p.box(0, 0, 0, 3, 1, 5, c.crateBlue); p.box(5, 0, 0, 8, 1, 5, c.crateBlue); p.box(1, 2, 0, 5, 3, 5, c.crateBlue);
+  for (let x = 2; x < 5; x++) for (let z = 1; z < 5; z++) p.set(x, 4, z, hash3(x, seed, z) < 0.5 ? c.float : c.marbleGrey);
+  return p;
+}
+
+/** A ferry ticket booth on the quay: a blue hut, a window with a counter, the timetable board on its roof. */
+function ticketBooth(c: AC, seed: number): Prop {
+  const p = new Prop(19, 24, 14);
+  p.box(0, 0, 0, 18, 17, 13, c.kiosk);
+  p.box(1, 1, 1, 17, 17, 12, 0);
+  p.box(3, 7, 0, 15, 15, 0, c.glassLit);
+  p.box(2, 6, 0, 16, 6, 1, c.sign); // the counter
+  p.box(0, 18, 0, 18, 18, 13, c.white);
+  p.box(2, 19, 1, 16, 23, 1, (x, y) => (y === 23 || x === 2 || x === 16 ? c.kiosk : hash3(x, y, seed) < 0.5 ? c.sign : c.mosaicBlue));
   return p;
 }
 
@@ -985,9 +1035,9 @@ function shore(b: Builder, c: AC, plan: Plan): void {
         b.block(x + 0.6, z - 0.6, x + 1.8, z + 1.4);
         s++;
       }
-    for (let z = l.z0; z <= l.z1 - 1; z += 1.7) {
+    for (let z = l.z0; z <= l.z1 - 1; z += 1.6) {
       if (Math.abs(z - 9) < 3) continue;
-      b.place(cabin(c, l.pair[0], s++), 36, 1.55, z, 3);
+      b.place(cabin(c, l.pair[0], s++), 35.9, 1.55, z, 3);
     }
     b.block(35.2, l.z0 - 0.9, 36.8, l.z1 - 0.2);
   }
@@ -1018,6 +1068,17 @@ function shore(b: Builder, c: AC, plan: Plan): void {
   // bitts, crates and nets on the quay
   for (let z = 44; z < 80; z += 4) b.place(bitt(c), 45.6, 1.0, z);
   for (let x = 50; x < 84; x += 5) b.place(bitt(c), x, 1.0, 53.2);
+  // the working quay: nets drying, lobster pots, rope, the fishermen's crates, and the ferry ticket booths
+  const gear: [Prop, number, number, number][] = [
+    [netPile(c, 1), 44, 59.5, 0], [netPile(c, 2), 44.3, 69, 1], [netPile(c, 3), 43.6, 75.5, 0],
+    [creels(c), 44.6, 63, 1], [ropeCoil(c), 45.1, 56.3, 0], [ropeCoil(c), 45.1, 72.3, 0], [fishCrates(c, 4), 42.8, 57.2, 0],
+    [ticketBooth(c, 1), 36.4, 61, 3], [ticketBooth(c, 2), 36.4, 64.5, 3],
+  ];
+  for (const [p, x, z, t] of gear) {
+    const pl = b.place(p, x, 1.0, z, t);
+    const hx = (pl.sx * pl.scale) / 2, hz = (pl.sz * pl.scale) / 2;
+    b.block(x - hx, z - hz, x + hx, z + hz);
+  }
   b.place(crateLemons(c, 1), 38, 1.0, 50);
   b.place(crateLemons(c, 2), 38.8, 1.0, 50.2);
   // the lighthouse at the end of the pier

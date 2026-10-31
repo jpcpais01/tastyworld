@@ -27,6 +27,15 @@ export interface GridRect { ox: number; oz: number; sx: number; sz: number }
  */
 export interface Field { height: Uint8Array; solid: Uint32Array; walk?: Uint8Array; ground?: Uint8Array }
 /**
+ * The layer (voxels above the street) the 64 occupancy bits of a column start from: the street on flat ground, a
+ * metre under the terrain on a hillside, so a hall or a house on a hilltop keeps its own 16 m of detail (its rooms
+ * get true section caps however high the hill). Everything under it counts as solid.
+ */
+export const SOLID_UNDER = 4;
+export function solidBase(ground: Uint8Array | null | undefined, c: number): number {
+  return ground ? Math.max(0, ground[c] - SOLID_UNDER) : 0;
+}
+/**
  * Per column: occluder id (index + 1, 0 = nobody) and 255 on a building's shell. Where a building's side rises
  * above a lower neighbour (or a boundary wall), whatever hangs off it up there (sills, pipes, eaves) sits in the
  * neighbour's columns: `upper` names that building and `split` the height (voxels above the street) above which
@@ -50,11 +59,11 @@ export function buildOwners(world: Occluder[], inside: Occluder[], wr: GridRect,
       const id = own[c];
       if (!id) continue;
       const hi = f.solid[c * 2 + 1], lo = f.solid[c * 2];
-      const layer = Math.max(f.height[c] - 1, hi ? 63 - Math.clz32(hi) : lo ? 31 - Math.clz32(lo) : -1);
+      const layer = Math.max(f.height[c] - 1, solidBase(f.ground, c) + (hi ? 63 - Math.clz32(hi) : lo ? 31 - Math.clz32(lo) : -1));
       top[id - 1] = Math.max(top[id - 1], (layer + 1) * V);
     }
     // above the 64 layers we only see the run from the street, so very tall ones keep their registered top too
-    for (let i = from; i < to; i++) if (top[i] > 0) occ[i] = { ...occ[i], top: Math.max(occ[i].low + 0.1, top[i] + 0.3, top[i] >= 64 * V ? occ[i].top : 0) };
+    for (let i = from; i < to; i++) if (top[i] > 0) occ[i] = { ...occ[i], top: Math.max(occ[i].low + 0.1, top[i] + 0.3, top[i] >= 64 * V + (occ[i].floor ?? 0) ? occ[i].top : 0) };
   }
   return { occ, worldN, world: ownW, inside: ownI };
 }
@@ -92,7 +101,7 @@ function raster(occ: Occluder[], from: number, g: GridRect, f: Field, auto: bool
         }
         const edge = Math.min(k - i0, i1 - k, j - j0, j1 - j);
         id[c] = i + 1;
-        shell[c] = o.kind !== 'building' || edge < SHELL ? 255 : 0;
+        shell[c] = (o.kind !== 'building' && o.room === undefined) || edge < SHELL ? 255 : 0;
         solid[c] = o.kind === 'tree' ? 0 : 1;
       }
   };

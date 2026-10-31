@@ -8,6 +8,7 @@ import type { NavData, LightMap2D } from '../world/bake';
 import type { Anchors } from '../world/tokyo';
 import { V, G, WATER_Y, zoneAt } from '../world/layout';
 import { rng } from '../world/grid';
+import { solidBase } from '../world/owners';
 
 /**
  * The birds of the city: flocks of pigeons on the squares, sparrows hopping along the lanes, crows on the
@@ -116,6 +117,8 @@ export interface BirdWorld {
   /** Per-column top of the solid run from street level, per-column 64-layer occupancy and shore distance (see BakedWorld). */
   height: Uint8Array;
   solid: Uint32Array;
+  /** Hillside cities: the terrain under each column, where its 64 layers start from (see solidBase). */
+  ground?: Uint8Array | null;
   shore: Uint8Array;
   lightmap: LightMap2D;
   anchors: Anchors;
@@ -179,11 +182,12 @@ export class Birds {
     return ix < 0 || iz < 0 || ix >= n.sx || iz >= n.sz ? -1 : iz * n.sx + ix;
   }
 
-  /** Is the voxel at a point solid (y in metres above the street; only the 16 m above it are known). */
+  /** Is the voxel at a point solid (y in metres above the street; only the 16 m above the column's base are known). */
   solidAt(x: number, y: number, z: number): boolean {
     const c = this.cell(x, z);
     if (c < 0 || y < 0) return false;
-    const l = Math.floor(y / V);
+    const l = Math.floor(y / V) - solidBase(this.w.ground, c);
+    if (l < 0) return true;
     if (l >= 64) return false;
     return ((this.w.solid[c * 2 + (l >> 5)] >>> (l & 31)) & 1) === 1;
   }

@@ -5,6 +5,7 @@ import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, Sta
 import { Prop, rotateProp, bench, bush, grassTuft } from './props';
 import { buildFood, type FoodId } from './food';
 import { SWAY } from './sway';
+import { mosqueInterior, HALL_ROOM } from './sacred';
 import type { RoomAnchor, RoomKind } from './interiors';
 import { paneOf, type HotelAnchor, type HotelRoomAnchor } from './hotels';
 import { ISTANBUL_HOTELS } from '../data/hotels';
@@ -706,6 +707,7 @@ export function buildIstanbul(win?: Window): BuildResult {
     secret: null,
     occluders: b.occluders,
     wires: b.wires,
+    halls: b.halls,
   };
   // a warm city at night: lamp light carries over the pale stone
   for (const l of b.lamps) { l.r *= 1.2; l.g *= 1.2; l.b *= 1.15; l.radius *= 1.1; }
@@ -1932,7 +1934,7 @@ function minaret(ctx: Ctx, cxM: number, czM: number, yM: number, h: number, balc
  * A mosque: the square prayer hall under a great dome on four half-domes, corner turrets, windows in rows and
  * the courtyard in front with its arcade of little domes and the fountain in the middle.
  */
-function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court: readonly [number, number, number, number] | null, y: number, domeR: number, wallH: number): void {
+function mosque(ctx: Ctx, id: string, rich: boolean, hall: readonly [number, number, number, number], court: readonly [number, number, number, number] | null, y: number, domeR: number, wallH: number): void {
   const { b, c } = ctx;
   const g = b.grid;
   const X0 = Math.round(hall[0] / V), Z0 = Math.round(hall[1] / V), X1 = Math.round(hall[2] / V) - 1, Z1 = Math.round(hall[3] / V) - 1;
@@ -1940,40 +1942,46 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
   const H = Math.round(wallH / V);
   const cx = (X0 + X1 + 1) / 2, cz = (Z0 + Z1 + 1) / 2;
   const R = Math.round(domeR / V);
+  // the prayer hall is walked into through its great door like a shop: the cutaway opens it 6 m over the carpet
   b.occlude(X0, Z0, X1, Z1, y + wallH + domeR + 6, y + 0.95, 'landmark');
-  b.occluders[b.occluders.length - 1].floor = y;
-  b.block(hall[0], hall[1], hall[2], hall[3]);
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: y, room: HALL_ROOM });
+  // the walls: grey stone in courses, two rows of arched windows, a band of cornice
+  // bays of three metres from each corner: under each a grilled window in a marble frame with a red and white
+  // relieving arch, above it a pair of tall lights in coloured glass, an oculus higher still; pilasters between
+  // the bays, a moulded band at mid-height, the cornice and a cresting of little merlons along the top
+  const hallBay = (u: number, lo: number) => pm(u - lo, 12);
+  const up = H - 16;
+  const DY = Y + H + 1;
+  const semi = R * 0.8;
+  const semis: [number, number][] = [[cx, Z0 + semi * 0.6], [cx, Z1 + 1 - semi * 0.6], [X0 + semi * 0.6, cz], [X1 + 1 - semi * 0.6, cz]];
+  const doorZ = court ? (court[1] >= hall[3] - 0.5 ? Z1 : Z0) : Z1;
+  const wallCell = (x: number, yy: number, z: number) => {
+    const u = x === X0 || x === X1 ? z : x;
+    const bb = hallBay(u, x === X0 || x === X1 ? Z0 : X0);
+    const row = yy - Y;
+    if (row < 2) return c.limeDark;
+    if (row >= H - 1) return c.limeLight;
+    if (row === H - 2) return pm(u, 2) ? c.marble : c.limeLight;
+    if (row === 16) return c.limeLight;
+    if (bb === 0 || bb === 11) return row % 4 === 0 ? c.limeLight : c.lime;
+    // the lower window and its arch
+    if (bb >= 4 && bb <= 7 && row >= 4 && row <= 11) return bb === 4 || bb === 7 || row === 4 || row === 11 ? c.marble : row % 2 === 0 || bb === 5 ? c.iron : c.glassDark;
+    if (row >= 12 && row <= 14 && Math.abs(bb - 5.5) <= 2.5 - (row - 12)) return (bb + row) % 2 ? c.brick : c.marble;
+    // the paired lights
+    if (row >= up && row <= up + 8 && (bb === 3 || bb === 4 || bb === 7 || bb === 8)) {
+      if (row === up || row === up + 8) return c.marble;
+      const pane = row - up;
+      return pane >= 6 && (bb === 3 || bb === 7) === (pane === 7) ? c.marble : pane % 3 === 0 ? c.lampAmber : (bb + pane) % 2 ? c.glassLit : c.iznikBlue;
+    }
+    if (row >= up && row <= up + 8 && (bb === 2 || bb === 9)) return c.marble;
+    // the oculus
+    if (row >= up + 11 && row <= up + 12 && (bb === 5 || bb === 6)) return c.glassLit;
+    if (row >= up + 10 && row <= up + 13 && bb >= 4 && bb <= 7) return c.marble;
+    return (row >> 1) % 4 === 0 ? c.limeLight : c.lime;
+  };
+  // the windows the inside must leave open: the grilles below, the coloured lights and oculi above
+  const windowCols = new Set([c.iron, c.glassDark, c.glassLit, c.lampAmber, c.iznikBlue]);
   if (g.touches(X0 - 4, Z0 - 4, X1 + 4, Z1 + 4)) {
-    // the walls: grey stone in courses, two rows of arched windows, a band of cornice
-    // bays of three metres from each corner: under each a grilled window in a marble frame with a red and white
-    // relieving arch, above it a pair of tall lights in coloured glass, an oculus higher still; pilasters between
-    // the bays, a moulded band at mid-height, the cornice and a cresting of little merlons along the top
-    const hallBay = (u: number, lo: number) => pm(u - lo, 12);
-    const up = H - 16;
-    const wallCell = (x: number, yy: number, z: number) => {
-      const u = x === X0 || x === X1 ? z : x;
-      const bb = hallBay(u, x === X0 || x === X1 ? Z0 : X0);
-      const row = yy - Y;
-      if (row < 2) return c.limeDark;
-      if (row >= H - 1) return c.limeLight;
-      if (row === H - 2) return pm(u, 2) ? c.marble : c.limeLight;
-      if (row === 16) return c.limeLight;
-      if (bb === 0 || bb === 11) return row % 4 === 0 ? c.limeLight : c.lime;
-      // the lower window and its arch
-      if (bb >= 4 && bb <= 7 && row >= 4 && row <= 11) return bb === 4 || bb === 7 || row === 4 || row === 11 ? c.marble : row % 2 === 0 || bb === 5 ? c.iron : c.glassDark;
-      if (row >= 12 && row <= 14 && Math.abs(bb - 5.5) <= 2.5 - (row - 12)) return (bb + row) % 2 ? c.brick : c.marble;
-      // the paired lights
-      if (row >= up && row <= up + 8 && (bb === 3 || bb === 4 || bb === 7 || bb === 8)) {
-        if (row === up || row === up + 8) return c.marble;
-        const pane = row - up;
-        return pane >= 6 && (bb === 3 || bb === 7) === (pane === 7) ? c.marble : pane % 3 === 0 ? c.lampAmber : (bb + pane) % 2 ? c.glassLit : c.iznikBlue;
-      }
-      if (row >= up && row <= up + 8 && (bb === 2 || bb === 9)) return c.marble;
-      // the oculus
-      if (row >= up + 11 && row <= up + 12 && (bb === 5 || bb === 6)) return c.glassLit;
-      if (row >= up + 10 && row <= up + 13 && bb >= 4 && bb <= 7) return c.marble;
-      return (row >> 1) % 4 === 0 ? c.limeLight : c.lime;
-    };
     g.box(X0, Y, Z0, X1, Y + H, Z1, (x, yy, z) => (x === X0 || x === X1 || z === Z0 || z === Z1 ? wallCell(x, yy, z) : c.limeDark));
     // the pilasters stand a little proud of the wall; the cresting runs along the top
     for (let x = X0; x <= X1; x++) for (const [z, zo] of [[Z0, Z0 - 1], [Z1, Z1 + 1]] as const) {
@@ -1985,7 +1993,6 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
       if (pm(z, 3) === 0) g.set(x, Y + H + 1, z, c.limeLight);
     }
     // the drum and the dome, four half-domes leaning on it, little domes on the corners, weight turrets
-    const DY = Y + H + 1;
     for (let yy = 0; yy < 8; yy++)
       for (let z = Math.floor(cz - R - 1); z <= cz + R + 1; z++)
         for (let x = Math.floor(cx - R - 1); x <= cx + R + 1; x++) {
@@ -2005,8 +2012,7 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
       for (const [yb, rr] of [[2, 1], [5, 1], [8, 0]] as const) g.box(ax - rr, top + yb, az - rr, ax + rr, top + yb + (rr ? 1 : 0), az + rr, c.gold);
       g.box(ax, top + 1, az, ax, top + 10, az, c.gold);
       g.set(ax - 1, top + 11, az, c.gold); g.set(ax + 1, top + 11, az, c.gold); g.set(ax - 1, top + 12, az, c.gold); g.set(ax + 1, top + 12, az, c.gold); }
-    const semi = R * 0.8;
-    for (const [sx, sz] of [[cx, Z0 + semi * 0.6], [cx, Z1 + 1 - semi * 0.6], [X0 + semi * 0.6, cz], [X1 + 1 - semi * 0.6, cz]]) leadDome(g, c, sx, sz, DY - 2, Math.round(semi * 0.75), false);
+    for (const [sx, sz] of semis) leadDome(g, c, sx, sz, DY - 2, Math.round(semi * 0.75), false);
     for (const [qx, qz] of [[X0 + 6, Z0 + 6], [X1 - 5, Z0 + 6], [X0 + 6, Z1 - 5], [X1 - 5, Z1 - 5]]) {
       leadDome(g, c, qx, qz, DY, 6, true);
       g.box(Math.floor(qx) - 1, DY, Math.floor(qz) - 1, Math.floor(qx) + 1, DY + 1, Math.floor(qz) + 1, c.lime);
@@ -2016,10 +2022,21 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
       leadDome(g, c, Math.floor(tx) + 1.5, Math.floor(tz) + 1.5, DY + 11, 2, true);
     }
     // the great door in the courtyard wall, under its stalactite niche
-    const dz = court ? (court[1] >= hall[3] - 0.5 ? Z1 : Z0) : Z1;
+    const dz = doorZ;
     g.box(Math.floor(cx) - 3, Y, dz, Math.floor(cx) + 2, Y + 12, dz, (x, yy) => (yy > Y + 9 ? ((x + yy) % 2 ? c.marble : c.limeLight) : c.woodDark));
     g.box(Math.floor(cx) - 5, Y + 13, dz, Math.floor(cx) + 4, Y + 18, dz, (x, yy) => ((x + yy) % 3 === 0 ? c.iznikBlue : c.marble));
   }
+  // inside, carved out of the shell once it stands (anchors in every worker): the door is on the court side
+  // (Z1 for both mosques), the qibla wall at Z0
+  if (doorZ === Z1) mosqueInterior(b, {
+    id, X0, Z0, X1, Z1, Y, H, cx, cz, R, DY, rich,
+    semis: semis.map(([sx, sz]) => [sx, sz, Math.round(semi * 0.75)] as [number, number, number]),
+    door: [Math.floor(cx) - 3, Math.floor(cx) + 2],
+    opening: (x, yy, z) => windowCols.has(wallCell(x, yy, z)),
+    upper: (yy) => yy - Y >= up,
+    stone: c.lime, lead: c.lead,
+  });
+  else b.block(hall[0], hall[1], hall[2], hall[3]);
   // floodlights from below, the way Istanbul lights its mosques at night
   b.lamp(hall[0] - 2, y + 2, (hall[1] + hall[3]) / 2, [1, 0.9, 0.75], 14, 0.7);
   b.lamp(hall[2] + 2, y + 2, (hall[1] + hall[3]) / 2, [1, 0.9, 0.75], 14, 0.7);
@@ -2137,7 +2154,7 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
 }
 
 function yeniCami(ctx: Ctx): void {
-  mosque(ctx, YENI.hall, YENI.court, YENI_Y, 6.5, 9);
+  mosque(ctx, 'yeni', true, YENI.hall, YENI.court, YENI_Y, 6.5, 9);
   minaret(ctx, YENI.court[0] - 0.6, YENI.hall[3] + 0.6, YENI_Y, 104, 2);
   minaret(ctx, YENI.court[2] + 0.6, YENI.hall[3] + 0.6, YENI_Y, 104, 2);
   // the plinth's stone faces down to the square, and its steps
@@ -2159,7 +2176,7 @@ const HAZIRE_TREES: [number, number][] = [[-143.5, -32.1], [-131, -30.3], [-125.
 function suleymaniye(ctx: Ctx): void {
   const { b, c, plan } = ctx;
   const g = b.grid;
-  mosque(ctx, SULEY.hall, SULEY.court, HILLTOP_Y, 8.5, 11);
+  mosque(ctx, 'suleymaniye', false, SULEY.hall, SULEY.court, HILLTOP_Y, 8.5, 11);
   for (const [x, z, h] of [[-147, -5, 124], [-127, -5, 124], [-147, 11, 100], [-127, 11, 100]] as const) minaret(ctx, x, z, HILLTOP_Y, h, h > 110 ? 2 : 1);
   // the precinct wall with its windows, gates on the east and to the terrace
   const [px0, pz0, px1, pz1] = SULEY.precinct;

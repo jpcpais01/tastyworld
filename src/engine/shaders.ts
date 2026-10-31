@@ -314,7 +314,7 @@ const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0
 #ifdef CUTAWAY
 uniform vec3 uCamFwd;
 uniform float uCutOn;      // 0 or 1: off in first person and on the title screen
-uniform sampler2D tHeight; // per-column top of the solid run that starts at street level (0.25 m units)
+uniform sampler2D tHeight; // per column: R top of the solid run from street level, G the layer tSolid starts at (0.25 m units)
 uniform vec4 uHeightRect;  // origin x, z and 1 / extent x, z (metres), shared by tHeight and tOwner
 uniform highp usampler2D tSolid; // per column: which of the 64 voxel layers from the street up are solid (two words)
 uniform sampler2D tOwner;  // per column: occluder id, owner above a split height, shell flag and split (see game/cutaway.ts)
@@ -332,6 +332,9 @@ bool solidJustAbove(vec2 xz, float h) {
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return false;
   int l = int(floor(h * 4.0 + 0.08));
   if (l < 0) return false;
+  // on a hillside a column's 64 layers start just under the terrain (see solidBase in world/owners.ts)
+  l -= int(texture(tHeight, uv).g * 255.0 + 0.5);
+  if (l < 0) return true;
   if (l >= 64) return solidTop(xz) > h + 0.02;
   uvec2 w = texelFetch(tSolid, ivec2(uv * vec2(textureSize(tSolid, 0))), 0).rg;
   return (((l < 32 ? w.x : w.y) >> uint(l & 31)) & 1u) == 1u;

@@ -23,9 +23,12 @@ import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { CharacterBatch } from './game/charbatch';
 import { IsoCamera } from './game/camera';
-import { Particles, Blobs, Koi, Shafts } from './game/fx';
+import { Particles, Blobs, Koi, SkylightBeams } from './game/fx';
 import { Birds, type Threat } from './game/birds';
 import { Cutaway } from './game/cutaway';
+import { solidBase } from './world/owners';
+import { Shafts } from './engine/shafts';
+import { HALL_ROOM, type HallPose } from './world/sacred';
 import { Audio } from './game/audio';
 import { loadState, saveState, saveNow, resetState, SaveState, viewMetres, VIEW_DEFAULT } from './game/state';
 import { DISHES, ALL_DISHES } from './data/dishes';
@@ -163,6 +166,9 @@ class Game {
   private shelfOpen = new THREE.Group();
   /** Keepers and regulars inside the shops; only simulated when the player is close. */
   private extras: Actor[] = [];
+  /** The faithful and the visitors inside the cathedral and the mosques. */
+  private hallPeople: { actor: Actor; pose: HallPose; alt?: HallPose; t: number }[] = [];
+  private shafts!: Shafts;
   private roomActors: { actor: Actor; room: RoomAnchor; keeper: boolean; facing: number; sit: boolean; anim: 'idle' | 'cook' | 'sit'; talk: number; seed: number; snackT: number }[] = [];
   private roomHere: RoomAnchor | null = null;
   /** The hotel room the player is in upstairs (it has its own walk map and light), or null on the street. */
@@ -205,7 +211,7 @@ class Game {
   private koi: Koi | null = null;
   private birds!: Birds;
   private particles!: Particles;
-  private shafts!: Shafts;
+  private beams!: SkylightBeams;
   private interactables: Interactable[] = [];
   private near: Interactable | null = null;
   private notified = new Set<string>();
@@ -413,14 +419,17 @@ class Game {
       this.chunks.push({ mesh: m, box: m.geometry.boundingBox!.clone(), cut: false, occ: [] });
     }
     for (const md of w.interiorChunks) this.mesh(md, this.matCut, this.insideGroup);
-    const heightTex = (data: Uint8Array, sx: number, sz: number) => {
-      const t = new THREE.DataTexture(data, sx, sz, THREE.RedFormat, THREE.UnsignedByteType);
+    // R: the solid run from the street, G: the layer each column's solid bits start from (hillside cities)
+    const heightTex = (data: Uint8Array, sx: number, sz: number, ground?: Uint8Array | null) => {
+      const rg = new Uint8Array(sx * sz * 2);
+      for (let c = 0; c < sx * sz; c++) { rg[c * 2] = data[c]; rg[c * 2 + 1] = solidBase(ground, c); }
+      const t = new THREE.DataTexture(rg, sx, sz, THREE.RGFormat, THREE.UnsignedByteType);
       t.magFilter = t.minFilter = THREE.NearestFilter;
       t.generateMipmaps = false;
       t.needsUpdate = true;
       return t;
     };
-    this.heightWorld = heightTex(w.height, w.nav.sx, w.nav.sz);
+    this.heightWorld = heightTex(w.height, w.nav.sx, w.nav.sz, w.ground);
     this.heightInside = heightTex(w.interiorHeight, w.interiorNav.sx, w.interiorNav.sz);
     const solidTex = (data: Uint32Array, sx: number, sz: number) => {
       const t = new THREE.DataTexture(data, sx, sz, THREE.RGIntegerFormat, THREE.UnsignedIntType);
@@ -432,7 +441,7 @@ class Game {
     };
     this.solidWorld = solidTex(w.solid, w.nav.sx, w.nav.sz);
     this.solidInside = solidTex(w.interiorSolid, w.interiorNav.sx, w.interiorNav.sz);
-    this.cutaway = new Cutaway(w.owners, w.nav, w.interiorNav, { height: w.height, solid: w.solid }, { height: w.interiorHeight, solid: w.interiorSolid });
+    this.cutaway = new Cutaway(w.owners, w.nav, w.interiorNav, { height: w.height, solid: w.solid, ground: w.ground ?? undefined }, { height: w.interiorHeight, solid: w.interiorSolid });
     sh.tCut.value = this.cutaway.cut;
     for (const c of this.chunks) c.occ = this.cutaway.touching(c.box.min.x, c.box.min.z, c.box.max.x, c.box.max.z);
     this.streamer = new Streamer(this.workers, this.partOf, w.height, this.worldGroup, () => this.matWorld, this.r.isMobile, this.r.gl);
@@ -469,7 +478,7 @@ class Game {
     this.blobs = new Blobs(this.r.scene, 160);
     if (a.koiArea) this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, a.petals);
-    this.shafts = new Shafts(this.r, a.shafts ?? []);
+    this.beams = new SkylightBeams(this.r, a.shafts ?? []);
     (a.warm ?? []).slice(0, 3).forEach(([x0, z0, x1, z1, top], i) => { this.r.shared.uWarm.value[i].set(x0, z0, x1, z1); this.r.shared.uWarmTop.value.setComponent(i, top); });
     this.beacon = new Beacon(this.r.scene);
     this.cityMap = new CityMap({ nav: w.nav, shore: w.shore, occluders: a.occluders, stalls: a.stalls, hiddenDoor: a.hiddenDoor.stand, hotels: a.hotels }, {
@@ -485,6 +494,7 @@ class Game {
       pin: () => this.s.pin ?? null,
       route: () => this.route,
       setPin: (p) => this.setPin(p),
+      walkTo: (p) => this.walkToPin(p),
       worldMap: () => this.travel.openMap('view'),
       close: () => this.ui.close(),
       click: () => this.audio.play('click'),
@@ -601,9 +611,23 @@ class Game {
       this.extras.push(act);
     });
 
+    // in the cathedral and the mosques: the faithful in the pews and on the carpet, visitors looking round
+    for (const h of a.halls ?? []) for (const hp of h.people) {
+      const act = new Actor(buildPerson(randomLook(hp.seed)), this.chars, false, true);
+      act.position.set(hp.pos[0], hp.pose === 'sit' ? hp.pos[1] - SIT_DROP : hp.pos[1], hp.pos[2]);
+      act.facing = act.targetFacing = hp.face;
+      act.anim = hp.pose;
+      act.root.visible = false;
+      this.worldGroup.add(act.root);
+      this.hallPeople.push({ actor: act, pose: hp.pose, alt: hp.alt, t: 4 + Math.random() * 12 });
+    }
+    // the sun falling through their windows
+    this.shafts = new Shafts(this.r.scene, this.r.shared, a.halls ?? []);
+
     // your own footsteps follow the walk cycle, softly
     Actor.onStep = (act, run) => { if (act === this.player) this.audio.step(act.position.x, act.position.z, run); };
     this.audio.setRooms(a.rooms.map((rm) => ({ rect: rm.rect, kind: rm.kind })));
+    this.audio.setHalls((a.halls ?? []).map((h) => ({ rect: h.rect, kind: h.kind })));
 
     // the city's people going about their day; bodies are only built when they first come into view
     const lazy = (act: Actor) => { act.root.visible = false; this.worldGroup.add(act.root); return act; };
@@ -625,6 +649,7 @@ class Game {
     this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
     for (const ex of a.extras ?? []) if (!ex.indoor) this.crowd.addObstacle(ex.pos[0], ex.pos[2]);
+    for (const h of a.halls ?? []) for (const hp of h.people) if (hp.pose !== 'sit') this.crowd.addObstacle(hp.pos[0], hp.pos[2]);
     const m = this.r.isMobile;
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
     // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
@@ -635,7 +660,7 @@ class Game {
     }));
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
-    this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);
+    this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, ground: w.ground, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);
 
     // cats
     a.cats.forEach((c, i) => {
@@ -1608,6 +1633,29 @@ class Game {
     this.reroute();
   }
 
+  /** Pin a spot and walk there on our own, the way a tap on the street walks you to it. */
+  private walkToPin(p: Pin): void {
+    const cur = this.s.pin;
+    if (!cur || Math.hypot(cur.x - p.x, cur.z - p.z) > 0.5 || cur.name !== p.name) this.setPin(p);
+    const pin = this.s.pin!;
+    if (this.inside || this.upstairs) {
+      this.ui.toast('pin', 'Step outside first', 'Your pin is set. Head out and the compass will lead the way.');
+      return;
+    }
+    this.ui.close();
+    const go = (r: [number, number][] | null) => {
+      if (this.s.pin !== pin || this.inside || this.upstairs) return;
+      if (!r?.length) { this.ui.toast('pin', 'No way there on foot', 'Follow the beacon and look for another way round.'); return; }
+      this.path = r.map(([x, z]) => [x, z] as [number, number]);
+      this.pending = null;
+      this.joy = null;
+      this.audio.play('click');
+    };
+    const p0 = this.player.position;
+    // across town the search is big, so it runs off the main thread; if the worker is busy, find it here
+    if (!this.paths.find(p0.x, p0.z, pin.x, pin.z, go)) go(this.nav.findPath(p0.x, p0.z, pin.x, pin.z, PLAYER_REACH));
+  }
+
   private reroute(): void {
     const pin = this.s.pin;
     if (!pin) return;
@@ -2223,6 +2271,19 @@ class Game {
       act.root.visible = on;
       if (on) all.push(act);
     }
+    for (const e of this.hallPeople) {
+      const q = e.actor.position;
+      const on = !this.inside && !this.upstairs && Math.hypot(pp.x - q.x, pp.z - q.z) < 30;
+      e.actor.root.visible = on;
+      if (!on) continue;
+      all.push(e.actor);
+      // now a bow or a look round, then back to what they were doing
+      if (e.alt && (e.t -= dt) <= 0) {
+        const away = e.actor.anim === e.alt;
+        e.actor.anim = away ? e.pose : e.alt;
+        e.t = away ? 8 + Math.random() * 14 : 3 + Math.random() * 4;
+      }
+    }
     for (const e of this.roomActors) {
       const q = e.actor.position;
       const d = Math.hypot(pp.x - q.x, pp.z - q.z);
@@ -2301,6 +2362,7 @@ class Game {
     sh.uCamFwd.value.copy(this.cam.fwd);
     this.roomGlass.show(this.cam.fp);
     this.cutaway.update(dt, this.player.position, this.cam.fwd, this.inside, on, this.upstairs?.room.y ?? 0);
+    this.shafts.update(this.player.position, this.cam.fp, on ? HALL_ROOM : null);
     if (this.inside) return;
     const act = this.cutaway.active;
     for (const c of this.chunks) {
@@ -2397,7 +2459,7 @@ class Game {
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi?.update(sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
-    this.shafts.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);
+    this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);
     this.perf.lap('effects');
     this.updateGuide(dt);
     // paint the pocket map a sliver at a time once the trip is under way, so opening it is instant

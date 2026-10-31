@@ -16,6 +16,7 @@ import { buildCity } from './city';
 import { SwayBody, SWAY, swayKey } from './sway';
 import { wrapLot, dressBlock } from './facades';
 import { noteFront } from './dressing';
+import type { HallAnchor } from './sacred';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
 import { hotelFloors, type HotelAnchor } from './hotels';
 import { hotelAt, type HotelInfo } from '../data/hotels';
@@ -55,6 +56,11 @@ export interface Occluder {
   group?: number;
   /** Height of its ground floor (metres) where the street is not at 0, on a hillside. */
   floor?: number;
+  /**
+   * A great hall one walks into (a cathedral's nave, a mosque's prayer hall): standing inside it the cutaway opens it
+   * like a building's dollhouse, cut this many metres above its floor instead of a room's ceiling height.
+   */
+  room?: number;
 }
 
 export interface Anchors {
@@ -101,6 +107,8 @@ export interface Anchors {
   shafts?: [number, number, number, number, number, number][];
   /** Covered markets lit warm all day: x0, z0, x1, z1 and the roof's height (m); at most three. */
   warm?: [number, number, number, number, number][];
+  /** The great halls one walks into: a cathedral's nave, a mosque's prayer hall (see world/sacred.ts). */
+  halls?: HallAnchor[];
 }
 
 export interface BuildResult {
@@ -214,6 +222,8 @@ export class Builder {
   /** Footprints of props standing on the ground, so later ones can keep clear of them. */
   standing: [number, number, number, number][] = [];
   stools: [number, number, number, number?][] = [];
+  /** Great halls one walks into (world/sacred.ts). */
+  halls: HallAnchor[] = [];
   sway: SwayBody[] = [];
   swayCells = new Map<number, number>();
   /** When set, props placed next hang from this sway body (lanterns on a swinging wire). */

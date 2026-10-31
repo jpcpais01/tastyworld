@@ -207,7 +207,7 @@ export class Koi {
  * drifting in them, gone at night and when the sun is low. Every beam in one instanced draw of four sides each,
  * into the half-resolution particle buffer, faded where the scene stands in front of it.
  */
-export class Shafts {
+export class SkylightBeams {
   readonly mesh: THREE.Mesh;
   private mat: THREE.ShaderMaterial;
 

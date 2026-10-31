@@ -37,7 +37,7 @@ export function sampleLightmap(lm: LightMap2D, x: number, z: number, out: Float3
 export type Anim =
   | 'idle' | 'walk' | 'run' | 'cook' | 'eat' | 'wave' | 'sit' | 'sitEat' | 'bow'
   | 'talk' | 'listen' | 'phone' | 'photo' | 'browse' | 'startle'
-  | 'pray' | 'exercise' | 'ride';
+  | 'pray' | 'exercise' | 'ride' | 'kneel' | 'sujud';
 /** Something carried in the hands while walking or standing. */
 export type Hold = 'none' | 'food' | 'phone';
 
@@ -362,6 +362,13 @@ export class Actor {
     p[OFF + 1] = Math.sin(t * 1.9) * 0.003;
   }
 
+  /** Knees on the floor, sitting back on the heels (lift raises the hips off them, for a prostration). */
+  private kneelLegs(p: Float32Array, lift: number): void {
+    set(p, PART.legL, -1.5 + lift * 0.55, 0, -0.06); set(p, PART.legR, -1.5 + lift * 0.55, 0, 0.06);
+    set(p, PART.shinL, 2.95 - lift * 0.55, 0, 0); set(p, PART.shinR, 2.95 - lift * 0.55, 0, 0);
+    p[OFF + 1] = -(HIP_H - 0.19) + lift * 0.1;
+  }
+
   private eatArms(p: Float32Array, t: number): void {
     const bite = Math.pow(Math.max(0, Math.sin(t * 2.6 + this.seed)), 3);
     set(p, PART.armR, -0.55 - 0.4 * bite, -0.5, 0);
@@ -472,6 +479,25 @@ export class Actor {
         set(p, PART.armR, -0.5, -0.62 + clap * 0.35, 0); set(p, PART.foreR, -1.62, 0, 0);
         add(p, PART.body, 0.12 * settle, 0, 0);
         add(p, PART.head, 0.05 + 0.32 * settle, 0, 0);
+        break;
+      }
+      case 'kneel':
+        // sitting back on the heels on a carpet, hands on the thighs, reading or listening, swaying a little
+        this.kneelLegs(p, 0);
+        set(p, PART.body, 0.1 + Math.sin(t * 0.7 + this.seed) * 0.04, 0, 0);
+        set(p, PART.armL, -0.55, 0.1, 0); set(p, PART.foreL, -0.7, 0, 0);
+        set(p, PART.armR, -0.55, -0.1, 0); set(p, PART.foreR, -0.7, 0, 0);
+        set(p, PART.head, 0.3 + Math.sin(t * 0.5) * 0.04, 0, 0);
+        break;
+      case 'sujud': {
+        // the prayer: kneeling, now and then going down until the forehead touches the carpet, and up again
+        const u = (t + this.seed * 3.7) % 22;
+        const down = sstep(9, 11, u) * (1 - sstep(15, 17, u));
+        this.kneelLegs(p, down);
+        set(p, PART.body, 0.05 + down * 1.25, 0, 0);
+        set(p, PART.head, 0.12 + down * 0.25, 0, 0);
+        set(p, PART.armL, -0.5 - down * 0.85, 0.1 + down * 0.2, 0); set(p, PART.foreL, -0.7 + down * 0.45, 0, 0);
+        set(p, PART.armR, -0.5 - down * 0.85, -0.1 - down * 0.2, 0); set(p, PART.foreR, -0.7 + down * 0.45, 0, 0);
         break;
       }
       case 'exercise': {

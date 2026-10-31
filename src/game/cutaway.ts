@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { ISTANBUL } from '../world/cityId';
 import type { Occluder } from '../world/tokyo';
-import { SHELL, SPILL, type Field, type GridRect, type Owned, type Owners } from '../world/owners';
+import { SHELL, SPILL, solidBase, type Field, type GridRect, type Owned, type Owners } from '../world/owners';
 
 /**
  * Whole-object cutaway. Every building, landmark and tree registers a footprint (Occluder); any other solid
@@ -200,7 +200,7 @@ export class Cutaway {
       for (let i = 0; i < s.length; i++) this.march(sc, s[i], -fwd.x / dl, -fwd.y / dl, -fwd.z / dl, i >= 4);
       for (const i of live) {
         const o = this.occ[i], [x0, z0, x1, z1] = o.rect;
-        if (i < sc.from || i >= sc.to || o.kind !== 'building' || block[i]) continue;
+        if (i < sc.from || i >= sc.to || !enterable(o) || block[i]) continue;
         if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1) { block[i] = 1; hits.push(i); }
       }
       for (const i of hits) {
@@ -215,7 +215,7 @@ export class Cutaway {
       const o = this.occ[i], st = this.st[i];
       const mine = i >= sc.from && i < sc.to;
       const [x0, z0, x1, z1] = o.rect;
-      const contain = on && mine && o.kind === 'building' && p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1;
+      const contain = on && mine && enterable(o) && p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1;
       const blocking = block[i] === 1 || (o.group !== undefined && groups.has(o.group));
       if (!mine || !on) {
         // first-person view, title screen or the other scene: everything stands at full height at once
@@ -236,7 +236,8 @@ export class Cutaway {
         const rel = st.f > 0 ? st.f - (o.floor ?? 0) : 0;
         const up = rel * c;
         const low = o.top + (Math.min(o.top, o.low + up) - o.top) * e;
-        const roomH = o.top + (Math.min(o.top, Math.max(o.low, ROOM_TOP + (o.floor ?? 0)) + (rel > 0 ? rel - 0.5 : 0) * c) - o.top) * e;
+        // (a great hall, a cathedral's nave or a mosque's prayer hall, opens higher: its own `room` height)
+        const roomH = o.top + (Math.min(o.top, Math.max(o.low, (o.room ?? ROOM_TOP) + (o.floor ?? 0)) + (rel > 0 ? rel - 0.5 : 0) * c) - o.top) * e;
         f = low;
         b = low + (roomH - low) * c;
         n = b;
@@ -255,8 +256,14 @@ export class Cutaway {
 
 /** Whether column c of a scene is solid at height y (metres above the street). */
 function solidAt(f: Field, c: number, y: number): boolean {
-  const l = Math.floor(y / V);
-  return l < 64 ? ((f.solid[c * 2 + (l >> 5)] >>> (l & 31)) & 1) === 1 : l < f.height[c];
+  const L = Math.floor(y / V), l = L - solidBase(f.ground, c);
+  if (l < 0) return true;
+  return l < 64 ? ((f.solid[c * 2 + (l >> 5)] >>> (l & 31)) & 1) === 1 : L < f.height[c];
+}
+
+/** Buildings, and the great halls one walks into (whose cut opens like a building's dollhouse). */
+function enterable(o: Occluder): boolean {
+  return o.kind === 'building' || o.room !== undefined;
 }
 
 /** Highest solid point of a scene (metres above the street): rays stop there. */

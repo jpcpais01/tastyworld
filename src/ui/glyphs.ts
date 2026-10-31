@@ -51,6 +51,7 @@ export const G = {
   caption: svg('<rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M3.5 15.5h17M7 17.8h5"/><path d="m6.5 12 3.5-3.5 3 3 2-2 2.5 2.5"/>'),
   download: svg('<path d="M12 3.5V15M7.5 10.5 12 15l4.5-4.5"/><path d="M5 19.5h14"/>'),
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  walk: svg('<circle cx="13.5" cy="4.5" r="1.8"/><path d="m9 21 3-6.5 2.5 2.5v4.5M12 14.5l1-6-3.5 1.5L8 13.5M13 8.5l2.5 3.5 3 .5"/>'),
 };
 
 export type GlyphName = keyof typeof G;

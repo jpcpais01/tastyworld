@@ -16,6 +16,8 @@ export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle'
   | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
 
 export interface AudioRoom { rect: [number, number, number, number]; kind: string }
+/** A great hall one walks into: its floor plan (metres) and what it is. */
+export interface AudioHall { rect: [number, number, number, number]; kind: 'church' | 'mosque' }
 
 const SR = 32000; // render rate for bright one-shots
 const LSR = 22050; // render rate for mellow notes and footsteps (Safari needs >= 22050)
@@ -240,6 +242,13 @@ export class Audio {
   private lz = 0;
   private lroom = -1;
   private rooms: AudioRoom[] = [];
+  private halls: AudioHall[] = [];
+  private lhall = -1;
+  /** The halls' long stone echo and the organ's soft chords, made the first time one is entered. */
+  private hallVerb: ConvolverNode | null = null;
+  private hallSend!: GainNode;
+  private carpet!: BiquadFilterNode;
+  private organ: { out: GainNode; oscs: OscillatorNode[]; next: number; chord: number } | null = null;
   private night = 0;
   private inside = false;
   private timers: Record<string, number> = {};
@@ -338,6 +347,11 @@ export class Audio {
     this.rooms = rooms;
   }
 
+  /** The cathedral and the mosques: inside them the street falls away, steps ring, and in the church an organ plays. */
+  setHalls(halls: AudioHall[]): void {
+    this.halls = halls;
+  }
+
   /** Ambient proximity: 0..1 for grills and water, plus time of day and whether we're in the hidden restaurant. */
   ambience(sizzle: number, water: number, night: number, inside = false): void {
     if (!this.ctx) return;
@@ -363,18 +377,86 @@ export class Audio {
     const t = this.ctx.currentTime;
     this.lx = x; this.lz = z;
     const room = this.inside ? -1 : this.roomAt(x, z);
-    if (room !== this.lroom) {
+    const hall = this.inside ? -1 : this.hallAt(x, z);
+    if (room !== this.lroom || hall !== this.lhall) {
       this.lroom = room;
-      this.streetTone.frequency.setTargetAtTime(room >= 0 || this.inside ? 1100 : 16000, t, 0.3);
-      this.street.gain.setTargetAtTime(room >= 0 ? 0.55 : 1, t, 0.3);
+      this.lhall = hall;
+      // in a great hall the town outside is a murmur through the thick walls, the street tune nearly gone
+      this.streetTone.frequency.setTargetAtTime(hall >= 0 ? 520 : room >= 0 || this.inside ? 1100 : 16000, t, hall >= 0 ? 0.9 : 0.3);
+      this.street.gain.setTargetAtTime(hall >= 0 ? 0.32 : room >= 0 ? 0.55 : 1, t, hall >= 0 ? 0.9 : 0.3);
+      this.musicTone.frequency.setTargetAtTime(hall >= 0 ? 650 : this.inside ? 1500 : 9000, t, 0.9);
+      this.musicLevel.gain.setTargetAtTime(hall >= 0 ? 0.12 : 0.36, t, 0.9);
+      if (hall >= 0) this.hallBus();
+      this.hallSend?.gain.setTargetAtTime(hall >= 0 ? 1 : 0, t, 0.4);
+      this.organ?.out.gain.setTargetAtTime(hall >= 0 && this.halls[hall].kind === 'church' ? 0.022 : 0, t, 2.5);
     }
+    if (hall >= 0 && this.halls[hall].kind === 'church') this.playOrgan(t);
+  }
+
+  private hallAt(x: number, z: number): number {
+    for (let i = 0; i < this.halls.length; i++) if (inRect(this.halls[i].rect, x, z)) return i;
+    return -1;
+  }
+
+  /**
+   * The halls' sound, made once: a long dark echo (five seconds of stone) that footsteps and the organ go into,
+   * the soft dull fall of a step on carpet, and the organ itself: a few soft flue pipes holding slow chords.
+   */
+  private hallBus(): void {
+    const ctx = this.ctx!;
+    if (this.hallVerb) return;
+    this.hallVerb = ctx.createConvolver();
+    this.hallVerb.buffer = this.impulse(5, 0.9);
+    this.hallVerb.connect(this.gain(0.5, this.filter('lowpass', 3200, 0.4, this.amb)));
+    this.hallSend = this.gain(0, this.hallVerb);
+    this.carpet = this.filter('lowpass', 900, 0.5, this.amb);
+    const out = this.gain(0, this.amb);
+    out.connect(this.hallVerb);
+    const tone = this.filter('lowpass', 1400, 0.5, out);
+    const oscs: OscillatorNode[] = [];
+    // three voices, each a pipe with its octave: sine and a quiet triangle an octave up
+    for (let i = 0; i < 3; i++) for (const [type, mul, v] of [['sine', 1, 0.5], ['triangle', 2, 0.14]] as const) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = 220 * mul;
+      o.connect(this.gain(v, tone));
+      o.start();
+      oscs.push(o);
+    }
+    this.organ = { out, oscs, next: 0, chord: 0 };
+  }
+
+  /** The organ moves to its next chord every few bars, gliding, the way someone practising softly would. */
+  private playOrgan(t: number): void {
+    const o = this.organ;
+    if (!o || t < o.next) return;
+    // F major, slow and plain: F, Dm, B-flat, C, Am, B-flat, C, F (bass, third, fifth as midi notes)
+    const CH = [[53, 57, 60], [50, 57, 62], [46, 53, 58], [48, 55, 64], [45, 52, 60], [46, 53, 62], [48, 55, 60], [41, 57, 60]];
+    const ch = CH[o.chord++ % CH.length];
+    ch.forEach((m, i) => {
+      const f = 440 * Math.pow(2, (m - 69) / 12);
+      o.oscs[i * 2].frequency.setTargetAtTime(f, t, 0.35);
+      o.oscs[i * 2 + 1].frequency.setTargetAtTime(f * 2, t, 0.35);
+    });
+    o.next = t + rand(6, 9);
   }
 
   /** The player's foot touching the ground (from the walk cycle): barely there, just enough to feel the floor. */
   step(x: number, z: number, run: boolean): void {
     if (!this.ctx || !this.vol.amb) return;
+    const t = this.ctx.currentTime + 0.005, vol = (run ? 0.035 : 0.024) * rand(0.7, 1.05);
+    const h = this.inside ? -1 : this.hallAt(x, z);
+    if (h >= 0 && this.hallVerb) {
+      const hall = this.halls[h];
+      // on a mosque's carpet a step is a soft dull pad; on a church's marble it rings down the nave
+      if (hall.kind === 'mosque' && z < hall.rect[3] - 1.1) { this.fire(this.buf(`step-wood-${Math.floor(rand(0, 3))}`), t, vol * 0.45, this.carpet, rand(0.62, 0.72)); return; }
+      const b = this.buf(`step-stone-${Math.floor(rand(0, 3))}`), rate = rand(0.88, 1.04);
+      this.fire(b, t, vol, this.amb, rate);
+      this.fire(b, t, vol * 1.6, this.hallSend, rate);
+      return;
+    }
     const k = `step-${this.surfaceAt(x, z)}-${Math.floor(rand(0, 3))}`;
-    this.fire(this.buf(k), this.ctx.currentTime + 0.005, (run ? 0.035 : 0.024) * rand(0.7, 1.05), this.amb, rand(0.88, 1.08));
+    this.fire(this.buf(k), t, vol, this.amb, rand(0.88, 1.08));
   }
 
   /** Called every frame: runs the sequencers, ambient life and the render warm-up queue. */
@@ -1067,7 +1149,8 @@ export class Audio {
   }
 
   /** Stereo room impulse: decaying noise that darkens over time. */
-  private impulse(dur: number): AudioBuffer {
+  /** A reverb's impulse: `dur` seconds of decaying noise, `decay` the rate it dies at (lower rings longer). */
+  private impulse(dur: number, decay = 3.2): AudioBuffer {
     const ctx = this.ctx!, sr = ctx.sampleRate, n = Math.floor(dur * sr);
     const b = ctx.createBuffer(2, n, sr);
     for (let c = 0; c < 2; c++) {
@@ -1076,7 +1159,7 @@ export class Audio {
       for (let i = 0; i < n; i++) {
         const t = i / sr;
         lp += (0.9 - 0.8 * t / dur) * (noise() - lp);
-        d[i] = lp * Math.exp(-t * 3.2) * (t < 0.012 ? t / 0.012 : 1);
+        d[i] = lp * Math.exp(-t * decay) * (t < 0.012 ? t / 0.012 : 1);
       }
     }
     return b;

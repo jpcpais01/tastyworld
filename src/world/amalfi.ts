@@ -10,6 +10,7 @@ import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { amalfiPlan, K, col, layerOf, hillY, headlandY, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan } from './amalfiPlan';
+import { duomoInterior, HALL_ROOM } from './sacred';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -573,6 +574,7 @@ export function buildAmalfi(win?: Window): BuildResult {
     secret: null,
     occluders: b.occluders,
     wires: b.wires,
+    halls: b.halls,
   };
   for (const id of anchors.idlers) id.pos[1] = 0;
   // a southern town at night is lit warm and generous: lamp light reaches further over the pale stone than in Tokyo
@@ -1048,7 +1050,8 @@ function duomo(b: Builder, c: AC): void {
   const X0 = -58 / V, X1 = -27 / V - 1, Z0 = 4 / V, Z1 = 24 / V - 1;
   const H = Math.round(15 / V);
   b.occlude(X0, Z0, X1, Z1, DUOMO_Y + 24, DUOMO_Y + 0.95, 'landmark');
-  b.occluders[b.occluders.length - 1].floor = DUOMO_Y;
+  // the nave is walked into from the portico like a shop: the cutaway opens it 6 m over its floor
+  Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, room: HALL_ROOM });
   if (g.touches(X0, Z0 - 30, X1 + 30, Z1 + 30)) {
     g.box(X0, Y, Z0, X1, Y + H, Z1, (_x, y) => (y < Y + 2 ? c.marbleGrey : ((y - Y) >> 1) % 6 === 0 ? c.stripeTufa : c.cream));
     // pitched roof along the nave
@@ -1097,6 +1100,8 @@ function duomo(b: Builder, c: AC): void {
     b.lamp(-6, PIAZZA_Y + 1, 19, [1, 0.86, 0.66], 8, 0.7);
     duomoDress(g, c, { Y, H, X0, X1, Z0, Z1, FX, FW0, FW1, zc });
   }
+  // inside: the baroque nave, the apse and the crypt (registers its anchors in every worker)
+  duomoInterior(b, { X0, X1, Z0, Z1, Y, H, FX: X1 + 1, zc: (Z0 + Z1) >> 1, roof: [c.roofTile, c.roofTileB] });
   // the bell tower (1180), finished with a drum of interlaced arches and green and yellow tiles
   const TX0 = -40 / V, TZ0 = 25 / V, TS = 22;
   b.occlude(TX0, TZ0, TX0 + TS - 1, TZ0 + TS - 1, DUOMO_Y + 40, DUOMO_Y + 0.95, 'landmark');

@@ -8,6 +8,46 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.39',
+    date: '2026-10-31',
+    title: 'Inside the cathedral and the mosques',
+    items: [
+      'Amalfi\'s Duomo and Istanbul\'s New Mosque and Süleymaniye can now be walked into straight from the street, like a shop: no loading, the walls open round you as you step through the door.',
+      'Sant\'Andrea is its baroque self inside: a white and gold nave on marble arcades between two aisles, a gilded coffered ceiling with painted canvases, the apse with its conch of gold over the high altar and the painting of the saint on his cross, mosaic ambos, choir stalls, side altars with votive candles, confessionals, the organ loft over the bronze doors, walnut pews, crystal chandeliers, and through a balustraded well in the north aisle, a glimpse down into the crypt where Andrew\'s bronze statue stands.',
+      'The mosques are carpeted in rows facing the mihrab, under domes and half-domes painted inside, carried on four great piers and arches. The New Mosque is tiled in İznik blue, turquoise and coral up to its galleries; Süleymaniye keeps its tiles round the mihrab and is otherwise painted plaster, marble and light. Both have the minbar\'s stair and spire, the preacher\'s chair, the muezzins\' platform, calligraphy roundels, Qur\'an stands, shoe racks by the door, and the great ring of oil lamps hung low on long chains.',
+      'Sunlight falls through the windows as soft dusty beams: through the Duomo\'s rose window and stained glass, and the ring of windows round each dome. The beams follow the real sun across the day and fade when it sets.',
+      'People keep to them: the faithful in the pews and at prayer, worshippers kneeling on the carpet and going down in prostration, readers at their stands, a few visitors taking photos. Anyone walking by may come in and sit in a pew.',
+      'Inside, the town falls quiet behind the thick walls, your steps ring on the marble or go soft on the carpet, and in the Duomo an organ plays slow chords very softly.',
+      'Only the hall you are near is drawn in full, and the stained glass and beams cost next to nothing, so the frame rate holds.',
+    ],
+  },
+  {
+    version: '0.16.38',
+    date: '2026-10-31',
+    title: 'Rooftops to the horizon',
+    items: [
+      'The far city around Istanbul now carries the same stepped red tile roofs as the houses you walk past, so the old town rolls on past the edge of the map as one sea of rooftops instead of flat blocks.',
+    ],
+  },
+  {
+    version: '0.16.37',
+    date: '2026-10-31',
+    title: 'A built-up old city',
+    items: [
+      'Istanbul\'s old city is far denser. About sixty more houses stand in the yards and the wedges of ground left beside the slanting streets, so the streets read as rows of houses shoulder to shoulder rather than houses dotted about open ground.',
+      'Yards and gardens are walled off from the street by whitewashed or stone and brick walls with tiled copings. Every few metres a gateway with a wooden lintel lets you in.',
+    ],
+  },
+  {
+    version: '0.16.36',
+    date: '2026-10-31',
+    title: 'Walk to your pin',
+    items: [
+      'Pins on the pocket map now land exactly where you tap or click. Before, the map could be drawn slightly larger than it measured itself, so a pin placed away from the middle landed a little off.',
+      'Every card on the map has a Walk here button. Tap it on your pin, a stall, a hotel or a friend and the map folds away while you walk there on your own, round corners and up the stairs. Move yourself at any time to take over.',
+    ],
+  },
+  {
     version: '0.16.35',
     date: '2026-10-31',
     title: 'Real houses on the hills',

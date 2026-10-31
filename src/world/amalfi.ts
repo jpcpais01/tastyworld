@@ -888,6 +888,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
         const [ox, oz] = f.out(a + 1);
         const ground = outside(ox, oz);
         if (ground > yb + 3) continue; // buried in the hill or against the neighbour
+        if (ox >= VX0 && oz >= VZ0 && ox < VX0 + SX && oz < VZ0 + SZ && plan.kind[col(ox, oz)] === K.Covered) continue; // onto a covered passage: its vault and the house over it
         const [wx, wz] = f.at(a), [wx2, wz2] = f.at(a + 2);
         const groundFloor = fl === 0 || ground > yb - 6;
         // shops on the piazza and the main street open arches at street level instead

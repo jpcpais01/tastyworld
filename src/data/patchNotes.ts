@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.48',
+    date: '2026-10-31',
+    title: 'Where Tokyo ends',
+    items: [
+      'Tokyo no longer stops at an invisible straight line. Each street now ends at something real: roadworks hoarding with cones across Hikari-dori, Minami-dori, Center-gai, Nishi-dori and Neon-dori, block walls at the ends of the back lanes, a shutter across the far end of the Hikari Ginza arcade, and a stone wall where the canal promenades stop.',
+      'Where the canal leaves town, it now runs out under two tall concrete floodgates with their winding houses on top.',
+      'The edges of the Inari hill, the shrine wood and the park now wander. A bamboo fence, a vermilion shrine fence and a clipped hedge close them off, with thick woods behind that carry on past the edge of the map.',
+      'Tower cranes stand over the roadworks where Neon-dori and Minami-dori leave town. Each has a red light on the end of its jib.',
+      'Past the edge, houses now stand shoulder to shoulder against the town and the woods run on, so you no longer see an empty square road around the map.',
+    ],
+  },
+  {
     version: '0.16.47',
     date: '2026-10-31',
     title: 'Istanbul\'s streets, house by house',

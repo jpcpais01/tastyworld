@@ -73,16 +73,25 @@ const TREE = ['#5c8a4a', '#4f7a43', '#6a9550', '#e9b4c4'];
  * `tower` puts Tokyo Tower at that point (x, z), on a plaza with Foot Town under its legs; the blocks round it
  * are left clear.
  */
-export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300, tower?: [number, number]): { city: THREE.Mesh; ground: THREE.Mesh } {
+/**
+ * `ring` dresses the strip of the ring road against the map: `open` keeps the road where a street of the town
+ * carries on out, `green` turns it to lawn and trees where the town's woods and parks meet it, and everywhere
+ * else houses stand shoulder to shoulder against the voxel town, so its edge never reads as a straight line.
+ */
+export interface Ring { open: Rect[]; green: Rect[] }
+
+export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300, tower?: [number, number], ring?: Ring): { city: THREE.Mesh; ground: THREE.Mesh } {
   const [x0, z0, x1, z1] = rect;
   const parts: number[] = [];
   let seed = 9173;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const pick = <T,>(a: T[]) => a[Math.floor(rnd() * a.length) % a.length];
   const col = new THREE.Color();
+  /** Parts made while `keep` is set never squat in the iso view (the low trees along the ring). */
+  let keep = 0;
   const part = (cx: number, cz: number, w: number, d: number, y0: number, h: number, kind: number, c: string, s = rnd()) => {
     col.set(c);
-    parts.push(cx, cz, w, d, y0, h, kind, s, col.r, col.g, col.b, 0);
+    parts.push(cx, cz, w, d, y0, h, kind, s, col.r, col.g, col.b, keep);
   };
   const outOf = (ax0: number, az0: number, ax1: number, az1: number) => Math.max(x0 - ax1, ax0 - x1, z0 - az1, az0 - z1);
   const site: Rect = tower ? [tower[0] - 52, tower[1] - 52, tower[0] + 52, tower[1] + 52] : [0, 0, 0, 0];
@@ -222,6 +231,36 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         }
       }
     }
+  if (ring) {
+    const hit = (rs: Rect[], ax0: number, az0: number, ax1: number, az1: number) => rs.some(([a, b, c, e]) => ax1 > a && ax0 < c && az1 > b && az0 < e);
+    const lot = (lx0: number, lz0: number, lx1: number, lz1: number, face: number) => {
+      if (hit(ring.open, lx0, lz0, lx1, lz1) || inGap(lx0, lz0, lx1, lz1)) return;
+      if (hit(ring.green, lx0, lz0, lx1, lz1)) {
+        // the wood or the park carries on: a tree or two on the lawn, full height even in the iso view, as low
+        // as the town's own trees beside them
+        keep = 1;
+        for (let i = 0; i < 2; i++) {
+          const sz = 2.6 + rnd() * 1.8, tx = lx0 + 1 + rnd() * (lx1 - lx0 - 2), tz = lz0 + 1 + rnd() * (lz1 - lz0 - 2);
+          const y = 1.8 + rnd() * 0.8, leaf = rnd() < 0.08 ? TREE[3] : pick(TREE.slice(0, 3));
+          part(tx, tz, 0.5, 0.5, 0, y + 0.3, 4, '#6b5240');
+          // a crown stepped in like the town's voxel trees: a broad tier and a narrower one on top
+          part(tx, tz, sz, sz, y, sz * 0.55, 6, leaf);
+          part(tx + (rnd() - 0.5) * 0.6, tz + (rnd() - 0.5) * 0.6, sz * 0.62, sz * 0.62, y + sz * 0.55, sz * 0.4, 6, leaf);
+        }
+        keep = 0;
+        return;
+      }
+      building(lx0, lz0, lx1, lz1, 0, 0, face);
+    };
+    // lots of 5 to 9 m along each side of the ring, the corners taken by the east and west runs
+    const run = (a0: number, a1: number, place: (s: number, e: number) => void) => {
+      for (let a = a0; a < a1 - 2;) { const e = Math.min(a1, a + 5 + rnd() * 4); place(a, a1 - e < 4 ? a1 : e); a = a1 - e < 4 ? a1 : e; }
+    };
+    run(z0 - RING, z1 + RING, (a, e) => lot(x0 - RING, a, x0, e, 0));
+    run(z0 - RING, z1 + RING, (a, e) => lot(x1, a, x1 + RING, e, 0));
+    run(x0, x1, (a, e) => lot(a, z1, e, z1 + RING, 0));
+    run(x0, x1, (a, e) => lot(a, z0 - RING, e, z0, 2));
+  }
   const n = parts.length / 12;
   const g = new THREE.InstancedBufferGeometry();
   const box = new THREE.BoxGeometry(1, 1, 1);
@@ -233,6 +272,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
   g.setAttribute('aBox', new THREE.InterleavedBufferAttribute(ib, 4, 0));
   g.setAttribute('aPart', new THREE.InterleavedBufferAttribute(ib, 4, 4));
   g.setAttribute('aCol', new THREE.InterleavedBufferAttribute(ib, 3, 8));
+  g.setAttribute('aKeep', new THREE.InterleavedBufferAttribute(ib, 1, 11));
   g.instanceCount = n;
 
   const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
@@ -247,13 +287,13 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     glslVersion: THREE.GLSL3,
     uniforms: u,
     vertexShader: /* glsl */ `
-      in vec4 aBox; in vec4 aPart; in vec3 aCol;
+      in vec4 aBox; in vec4 aPart; in vec3 aCol; in float aKeep;
       uniform vec3 uCamFwd; uniform vec2 uMid;
       out vec3 vWorld; out vec3 vN; out vec3 vLocal; out vec3 vSize; out vec4 vPart; out vec3 vCol;
       void main() {
         float y0 = aPart.x, h = aPart.y, s = 1.0;
         // iso view: blocks between the camera and the map squat down so they never hide the streets
-        if (projectionMatrix[3][3] == 1.0) {
+        if (projectionMatrix[3][3] == 1.0 && aKeep < 0.5) {
           vec2 dir = normalize(aBox.xy - uMid);
           float camSide = -dot(dir, normalize(uCamFwd.xz));
           s = mix(1.0, 0.12, smoothstep(-0.2, 0.5, camSide));
@@ -421,6 +461,9 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       uCanal: { value: gap(0) }, uAve0: { value: gap(1) }, uAve1: { value: gap(2) },
       uParks: { value: Array.from({ length: 32 }, (_, i) => new THREE.Vector2(parkArr[i * 2], parkArr[i * 2 + 1])) },
       uParkN: { value: Math.min(32, parks.length / 2) },
+      uGreen: { value: Array.from({ length: 8 }, (_, i) => new THREE.Vector4(...(ring?.green[i] ?? [0, 0, 0, 0]))) },
+      uOpen: { value: Array.from({ length: 12 }, (_, i) => new THREE.Vector4(...(ring?.open[i] ?? [0, 0, 0, 0]))) },
+      uRing: { value: ring ? 1 : 0 },
     },
     vertexShader: /* glsl */ `
       out vec3 vWorld;
@@ -432,9 +475,27 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       uniform vec3 uFogColor, uSkyColor, uGroundColor, uSunColor, uSunDir, uWindowColor;
       uniform float uNight, uLamp; uniform vec4 uFog; uniform vec4 uRect;
       uniform vec4 uCanal, uAve0, uAve1, uSite; uniform vec2 uParks[32]; uniform int uParkN;
+      uniform vec4 uGreen[8]; uniform vec4 uOpen[12]; uniform int uRing;
       in vec3 vWorld;
       layout(location = 0) out vec4 outColor;
       bool inside(vec2 p, vec4 r) { return p.x > r.x && p.x < r.z && p.y > r.y && p.y < r.w; }
+      // within the ring road round the map
+      bool inRing(vec2 p) {
+        vec2 o = max(uRect.xy - p, p - uRect.zw);
+        float d = max(o.x, o.y);
+        return d > 0.0 && d < RING;
+      }
+      bool ringGreen(vec2 p) {
+        if (!inRing(p)) return false;
+        for (int i = 0; i < 12; i++) if (inside(p, uOpen[i])) return false;
+        for (int i = 0; i < 8; i++) if (inside(p, uGreen[i])) return true;
+        return false;
+      }
+      bool ringShut(vec2 p) {
+        if (!inRing(p)) return false;
+        for (int i = 0; i < 12; i++) if (inside(p, uOpen[i])) return false;
+        return true;
+      }
       void main() {
         if (vWorld.y < -1.0) { outColor = vec4(uFogColor, 1.0); return; }
         vec2 p = vWorld.xz;
@@ -458,6 +519,12 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
           vec3 water = mix(srgb2lin(vec3(0.16, 0.27, 0.3)), uSkyColor * 0.5, 0.35);
           vec3 stone = srgb2lin(vec3(0.62, 0.6, 0.56));
           alb = edge < 0.8 ? stone : water;
+        } else if (uRing == 1 && ringGreen(p)) {
+          // the hill's wood and the park run on past the edge of the town
+          alb = srgb2lin(vec3(0.38, 0.55, 0.3)) * (0.85 + 0.25 * vnoise(p * 0.7));
+        } else if (uRing == 1 && ringShut(p)) {
+          // houses stand along the ring here: the pavement in front of and between them
+          alb = srgb2lin(vec3(0.6, 0.58, 0.54));
         } else if (road > 0.0 || inside(p, uAve0) || inside(p, uAve1)) {
           // asphalt with a dashed centre line; kerbs and pavement along the edge
           float t = road > 0.0 ? road : 3.0;

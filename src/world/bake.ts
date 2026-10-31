@@ -184,6 +184,7 @@ function computeNav(grid: SparseGrid, x0: number, z0: number, x1: number, z1: nu
     for (let x = 0; x < sx; x++) {
       if (x0 + x >= HILL[0] && x0 + x <= HILL[2] && z0 + z >= HILL[1] && z0 + z <= HILL[3]) {
         // on the hill, the lowest open ground (the path runs under torii beams and trees)
+        if (topAt && !topAt(x0 + x, z0 + z)) continue;
         for (let y = G - 1; y < G + 32; y++) {
           if (grid.get(x0 + x, y - 1, z0 + z) === 0) continue;
           let clear = true;

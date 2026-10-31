@@ -520,6 +520,65 @@ function produce(c: IC2, seed: number): Prop {
 }
 
 /** A cat's little wooden house and its water bowl, put out by the neighbours. */
+/** A terracotta pot by a door: geraniums, a bay tree, a little lemon. */
+function pottedPlant(c: IC2, seed: number): Prop {
+  const p = new Prop(6, 12, 6);
+  const tall = seed % 3 === 0;
+  p.cylY(3, 3, 2.4, 0, 3, (_x, y) => (y === 3 ? c.brickDark : c.brick));
+  p.cylY(3, 3, 2, 4, 4, c.soil);
+  const flower = [c.rose2, c.tulip, c.tulipY, c.white][seed % 4];
+  if (tall) { p.box(3, 5, 3, 3, 7, 3, c.trunk); p.ellipsoid(3, 9.5, 3, 2.6, 2.3, 2.6, (x, y, z) => (hash3(x, y + seed, z) < 0.12 ? c.yellow : hash3(x, y, z + seed) < 0.5 ? c.leaf : c.leafDark)); }
+  else p.ellipsoid(3, 6.5, 3, 2.8, 2.2, 2.8, (x, y, z) => (hash3(x + seed, y, z) < 0.3 ? flower : hash3(x, y, z) < 0.5 ? c.leaf : c.leafLight));
+  p.sway(SWAY.bush, [3, 4, 3], [0, 0, 0], (_x, y) => y >= 5);
+  return p;
+}
+
+/** A shop's blade sign on its iron bracket, standing out from the wall over the pavement. Faces +z. */
+function bladeSign(c: IC2, seed: number): Prop {
+  const p = new Prop(1, 7, 9);
+  const col = [c.signRed, c.signBlue, c.signGreen, c.woodDark, c.gold][seed % 5];
+  p.box(0, 6, 0, 0, 6, 8, c.iron);
+  p.set(0, 5, 0, c.iron);
+  p.box(0, 0, 3, 0, 4, 8, (_x, y, z) => (y === 0 || y === 4 || z === 3 || z === 8 ? c.gold : hash3(seed, y, z) < 0.45 ? c.white : col));
+  p.sway(SWAY.bush, [0.5, 6, 5.5], [1, 0, 0], (_x, y) => y <= 4);
+  return p;
+}
+
+/**
+ * An Ottoman street fountain, the çeşme: a marble niche set into the wall under a pointed arch, its inscription
+ * in gold on green, a brass tap, and the trough below. Faces +z, its back against the wall.
+ */
+function cesme(c: IC2): Prop {
+  const p = new Prop(15, 24, 5);
+  // the frame and the niche
+  for (let y = 0; y < 22; y++) for (let x = 0; x < 15; x++) {
+    const dx = Math.abs(x - 7), arch = y > 13 ? 13 + Math.round(Math.sqrt(Math.max(0, 25 - dx * dx)) * 1.3) : 99;
+    const inNiche = dx <= 4 && y >= 4 && y < Math.min(arch, 20);
+    p.set(x, y, 0, c.marble);
+    if (!inNiche) p.set(x, y, 1, y === 21 || x === 0 || x === 14 ? c.marbleGrey : c.marble);
+    else if (y >= 15 && y <= 17) p.set(x, y, 0, (x + y) % 3 === 0 ? c.gold : c.iznikGreen); // the inscription in the niche
+  }
+  p.box(0, 22, 0, 14, 22, 2, c.marbleGrey); // the eave
+  p.box(1, 23, 0, 13, 23, 1, c.lead);
+  // the tap and the trough
+  p.box(7, 9, 1, 7, 9, 2, c.brass); p.set(7, 8, 2, c.brass);
+  p.box(2, 0, 2, 12, 3, 4, (x, y, z) => (y === 3 || x === 2 || x === 12 || z === 4 ? c.marble : y === 2 ? c.glass : c.marbleGrey));
+  return p;
+}
+
+/** A scooter parked at the kerb, as everyone in Istanbul seems to own one. Faces +z. */
+function scooter(c: IC2, seed: number): Prop {
+  const p = new Prop(4, 9, 13);
+  const body = [c.cartRed, c.white, c.awnBlue, c.yellow, c.grey][seed % 5];
+  for (const z of [1, 10]) p.box(1, 0, z, 2, 2, z + 2, c.trimDark);
+  p.box(1, 2, 3, 2, 3, 10, body);
+  p.box(1, 4, 6, 2, 4, 9, c.trimDark); // the seat
+  p.box(1, 3, 10, 2, 6, 11, body);
+  p.box(0, 7, 11, 3, 7, 11, c.chrome);
+  p.set(1, 6, 12, c.lampAmber);
+  return p;
+}
+
 function catHouse(c: IC2): Prop {
   const p = new Prop(8, 7, 6);
   p.box(0, 0, 0, 5, 4, 5, c.woodBare);
@@ -533,7 +592,8 @@ function catHouse(c: IC2): Prop {
 
 // ------------------------------------------------------------------------------------------- build
 
-type Ctx = { b: Builder; c: IC2; plan: Plan; inWin: (x: number, z: number) => boolean };
+type Extra = { pos: [number, number, number]; face: number; seed: number; indoor?: boolean };
+type Ctx = { b: Builder; c: IC2; plan: Plan; inWin: (x: number, z: number) => boolean; keepers: Extra[] };
 
 export function buildIstanbul(win?: Window): BuildResult {
   const b = new Builder(win);
@@ -542,7 +602,7 @@ export function buildIstanbul(win?: Window): BuildResult {
   const plan = istanbulPlan();
   const [wx0, wz0, wx1, wz1] = win ?? [VX0, VZ0, VX0 + SX, VZ0 + SZ];
   const inWin = (x: number, z: number) => x >= wx0 && x < wx1 && z >= wz0 && z < wz1;
-  const ctx: Ctx = { b, c, plan, inWin };
+  const ctx: Ctx = { b, c, plan, inWin, keepers: [] };
 
   terrain(ctx, wx0, wz0, wx1, wz1);
   const uses = assignUses(plan);
@@ -585,7 +645,7 @@ export function buildIstanbul(win?: Window): BuildResult {
     benches: b.benches,
     stools: b.stools,
     cats: CATS,
-    extras: [...anglers(), ...teaGardenFolk()],
+    extras: [...anglers(), ...teaGardenFolk(), ...ctx.keepers],
     emitters: b.emitters,
     // no fireflies over the Golden Horn's busy quays
     fireflies: [],
@@ -823,9 +883,14 @@ function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
       roof(ctx, lt, { wall, wooden, han, r });
     }
   }
-  if (bazaar) return;
+  if (bazaar) {
+    // the bazaar shop's keeper stands just inside the open front, among the goods
+    if (!use?.room) { const [kx, kz] = f.m(f.W / 2 - 3, 2); ctx.keepers.push({ pos: [kx, (base - G) * V, kz], face: f.faceOut, seed: lt.seed * 13 + 5, indoor: true }); }
+    return;
+  }
   if (use?.hotel !== undefined) hotel(ctx, f, lt, use.hotel, touched);
   else if (use?.room) foodRoom(ctx, f, lt, use.room, touched, use.restaurant);
+  else if (shopFront && f.W >= 10 && f.D >= 12) shopInterior(ctx, f, lt, touched);
   else if (touched && f.W >= 16 && f.D >= 16 && (lt.use === 'house' || !shopFront)) homeRoom(ctx, f, lt);
 }
 
@@ -971,6 +1036,88 @@ function homeRoom(ctx: Ctx, f: Frame, lt: LotPlan): void {
   f.box(g, ca - 1, base, cd, ca, base + 1, cd + 1, c.woodDark);
   f.box(g, 2, base, 2, 3, base + 7, 4, c.woodBare);
   if (hash3(lt.x0, base, lt.z1) < 0.7) { const [lx, lz] = f.m(ca, cd); b.lamp(lx, (base - G) * V + 2.2, lz, WARM, 3.2, 0.6); }
+}
+
+type ShopKind = 'bakkal' | 'lokum' | 'kuruyemis' | 'textile' | 'ceramics' | 'lamps' | 'copper' | 'kahve' | 'books' | 'shoes';
+const SHOP_KINDS: ShopKind[] = ['bakkal', 'lokum', 'kuruyemis', 'textile', 'ceramics', 'lamps', 'copper', 'kahve', 'bakkal', 'books', 'shoes', 'kuruyemis'];
+
+/**
+ * A shop behind its glass front, open for the day: three metres of room behind the window with shelves of its
+ * goods up the back and sides, a counter with the shopkeeper behind it, a display table in the middle, things
+ * hanging from the ceiling, the door propped open, and the goods out on the pavement or on the wall outside.
+ */
+function shopInterior(ctx: Ctx, f: Frame, lt: LotPlan, touched: boolean): void {
+  const { b, c } = ctx;
+  const g = b.grid;
+  const { base } = lt;
+  const W = f.W, SD = Math.min(f.D - 3, 12);
+  const kind = SHOP_KINDS[Math.floor(hash3(lt.seed, 5, 9) * SHOP_KINDS.length)];
+  const y = (base - G) * V;
+  const goods = {
+    bakkal: [c.spiceRed, c.yellow, c.awnBlue, c.white, c.spiceGreen, c.apricot2, c.cartRed],
+    lokum: [c.lokumPink, c.lokumWhite, c.lokumGreen, c.pistachio, c.gold, c.rose2],
+    kuruyemis: [c.nut, c.pistachio, c.apricot2, c.fig2, c.spiceBrown, c.sesame],
+    textile: [c.carpetRed, c.carpetBlue, c.carpetGold, c.carpetCream, c.iznikTeal, c.rose, c.lilac],
+    ceramics: [c.iznikBlue, c.iznikTeal, c.iznikRed, c.iznikWhite, c.cobalt],
+    lamps: [c.lampRed, c.lampBlue, c.lampGreen, c.lampAmber, c.brass],
+    copper: [c.copper, c.brass, c.gold, c.copper],
+    kahve: [c.spiceBrown, c.woodDark, c.copper, c.cream, c.brass],
+    books: [c.signRed, c.signBlue, c.signGreen, c.cream, c.woodDark, c.yellow],
+    shoes: [c.woodDark, c.eave, c.cream, c.signRed, c.trimDark],
+  }[kind];
+  const pick = (a: number, yy: number, d: number) => goods[Math.floor(hash3(a + lt.seed, yy, d) * goods.length)];
+  const da = Math.floor(W / 2) - 1;
+  if (touched) {
+    f.box(g, 1, base, 1, W - 2, base + 9, SD, 0);
+    f.box(g, 1, base - 1, 1, W - 2, base - 1, SD, (a, _y, d) => (kind === 'ceramics' || kind === 'lokum' ? ((a + d) % 2 ? c.marble : c.marbleGrey) : ((a >> 1) + (d >> 1)) % 2 ? c.slab : c.slabB));
+    f.box(g, 1, base, SD + 1, W - 2, base + 9, SD + 1, (_a, yy) => (yy <= base + 2 ? c.woodDark : c.cream));
+    f.box(g, 1, base + 10, 1, W - 2, base + 10, SD, c.cornice);
+    // the door, propped open
+    f.box(g, da, base, 0, da + 2, base + 7, 0, 0);
+    // shelves up the back wall and down both sides, full of the shop's goods
+    for (let lv = 0; lv < 3; lv++) {
+      const yy = base + 1 + lv * 3;
+      f.box(g, 1, yy, SD, W - 2, yy, SD, c.woodDark);
+      f.box(g, 1, yy + 1, SD, W - 2, yy + 2, SD, (a, y2, d) => (hash3(a, y2, d + lt.seed) < 0.85 ? pick(a, y2, d) : 0));
+      for (const a of [1, W - 2]) {
+        f.box(g, a, yy, 3, a, yy, SD - 1, c.woodDark);
+        f.box(g, a, yy + 1, 3, a, yy + 2, SD - 1, (a2, y2, d) => (hash3(a2, y2, d + lt.seed) < 0.8 ? pick(a2, y2, d) : 0));
+      }
+    }
+    // the counter along one side, glass-topped with more goods under it
+    f.box(g, W - 5, base, 3, W - 4, base + 3, SD - 3, c.woodDark);
+    f.box(g, W - 5, base + 4, 3, W - 4, base + 4, SD - 3, (a, y2, d) => (kind === 'lokum' || kind === 'ceramics' ? pick(a, y2, d) : c.marble));
+    f.box(g, W - 5, base + 5, 4, W - 5, base + 5, 5, c.brass); // the till, or the scales
+    // a display table in the middle of the floor with heaps or stacks on it
+    const t0 = Math.max(3, da - 2), t1 = Math.min(W - 7, da + 3);
+    if (t1 > t0 && SD >= 9) {
+      f.box(g, t0, base, 5, t1, base + 2, SD - 3, c.woodBare);
+      f.box(g, t0, base + 3, 5, t1, base + 4, SD - 3, (a, y2, d) => (y2 === base + 4 && (a + d) % 2 ? 0 : pick(a, y2, d)));
+    }
+    // things hanging from the ceiling in the window: lamps, scarves, copper pans, strings of dried fruit
+    for (let a = 2; a < W - 2; a += 3) {
+      if (hash3(a, lt.seed, 4) < 0.35) continue;
+      const len = kind === 'textile' ? 4 + Math.floor(hash3(a, 2, lt.seed) * 3) : 2;
+      f.box(g, a, base + 9 - len, 2, a, base + 8, 2, (_a, y2) => (y2 === base + 8 ? c.iron : pick(a, y2, 2)));
+    }
+    // the goods out front: on the pavement in boxes and sacks, or on the wall by the door
+    const [ox, oz] = f.m(da - 3, -0.9);
+    if (kind === 'bakkal' || kind === 'kuruyemis' || kind === 'kahve') { b.place(spiceSacks(c, lt.seed), ox, y, oz, f.turnOut); b.block(ox - 0.9, oz - 0.6, ox + 0.9, oz + 0.6); }
+    else if (kind === 'textile') { const [qx, qz] = f.m(da - 3, -0.15); b.place(carpet(c, lt.seed), qx, y + 0.5, qz, f.turnOut); }
+    else if (kind === 'lamps') { const [qx, qz] = f.m(da - 3, -0.6); b.place(mosaicLamps(c, lt.seed), qx, y + 1.9, qz); }
+    // the awning over the window
+    const aw: [number, number] = [[c.awnRed, c.awnWhite], [c.awnGreen, c.awnWhite], [c.awnBlue, c.awnWhite], [c.awnYellow, c.awnBrown]][(lt.seed >> 2) % 4] as [number, number];
+    const [ax, az] = f.m(W / 2 - 0.5, -1.2);
+    b.place(awning(aw, Math.min(W - 2, 24)), ax, y + 2.0, az, f.turnOut);
+    const [vx0, vz0] = f.xz(1, 1), [vx1, vz1] = f.xz(W - 2, SD);
+    b.indoor.push([Math.min(vx0, vx1), base, Math.min(vz0, vz1), Math.max(vx0, vx1), base + 10, Math.max(vz0, vz1)]);
+    const [lx, lz] = f.m(W / 2, SD / 2);
+    b.lamp(lx, y + 2.2, lz, kind === 'lamps' ? [1, 0.6, 0.45] : WARM, 4, 0.7);
+  }
+  // nobody walks in: the doorway is for looking
+  { const [p0x, p0z] = f.m(da - 0.5, 0), [p1x, p1z] = f.m(da + 2.5, 0.6); b.block(Math.min(p0x, p1x), Math.min(p0z, p1z), Math.max(p0x, p1x), Math.max(p0z, p1z)); }
+  const [kx, kz] = f.m(W - 3, SD / 2 + 0.5);
+  ctx.keepers.push({ pos: [kx, y, kz], face: f.faceOut, seed: lt.seed * 13 + 3, indoor: true });
 }
 
 /** A shop in a bazaar hall: open across its front onto the hall, goods spilling out, a little dome on top. */
@@ -1475,11 +1622,22 @@ function minaret(ctx: Ctx, cxM: number, czM: number, yM: number, h: number, balc
         const R = y < 8 ? shaftR + 1 : shaftR;
         if (balcony !== undefined) {
           // the şerefe: a carved ring on corbels, a pierced parapet
-          if (d <= R + 2 && (y === balcony || (d > R + 1 && (x + z + y) % 2 === 0))) g.set(x, Y + y, z, c.marble);
+          if (d <= R + 2 && (y === balcony || (d > R + 1 && pm(x + z + y, 2) === 0))) g.set(x, Y + y, z, c.marble);
           else if (d <= R) g.set(x, Y + y, z, c.lime);
           continue;
         }
-        if (d <= R) g.set(x, Y + y, z, y < 8 ? c.limeDark : Math.floor((Math.atan2(z + 0.5 - cz, x + 0.5 - cx) + Math.PI) * 3) % 2 ? c.lime : c.limeLight);
+        // the stalactite corbelling under each balcony, widening as it climbs
+        const under = Array.from({ length: balconies }, (_, i) => Math.round(h * (0.55 + i * 0.2))).find((by) => y >= by - 4 && y < by);
+        if (under !== undefined) {
+          const k = y - (under - 4);
+          if (d <= R + k * 0.5) g.set(x, Y + y, z, pm(Math.floor((Math.atan2(z + 0.5 - cz, x + 0.5 - cx) + Math.PI) * 4) + k, 2) ? c.limeLight : c.marble);
+          continue;
+        }
+        // the base: a square pedestal, then a band where it turns to the many-sided shaft
+        const sq = Math.max(Math.abs(x + 0.5 - cx), Math.abs(z + 0.5 - cz));
+        if (y < 12) { if (sq <= shaftR + 1.6) g.set(x, Y + y, z, y === 11 || y === 0 ? c.limeLight : sq > shaftR + 1.1 && y % 4 === 1 ? c.marble : c.limeDark); continue; }
+        if (y < 14) { if (d <= R + 0.8) g.set(x, Y + y, z, c.limeLight); continue; }
+        if (d <= R) g.set(x, Y + y, z, Math.floor((Math.atan2(z + 0.5 - cz, x + 0.5 - cx) + Math.PI) * 3) % 2 ? c.lime : c.limeLight);
       }
   }
   // the cap
@@ -1509,16 +1667,45 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
   b.block(hall[0], hall[1], hall[2], hall[3]);
   if (g.touches(X0 - 4, Z0 - 4, X1 + 4, Z1 + 4)) {
     // the walls: grey stone in courses, two rows of arched windows, a band of cornice
-    g.box(X0, Y, Z0, X1, Y + H, Z1, (x, yy, z) => {
-      const edge = x === X0 || x === X1 || z === Z0 || z === Z1;
-      if (!edge) return c.limeDark;
+    // bays of three metres from each corner: under each a grilled window in a marble frame with a red and white
+    // relieving arch, above it a pair of tall lights in coloured glass, an oculus higher still; pilasters between
+    // the bays, a moulded band at mid-height, the cornice and a cresting of little merlons along the top
+    const hallBay = (u: number, lo: number) => pm(u - lo, 12);
+    const up = H - 16;
+    const wallCell = (x: number, yy: number, z: number) => {
       const u = x === X0 || x === X1 ? z : x;
+      const bb = hallBay(u, x === X0 || x === X1 ? Z0 : X0);
       const row = yy - Y;
-      const win = ((row >= 6 && row <= 14) || (row >= 22 && row <= 30)) && pm(u, 8) >= 3 && pm(u, 8) <= 5;
-      if (win) return row === 14 || row === 30 ? c.limeLight : c.glassLit;
-      if (row === H || row === H - 1 || row === 18) return c.limeLight;
-      return (row >> 1) % 4 === 0 ? c.limeDark : c.lime;
-    });
+      if (row < 2) return c.limeDark;
+      if (row >= H - 1) return c.limeLight;
+      if (row === H - 2) return pm(u, 2) ? c.marble : c.limeLight;
+      if (row === 16) return c.limeLight;
+      if (bb === 0 || bb === 11) return row % 4 === 0 ? c.limeLight : c.lime;
+      // the lower window and its arch
+      if (bb >= 4 && bb <= 7 && row >= 4 && row <= 11) return bb === 4 || bb === 7 || row === 4 || row === 11 ? c.marble : row % 2 === 0 || bb === 5 ? c.iron : c.glassDark;
+      if (row >= 12 && row <= 14 && Math.abs(bb - 5.5) <= 2.5 - (row - 12)) return (bb + row) % 2 ? c.brick : c.marble;
+      // the paired lights
+      if (row >= up && row <= up + 8 && (bb === 3 || bb === 4 || bb === 7 || bb === 8)) {
+        if (row === up || row === up + 8) return c.marble;
+        const pane = row - up;
+        return pane >= 6 && (bb === 3 || bb === 7) === (pane === 7) ? c.marble : pane % 3 === 0 ? c.lampAmber : (bb + pane) % 2 ? c.glassLit : c.iznikBlue;
+      }
+      if (row >= up && row <= up + 8 && (bb === 2 || bb === 9)) return c.marble;
+      // the oculus
+      if (row >= up + 11 && row <= up + 12 && (bb === 5 || bb === 6)) return c.glassLit;
+      if (row >= up + 10 && row <= up + 13 && bb >= 4 && bb <= 7) return c.marble;
+      return (row >> 1) % 4 === 0 ? c.limeLight : c.lime;
+    };
+    g.box(X0, Y, Z0, X1, Y + H, Z1, (x, yy, z) => (x === X0 || x === X1 || z === Z0 || z === Z1 ? wallCell(x, yy, z) : c.limeDark));
+    // the pilasters stand a little proud of the wall; the cresting runs along the top
+    for (let x = X0; x <= X1; x++) for (const [z, zo] of [[Z0, Z0 - 1], [Z1, Z1 + 1]] as const) {
+      if (hallBay(x, X0) === 0 || hallBay(x, X0) === 11) g.box(x, Y, zo, x, Y + H - 3, zo, (_x, yy) => ((yy - Y) % 4 === 0 ? c.limeLight : c.lime));
+      if (pm(x, 3) === 0) g.set(x, Y + H + 1, z, c.limeLight);
+    }
+    for (let z = Z0; z <= Z1; z++) for (const [x, xo] of [[X0, X0 - 1], [X1, X1 + 1]] as const) {
+      if (hallBay(z, Z0) === 0 || hallBay(z, Z0) === 11) g.box(xo, Y, z, xo, Y + H - 3, z, (_x, yy) => ((yy - Y) % 4 === 0 ? c.limeLight : c.lime));
+      if (pm(z, 3) === 0) g.set(x, Y + H + 1, z, c.limeLight);
+    }
     // the drum and the dome, four half-domes leaning on it, little domes on the corners, weight turrets
     const DY = Y + H + 1;
     for (let yy = 0; yy < 8; yy++)
@@ -1529,7 +1716,17 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
           const win = yy >= 2 && yy <= 5 && Math.floor((Math.atan2(z + 0.5 - cz, x + 0.5 - cx) + Math.PI) * 24 / Math.PI) % 2 === 0;
           g.set(x, DY + yy, z, win ? c.glassLit : c.lime);
         }
+    // buttresses round the drum, stepping down onto the roof between the windows
+    for (let k = 0; k < 16; k++) {
+      const ang = (k + 0.5) * Math.PI / 8, ca = Math.cos(ang), sa = Math.sin(ang);
+      for (let dr = 1; dr <= 3; dr++) for (let yy = 0; yy < 8 - dr * 2; yy++) g.set(Math.floor(cx + ca * (R + dr)), DY + yy, Math.floor(cz + sa * (R + dr)), yy === 7 - dr * 2 ? c.limeLight : c.lime);
+    }
     leadDome(g, c, cx, cz, DY + 8, R);
+    // the alem on the crown: a gilded stem with three balls and the crescent
+    { const ax = Math.floor(cx), az = Math.floor(cz), top = DY + 8 + R;
+      for (const [yb, rr] of [[2, 1], [5, 1], [8, 0]] as const) g.box(ax - rr, top + yb, az - rr, ax + rr, top + yb + (rr ? 1 : 0), az + rr, c.gold);
+      g.box(ax, top + 1, az, ax, top + 10, az, c.gold);
+      g.set(ax - 1, top + 11, az, c.gold); g.set(ax + 1, top + 11, az, c.gold); g.set(ax - 1, top + 12, az, c.gold); g.set(ax + 1, top + 12, az, c.gold); }
     const semi = R * 0.8;
     for (const [sx, sz] of [[cx, Z0 + semi * 0.6], [cx, Z1 + 1 - semi * 0.6], [X0 + semi * 0.6, cz], [X1 + 1 - semi * 0.6, cz]]) leadDome(g, c, sx, sz, DY - 2, Math.round(semi * 0.75), false);
     for (const [qx, qz] of [[X0 + 6, Z0 + 6], [X1 - 5, Z0 + 6], [X0 + 6, Z1 - 5], [X1 - 5, Z1 - 5]]) {
@@ -1588,7 +1785,7 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
       const inner = x >= CX0 + AD && x <= CX1 - AD && z >= CZ0 + AD && z <= CZ1 - AD;
       const outer = x === CX0 || x === CX1 || z === CZ0 || z === CZ1;
       const nearHall = court[1] >= hall[3] - 0.5 ? z < CZ0 + AD : z > CZ1 - AD;
-      if (inner || nearHall) continue;
+      if (inner || (nearHall && outer)) continue;
       if (outer) {
         // the outer wall up to the arcade's roof, so its domes show above it from the street: under each dome a
         // tall grilled window in a marble frame with a pointed relieving arch, a small arched light above it
@@ -1625,7 +1822,8 @@ function mosque(ctx: Ctx, hall: readonly [number, number, number, number], court
     const sideBay = x === xs[0] || x === xs[xs.length - 1];
     const gateBay = gateHi ? z === zs[zs.length - 1] : z === zs[0];
     const hallBay = gateHi ? z < CZ0 + AD : z > CZ1 - AD;
-    if (!(gateBay || (sideBay && !hallBay))) continue;
+    // the hall's portico, the son cemaat yeri, takes a row of domes too
+    if (!(gateBay || sideBay || hallBay)) continue;
     const ox = x + AD / 2, oz = z + AD / 2;
     for (let yy = 0; yy < 2; yy++) for (let zz = Math.floor(oz - 6); zz <= oz + 6; zz++) for (let xx = Math.floor(ox - 6); xx <= ox + 6; xx++) {
       const d = Math.hypot(xx + 0.5 - ox, zz + 0.5 - oz);
@@ -1993,6 +2191,7 @@ function streetLife(ctx: Ctx): void {
   // keep the doorways of the shops and hotels clear
   const doors = b.rooms.map((rm) => rm.door);
   const nearDoor = (x: number, z: number) => doors.some(([dx, dz]) => Math.hypot(dx - x, dz - z) < 2.6);
+  let fountains = 0;
   for (const s of plan.segs) {
     if (s.kind !== K.Lane && s.kind !== K.Street && s.kind !== K.Stair && s.kind !== K.Tram) continue;
     const [ax, , az] = s.a, [bx, , bz] = s.b;
@@ -2025,6 +2224,37 @@ function streetLife(ctx: Ctx): void {
         if (pick < 0.25) { b.place(catHouse(c), ex, ey, ez, turn); b.block(ex - 0.5, ez - 0.5, ex + 0.5, ez + 0.5); }
         else if (pick < 0.45) { b.place(bench(b.k), ex, ey, ez, faceTurn(nx * side, nz * side) % 2 ? 1 : 0); b.benches.push([ex, ez, Math.atan2(nx * side, nz * side), ey]); b.block(ex - 0.5, ez - 0.5, ex + 0.5, ez + 0.5); }
       }
+      // and between this and the next: pots by the doors, blade signs, a scooter, now and then a fountain
+      const tt = t + 3.5 + r() * 2;
+      if (tt < len - 2) between(s, tt / len, nx, nz, len);
+    }
+  }
+
+  function between(s: (typeof plan.segs)[number], f: number, nx: number, nz: number, len: number): void {
+    const [ax, , az] = s.a, [bx, , bz] = s.b;
+    const ux = (bx - ax) / len, uz = (bz - az) / len;
+    for (const side of [1, -1]) {
+      const off = s.w / 2 - 0.3;
+      const x = ax + (bx - ax) * f + nx * off * side, z = az + (bz - az) * f + nz * off * side;
+      const y = (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
+      const wall = plan.lot[col(Math.floor((x + nx * side * 0.6) / V), Math.floor((z + nz * side * 0.6) / V))];
+      if (!wall || nearDoor(x, z)) continue;
+      const out = faceTurn(-nx * side, -nz * side);
+      const pick = r();
+      if (pick < 0.4) {
+        // a pair of pots against the wall
+        for (const k of [-0.45, 0.45]) { const px = x + ux * k, pz = z + uz * k; b.place(pottedPlant(c, Math.floor(r() * 1e4)), px, y, pz); b.block(px - 0.3, pz - 0.3, px + 0.3, pz + 0.3); }
+      } else if (pick < 0.72) {
+        // a blade sign up on the wall, swinging a little
+        b.place(bladeSign(c, Math.floor(r() * 1e4)), x - nx * side * 0.1, y + 2.5, z - nz * side * 0.1, out);
+      } else if (pick < 0.86 && (s.kind === K.Street || s.kind === K.Tram)) {
+        b.place(scooter(c, Math.floor(r() * 1e4)), x - nx * side * 0.2, y, z - nz * side * 0.2, faceTurn(ux, uz));
+        b.block(x - 0.8, z - 0.8, x + 0.8, z + 0.8);
+      } else if (pick < 0.93 && fountains < 9 && s.kind !== K.Stair && s.w >= 3) {
+        fountains++;
+        b.place(cesme(c), x + nx * side * 0.05, y, z + nz * side * 0.05, out);
+        b.block(x - 0.95, z - 0.95, x + 0.95, z + 0.95);
+      }
     }
   }
 }
@@ -2037,11 +2267,12 @@ function washingLines(ctx: Ctx): void {
   const cols = [c.white, c.powder, c.rose, c.yellow, c.awnBlue, c.cream, c.awnRed];
   const lotAt = (x: number, z: number) => inMap(Math.floor(x / V), Math.floor(z / V)) ? plan.lot[col(Math.floor(x / V), Math.floor(z / V))] : 0;
   for (const s of plan.segs) {
-    if (s.kind !== K.Lane && s.kind !== K.Stair) continue;
+    const street = s.kind === K.Street;
+    if (s.kind !== K.Lane && s.kind !== K.Stair && !street) continue;
     const [ax, ay, az] = s.a, [bx, by, bz] = s.b;
     const len = Math.hypot(bx - ax, bz - az);
     const nx = -(bz - az) / len, nz = (bx - ax) / len;
-    for (let t = 2 + r() * 4; t < len - 2; t += 3 + r() * 4) {
+    for (let t = 2 + r() * 4; t < len - 2; t += street ? 9 + r() * 5 : 3 + r() * 4) {
       if (r() < 0.25) continue;
       const f = t / len, cx = ax + (bx - ax) * f, cz = az + (bz - az) * f, y = ay + (by - ay) * f;
       let d1 = -1, d2 = -1, l1 = 0, l2 = 0;
@@ -2064,6 +2295,18 @@ function washingLines(ctx: Ctx): void {
         if (!lc || lc[0] !== vx || lc[1] !== vz) cells.push([vx, vz]);
       }
       for (const [vx, vz] of cells) if (!g.get(vx, Y, vz)) g.set(vx, Y, vz, c.iron);
+      if (street) {
+        // over the shopping streets, strings of little flags instead: red and white pennants, the odd crescent
+        for (let j = 1; j < cells.length - 1; j += 2) {
+          const [vx, vz] = cells[j];
+          if (!g.touches(vx, vz, vx, vz)) continue;
+          const id = b.addSway({ ...SWAY.laundry, pivot: [(vx + 0.5) * V, (Y + 0.5 - G) * V, (vz + 0.5) * V], axis: [ax2, 0, az2], reach: 0 });
+          const col2 = (j >> 1) % 3 === 2 ? c.white : c.flagRed;
+          for (let yy = Y - 2; yy < Y; yy++) if (!g.get(vx, yy, vz)) { g.set(vx, yy, vz, col2); b.swayCell(vx, yy, vz, id); }
+        }
+        b.wires.push([x0, z0, x1, z1, (Y + 1 - G) * V, 0.05]);
+        continue;
+      }
       for (let j = 2; j + 1 < cells.length - 2; j += 3) {
         const [vx, vz] = cells[j];
         if (hash3(vx, Y, vz) > 0.75 || !g.touches(vx, vz, vx, vz)) continue;

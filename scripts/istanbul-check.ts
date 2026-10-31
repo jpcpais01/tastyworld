@@ -34,9 +34,10 @@ for (const i of a.idlers) check(`idler ${i.id}`, i.pos[0], i.pos[2]);
 for (const c of a.cats) check('cat', c[0], c[2]);
 for (const e of a.extras ?? []) {
   // standing figures (anglers, the çaycı) must stand on the ground they are drawn at, and be reachable
+  if (e.indoor) continue; // shopkeepers behind their windows: off the street
   if (check('extra', e.pos[0], e.pos[2]) && Math.abs(nav.heightAt(e.pos[0], e.pos[2]) - e.pos[1]) > 0.3) { bad++; console.log('FLOATING extra', e.pos.map((v) => v.toFixed(1)).join(','), 'ground', nav.heightAt(e.pos[0], e.pos[2]).toFixed(2)); }
 }
-console.log('extras', (a.extras ?? []).length);
+console.log('extras', (a.extras ?? []).length, 'indoor', (a.extras ?? []).filter((e) => e.indoor).length);
 a.manekis.forEach((m, i) => {
   const near = [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]].some(([dx, dz]) => nav.walkable(m[0] + dx, m[2] + dz) && reach(m[0] + dx, m[2] + dz));
   if (!near) { bad++; console.log('UNREACHABLE nazar', i, m); } else console.log('nazar', i, 'ok at y', nav.heightAt(m[0], m[2]).toFixed(2));

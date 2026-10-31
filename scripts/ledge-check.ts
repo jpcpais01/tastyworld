@@ -53,7 +53,7 @@ const at = (i: number) => [ox + ((i % sx) + 0.5) * V, oz + (Math.floor(i / sx) +
 // on a planned hillside, name the ground kinds either side (for working out what to fix)
 const planMod: any = process.argv.includes('--kinds') && CITY !== 'tokyo' ? await (CITY === 'amalfi' ? import('../src/world/amalfiPlan') : import('../src/world/istanbulPlan')) : null;
 const plan = planMod ? (CITY === 'amalfi' ? planMod.amalfiPlan() : planMod.istanbulPlan()) : null;
-/** Ground past the town's edge (Amalfi's wild slopes, Istanbul's band beyond the edge): a natural or built end. */
+/** Ground past the town's edge (Amalfi's wild slopes and crags, Istanbul's band beyond the edge): a natural or built end. */
 const edgeMod: any = CITY === 'amalfi' ? await import('../src/world/amalfiPlan') : CITY === 'istanbul' ? await import('../src/world/istanbulPlan') : null;
 const edgePlan = CITY === 'amalfi' ? edgeMod.amalfiPlan() : null;
 const wildAt = (i: number) => {
@@ -61,7 +61,7 @@ const wildAt = (i: number) => {
   if (CITY === 'istanbul') return edgeMod.beyond(x, z);
   if (CITY !== 'amalfi') return false;
   const vx = Math.floor(x / V), vz = Math.floor(z / V), c = edgeMod.col(vx, vz);
-  return edgePlan.kind[c] === 0 && edgeMod.wildRock(vx, vz, edgePlan.walk[c]);
+  return edgePlan.kind[c] === 0 && (edgePlan.crag[c] === 1 || edgeMod.wildRock(vx, vz, edgePlan.walk[c]));
 };
 const kindAt = (i: number) => { if (!plan) return ''; const [x, z] = at(i); const c = planMod.col(Math.floor(x / V), Math.floor(z / V)); return ` k${plan.lot[c] ? 'L' : plan.kind[c]}`; };
 const where = (i: number) => { const [x, z] = at(i); return `(${x.toFixed(1)}, ${z.toFixed(1)}) ${zoneAt(x, z)?.name ?? '-'}${kindAt(i)}`; };
@@ -158,7 +158,22 @@ for (let i = 0; i < n; i++) {
   }
   ledges.push({ ...best, cells: run.length, detour: 0 });
 }
-const longLedges = ledges.filter((l) => l.cells >= MIN_CONTACT && !wildAt(l.hi));
+/** A top a column wide (a slot between two houses' walls) is no ground anyone stands on. */
+const sliver = (i: number) => {
+  // the ground walkable from it within two cells either way: a terrace's corner has nine or more, a slot five
+  const ix = i % sx, iz = Math.floor(i / sx), seen = new Set([i]), st = [i];
+  while (st.length) {
+    const c = st.pop()!, cx = c % sx;
+    for (const j of [c + 1, c - 1, c + sx, c - sx]) {
+      const jx = j % sx, jz = Math.floor(j / sx);
+      if (j < 0 || j >= n || Math.abs(jx - cx) > 1 || Math.abs(jx - ix) > 2 || Math.abs(jz - iz) > 2 || seen.has(j)) continue;
+      if (comp[j] !== main || Math.abs(H[j] - H[c]) > STEP) continue;
+      seen.add(j); st.push(j);
+    }
+  }
+  return seen.size < 9;
+};
+const longLedges = ledges.filter((l) => l.cells >= MIN_CONTACT && !wildAt(l.hi) && !sliver(l.hi));
 for (const l of longLedges) l.detour = walkDist(l.lo, l.hi, 400);
 const blocked = longLedges.filter((l) => l.detour > Math.max(DETOUR, l.cells * V * 3)).sort((a, b) => b.detour - a.detour);
 
@@ -170,13 +185,16 @@ console.log(`\nLEDGES with no way up close by: ${blocked.length} (of ${longLedge
 for (const l of blocked.slice(0, SHOW))
   console.log(`  rise ${(l.rise * V).toFixed(2)} m along ${(l.cells * V).toFixed(1)} m, way round ${Number.isFinite(l.detour) ? l.detour.toFixed(0) + ' m' : 'none'}  foot ${m(H[l.lo])} m at ${where(l.lo)} top${kindAt(l.hi)}`);
 // --at x,z[,r]: a walk map around a point, one character per 25 cm cell: '#' can't stand, a..z the town's walk
-// network at 0..25 voxels over the lowest cell shown, A..Z the same height off the network ('^' higher still)
+// network at 0..25 voxels over the lowest cell shown, A..Z the same height off the network ('^' higher still, '_' lower)
 const atArg = arg('--at');
 if (atArg) {
   const [x, z, r = 8] = atArg.split(',').map(Number);
   const cx = Math.floor((x - ox) / V), cz = Math.floor((z - oz) / V), R = Math.round(r / V);
   let base = 255;
   for (let Z = cz - R; Z <= cz + R; Z++) for (let X = cx - R; X <= cx + R; X++) { const h = H[Z * sx + X]; if (h !== BLOCKED) base = Math.min(base, h); }
+  // (centred on the point's own height where the ground shown spans more than the letters do)
+  const hc = H[cz * sx + cx];
+  if (hc !== BLOCKED) base = Math.max(base, hc - 12);
   console.log(`\nwalk map round (${x}, ${z}), x right, z down; a = ${m(base)} m`);
   for (let Z = cz - R; Z <= cz + R; Z++) {
     let row = '';
@@ -185,7 +203,7 @@ if (atArg) {
       if (X === cx && Z === cz) { row += '@'; continue; }
       if (h === BLOCKED) { row += '#'; continue; }
       const d = h - base;
-      row += d > 25 ? '^' : String.fromCharCode((comp[i] === main ? 97 : 65) + d);
+      row += d < 0 ? '_' : d > 25 ? '^' : String.fromCharCode((comp[i] === main ? 97 : 65) + d);
     }
     console.log(row);
   }

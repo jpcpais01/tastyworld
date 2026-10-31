@@ -789,8 +789,9 @@ function covered(b: Builder, c: AC, plan: Plan): void {
           // (a tunnel's lining is a few courses of stone; above it is the headland's own limestone)
           g.box(x, crown, z, x, top, z, (xx, y, zz) => (y === crown ? c.stripeTufa : y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : s.kind === K.Tunnel && y > top - 2 ? c.grassDry : s.kind === K.Tunnel && y > crown + 6 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, false) === c.mortar ? c.mortar : wall));
         } else if (plan.kind[ci] !== s.kind && t > 0 && t < 1) {
-          // side walls only: the two ends stay open
-          g.box(x, floor, z, x, top, z, (xx, y, zz) => (y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : y < floor + 2 ? c.plinth : s.kind === K.Tunnel && y > spring + 8 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, s.kind !== K.Tunnel)));
+          // side walls only: the two ends stay open (and they reach down to the ground where it falls away beside
+          // the passage, so a shop let into the wall never opens a hole down to the terrace below)
+          g.box(x, Math.min(floor, plan.walk[ci]), z, x, top, z, (xx, y, zz) => (y > top - 2 && s.kind !== K.Tunnel ? c.roofWhite : y < floor + 2 ? c.plinth : s.kind === K.Tunnel && y > spring + 8 ? cliffRock(c, xx, y, zz) : masonry(c, xx, y, zz, s.kind !== K.Tunnel)));
         }
       }
     // lamps along the tunnel's vault (a covered passage has lanterns on its walls, see passages())

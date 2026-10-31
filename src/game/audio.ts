@@ -1,8 +1,9 @@
 /**
  * Procedural audio, no assets. A cozy lo-fi street-food loop (koto melody, electric piano, upright bass, brushed kit)
  * over the J-pop "royal road" progression, a deliberately quiet street (a soft city hush, the canal lapping, the odd
- * sparrow by day and bell cricket by night, a faint grill crackle) and soft, rounded UI sounds. Amalfi swaps the
- * band for a mandolin and guitar canzone, and adds gulls and the cathedral bell.
+ * sparrow by day and bell cricket by night, a faint grill crackle) and soft, rounded UI sounds. Amalfi keeps the
+ * same unhurried feel but plays it on the coast: a fingerpicked nylon guitar and a soft flute over upright bass and
+ * brushes, the sea breaking on the beach below the town, the odd distant gull and the cathedral bell.
  * Music, ambience and effects each have their own volume.
  * Every note and sound is synthesised once into a small mono buffer and then replayed, so at runtime a note costs a
  * buffer source and a gain node. Rendering is spread over frames by a warm-up queue.
@@ -41,7 +42,7 @@ class SVF {
 
 /** Per bar: [step (8ths), note, length in steps] */
 type Phrase = [number, number, number][][];
-interface Section { prog: number[]; mel?: Phrase; arp?: boolean; bass: boolean; drums: 0 | 1 | 2 }
+interface Section { prog: number[]; mel?: Phrase; arp?: boolean; bass: boolean; drums: 0 | 1 | 2; lead?: Inst }
 interface Song {
   /** [bass root, 4-voice voicing] */
   chords: number[][];
@@ -49,10 +50,10 @@ interface Song {
   swing: number;
   sections: Section[];
   loopFrom: number;
-  /** How it is played: Tokyo's lo-fi band, or Amalfi's mandolin and guitar. */
-  style?: 'lofi' | 'canzone';
+  /** How it is played: Tokyo's lo-fi band, or Amalfi's guitar and flute. */
+  style?: 'lofi' | 'riviera';
 }
-type Inst = 'koto' | 'bell' | 'ep' | 'bass' | 'mando';
+type Inst = 'koto' | 'bell' | 'ep' | 'bass' | 'mando' | 'nylon' | 'flute';
 interface Out { lead: AudioNode; ep: AudioNode; bass: AudioNode; drums: AudioNode }
 interface Seq { song: Song; t: number; sec: number; bar: number; step: number; out: Out; bpm: number }
 
@@ -103,50 +104,53 @@ const BGM: Song = (() => {
 })();
 
 /**
- * Amalfi's tune: a little canzone in A minor turning to C major for the chorus. Mandolin lead (long notes in
- * tremolo), a nylon guitar keeping the bass-and-chord "oom-pa", a tambourine shaken softly.
+ * Amalfi's tune, in the same easy lo-fi spirit as Tokyo's but by the sea: D major with a Neapolitan turn to G minor
+ * in the chorus. A nylon guitar fingerpicks the chords and sings the verse, a soft flute takes the chorus, a mandolin
+ * drops in a few plucked notes in the break (no tremolo), upright bass and brushes keep it all slow and swaying.
  */
-const CANZONE: Song = (() => {
-  const A = [0, 0, 1, 0, 2, 2, 0, 0], B = [3, 4, 5, 4, 6, 1, 2, 0];
+const RIVIERA: Song = (() => {
+  const A = [0, 1, 2, 3, 0, 1, 4, 8], B = [4, 5, 6, 7, 2, 3, 0, 8];
   const m1: Phrase = [
-    [[0, 76, 3], [3, 74, 1], [4, 72, 2], [6, 71, 2]],
-    [[0, 72, 6], [6, 69, 2]],
-    [[0, 74, 3], [3, 72, 1], [4, 74, 2], [6, 77, 2]],
-    [[0, 76, 8]],
-    [[0, 71, 3], [3, 72, 1], [4, 74, 2], [6, 76, 2]],
-    [[0, 77, 2], [2, 76, 2], [4, 74, 2], [6, 68, 2]],
-    [[0, 69, 6], [6, 71, 1], [7, 72, 1]],
-    [[0, 69, 8]],
+    [[0, 69, 2], [2, 74, 2], [4, 76, 3], [7, 78, 1]],
+    [[0, 78, 3], [3, 76, 1], [4, 74, 4]],
+    [[2, 71, 1], [3, 74, 1], [4, 79, 2], [6, 78, 2]],
+    [[0, 76, 6]],
+    [[0, 69, 2], [2, 74, 2], [4, 76, 3], [7, 78, 1]],
+    [[0, 81, 3], [3, 78, 1], [4, 76, 2], [6, 74, 2]],
+    [[0, 71, 2], [2, 74, 2], [4, 78, 2], [6, 76, 2]],
+    [[0, 74, 6]],
   ];
   const m2: Phrase = [
-    [[0, 81, 3], [3, 79, 1], [4, 77, 2], [6, 76, 2]],
-    [[0, 76, 4], [4, 72, 2], [6, 76, 2]],
-    [[0, 79, 3], [3, 77, 1], [4, 74, 2], [6, 71, 2]],
-    [[0, 72, 8]],
-    [[0, 73, 2], [2, 76, 2], [4, 79, 2], [6, 81, 2]],
-    [[0, 77, 4], [4, 74, 2], [6, 77, 2]],
-    [[0, 76, 3], [3, 74, 1], [4, 71, 2], [6, 68, 2]],
-    [[0, 69, 8]],
+    [[0, 78, 4], [4, 79, 2], [6, 81, 2]],
+    [[0, 82, 4], [4, 81, 2], [6, 79, 2]],
+    [[0, 81, 6], [6, 76, 2]],
+    [[0, 78, 3], [3, 75, 1], [4, 78, 4]],
+    [[0, 79, 4], [4, 78, 2], [6, 76, 2]],
+    [[0, 73, 2], [2, 76, 2], [4, 78, 2], [6, 79, 2]],
+    [[0, 78, 6]],
+    [[2, 76, 2], [4, 74, 4]],
   ];
   return {
     chords: [
-      [45, 57, 60, 64, 69], // Am
-      [38, 57, 62, 65, 69], // Dm
-      [40, 56, 59, 62, 64], // E7
-      [41, 57, 60, 65, 69], // F
-      [36, 55, 60, 64, 67], // C
-      [43, 55, 59, 62, 65], // G7
-      [45, 55, 61, 64, 67], // A7
+      [38, 54, 57, 61, 64], // Dmaj9
+      [35, 57, 61, 62, 66], // Bm9
+      [40, 55, 59, 62, 66], // Em9
+      [45, 55, 59, 61, 66], // A13
+      [43, 54, 57, 59, 62], // Gmaj9
+      [43, 52, 55, 58, 62], // Gm6
+      [42, 52, 57, 61, 64], // F#m7
+      [47, 51, 57, 59, 66], // B7
+      [45, 55, 59, 62, 64], // A7sus4
     ],
-    bpm: 96, swing: 0.5, loopFrom: 1, style: 'canzone',
+    bpm: 78, swing: 0.56, loopFrom: 1, style: 'riviera',
     sections: [
-      { prog: A, bass: true, drums: 1 },
-      { prog: A, mel: m1, bass: true, drums: 1 },
-      { prog: B, mel: m2, bass: true, drums: 2 },
-      { prog: A, arp: true, bass: true, drums: 1 },
-      { prog: A, mel: m1, bass: true, drums: 1 },
-      { prog: B, mel: m2, bass: true, drums: 2 },
-      { prog: B, arp: true, bass: true, drums: 0 },
+      { prog: A, bass: false, drums: 0 },
+      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 1 },
+      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
+      { prog: A, arp: true, lead: 'mando', bass: true, drums: 2 },
+      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 2 },
+      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
+      { prog: B, arp: true, lead: 'nylon', bass: true, drums: 0 },
     ],
   };
 })();
@@ -171,6 +175,10 @@ export class Audio {
   private bed!: GainNode;
   private sizzle!: GainNode;
   private water!: GainNode;
+  /** Amalfi: the sea breaking on the beach, heard faintly all over town and fuller down by the shore. */
+  private surf: GainNode | null = null;
+  /** Far-off sounds (gulls): dulled and sent wetter to the reverb. */
+  private far!: AudioNode;
   private verb!: ConvolverNode;
   private bgmOut!: Out;
   private bufs = new Map<string, AudioBuffer>();
@@ -236,10 +244,16 @@ export class Audio {
     const lfo = ctx.createOscillator(); lfo.frequency.value = 0.15;
     lfo.connect(this.gain(0.4, swell.gain)); lfo.start();
     this.loop(brown, 0.6, swell);
+    this.far = this.filter('lowpass', 2600, 0.4, this.street);
+    this.far.connect(this.gain(0.6, this.verb));
+    if (AMALFI) {
+      this.surf = this.gain(0, this.street);
+      this.loop(this.surfLoop(), 1, this.surf);
+    }
     this.setVolumes(this.vol.music, this.vol.amb, this.vol.sfx);
 
     const now = ctx.currentTime;
-    const song = AMALFI ? CANZONE : BGM;
+    const song = AMALFI ? RIVIERA : BGM;
     this.bgm = { song, t: now + 0.4, sec: 0, bar: 0, step: 0, out: this.bgmOut, bpm: song.bpm };
     this.timers.bird = now + rand(15, 40);
     this.timers.cricket = now + rand(5, 12);
@@ -284,7 +298,8 @@ export class Audio {
       this.musicTone.frequency.setTargetAtTime(inside ? 1500 : 9000, t, 0.5);
     }
     this.sizzle.gain.setTargetAtTime(sizzle * sizzle * 0.04, t, 0.6);
-    this.water.gain.setTargetAtTime(water * 0.3, t, 0.8);
+    this.water.gain.setTargetAtTime(water * (this.surf ? 0.12 : 0.3), t, 0.8);
+    this.surf?.gain.setTargetAtTime(inside ? 0 : 0.035 + 0.13 * water, t, 1.2);
     this.sea = water;
     this.bed.gain.setTargetAtTime(inside ? 0.01 : 0.03 * (1 - night * 0.4), t, 1.5);
   }
@@ -405,12 +420,16 @@ export class Audio {
   private queueSong(s: Song): void {
     const q = new Set<string>();
     const add = (i: Inst, m: number) => q.add(this.instKey(i, m)[0]);
-    const lead: Inst = s.style === 'canzone' ? 'mando' : 'koto';
+    const riv = s.style === 'riviera';
     for (const c of s.chords) {
-      c.slice(1).forEach((m) => { add(s.style === 'canzone' ? 'koto' : 'ep', m); add(lead, m + 12); });
+      c.slice(1).forEach((m) => add(riv ? 'nylon' : 'ep', m));
       for (let d = 0; d <= 12; d++) add('bass', c[0] + d);
     }
-    for (const sec of s.sections) for (const b of sec.mel ?? []) for (const n of b) { add(lead, n[1]); add(lead, graceOf(n[1])); }
+    for (const sec of s.sections) {
+      const lead = sec.lead ?? 'koto';
+      if (sec.arp) for (const c of s.chords) c.slice(1).forEach((m) => add(lead, m + 12));
+      for (const b of sec.mel ?? []) for (const n of b) { add(lead, n[1]); add(lead, graceOf(n[1])); }
+    }
     for (const k of ['kick', 'brush', 'shaker']) q.add(k);
     for (const k of q) this.warm.push(k);
   }
@@ -431,7 +450,7 @@ export class Audio {
   }
 
   private playStep(q: Seq, t: number, e: number): void {
-    if (q.song.style === 'canzone') { this.playCanzone(q, t, e); return; }
+    if (q.song.style === 'riviera') { this.playRiviera(q, t, e); return; }
     const song = q.song, sec = song.sections[q.sec], s = q.step, bar = q.bar, o = q.out;
     const ch = song.chords[sec.prog[bar]];
     const night = this.night > 0.5;
@@ -473,44 +492,55 @@ export class Audio {
     }
   }
 
-  /** Amalfi: guitar bass on 1 and 5, a strummed chord on the off-beats, mandolin tremolo on the long notes. */
-  private playCanzone(q: Seq, t: number, e: number): void {
+  /**
+   * Amalfi: the guitar fingerpicks every chord (thumb on the low voice, fingers rolling over the rest), the bass
+   * lands on 1 with a soft walk-up, brushes on 2 and 4. The lead is the guitar, the flute or a sparse mandolin.
+   */
+  private playRiviera(q: Seq, t: number, e: number): void {
     const song = q.song, sec = song.sections[q.sec], s = q.step, bar = q.bar, o = q.out;
     const ch = song.chords[sec.prog[bar]];
     const night = this.night > 0.5;
     const h = () => t + rand(-0.007, 0.007);
     const v = (x: number) => x * rand(0.85, 1.1);
+    const lead = sec.lead ?? 'nylon';
+
+    // fingerpicking: a pinch on the downbeat, then a gentle roll; at night only the quarter notes
+    if (s === 0) [1, 3].forEach((i, k) => this.note('nylon', ch[i], t + k * 0.018, v(0.3), o.ep, e * 7));
+    else if (!night || s % 2 === 0) {
+      const i = [0, 3, 2, 4, 2, 3, 2, 4][s];
+      this.note('nylon', ch[i], h(), v(s % 2 ? 0.15 : 0.2), o.ep, e * 3.5);
+    }
+
     if (sec.bass) {
-      if (s === 0) this.note('bass', ch[0], t, v(0.6), o.bass, e * 3.5);
-      if (s === 4) this.note('bass', ch[0] + 7, h(), v(0.45), o.bass, e * 3.5);
+      const b = ch[0];
+      if (s === 0) this.note('bass', b, t, v(0.55), o.bass, e * 3.6);
+      if (s === 4 && bar % 2 === 0) this.note('bass', b + 7, h(), v(0.36), o.bass, e * 2.6);
+      if (s === 6 && bar % 2 === 1 && !night) this.note('bass', b + 12, h(), v(0.3), o.bass, e * 1.6);
     }
-    // the guitar's chord, strummed down on 2 and 4 (up-strum on the last "and" now and then)
-    if (s === 2 || s === 6 || (s === 7 && !night && Math.random() < 0.3)) {
-      const up = s === 7;
-      const notes = ch.slice(1);
-      (up ? [...notes].reverse() : notes).forEach((m, i) => this.note('koto', m, t + i * 0.014, v(up ? 0.08 : night ? 0.12 : 0.16), o.ep, e * 1.8));
-    }
+
     if (sec.drums) {
-      if (s % 2 === 1) this.fire(this.buf('shaker'), h(), v(sec.drums === 2 ? 0.16 : 0.1), o.drums);
-      if (sec.drums === 2 && !night && (s === 2 || s === 6)) this.fire(this.buf('brush'), h(), v(0.2), o.drums);
+      if (s % 2 === 1) this.fire(this.buf('shaker'), h(), v(sec.drums === 2 ? 0.1 : 0.06), o.drums);
+      if (sec.drums === 2) {
+        if (s === 2 || s === 6) this.fire(this.buf('brush'), h(), v(night ? 0.14 : 0.2), o.drums);
+        if (s === 0 && !night) this.fire(this.buf('kick'), t, v(0.32), o.drums);
+      }
     }
+
     if (sec.mel) {
       for (const [at, m, len] of sec.mel[bar]) {
         if (at !== s) continue;
-        if (len >= 3) {
-          // tremolo: the same note picked fast, swelling and fading
-          const n = Math.floor(len * 2.4);
-          for (let i = 0; i < n; i++) {
-            const k = i / n;
-            this.note('mando', m, t + (i * e) / 2.4 + rand(-0.004, 0.004), v((night ? 0.24 : 0.3) * (0.75 + 0.35 * Math.sin(Math.PI * k))), o.lead, e * 0.7);
-          }
+        if (lead === 'flute') {
+          this.note('flute', m, h(), v(night ? 0.1 : 0.13), o.lead, e * len + 0.12);
         } else {
-          if (len >= 2 && Math.random() < 0.15) this.note('mando', graceOf(m), t - 0.05, v(0.18), o.lead, 0.06);
-          this.note('mando', m, h(), v(night ? 0.36 : 0.44), o.lead, e * len + 0.2);
+          if (len >= 2 && Math.random() < 0.15) this.note(lead, graceOf(m), t - 0.055, v(0.16), o.lead, 0.06);
+          this.note(lead, m, h(), v(night ? 0.34 : 0.4), o.lead, e * len + 0.4);
         }
       }
     }
-    if (sec.arp && Math.random() < (s % 2 ? 0.25 : 0.7)) this.note('mando', ch[1 + Math.floor(Math.random() * 4)] + 12, h(), v(0.26), o.lead, e * 2);
+    // the break: a few plucked notes picked out of the chord, never busy
+    if (sec.arp && s % 2 === 0 && Math.random() < (s === 0 ? 0.7 : 0.32)) {
+      this.note(lead, ch[1 + Math.floor(Math.random() * 4)] + 12, h(), v(lead === 'mando' ? 0.16 : 0.26), o.lead, e * 3);
+    }
   }
 
   // ---- the street around you: kept sparse on purpose ----
@@ -528,10 +558,10 @@ export class Audio {
       for (let i = 0, c = 1 + Math.floor(rand(0, 2)); i < c; i++) this.fire(this.buf('chirp'), at + i * rand(0.2, 0.35), rand(0.025, 0.05), this.street, rand(0.9, 1.15), undefined, pan);
     }
     if (due('cricket', 4, 10) && n > 0.55) this.fire(this.buf('cricket'), at, rand(0.01, 0.02) * n, this.street, rand(0.97, 1.03), undefined, rand(-0.9, 0.9));
-    // Amalfi: the gulls over the harbour, louder the nearer the sea
-    if (AMALFI && due('gull', 9, 26) && n < 0.6) {
-      const pan = rand(-0.9, 0.9), vol = rand(0.02, 0.04) * (0.4 + 0.6 * this.sea);
-      for (let i = 0, c = 1 + Math.floor(rand(0, 3)); i < c; i++) this.fire(this.buf('gull'), at + i * rand(0.45, 0.7), vol * (1 - i * 0.15), this.street, rand(0.92, 1.08), undefined, pan);
+    // Amalfi: now and then a gull far out over the bay, a little nearer by the sea
+    if (AMALFI && due('gull', 35, 90) && n < 0.6) {
+      const pan = rand(-0.9, 0.9), vol = rand(0.01, 0.018) * (0.4 + 0.6 * this.sea);
+      for (let i = 0, c = 1 + Math.floor(rand(0, 2)); i < c; i++) this.fire(this.buf('gull'), at + i * rand(0.5, 0.8), vol * (1 - i * 0.25), this.far, rand(0.9, 1.05), undefined, pan);
     }
   }
 
@@ -636,12 +666,14 @@ export class Audio {
 
   private make(k: string): AudioBuffer {
     let m: RegExpMatchArray | null;
-    if ((m = k.match(/^(ep|koto|bass|bell|mando)(\d+)$/))) {
+    if ((m = k.match(/^(ep|koto|bass|bell|mando|nylon|flute)(\d+)$/))) {
       const n = Number(m[2]);
       switch (m[1]) {
         case 'ep': return this.renderEp(n);
         case 'koto': return this.renderKoto(n);
-        case 'mando': return this.renderKoto(n, true);
+        case 'mando': return this.renderKoto(n, 'mando');
+        case 'nylon': return this.renderKoto(n, 'nylon');
+        case 'flute': return this.renderFlute(n);
         case 'bass': return this.renderBass(n);
         default: return this.renderBell(n);
       }
@@ -664,19 +696,21 @@ export class Audio {
   }
 
   /**
-   * Karplus-Strong plucked string; the buffer's sample rate is picked so the delay line tunes exactly. `bright` is
-   * the mandolin: picked hard near the bridge (a brighter burst), a pair of steel strings ringing shorter.
+   * Karplus-Strong plucked string; the buffer's sample rate is picked so the delay line tunes exactly. The mandolin
+   * is picked hard near the bridge (a brighter burst), steel strings ringing shorter; the nylon guitar is plucked
+   * with the flesh of the finger (a dark, round burst) and rings long and warm.
    */
-  private renderKoto(m: number, bright = false): AudioBuffer {
+  private renderKoto(m: number, kind: 'koto' | 'mando' | 'nylon' = 'koto'): AudioBuffer {
+    const bright = kind === 'mando', nylon = kind === 'nylon';
     const f = mtof(m);
     const N = Math.max(4, Math.round(24000 / f - 0.5));
     const sr = f * (N + 0.5);
     const len = Math.ceil(sr * 2.2);
     const y = new Float32Array(len);
     let lp = 0;
-    const smooth = bright ? 0.15 : 0.6;
+    const smooth = bright ? 0.15 : nylon ? 0.78 : 0.6;
     for (let i = 0; i <= N && i < len; i++) { lp = smooth * lp + (1 - smooth) * noise(); y[i] = lp; }
-    const ring = bright ? Math.max(0.6, 1.6 - f / 900) : Math.max(1.2, 3.6 - f / 600);
+    const ring = bright ? Math.max(0.6, 1.6 - f / 900) : nylon ? Math.max(1.4, 3 - f / 800) : Math.max(1.2, 3.6 - f / 600);
     const keep = 10 ** (-3 / (f * ring)); // per-period loss for the wanted ring time
     for (let i = N + 1; i < len; i++) y[i] = keep * 0.5 * (y[i - N] + y[i - N - 1]);
     let dc = 0, prev = 0, peak = 1e-6;
@@ -690,6 +724,26 @@ export class Audio {
     const fade = Math.floor(sr * 0.05);
     for (let i = 0; i < len; i++) d[i] = (y[i] / peak) * (i > len - fade ? (len - i) / fade : 1);
     return b;
+  }
+
+  /**
+   * A soft wooden flute: a near-sine tone with a breath of air around it, swelling in and settling into a slow,
+   * shallow vibrato only once the note has been held a moment.
+   */
+  private renderFlute(m: number): AudioBuffer {
+    const f = mtof(m);
+    return this.render(3.4, LSR, () => {
+      const air = new SVF(LSR, 0.25);
+      let ph = 0;
+      return (t) => {
+        const vib = 1 + 0.0035 * Math.min(1, Math.max(0, t - 0.35) / 0.6) * Math.sin(TAU * 4.8 * t);
+        ph += (TAU * f * vib) / LSR;
+        const env = Math.min(1, t / 0.07) ** 2 * (0.82 + 0.18 * Math.exp(-t * 3)) * Math.exp(-t * 0.25);
+        const tone = Math.sin(ph) + 0.18 * Math.sin(2 * ph) + 0.05 * Math.sin(3 * ph);
+        const breath = air.run(noise(), f * 1.02) * (0.45 + 0.9 * Math.exp(-t * 12));
+        return (tone + breath * 0.5) * env;
+      };
+    });
   }
 
   /** Round upright-ish bass with a soft finger thump. */
@@ -867,6 +921,31 @@ export class Audio {
       pop *= 0.94;
       return (x - lp) * (0.35 + 0.12 * Math.sin(TAU * t / 1.5)) + pop * noise();
     }; }, true);
+  }
+
+  /**
+   * Small Tyrrhenian waves on Marina Grande (a seamless 24 s loop): each swells in low, folds over in a soft wash
+   * and drains back down the beach with a fine hiss of pebbles. Three waves of different size, never on a beat.
+   */
+  private surfLoop(): AudioBuffer {
+    const L = 24, waves = [[0, 1], [7.4, 0.7], [15.9, 0.85]];
+    return this.render(L, LSR, () => {
+      const wash = new SVF(LSR, 0.5), hiss = new SVF(LSR, 0.7);
+      let low = 0, peb = 0;
+      return (t) => {
+        let sw = 0, cr = 0, bk = 0;
+        for (const [t0, a] of waves) {
+          const d = (((t - t0) % L) + L) % L;
+          sw += a * Math.exp(-(((d - 2.2) / 1.1) ** 2));
+          if (d > 2.4) cr += a * (1 - Math.exp(-(d - 2.4) / 0.12)) * Math.exp(-(d - 2.4) / 1.3);
+          if (d > 3.2) bk += a * Math.min(1, (d - 3.2) / 0.6) * Math.exp(-(d - 3.2) / 1.9);
+        }
+        low += 0.06 * (noise() - low);
+        if (Math.random() < 0.004 * bk) peb = rand(0.3, 1);
+        peb *= 0.9;
+        return low * 2.2 * (0.25 + sw) + wash.run(noise(), 700 + 900 * cr) * cr * 0.55 + hiss.run(noise() * (0.25 + peb), 3800) * bk * 0.22;
+      };
+    }, true);
   }
 
   /** Stereo room impulse: decaying noise that darkens over time. */

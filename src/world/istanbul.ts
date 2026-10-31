@@ -686,7 +686,7 @@ export function buildIstanbul(win?: Window): BuildResult {
     ],
     benches: b.benches,
     stools: b.stools,
-    cats: CATS,
+    cats: [...CATS, ...laneCats(plan)],
     extras: [...anglers(), ...teaGardenFolk(), ...ctx.keepers],
     emitters: b.emitters,
     // no fireflies over the Golden Horn's busy quays
@@ -728,6 +728,23 @@ const CATS: [number, number, number][] = [
   [-100, 0, 39], [-40, 0, 39], [3, 0, 39.5], [26, 0, -30], [26, 0, -70], [-60, 0, 6], [-36, 0, -52], [-66, 0, -90],
   [-94, 0, -97], [-137, 0, 15], [-40, 0, -103], [-62, 0, -74], [-24, 0, 8], [-80, 0, 34], [-114, 0, -60], [-138, 0, -80],
 ];
+
+/** More cats down the middle of the lanes and stairs, one every thirty metres or so, as the city is full of them. */
+function laneCats(plan: Plan): [number, number, number][] {
+  const r = rng(808);
+  const out: [number, number, number][] = [];
+  for (const s of plan.segs) {
+    if (s.kind !== K.Lane && s.kind !== K.Stair) continue;
+    const [ax, , az] = s.a, [bx, , bz] = s.b;
+    const len = Math.hypot(bx - ax, bz - az);
+    for (let t = 6 + r() * 20; t < len - 4; t += 26 + r() * 16) {
+      const f = t / len;
+      if (CATS.some(([x, , z]) => Math.hypot(x - (ax + (bx - ax) * f), z - (az + (bz - az) * f)) < 8)) continue;
+      out.push([ax + (bx - ax) * f, 0, az + (bz - az) * f]);
+    }
+  }
+  return out.slice(0, 24);
+}
 
 /** The three nazar charms: in the Spice Bazaar, on the bridge rail among the fishermen, on the hilltop terrace's wall. */
 const NAZAR_SPOTS: [number, number, number][] = [[-36.5, 22.9, 1.2], [-15.2, 56, 1.4], [-146, 21.4, 1.1]];
@@ -1002,6 +1019,16 @@ function facade(ctx: Ctx, f: Frame, lt: LotPlan, o: { wall: number; shutter: num
         fr.box(g, a0, yb + 2, -1, a1, yb + 2, -2, o.trim);
         fr.box(g, a0, yb + 3, -2, a1, yb + 5, -2, (a, y) => (y === yb + 5 || a % 2 === 0 ? c.iron : 0));
         for (let a = a0 + 1; a < a1; a += 3) if (hash3(a, yb, lt.seed) < 0.35) fr.box(g, a, yb + 3, -1, a, yb + 3, -1, hash3(a, yb, 5) < 0.5 ? c.rose2 : c.leaf);
+        // now and then a kilim put out to air, folded over the rail and hanging down the front
+        if (hash3(lt.seed, fl, 23) < 0.3) {
+          const ka = a0 + 2 + Math.floor(hash3(lt.seed, fl, 29) * Math.max(1, a1 - a0 - 10));
+          const [k1, k2, k3] = hash3(lt.seed, fl, 31) < 0.5 ? [c.carpetRed, c.carpetCream, c.carpetBlue] : [c.carpetBlue, c.carpetGold, c.carpetRed];
+          fr.box(g, ka, yb - 2, -3, ka + 6, yb + 5, -3, (a, y) => {
+            const ea = Math.min(a - ka, ka + 6 - a), ey = Math.min(y - (yb - 2), yb + 5 - y);
+            return ea === 0 || ey === 0 ? k2 : (ea + ey) % 3 === 0 ? k3 : k1;
+          });
+          fr.box(g, ka, yb + 6, -2, ka + 6, yb + 6, -3, k1);
+        }
       }
     }
     // the wooden houses' cumba: a closed bay window jutting out over the street on the upper floors

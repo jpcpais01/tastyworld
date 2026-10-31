@@ -112,6 +112,30 @@ export function mealKit(id: string): MealKit {
     case 'kunefe': return kit('spoon', { vessel: kunefePan(c), held: fork(c), steam: 0.6, hot: true, scale: 0.78 });
     case 'hunkar': return kit('spoon', { vessel: begendiPlate(c), held: fork(c), steam: 0.7, hot: true, scale: 0.72 });
     case 'manti': return kit('spoon', { vessel: mantiPlate(c), held: spoon(c), steam: 0.5, scale: 0.74 });
+    case 'espresso': return kit('sip', { held: cup(c.plate, c.crema, c), drink: true, bites: 1, steam: 0.6, scale: 0.7 });
+    case 'cornetto': return kit('bite', { held: cornettoHeld(c), biteR: 4.2, crunch: true, scale: 0.72 });
+    case 'ndunderi': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.6, hot: true, scale: 0.62 });
+    case 'parmigiana': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: fork(c), steam: 0.7, hot: true, scale: 0.6 });
+    case 'vongole': return kit('twirl', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), held: fork(c), pasta: [c.spaghetti, c.spaghettiHi], steam: 0.6, hot: true, scale: 0.58 });
+    case 'acquapazza': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicBlue]), held: fork(c), steam: 0.8, hot: true, scale: 0.56 });
+    case 'margherita': return kit('bite', { held: sliceHeld(c), biteR: 4.4, steam: 0.6, hot: true, scale: 0.66 });
+    case 'calzone': return kit('bite', { held: calzoneHeld(c), biteR: 4.4, steam: 0.7, hot: true, scale: 0.66 });
+    case 'bruschetta': return kit('bite', { held: bruschettaHeld(c), biteR: 4.2, crunch: true, scale: 0.7 });
+    case 'carrozza': return kit('bite', { held: triangleHeld(c, c.mozzarella, c.fry, c.fryDark), biteR: 4.2, crunch: true, steam: 0.5, hot: true, scale: 0.68 });
+    case 'panuozzo': return kit('bite', { held: panuozzoHeld(c), biteR: 4.4, steam: 0.5, scale: 0.64 });
+    case 'taralli': return kit('pop', { vessel: taralliBag(c), crunch: true, scale: 0.72 });
+    case 'arancino': return kit('bite', { held: arancinoHeld(c), biteR: 4.4, crunch: true, steam: 0.6, hot: true, scale: 0.68 });
+    case 'crocche': return kit('bite', { held: croccheHeld(c), biteR: 3.6, crunch: true, steam: 0.6, hot: true, scale: 0.72 });
+    case 'baba': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow, c.babaSyrup]), held: spoon(c), scale: 0.66 });
+    case 'zeppola': return kit('bite', { held: zeppolaHeld(c), biteR: 4.2, scale: 0.7 });
+    case 'alici': return kit('twirl', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), pasta: [c.colatura, c.spaghettiHi], steam: 0.6, hot: true, scale: 0.58 });
+    case 'polpo': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.6, hot: true, scale: 0.58 });
+    case 'sorrentina': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: fork(c), steam: 0.9, hot: true, scale: 0.64 });
+    case 'polpette': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.8, hot: true, scale: 0.6 });
+    case 'melanzane': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), scale: 0.64 });
+    case 'pastiera': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), scale: 0.64 });
+    case 'risotto': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), held: spoon(c), steam: 0.7, hot: true, scale: 0.58 });
+    case 'ravioli': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.6, hot: true, scale: 0.62 });
   }
   return snackKit(id, kit, pal, c);
 }
@@ -841,4 +865,97 @@ function mantiPlate(c: FC): HandModel {
   for (let k = 0; k < 8; k++) p.set(5 + (k * 3) % 6, 4, 5 + (k * 5) % 6, k % 3 ? c.redButter : c.mint);
   const pieces: Piece[] = [{ at: [7.5, 3.5, 7.5], r: [4.6, 1.4, 4.6] }, { at: [5, 2, 7.5], r: [3, 1.4, 4] }, { at: [10, 2, 7.5], r: [3, 1.4, 4] }];
   return { prop: p, grip: [7.5, 0, 7.5], pieces, keep: [c.ceramicWhite] };
+}
+
+// ---------------------------------------------------------------------------------------------- Amalfi's restaurants
+
+/**
+ * A plated dish eaten straight off its counter model: the plate stays, the food goes in three pieces from front to
+ * back (the eater sits on the -z side), each piece one slab of whatever is not plate.
+ */
+function plated(pal: Palette, id: FoodId, keep: number[]): HandModel {
+  const prop = buildFood(id, pal);
+  const kept = new Set(keep);
+  let x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1, z0 = 1e9, z1 = -1;
+  for (let y = 0; y < prop.sy; y++) for (let z = 0; z < prop.sz; z++) for (let x = 0; x < prop.sx; x++) {
+    const v = prop.get(x, y, z);
+    if (!v || kept.has(v)) continue;
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z);
+  }
+  const cy = (y0 + y1 + 1) / 2, ry = (y1 - y0 + 1) / 2 + 1.2, cx = (x0 + x1 + 1) / 2, rx = (x1 - x0 + 1) / 2 + 1.5;
+  const slab = (z1 - z0 + 1) / 3;
+  const pieces: Piece[] = [0, 1, 2].map((i) => ({ at: [cx, cy, z0 + slab * (i + 0.5)] as V3, r: [rx, ry, slab * 0.5 + 1.4] as V3 }));
+  return { prop, grip: [prop.sx / 2, 0, prop.sz / 2], pieces, keep };
+}
+
+/** Something held upright and bitten from the top: rows of `colAt(x, y, z)` inside `inside(x, y, z)`. */
+function upright(sx: number, sy: number, sz: number, inside: (x: number, y: number, z: number) => boolean, colAt: (x: number, y: number, z: number) => number, keep: number[] = []): HandModel {
+  const p = new Prop(sx, sy, sz, VOX);
+  for (let y = 0; y < sy; y++) for (let z = 0; z < sz; z++) for (let x = 0; x < sx; x++) if (inside(x + 0.5, y + 0.5, z + 0.5)) p.set(x, y, z, colAt(x, y, z));
+  return { prop: p, grip: [sx / 2, 2, sz / 2], axis: [0, 1, 0], keep };
+}
+
+function cornettoHeld(c: FC): HandModel {
+  // stands on one horn, curving up and over
+  const m = upright(10, 20, 7, (x, y, z) => {
+    const t = y / 20, cx = 5 + Math.sin(t * Math.PI * 0.9) * 2.2, r = 0.9 + 3.1 * Math.sin(Math.PI * Math.min(1, t * 1.05));
+    return Math.hypot(x - cx, (z - 3.5) * 1.15) < r;
+  }, (x, y, z) => ((x + y * 2 + z) % 5 === 0 ? c.pastryDark : y % 3 === 0 ? c.pastryLight : c.pastry));
+  return m;
+}
+
+function arancinoHeld(c: FC): HandModel {
+  return upright(12, 17, 12, (x, y, z) => {
+    const t = y / 17, r = t < 0.45 ? 5.6 * Math.sqrt(Math.sin(Math.PI * Math.min(1, (t + 0.05) / 0.95))) : 5.8 * (1 - (t - 0.45) / 0.55) + 0.6;
+    return Math.hypot(x - 6, z - 6) < r;
+  }, (x, y, z) => (y < 3 ? c.paper : (x * 3 + y * 5 + z) % 6 === 0 ? c.crumbDark : Math.hypot(x + 0.5 - 6, z + 0.5 - 6) < 3 && y > 5 && y < 11 ? c.ragu : c.crumb), [c.paper]);
+}
+
+function croccheHeld(c: FC): HandModel {
+  return upright(6, 16, 6, (x, y, z) => Math.hypot(x - 3, z - 3) < 2.6 && y < 15.5 - Math.max(0, Math.hypot(x - 3, z - 3) - 1.6) * 2,
+    (x, y, z) => (y < 3 ? c.paper : Math.hypot(x + 0.5 - 3, z + 0.5 - 3) < 1.6 ? c.potato : (x + y + z) % 4 === 0 ? c.crumbDark : c.crumb), [c.paper]);
+}
+
+function triangleHeld(c: FC, filling: number, outer: number, outerDark: number): HandModel {
+  // a wedge held by its wide edge, the point up: carrozza, a slice of pizza
+  return upright(14, 16, 5, (x, y, z) => Math.abs(x - 7) < 7 * (1 - y / 16) + 0.3 && z > 0 && z < 5,
+    (x, y, z) => (y < 2 ? c.paper : z === 2 ? filling : (x + y + z) % 5 === 0 ? outerDark : outer), [c.paper]);
+}
+
+function sliceHeld(c: FC): HandModel {
+  // a slice of margherita, folded a libretto lengthways, the point up
+  return upright(12, 20, 5, (x, y, z) => Math.abs(x - 6) < 6 * (1 - y / 21) + 0.4 && z > 0 && z < 5 && !(z > 1 && z < 4 && y < 3 && Math.abs(x - 6) > 3),
+    (x, y, z) => (y < 3 ? (z === 1 || z === 4 ? c.crust : c.crustHi) : z === 1 || z === 4 ? ((x * 3 + y) % 9 === 0 ? c.char : c.dough) : z === 2 ? c.tomato : (x + y) % 4 === 0 ? c.basil : c.mozzarella));
+}
+
+function calzoneHeld(c: FC): HandModel {
+  return upright(14, 14, 6, (x, y, z) => Math.hypot((x - 7) / 7, y / 13) < 1 && Math.abs(z - 3) < 2.6 * Math.sqrt(Math.max(0, 1 - y / 14)) + 0.3,
+    (x, y, z) => (y < 2 ? c.paper : Math.abs(z + 0.5 - 3) < 1.4 && y < 10 ? (x % 3 ? c.ricotta : c.tomato) : (x * 3 + y * 5 + z) % 11 === 0 ? c.char : c.crust), [c.paper]);
+}
+
+function panuozzoHeld(c: FC): HandModel {
+  return upright(8, 22, 7, (x, y, z) => x > 0 && x < 8 && z > 0 && z < 7 && y < 21.5 - Math.abs(x - 4) * 0.4,
+    (x, y, z) => (y < 4 ? c.paper : z === 1 || z === 6 ? ((x * 3 + y) % 7 === 0 ? c.char : c.crust) : z === 3 ? ((x + y) % 3 ? c.sausage2 : c.provola) : z === 4 ? c.friarielli : c.provola), [c.paper]);
+}
+
+function bruschettaHeld(c: FC): HandModel {
+  // a slice held by its crust, topping facing the eater
+  const m = upright(10, 16, 6, (x, y, z) => x > 0 && x < 10 && y < 15.5 && z < (z < 3 ? 6 : 6),
+    (x, y, z) => (z >= 3 ? (z === 5 ? ((x + y) % 5 === 0 ? c.basil : c.tomato) : z === 4 ? ((x * y) % 3 ? c.tomato : c.tomatoHi) : c.loaf) : z === 0 ? c.breadCrust : (x + y) % 4 === 0 ? c.grill : c.loaf));
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 10; x++) if ((x + y) % 2 && m.prop.get(x, y, 5)) m.prop.set(x, y, 5, 0);
+  return m;
+}
+
+function zeppolaHeld(c: FC): HandModel {
+  // the ring stood on its edge in a paper wrap, cream and cherry on the face
+  return upright(14, 14, 6, (x, y, z) => { const d = Math.hypot(x - 7, y - 7); return (d < 6.4 && d > 2.2 && z < 4.5) || (d < 2.4 && z > 1 && z < 5); },
+    (x, y, z) => (y < 3 ? c.paper : Math.hypot(x + 0.5 - 7, y + 0.5 - 7) < 2.4 ? (z >= 4 ? c.amarena : c.custard) : z >= 4 ? c.custard : (x * 2 + y + z) % 5 === 0 ? c.pastryDark : c.pastry), [c.paper]);
+}
+
+function taralliBag(c: FC): HandModel {
+  const p = new Prop(13, 10, 13, VOX);
+  for (let y = 0; y <= 7; y++) p.box(1, y, 1, 11, y, 11, (x, _y, z) => (x === 1 || x === 11 || z === 1 || z === 11 ? ((x + z + y) % 6 === 0 ? c.conePaperDark : c.conePaper) : 0));
+  const at: V3[] = [[4.5, 7.5, 4.5], [8.5, 7.5, 6], [6, 8, 9]];
+  for (const q of at) for (let t = 0; t < 12; t++) { const a = (t / 12) * Math.PI * 2; p.set(Math.round(q[0] + Math.cos(a) * 2), Math.round(q[1]), Math.round(q[2] + Math.sin(a) * 2), t % 4 ? c.tarallo : c.taralloDark); }
+  return { prop: p, grip: [6.5, 0, 6.5], pieces: at.map((q) => ({ at: q, r: [2.8, 1.6, 2.8] as V3 })), keep: [c.conePaper, c.conePaperDark] };
 }

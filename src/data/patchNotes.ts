@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.16.2',
+    version: '0.16.3',
     date: '2026-10-31',
     title: 'Across the Horn',
     items: [
@@ -20,6 +20,19 @@ export const PATCH_NOTES: PatchNote[] = [
       'The pigeons of Eminönü gather in a real flock on the square in front of the New Mosque.',
       'The ground between the old houses is now cobbled yards and small kitchen gardens instead of lawn, the quays are stone right to the water\'s edge, and the Grand Bazaar\'s courtyards are paved.',
       'Cats far from you are no longer animated, which saves a little time every frame.',
+    ],
+  },
+  {
+    version: '0.16.2',
+    date: '2026-10-31',
+    title: 'Amalfi a tavola, and four hotels',
+    items: [
+      'Twelve new restaurants, cafés and bakeries all over Amalfi, every one with its own room to walk into: Bar del Duomo and the Dolceria on the piazza, Trattoria da Gemma and Il Saraceno across from them, a wood-fired pizzeria, a wine bar, a bakery and a café up Via Lorenzo, a rosticceria and an osteria on the harbour, a farmhouse kitchen up the valley and Ristorante La Terrazza high on the Salita dei Mulini.',
+      'Twenty-four new dishes to taste and stamp: espresso and cornetto, ndunderi, parmigiana, spaghetti alle vongole, acquapazza, margherita, calzone, bruschetta, mozzarella in carrozza, panuozzo, taralli, arancino, crocchè, babà, zeppola, spaghetti alla colatura, polpo, gnocchi alla sorrentina, polpette, chocolate aubergines, pastiera, lemon risotto and ravioli capresi. Each comes with its story, and each place has its own cooking challenge.',
+      'Every place looks like itself inside: the pizza oven glowing in the corner, fish on ice at the osteria, wine racks at the enoteca, loaves on the bakery shelves, a pastry case at the dolceria, a hearth at the masseria, chandeliers at La Terrazza, and regulars eating at the tables.',
+      'Four hotels to sleep in: Albergo Marina Grande on the harbour, Locanda dei Limoni among the lemon gardens, Palazzo Ruggiero on Via Lorenzo and Pensione Il Gabbiano above the piazza. Check in at the front desk, climb the stairs, and your room opens its French windows onto the view, with an iron bed, a moka pot to make coffee and a little balcony.',
+      'New missions: A Tavola! for eating in six of the restaurants, and Buonanotte for your first night in an Amalfi hotel.',
+      'Upstairs rooms on a hillside now cut away at the right height, so you see into your room in Amalfi and Istanbul.',
     ],
   },
   {

@@ -226,9 +226,11 @@ export class Cutaway {
       if (st.e > 0 || st.c > 0) {
         const e = st.e * st.e * (3 - 2 * st.e), c = st.c * st.c * (3 - 2 * st.c);
         // upstairs the near walls drop to waist height on that floor, and everything under its ceiling stays
-        const up = st.f * c;
+        // (the room's floor counts from the building's own floor: on a hillside that is not the street's zero)
+        const rel = st.f > 0 ? st.f - (o.floor ?? 0) : 0;
+        const up = rel * c;
         const low = o.top + (Math.min(o.top, o.low + up) - o.top) * e;
-        const roomH = o.top + (Math.min(o.top, Math.max(o.low, ROOM_TOP + (o.floor ?? 0)) + (st.f > 0 ? st.f - 0.5 : 0) * c) - o.top) * e;
+        const roomH = o.top + (Math.min(o.top, Math.max(o.low, ROOM_TOP + (o.floor ?? 0)) + (rel > 0 ? rel - 0.5 : 0) * c) - o.top) * e;
         f = low;
         b = low + (roomH - low) * c;
         n = b;

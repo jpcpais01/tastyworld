@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.49',
+    date: '2026-10-31',
+    title: 'Smaller pills',
+    items: [
+      'The little speech bubbles over people, the mission and directions pill at the top left, the compass and the notices at the top of the screen are all smaller now, so they cover less of the street. They still read clearly on phones.',
+      'When a reward is ready, tap the "Reward ready" pill at the top left. The passport opens on the Missions page with that reward highlighted, ready to claim.',
+    ],
+  },
+  {
     version: '0.16.48',
     date: '2026-10-31',
     title: 'Where Tokyo ends',

@@ -13,7 +13,9 @@ import type { HotelInfo } from '../data/hotels';
  * room. The cutaway in the voxel shader opens these rooms up whenever they sit between camera and player.
  */
 
-export type RoomKind = 'shop' | 'cafe' | 'izakaya' | 'konbini' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba' | 'hotel';
+export type RoomKind = 'shop' | 'cafe' | 'izakaya' | 'konbini' | 'florist' | 'books' | 'fish' | 'bakery' | 'pharmacy' | 'kissa' | 'soba' | 'hotel'
+  // Istanbul's food rooms
+  | 'kahve' | 'cay' | 'lokanta' | 'kebap' | 'pide' | 'borek' | 'muhallebi' | 'lokum' | 'baharat' | 'firin' | 'balik';
 
 export interface RoomNpc {
   role: 'keeper' | 'guest';

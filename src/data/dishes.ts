@@ -1,5 +1,5 @@
 import type { FoodId } from '../world/food';
-import { AMALFI } from '../world/cityId';
+import { AMALFI, ISTANBUL } from '../world/cityId';
 
 export interface Dish {
   id: FoodId;
@@ -306,13 +306,182 @@ const AMALFI_DISHES: Dish[] = [
   },
 ];
 
+/** Istanbul's dishes (`jp` holds the Turkish name). */
+const ISTANBUL_DISHES: Dish[] = [
+  {
+    id: 'simit', name: 'Simit', jp: 'simit', romaji: 'see-MEET', stall: 'simitci', price: 60, dessert: false,
+    tagline: 'A crisp sesame ring, dipped in grape molasses and baked dark.',
+    origin: 'Istanbul, at least 1500s',
+    history: 'Court records of 1525 already fix the price of simit in the city, and the bakers of Istanbul have sold it from trays on their heads ever since. Today some two million are eaten in the city every day.',
+    ingredients: ['Wheat dough', 'Grape molasses (pekmez)', 'Toasted sesame seeds', 'Salt'],
+    culture: 'The simitçi\'s red cart is on every corner by dawn. People buy one on the way to the ferry and tear off pieces for the gulls on the back deck.',
+    tip: 'Ask for it with a wedge of white cheese, or with a glass of tea. Both is better.',
+    flavor: { sweet: 1, savory: 3, umami: 1, crunch: 4 },
+  },
+  {
+    id: 'pogaca', name: 'Peynirli Poğaça', jp: 'poğaça', romaji: 'poh-AH-cha', stall: 'simitci', price: 70, dessert: false,
+    tagline: 'A soft round bun with salty white cheese and parsley inside.',
+    origin: 'Ottoman bakeries, centuries old',
+    history: 'Its name shares a root with the Italian focaccia: both come from the Latin for bread baked in the hearth. Every bakery in Turkey makes its own, plain, with cheese, with olives or with potato.',
+    ingredients: ['Yeasted dough with yoghurt', 'White cheese', 'Parsley', 'Egg wash', 'Nigella and sesame seeds'],
+    culture: 'Poğaça and tea is the commuter\'s breakfast. Bakeries sell them still warm from six in the morning.',
+    tip: 'Pull it apart rather than biting. The cheese inside is the prize.',
+    flavor: { sweet: 1, savory: 4, umami: 2, crunch: 1 },
+  },
+  {
+    id: 'balikekmek', name: 'Balık Ekmek', jp: 'balık ekmek', romaji: 'bah-LUK ek-MEK', stall: 'balikci', price: 350, dessert: false,
+    tagline: 'A grilled mackerel fillet in half a loaf, straight off a rocking boat.',
+    origin: 'Eminönü, 1900s',
+    history: 'Fishermen started grilling their catch on board and selling it in bread to the ferry crowds at Eminönü. The boats, painted gold and red and rocking at the quay, have been there for generations.',
+    ingredients: ['Atlantic mackerel fillet', 'Crusty white bread', 'Lettuce', 'Red onion', 'Lemon and salt'],
+    culture: 'The cooks grill on the boat and hand the sandwiches up to the quay as the boat heaves on the swell. People eat them on low stools by the water.',
+    tip: 'Squeeze lemon on it, then drink a cup of pickle juice from the next cart. That is the full ritual.',
+    flavor: { sweet: 0, savory: 5, umami: 4, crunch: 2 },
+  },
+  {
+    id: 'tursu', name: 'Turşu Suyu', jp: 'turşu suyu', romaji: 'toor-SHOO soo-yoo', stall: 'balikci', price: 100, dessert: false,
+    tagline: 'A glass of bright pink pickle juice, with a fork of pickles.',
+    origin: 'Istanbul pickle shops, 1800s',
+    history: 'Pickle shops have lined the old streets for centuries, keeping vegetables in brine through winter. The juice itself became a drink, coloured pink by beetroot or red carrot.',
+    ingredients: ['Brine', 'Cucumbers', 'Cabbage', 'Carrots', 'Beetroot', 'Garlic and chilli'],
+    culture: 'Sour and salty, it is drunk after fried fish to cut the oil. Some swear it cures everything.',
+    tip: 'Sip it slowly. It is sharper than it looks.',
+    flavor: { sweet: 0, savory: 4, umami: 2, crunch: 3 },
+  },
+  {
+    id: 'midye', name: 'Midye Dolma', jp: 'midye dolma', romaji: 'MID-yeh dol-MAH', stall: 'midyeci', price: 250, dessert: false,
+    tagline: 'Mussels stuffed with spiced rice, eaten with a squeeze of lemon.',
+    origin: 'Istanbul, brought by Armenian and Greek cooks, 1800s',
+    history: 'The city\'s minority communities cooked shellfish when others would not, and their stuffed mussels became a street classic. Vendors carry them in wide trays and sell them one by one.',
+    ingredients: ['Black mussels', 'Rice', 'Onion', 'Currants and pine nuts', 'Cinnamon, allspice and black pepper', 'Lemon'],
+    culture: 'The vendor opens each mussel, squeezes lemon on it and hands it to you. You use the empty top shell as a spoon. You keep eating until you say stop.',
+    tip: 'Count your shells: you pay by how many you ate.',
+    flavor: { sweet: 2, savory: 4, umami: 5, crunch: 0 },
+  },
+  {
+    id: 'kokorec', name: 'Kokoreç', jp: 'kokoreç', romaji: 'ko-ko-RETCH', stall: 'midyeci', price: 400, dessert: false,
+    tagline: 'Lamb intestines wound on a spit, grilled, chopped and spiced in bread.',
+    origin: 'Balkans and Anatolia, ancient',
+    history: 'The dish goes back at least to Byzantine Constantinople and shepherds before them. Late-night kokoreç stands are an Istanbul institution, glowing coal grills turning long into the night.',
+    ingredients: ['Lamb intestines and sweetbreads', 'Oregano', 'Chilli flakes', 'Cumin', 'Tomato and peppers', 'Bread'],
+    culture: 'The cook chops it on a hot plate with two heavy knives, a rhythm you can hear down the street.',
+    tip: 'Ask for "yarım", half a loaf, if you are new to it. You will come back for the whole.',
+    flavor: { sweet: 0, savory: 5, umami: 5, crunch: 3 },
+  },
+  {
+    id: 'kestane', name: 'Kestane Kebap', jp: 'kestane kebap', romaji: 'kes-tah-NEH ke-BAHP', stall: 'kestaneci', price: 250, dessert: false,
+    tagline: 'Chestnuts roasted over charcoal on a cart, sold in a paper bag.',
+    origin: 'Istanbul winters, centuries old',
+    history: 'The chestnut forests of Bursa and the Black Sea fed the city every autumn. The kestaneci\'s cart with its glowing tray is the smell of an Istanbul winter.',
+    ingredients: ['Chestnuts, scored with a cross', 'Charcoal heat', 'Patience'],
+    culture: 'Kebap here just means roasted. Vendors keep the chestnuts warm on the edge of the tray and hand them over still smoking.',
+    tip: 'Peel them while they are hot. Cold, the skin sticks.',
+    flavor: { sweet: 3, savory: 2, umami: 1, crunch: 1 },
+  },
+  {
+    id: 'misir', name: 'Közde Mısır', jp: 'közde mısır', romaji: 'kuhz-DEH muh-SUR', stall: 'kestaneci', price: 150, dessert: false,
+    tagline: 'A cob of corn grilled on the coals, rubbed with salt.',
+    origin: 'Istanbul shores, 1900s',
+    history: 'Corn sellers worked the beaches and promenades with their braziers: grilled in summer, boiled in a big pot in winter. The same carts swap chestnuts for corn as the seasons turn.',
+    ingredients: ['Sweetcorn', 'Charcoal', 'Salt'],
+    culture: 'Eaten walking along the shore, especially in the evening when the light turns gold on the water.',
+    tip: 'Hold it by the husk. The cob stays hot for a long time.',
+    flavor: { sweet: 3, savory: 2, umami: 1, crunch: 3 },
+  },
+  {
+    id: 'dondurma', name: 'Maraş Dondurma', jp: 'dondurma', romaji: 'don-door-MAH', stall: 'dondurmaci', price: 250, dessert: true,
+    tagline: 'Stretchy ice cream thickened with orchid root, beaten until it can be cut with a knife.',
+    origin: 'Kahramanmaraş, 1700s',
+    history: 'Snow from the mountains near Maraş was mixed with milk, sugar and salep powder and beaten with paddles. The result is chewy and slow to melt, and it travelled the empire with the vendors.',
+    ingredients: ['Goat milk', 'Sugar', 'Salep (orchid root flour)', 'Mastic resin', 'Pistachio'],
+    culture: 'Vendors in red waistcoats tease customers with long paddles, offering the cone and snatching it back. Laughing is part of the price.',
+    tip: 'When he hands you the cone, hold tight and grab fast. He will not let go the first time.',
+    flavor: { sweet: 5, savory: 0, umami: 0, crunch: 1 },
+  },
+  {
+    id: 'salep', name: 'Sıcak Salep', jp: 'salep', romaji: 'sah-LEP', stall: 'dondurmaci', price: 200, dessert: true,
+    tagline: 'Hot milk thickened with orchid root, dusted with cinnamon.',
+    origin: 'Ottoman Istanbul, 1500s',
+    history: 'Ground tubers of wild orchids were believed to warm and strengthen. Salep was the winter drink of the coffee houses, and in London it became saloop, sold on the streets before tea arrived.',
+    ingredients: ['Milk', 'Salep (orchid root flour)', 'Sugar', 'Cinnamon'],
+    culture: 'A winter drink for ferry decks and cold evenings. The same orchid root makes the summer ice cream chewy.',
+    tip: 'Stir in the cinnamon. And blow, it holds the heat like soup.',
+    flavor: { sweet: 4, savory: 0, umami: 0, crunch: 0 },
+  },
+  {
+    id: 'doner', name: 'Dürüm Döner', jp: 'dürüm döner', romaji: 'dew-REWM duh-NER', stall: 'durumcu', price: 400, dessert: false,
+    tagline: 'Thin shavings from a turning spit of lamb, rolled in lavash with tomato and parsley.',
+    origin: 'Bursa, 1800s',
+    history: 'Cooks in Bursa stood the horizontal spit upright so the meat basted itself as it turned. Döner means "turning". From Istanbul it spread to the whole world.',
+    ingredients: ['Layered lamb and beef', 'Lavash flatbread', 'Tomato', 'Onion with sumac', 'Parsley'],
+    culture: 'The usta shaves the meat with a long knife, as thin as paper, in long strokes from top to bottom.',
+    tip: 'A dürüm is rolled; ask for "acılı" if you want hot pepper.',
+    flavor: { sweet: 0, savory: 5, umami: 5, crunch: 1 },
+  },
+  {
+    id: 'ayran', name: 'Ayran', jp: 'ayran', romaji: 'eye-RAHN', stall: 'durumcu', price: 100, dessert: false,
+    tagline: 'Cold, frothy, salted yoghurt in a copper cup.',
+    origin: 'Central Asia, ancient',
+    history: 'Nomadic Turks diluted yoghurt with water for the long rides. Ayran is now officially the national drink of Turkey.',
+    ingredients: ['Yoghurt', 'Cold water', 'Salt'],
+    culture: 'Whisked in a big copper pot until a thick foam stands on top, then ladled out. It is the drink with every kebab.',
+    tip: 'Drink it with spicy food. It cools the mouth better than water.',
+    flavor: { sweet: 0, savory: 3, umami: 1, crunch: 0 },
+  },
+  {
+    id: 'baklava', name: 'Fıstıklı Baklava', jp: 'baklava', romaji: 'bahk-lah-VAH', stall: 'baklavaci', price: 450, dessert: true,
+    tagline: 'Forty layers of paper-thin pastry, pistachio and syrup.',
+    origin: 'Topkapı Palace kitchens, 1400s',
+    history: 'The palace kitchens perfected it, and on the fifteenth day of Ramadan the sultan sent trays of baklava to his soldiers in a ceremonial parade. The best pistachios still come from Gaziantep.',
+    ingredients: ['Yufka pastry, rolled thin as silk', 'Gaziantep pistachios', 'Clarified butter', 'Sugar syrup with lemon'],
+    culture: 'A master rolls dough so thin you can read a newspaper through it. Good baklava crackles, then melts.',
+    tip: 'Eat it upside down: the pastry side on your tongue, so you taste the crunch first.',
+    flavor: { sweet: 5, savory: 0, umami: 0, crunch: 4 },
+  },
+  {
+    id: 'kunefe', name: 'Künefe', jp: 'künefe', romaji: 'kew-neh-FEH', stall: 'baklavaci', price: 500, dessert: true,
+    tagline: 'Crisp shredded pastry round a layer of melting cheese, soaked in syrup and served hot.',
+    origin: 'Hatay and the Levant, 1200s',
+    history: 'Arab cooks of the medieval Levant made it with unsalted cheese, and the city of Antakya in Hatay made it famous in Turkey. It is baked to order in little copper pans.',
+    ingredients: ['Kadayıf (shredded pastry)', 'Soft unsalted cheese', 'Butter', 'Syrup', 'Pistachio'],
+    culture: 'It comes to the table sizzling, with a long string of cheese when you lift the first forkful.',
+    tip: 'Eat it fast, while the cheese stretches.',
+    flavor: { sweet: 5, savory: 1, umami: 0, crunch: 3 },
+  },
+  {
+    id: 'hunkar', name: 'Hünkar Beğendi', jp: 'hünkar beğendi', romaji: 'hewn-KAR beh-en-DEE', stall: 'gizli', price: 900, dessert: false,
+    tagline: '"The sultan liked it": smoky aubergine cream under a slow lamb stew.',
+    origin: 'Ottoman palace, 1869',
+    history: 'Legend says palace cooks made it for the French Empress Eugénie\'s visit, and the sultan liked it so much it took his approval as its name. It has been the pride of Istanbul\'s old restaurants since.',
+    ingredients: ['Aubergines charred over flame', 'Butter, flour and milk', 'Aged kaşar cheese', 'Lamb', 'Tomato and peppers'],
+    culture: 'The aubergines are burned whole over an open flame until they collapse. That smoke is the whole secret.',
+    tip: 'Take a little of both on each forkful.',
+    flavor: { sweet: 1, savory: 5, umami: 5, crunch: 0 },
+  },
+  {
+    id: 'manti', name: 'Mantı', jp: 'mantı', romaji: 'man-TUH', stall: 'gizli', price: 800, dessert: false,
+    tagline: 'Dumplings the size of a fingertip under garlic yoghurt and red pepper butter.',
+    origin: 'Central Asia, carried west by the Turks',
+    history: 'The dumplings rode west along the Silk Road. In Kayseri a bride\'s skill was judged by how many mantı fit on a single spoon: forty is the mark of a master.',
+    ingredients: ['Egg pasta, cut in tiny squares', 'Spiced lamb', 'Yoghurt with garlic', 'Butter with red pepper', 'Dried mint and sumac'],
+    culture: 'Families gather to fold mantı together, a whole afternoon of gossip and pinching dough.',
+    tip: 'Stir everything together. Every spoonful should have dumplings, yoghurt and butter.',
+    flavor: { sweet: 0, savory: 5, umami: 4, crunch: 0 },
+  },
+];
+
 /** The menu of the city on this trip. */
-export const DISHES: Dish[] = AMALFI ? AMALFI_DISHES : TOKYO_DISHES;
+export const DISHES: Dish[] = ISTANBUL ? ISTANBUL_DISHES : AMALFI ? AMALFI_DISHES : TOKYO_DISHES;
 /** Every dish of every city, for stamps collected elsewhere. */
-export const ALL_DISHES: Dish[] = [...TOKYO_DISHES, ...AMALFI_DISHES];
+export const ALL_DISHES: Dish[] = [...TOKYO_DISHES, ...AMALFI_DISHES, ...ISTANBUL_DISHES];
 /** The menus of the other cities, for the passport's "stamped elsewhere" pages. */
-export const OTHER_MENUS: { name: string; flag: string; dishes: Dish[] }[] = AMALFI
-  ? [{ name: 'Tokyo', flag: '', dishes: TOKYO_DISHES }]
-  : [{ name: 'Amalfi', flag: 'it', dishes: AMALFI_DISHES }];
+const MENUS = [
+  { city: 'tokyo', name: 'Tokyo', flag: '', dishes: TOKYO_DISHES },
+  { city: 'amalfi', name: 'Amalfi', flag: 'it', dishes: AMALFI_DISHES },
+  { city: 'istanbul', name: 'Istanbul', flag: 'tr', dishes: ISTANBUL_DISHES },
+];
+export const OTHER_MENUS: { name: string; flag: string; dishes: Dish[] }[] = MENUS
+  .filter((m) => m.city !== (ISTANBUL ? 'istanbul' : AMALFI ? 'amalfi' : 'tokyo'))
+  .map(({ name, flag, dishes }) => ({ name, flag, dishes }));
 
 export const DISH = Object.fromEntries(ALL_DISHES.map((d) => [d.id, d])) as Record<FoodId, Dish>;

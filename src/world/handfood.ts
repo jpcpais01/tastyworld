@@ -96,6 +96,22 @@ export function mealKit(id: string): MealKit {
     case 'caprese': return kit('spoon', { vessel: cakePlate(c), held: fork(c), scale: 0.8 });
     case 'scialatielli': return kit('twirl', { vessel: seafoodPlate(c), held: fork(c), pasta: [c.scialatielli, c.scialatielliHi], steam: 0.6, hot: true });
     case 'totani': return kit('spoon', { vessel: stewBowl(c), held: spoon(c), steam: 0.8, hot: true, scale: 0.72 });
+    case 'simit': return kit('bite', { held: simitRing(c), biteR: 4, crunch: true, scale: 0.66 });
+    case 'pogaca': return kit('bite', { held: bun(c.bread, c.breadIn, c.cheese, true), biteR: 4.4 });
+    case 'balikekmek': return kit('sandwich', { held: fishBread(c, c.mackerel), biteR: 4.6, steam: 0.5, hot: true, scale: 0.62 });
+    case 'tursu': return kit('sip', { held: glass(c.pickleJuice, c, false), drink: true, bites: 2 });
+    case 'midye': return kit('pop', { vessel: musselPlate(c), bites: 3 });
+    case 'kokorec': return kit('sandwich', { held: fishBread(c, c.offal), biteR: 4.6, steam: 0.6, hot: true, scale: 0.62 });
+    case 'kestane': return kit('pop', { vessel: chestnutBag(c), bites: 3, steam: 0.4, hot: true });
+    case 'misir': return kit('bite', { held: cob(c), biteR: 3.8, steam: 0.4, scale: 0.7 });
+    case 'dondurma': return kit('bite', { held: maras(c), biteR: 3.6, scale: 0.72 });
+    case 'salep': return kit('sip', { held: cup(c.ceramicWhite, c.salep, c), drink: true, bites: 2, steam: 0.7, hot: true });
+    case 'doner': return kit('bite', { held: durum(c), biteR: 4.2, steam: 0.5, hot: true, scale: 0.66 });
+    case 'ayran': return kit('sip', { held: copperCup(c), drink: true, bites: 2 });
+    case 'baklava': return kit('spoon', { vessel: baklavaPlate(c), held: fork(c), crunch: true, scale: 0.8 });
+    case 'kunefe': return kit('spoon', { vessel: kunefePan(c), held: fork(c), steam: 0.6, hot: true, scale: 0.78 });
+    case 'hunkar': return kit('spoon', { vessel: begendiPlate(c), held: fork(c), steam: 0.7, hot: true, scale: 0.72 });
+    case 'manti': return kit('spoon', { vessel: mantiPlate(c), held: spoon(c), steam: 0.5, scale: 0.74 });
   }
   return snackKit(id, kit, pal, c);
 }
@@ -124,6 +140,20 @@ function snackKit(icon: string, kit: KitFn, pal: Palette, c: FC): MealKit {
     case 'fish': return kit('bite', { held: saba(a(0xd9d2c4, 0.06), a(0x6a6f7a, 0.08), c), biteR: 4 });
     case 'edamame': return kit('pop', { vessel: bowlOf(c, a(0x6fae4a, 0.1), a(0x8cc65a, 0.08)) });
     case 'pickles': return kit('chopsticks', { vessel: bowlOf(c, a(0x8cc65a, 0.08), a(0xf2d84a, 0.05)), held: chopsticks(c), bitesPer: 1 });
+    // Istanbul's counters
+    case 'simit': return kit('bite', { held: simitRing(c), biteR: 4, crunch: true, scale: 0.66 });
+    case 'milk': return kit('sip', { held: copperCup(c), drink: true, bites: 2 });
+    case 'drop': return kit('sip', { held: glass(a(0xd8903a), c, false), drink: true, bites: 2, steam: 0.5 });
+    case 'wrap': return kit('bite', { held: durum(c), biteR: 4.2, steam: 0.4, scale: 0.66 });
+    case 'skewer': return kit('bite', { held: durum(c), biteR: 4.2, steam: 0.5, hot: true, scale: 0.66 });
+    case 'pizza': case 'cheese': return kit('bite', { held: fishBread(c, c.cheese), biteR: 4.4, steam: 0.5, scale: 0.62 });
+    case 'croissant': return kit('bite', { held: bun(c.pastry, c.pastryDark, c.cheese), biteR: 4.4, crunch: true });
+    case 'sugar': return kit('pop', { vessel: bowlOf(c, a(0xf2a6b8, 0.04), a(0x9ac46a, 0.05)), bites: 3 });
+    case 'bean': return kit('spoon', { vessel: bowlOf(c, a(0xe8dcc0, 0.05), a(0xc8401e, 0.05)), held: spoon(c), steam: 0.6 });
+    case 'pot': return kit('spoon', { vessel: bowlOf(c, a(0xe8902a, 0.05), a(0xd87a22, 0.05)), held: spoon(c), steam: 0.8 });
+    case 'rice': return kit('spoon', { vessel: bowlOf(c, c.rice, c.rice), held: spoon(c) });
+    case 'tart': return kit('spoon', { vessel: bowlOf(c, c.caramel, c.custard), held: spoon(c) });
+    case 'tomato': return kit('spoon', { vessel: bowlOf(c, c.tomato, c.lettuce), held: fork(c) });
   }
   return kit('bite', { held: bun(c.batter, c.batterDark, c.bean), biteR: 4.4 });
 }
@@ -687,4 +717,128 @@ function stewBowl(c: FC): HandModel {
   for (let k = 0; k < 6; k++) p.set(4 + k, 6, 5 + (k % 3) * 2, c.parsley);
   const pieces: Piece[] = at.map((q) => ({ at: q, r: [2.2, 1.8, 2.2] as V3 }));
   return { prop: p, grip: [7.5, 0, 7.5], pieces, keep: [c.ceramicYellow] };
+}
+
+// ---------------------------------------------------------------------------------------------- Istanbul
+
+function simitRing(c: FC): HandModel {
+  // stands on its edge like a wheel, held at the bottom
+  const p = new Prop(17, 17, 5, VOX);
+  for (let y = 0; y < 17; y++) for (let x = 0; x < 17; x++) for (let z = 0; z < 5; z++) {
+    const d = Math.hypot(x + 0.5 - 8.5, y + 0.5 - 8.5) - 6, dz = z + 0.5 - 2.5;
+    if (d * d + dz * dz > 5.2) continue;
+    p.set(x, y, z, (z === 0 || z === 4) && (x * 3 + y) % 4 === 0 ? c.sesame : (x + y) % 3 ? c.simit : c.simitDark);
+  }
+  return { prop: p, grip: [8.5, 1.5, 2.5], axis: [0, 1, 0] };
+}
+
+function fishBread(c: FC, filling: number): HandModel {
+  // half a loaf held across both hands, bitten from the far end
+  const p = new Prop(9, 8, 22, VOX);
+  for (let z = 0; z < 22; z++) for (let y = 0; y < 8; y++) for (let x = 0; x < 9; x++) {
+    const d = Math.hypot((x + 0.5 - 4.5) / 4.5, (y + 0.5 - 4) / 4);
+    if (d > 1) continue;
+    p.set(x, y, z, d > 0.75 ? c.bread : y >= 3 && y <= 4 ? filling : y === 5 ? c.lettuce : c.breadIn);
+  }
+  return { prop: p, grip: [4.5, 4, 3], grip2: [4.5, 4, 9], axis: [0, 0, 1] };
+}
+
+function musselPlate(c: FC): HandModel {
+  const p = new Prop(15, 6, 15, VOX);
+  p.cylY(7.5, 7.5, 7, 0, 0, c.plate);
+  const at: V3[] = [[4.5, 2, 5], [10, 2, 6], [7.5, 2, 10.5]];
+  at.forEach((q) => { ell(p, [q[0], 1.2, q[2]], [2, 1, 2.8], c.mussel); ell(p, q, [1.5, 0.9, 2.2], c.rice); });
+  p.box(11, 1, 10, 12, 2, 11, c.lemon);
+  return { prop: p, grip: [7.5, 0, 7.5], pieces: at.map((q) => ({ at: q, r: [2, 1.4, 2.6] as V3 })), keep: [c.plate, c.mussel, c.lemon] };
+}
+
+function chestnutBag(c: FC): HandModel {
+  const p = new Prop(12, 13, 10, VOX);
+  p.box(0, 0, 0, 11, 8, 9, c.paper);
+  p.box(1, 1, 1, 10, 8, 8, 0);
+  p.box(0, 5, 0, 11, 5, 0, c.paperRed);
+  const at: V3[] = [[3.5, 8, 4], [8, 8.5, 5], [5.5, 10, 6.5]];
+  at.forEach((q, i) => { ell(p, q, [1.8, 1.4, 1.6], c.chestnut); if (i !== 1) p.set(Math.round(q[0]), Math.round(q[1]) + 1, Math.round(q[2]), c.chestnutIn); });
+  return { prop: p, grip: [6, 0, 5], pieces: at.map((q) => ({ at: q, r: [2.2, 1.8, 2] as V3 })), keep: [c.paper, c.paperRed] };
+}
+
+function cob(c: FC): HandModel {
+  const p = new Prop(7, 7, 22, VOX);
+  for (let z = 0; z < 22; z++) for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
+    const d = Math.hypot(x + 0.5 - 3.5, y + 0.5 - 3.5);
+    if (z < 4 ? d <= 1.6 : d <= 3.2) p.set(x, y, z, z < 4 ? c.husk : (x + y + z) % 4 === 0 ? c.cornDark : c.corn);
+  }
+  return { prop: p, grip: [3.5, 3.5, 1.5], axis: [0, 0, 1], keep: [c.husk] };
+}
+
+function maras(c: FC): HandModel {
+  const p = new Prop(9, 26, 9, VOX);
+  for (let y = 0; y < 11; y++) p.cylY(4.5, 4.5, 0.6 + y * 0.33, y, y, (x, yy, z) => ((x + yy + z) % 3 === 0 ? c.waferDark : c.wafer));
+  p.cylY(4.5, 4.5, 3.6, 11, 20, c.dondurma);
+  ell(p, [4.5, 21, 4.5], [3.4, 2.4, 3.4], c.dondurma);
+  p.set(4, 23, 4, c.antep); p.set(5, 23, 5, c.antep);
+  return { prop: p, grip: [4.5, 3, 4.5], axis: [0, 1, 0] };
+}
+
+function durum(c: FC): HandModel {
+  const p = new Prop(8, 8, 22, VOX);
+  for (let z = 0; z < 22; z++) for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const d = Math.hypot(x + 0.5 - 4, y + 0.5 - 4);
+    if (d > 3.8) continue;
+    p.set(x, y, z, z < 7 && d > 2.8 ? c.paper : d > 2.8 ? c.lavash : z > 18 ? ((x + y) % 3 === 0 ? c.tomato : (x + y) % 3 === 1 ? c.parsley : c.donerHi) : c.doner);
+  }
+  return { prop: p, grip: [4, 4, 3], axis: [0, 0, 1], keep: [c.paper] };
+}
+
+function copperCup(c: FC): HandModel {
+  const p = new Prop(9, 11, 7, VOX);
+  p.cylY(3.5, 3.5, 3.3, 0, 9, (x, y, z) => ((x + y + z) % 4 === 0 ? c.copperDark : c.copper));
+  p.cylY(3.5, 3.5, 2.5, 1, 9, c.ayran);
+  ell(p, [3.5, 9.6, 3.5], [2.5, 1, 2.5], c.ayran);
+  p.box(7, 2, 3, 8, 2, 3, c.copperDark); p.box(8, 3, 3, 8, 6, 3, c.copperDark); p.box(7, 7, 3, 8, 7, 3, c.copperDark);
+  return { prop: p, grip: [6.5, 4.5, 3.5], tip: [3.5, 10, 0.8] };
+}
+
+function baklavaPlate(c: FC): HandModel {
+  const p = new Prop(15, 7, 15, VOX);
+  p.cylY(7.5, 7.5, 7, 0, 0, c.ceramicWhite);
+  p.cylY(7.5, 7.5, 7, 1, 1, (x, _y, z) => (Math.hypot(x + 0.5 - 7.5, z + 0.5 - 7.5) > 6 ? c.iznik : 0));
+  const at: V3[] = [[4.5, 2.5, 5], [10.5, 2.5, 5], [7.5, 2.5, 10.5]];
+  for (const q of at) for (let x = -3; x <= 3; x++) for (let z = -3; z <= 3; z++) {
+    if (Math.abs(x) + Math.abs(z) > 3) continue;
+    for (let y = 1; y <= 4; y++) p.set(Math.round(q[0]) + x, y, Math.round(q[2]) + z, y === 4 ? (Math.abs(x) + Math.abs(z) < 2 ? c.antep : c.baklavaHi) : y % 2 ? c.baklava : c.antep);
+  }
+  return { prop: p, grip: [7.5, 0, 7.5], pieces: at.map((q) => ({ at: q, r: [3, 2.6, 3] as V3 })), keep: [c.ceramicWhite, c.iznik] };
+}
+
+function kunefePan(c: FC): HandModel {
+  const p = new Prop(15, 7, 15, VOX);
+  p.cylY(7.5, 7.5, 7, 0, 2, c.copper);
+  p.cylY(7.5, 7.5, 6.2, 1, 2, 0);
+  p.cylY(7.5, 7.5, 6, 1, 3, (x, y, z) => (y === 2 && Math.hypot(x + 0.5 - 7.5, z + 0.5 - 7.5) < 5 ? c.cheese : (x + y + z) % 3 ? c.kadayif : c.kadayifHi));
+  p.cylY(7.5, 7.5, 2, 4, 4, c.antep);
+  const pieces: Piece[] = [{ at: [10, 2.5, 7.5], r: [2.8, 2.2, 3.4] }, { at: [5, 2.5, 7.5], r: [2.8, 2.2, 3.4] }, { at: [7.5, 2.5, 7.5], r: [6.4, 2.4, 6.4] }];
+  return { prop: p, grip: [7.5, 0, 7.5], pieces, keep: [c.copper] };
+}
+
+function begendiPlate(c: FC): HandModel {
+  const p = new Prop(17, 7, 17, VOX);
+  p.cylY(8.5, 8.5, 8, 0, 0, c.ceramicWhite);
+  p.cylY(8.5, 8.5, 8, 1, 1, (x, _y, z) => (Math.hypot(x + 0.5 - 8.5, z + 0.5 - 8.5) > 7 ? c.iznik : 0));
+  p.cylY(8.5, 8.5, 6.4, 1, 2, c.begendi);
+  const at: V3[] = [[6, 3.5, 7], [11, 3.5, 7.5], [8.5, 3.5, 11]];
+  at.forEach((q) => ell(p, q, [1.8, 1.3, 1.8], c.lambStew));
+  const pieces: Piece[] = [...at.map((q) => ({ at: q, r: [2.3, 1.8, 2.3] as V3 })), { at: [8.5, 1.8, 8.5], r: [7, 1.4, 7] }];
+  return { prop: p, grip: [8.5, 0, 8.5], pieces, keep: [c.ceramicWhite, c.iznik] };
+}
+
+function mantiPlate(c: FC): HandModel {
+  const p = new Prop(15, 7, 15, VOX);
+  for (let y = 0; y <= 3; y++) p.cylY(7.5, 7.5, 5 + y * 0.7, y, y, c.ceramicWhite);
+  p.cylY(7.5, 7.5, 6.6, 1, 3, 0);
+  p.cylY(7.5, 7.5, 6, 1, 2, c.manti);
+  p.cylY(7.5, 7.5, 4.4, 3, 3, c.yoghurt);
+  for (let k = 0; k < 8; k++) p.set(5 + (k * 3) % 6, 4, 5 + (k * 5) % 6, k % 3 ? c.redButter : c.mint);
+  const pieces: Piece[] = [{ at: [7.5, 3.5, 7.5], r: [4.6, 1.4, 4.6] }, { at: [5, 2, 7.5], r: [3, 1.4, 4] }, { at: [10, 2, 7.5], r: [3, 1.4, 4] }];
+  return { prop: p, grip: [7.5, 0, 7.5], pieces, keep: [c.ceramicWhite] };
 }

@@ -1,5 +1,5 @@
 // Shared world constants (metres unless noted).
-import { AMALFI } from './cityId';
+import { AMALFI, ISTANBUL } from './cityId';
 
 export const V = 0.25; // coarse voxel size
 export const VPM = 4; // voxels per metre
@@ -9,15 +9,16 @@ export const G = 12; // voxel layer of street level (world y = 0 at the top of l
  * the original district keeps 0..72 x 0..56 m and the city grows around it, so the world's first voxel
  * column is at (VX0, VZ0) = (-72 m, -56 m).
  */
-export const VX0 = AMALFI ? -448 : -288, VZ0 = AMALFI ? -320 : -224;
+export const VX0 = AMALFI ? -448 : ISTANBUL ? -640 : -288, VZ0 = AMALFI ? -320 : ISTANBUL ? -448 : -224;
 /** Amalfi climbs from the sea up its cliffs, so its world is taller: 56 m of voxels against Tokyo's 40. */
-export const SX = AMALFI ? 768 : 864, SY = AMALFI ? 224 : 160, SZ = AMALFI ? 640 : 672;
+/** Istanbul rolls over its hills more gently: 48 m of voxels, room for the minarets on the hilltop. */
+export const SX = AMALFI ? 768 : ISTANBUL ? 832 : 864, SY = AMALFI ? 224 : ISTANBUL ? 192 : 160, SZ = AMALFI ? 640 : ISTANBUL ? 704 : 672;
 export const WX0 = VX0 * V, WZ0 = VZ0 * V;
 export const WX1 = (VX0 + SX) * V, WZ1 = (VZ0 + SZ) * V;
 export const WORLD_W = SX * V, WORLD_D = SZ * V;
 export const WATER_Y = -0.55;
 /** The Inari hill (inclusive voxel rect): the only ground above street level people walk on. */
-export const HILL: [number, number, number, number] = AMALFI ? [0, 0, -1, -1] : [-288, 260, -41, 447];
+export const HILL: [number, number, number, number] = AMALFI || ISTANBUL ? [0, 0, -1, -1] : [-288, 260, -41, 447];
 export const CHUNK = 32; // voxel columns per chunk side
 export const CHUNKS_X = SX / CHUNK, CHUNKS_Z = SZ / CHUNK;
 
@@ -83,7 +84,32 @@ const AMALFI_ZONES: StreetZone[] = [
   { id: 'grotta', name: 'La Grotta · Hidden Kitchen', jp: 'la grotta', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
 ];
 
-export const ZONES: StreetZone[] = AMALFI ? AMALFI_ZONES : TOKYO_ZONES;
+/** Istanbul's quarters round Eminönü (see world/istanbul.ts); `jp` holds the Turkish name. */
+const ISTANBUL_ZONES: StreetZone[] = [
+  { id: 'eminonu', name: 'Eminönü', jp: 'Tarihi Yarımada', rect: [-160, -112, 48, 64] },
+  { id: 'kopru', name: 'Galata Bridge', jp: 'Galata Köprüsü', rect: [-23, 44, -13, 64] },
+  { id: 'halic', name: 'Golden Horn Quay', jp: 'Haliç', rect: [-160, 36, 26, 44] },
+  { id: 'kucukpazar', name: 'Küçükpazar', jp: 'Küçükpazar', rect: [-160, 22, -96, 36] },
+  { id: 'meydan', name: 'Eminönü Square', jp: 'Eminönü Meydanı', rect: [-12, 30, 26, 44] },
+  { id: 'yeni', name: 'The New Mosque', jp: 'Yeni Cami', rect: [-4, 2, 16, 30] },
+  { id: 'bogaz', name: 'Bosphorus Quay', jp: 'Boğaz', rect: [22, -112, 30, 30] },
+  { id: 'kadikoy', name: 'Kadıköy Ferry Pier', jp: 'Kadıköy İskelesi', rect: [30, -8, 48, 4] },
+  { id: 'uskudar', name: 'Üsküdar Ferry Pier', jp: 'Üsküdar İskelesi', rect: [30, -52, 48, -40] },
+  { id: 'halicpier', name: 'Golden Horn Ferry Pier', jp: 'Haliç İskelesi', rect: [-58, 44, -46, 64] },
+  { id: 'misir', name: 'The Spice Bazaar', jp: 'Mısır Çarşısı', rect: [-64, 20, -8, 30] },
+  { id: 'hamidiye', name: 'Hamidiye Street', jp: 'Hamidiye Caddesi', rect: [-32, -21, 20, -13] },
+  { id: 'sirkeci', name: 'Sirkeci Tram Avenue', jp: 'Sirkeci', rect: [8, -112, 16, -2] },
+  { id: 'gar', name: 'Sirkeci Station', jp: 'Sirkeci Garı', rect: [15, -58, 23, -36] },
+  { id: 'uzuncarsi', name: 'Uzunçarşı', jp: 'Uzun Çarşı', rect: [-96, -46, -30, -18] },
+  { id: 'kapali', name: 'The Grand Bazaar', jp: 'Kapalıçarşı', rect: [-152, -100, -102, -42] },
+  { id: 'suleymaniye', name: 'Süleymaniye Mosque', jp: 'Süleymaniye Camii', rect: [-158, -34, -114, 12] },
+  { id: 'teras', name: 'Süleymaniye Terrace', jp: 'Süleymaniye Terası', rect: [-158, 12, -112, 22] },
+  { id: 'tahtakale', name: 'Tahtakale Lanes', jp: 'Tahtakale', rect: [-112, -14, -12, 36] },
+  { id: 'cagaloglu', name: 'Cağaloğlu Lanes', jp: 'Cağaloğlu', rect: [-112, -112, 8, -46] },
+  { id: 'gizli', name: 'Gizli Mutfak · Hidden Kitchen', jp: 'gizli mutfak', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
+];
+
+export const ZONES: StreetZone[] = AMALFI ? AMALFI_ZONES : ISTANBUL ? ISTANBUL_ZONES : TOKYO_ZONES;
 
 /** Districts and streets registered by the city builder (see world/city.ts), checked after ZONES. */
 export const CITY_ZONES: StreetZone[] = [];

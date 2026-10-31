@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Renderer } from './renderer';
-import { AMALFI } from '../world/cityId';
+import { HILLSIDE } from '../world/cityId';
 
 /** Time-of-day keyframes. Every lighting parameter is interpolated from these. */
 interface Key {
@@ -30,7 +30,7 @@ const K: Key[] = [
 ];
 
 // Amalfi's nights: no neon to colour them, so the moonlight is greyer and the lamps carry the warmth
-if (AMALFI) {
+if (HILLSIDE) {
   const c = new THREE.Color(), grey = new THREE.Color();
   const soften = (hex: number, k: number, warm: number) => {
     c.setHex(hex);

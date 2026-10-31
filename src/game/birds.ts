@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { meshGrid } from '../world/mesher';
 import { buildBird, BIRD_PART, type Species } from '../world/birds';
-import { AMALFI } from '../world/cityId';
+import { HILLSIDE } from '../world/cityId';
 import { POSE, type CharacterBatch } from './charbatch';
 import { sampleLightmap } from './actors';
 import type { NavData, LightMap2D } from '../world/bake';
@@ -136,9 +136,9 @@ const vA = new THREE.Vector3();
 const vS = new THREE.Vector3();
 
 /** Zones and the birds found there: [species, weight]. */
-const SQUARES = new Set(['plaza', 'ekimae', 'midori', 'park', 'inari', 'station', 'piazza', 'dogi', 'scalinata']);
-const GREEN = new Set(['midori', 'park', 'inari', 'yanaka', 'limoni', 'limoni2', 'chiostro']);
-const WATERSIDE = new Set(['canal', 'farbank', 'marina', 'molo', 'lungomare']);
+const SQUARES = new Set(['plaza', 'ekimae', 'midori', 'park', 'inari', 'station', 'piazza', 'dogi', 'scalinata', 'meydan', 'yeni', 'teras', 'suleymaniye']);
+const GREEN = new Set(['midori', 'park', 'inari', 'yanaka', 'limoni', 'limoni2', 'chiostro', 'teras']);
+const WATERSIDE = new Set(['canal', 'farbank', 'marina', 'molo', 'lungomare', 'halic', 'bogaz', 'kopru', 'kadikoy', 'uskudar', 'halicpier', 'kucukpazar']);
 const AVENUES = new Set(['hikari', 'neon', 'minami', 'nishi', 'center']);
 
 export class Birds {
@@ -309,7 +309,7 @@ export class Birds {
       for (let cx = 0; cx < sx; cx += step) {
         const x = ox + (cx + r() * step) * V, z = oz + (cz + r() * step) * V;
         const zone = zoneAt(x, z)?.id ?? '';
-        if (zone === 'kakurega' || zone === 'grotta') continue;
+        if (zone === 'kakurega' || zone === 'grotta' || zone === 'gizli' || zone === 'kapali' || zone === 'misir') continue;
         const sq = SQUARES.has(zone), green = GREEN.has(zone), water = WATERSIDE.has(zone), ave = AVENUES.has(zone);
         const density = sq ? 0.4 : water ? 0.3 : ave ? 0.07 : 0.14;
         if (r() > density) continue;
@@ -319,7 +319,7 @@ export class Birds {
         let open = 0;
         for (let k = 0; k < 8; k++) if (!Number.isNaN(this.groundAt(x + Math.cos(k * 0.785) * 1.2, z + Math.sin(k * 0.785) * 1.2))) open++;
         if (open < 6) continue;
-        const sp = choose(AMALFI ? (sq
+        const sp = choose(HILLSIDE ? (sq
           ? [['pigeon', 1], ['sparrow', 0.5], ['gull', 0.12], ['dove', 0.1], ['crow', 0.05]]
           : water ? [['gull', 1], ['pigeon', 0.35], ['wagtail', 0.35], ['sparrow', 0.15]]
           : green ? [['sparrow', 0.6], ['dove', 0.4], ['crow', 0.2], ['wagtail', 0.1]]
@@ -335,14 +335,14 @@ export class Birds {
     // birds that sit about up top: sparrows and bulbuls on wires, crows and pigeons along the roofs
     for (const l of this.wires.values()) for (const p of l) {
       if (r() > 0.07 || !room(p.x, p.z, 5)) continue;
-      const sp: Species = r() < 0.6 ? 'sparrow' : r() < 0.6 ? (AMALFI ? 'dove' : 'bulbul') : 'pigeon';
+      const sp: Species = r() < 0.6 ? 'sparrow' : r() < 0.6 ? (HILLSIDE ? 'dove' : 'bulbul') : 'pigeon';
       const near: Perch[] = [];
       this.near(this.wires, p.x, p.z, 3, near);
       keep(spot(p.x, p.z, sp, false, 0, near.filter((q) => Math.abs(q.y - p.y) < 0.6).slice(0, 8)));
     }
     for (const l of this.roofs.values()) for (const p of l) {
       if (r() > 0.03 || !room(p.x, p.z, 10)) continue;
-      const sp: Species = AMALFI ? (r() < 0.45 ? 'gull' : r() < 0.15 ? 'crow' : 'pigeon') : r() < 0.45 ? 'crow' : 'pigeon';
+      const sp: Species = HILLSIDE ? (r() < 0.45 ? 'gull' : r() < 0.15 ? 'crow' : 'pigeon') : r() < 0.45 ? 'crow' : 'pigeon';
       const near: Perch[] = [];
       this.near(this.roofs, p.x, p.z, 3, near);
       keep(spot(p.x, p.z, sp, false, 0, near.filter((q) => Math.abs(q.y - p.y) < 0.3).slice(0, 8)));

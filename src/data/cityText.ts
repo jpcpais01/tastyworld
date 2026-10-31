@@ -1,4 +1,4 @@
-import { AMALFI } from '../world/cityId';
+import { AMALFI, ISTANBUL } from '../world/cityId';
 
 /** The words that change from city to city: names, the diary, the hidden restaurant's riddle and the till. */
 export interface CityText {
@@ -76,4 +76,35 @@ const AMALFI_TEXT: CityText = {
   currency: '€',
 };
 
-export const TEXT: CityText = AMALFI ? AMALFI_TEXT : TOKYO;
+const ISTANBUL_TEXT: CityText = {
+  name: 'Istanbul', local: 'İstanbul', district: ['Eminönü', 'Tarihi Yarımada'], sticker: 'İstanbul · Eminönü',
+  loading: ['Brewing the tea…', 'Raising the minarets…', 'Afiyet olsun!'],
+  intro: [
+    'Day one in Istanbul! Gulls, ferry horns, grilled fish and the smell of cinnamon from the Spice Bazaar.',
+    'Street carts and boats all along the quay, and two sit-down places up the hill. Every dish is a stamp in my passport.',
+    'The streets climb from the water past the bazaars to the great mosque on the hill. Gentle, but my legs will notice.',
+    'Ayşe Teyze by the New Mosque said something about three little blue eyes, tied where nobody looks…',
+    'But first a bed. There are twelve hotels down by the water and along the tram, and the sun sets at seven. Check in before dark!',
+  ],
+  vendorCalls: ['Buyrun!', 'Sıcak sıcak!', 'Taze taze!', 'Gel gel!', 'Afiyet olsun!', 'Yeni çıktı!'],
+  charm: {
+    one: 'Nazar bead', found: 'Its blue eye watches over you', seen: 'Something blue glints', hint: 'Take a closer look',
+    first: 'A little nazar, a blue glass eye against bad luck, tied where nobody looks. Ayşe Teyze said there were three.', next: 'Another one! Its eye seems to look up the hill, toward the lanes behind the bazaar.',
+    all: 'All three nazar beads found!', allText: 'All three eyes look the same way: up the lanes north of the Grand Bazaar, to a door with no sign…', bubble: 'Blue glass, a white ring, a dark pupil. It is watching.',
+  },
+  door: { closed: ['A plain wooden door', 'Look closer'], open: ['A door with no sign', 'Step inside'], hint: 'The smell of charred aubergine and butter seeps from under the door… Maybe the nazar beads know something.' },
+  hidden: {
+    name: 'Gizli Mutfak · Hidden Kitchen', local: 'gizli mutfak', found: 'You found the hidden kitchen. Four tables, no sign, and a grandmother who cooks for whoever finds the door.',
+    chef: ['Gizli Mutfak', 'Sit with Hatice Hanım'], exit: 'Back to the lanes',
+    friend: 'You know the one. A door with no sign, four tables.', friendHint: 'Up the lanes behind the Grand Bazaar… the nazar beads know the way.',
+  },
+  passport: {
+    fact: 'Byzantium, Constantinople, Istanbul: the capital of two empires for sixteen centuries, the only great city on two continents. Its cooking gathers the whole Ottoman world, from Balkan pastries and Arab sweets to Anatolian kebabs, Persian rice and the fish of the Bosphorus.',
+    tips: ['Tea is offered everywhere, even in shops. Saying yes is polite, and it is free.', 'Bread is sacred: never throw it on the ground. People hang leftover bread on walls for the birds.', 'Take your shoes off before entering a mosque, and dress modestly.', 'Bargaining is expected in the bazaars, but always with a smile and over tea.'],
+  },
+  // one euro is about forty-five lira
+  money: (n) => `₺${Math.max(1, Math.round(n * 0.45)).toLocaleString('en-US')}`,
+  currency: '₺',
+};
+
+export const TEXT: CityText = ISTANBUL ? ISTANBUL_TEXT : AMALFI ? AMALFI_TEXT : TOKYO;

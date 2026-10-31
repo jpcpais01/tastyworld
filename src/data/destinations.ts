@@ -37,9 +37,9 @@ export const DESTINATIONS: Destination[] = [
     menu: [['shrimp', 'Pad thai'], ['mango', 'Mango sticky rice'], ['skewer', 'Moo ping']],
   },
   {
-    id: 'istanbul', city: 'Istanbul', country: 'Türkiye', local: 'İstanbul', code: 'IST', lat: 41.01, lon: 28.98, tz: 'Europe/Istanbul', open: false,
-    blurb: 'Simit carts, fish boats on the Bosphorus and the spice bazaar.',
-    menu: [['simit', 'Simit'], ['fish', 'Balık ekmek'], ['wrap', 'Döner']],
+    id: 'istanbul', city: 'Istanbul', country: 'Türkiye', local: 'İstanbul', code: 'IST', lat: 41.01, lon: 28.98, tz: 'Europe/Istanbul', open: true,
+    blurb: 'Simit carts and fish boats at Eminönü, the Spice Bazaar, the Grand Bazaar and the call to prayer over the Golden Horn.',
+    menu: [['simit', 'Simit'], ['fish', 'Balık ekmek'], ['wrap', 'Dürüm döner'], ['honey', 'Baklava']],
   },
   {
     id: 'amalfi', city: 'Amalfi', country: 'Italy', local: 'Amalfi', code: 'AMF', lat: 40.63, lon: 14.6, tz: 'Europe/Rome', open: true,

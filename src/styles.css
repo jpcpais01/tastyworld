@@ -1147,6 +1147,11 @@ body.photo-mode #hud, body.photo-mode #labels, body.photo-mode #prompt { display
 @media (max-width: 560px) { .pv-pic { margin: 0 14px; } .pv-pic img { max-height: 58vh; } .pv-foot { padding: 14px 14px 18px; } }
 .pp-flag.it { background: linear-gradient(90deg, #009246 0 33.3%, #fff 33.3% 66.6%, #ce2b37 66.6%); }
 .pp-flag.it i { display: none; }
+/* Turkey: a white crescent and star on red */
+.pp-flag.tr { background: #e30a17; position: relative; }
+.pp-flag.tr i { width: 24px; height: 24px; background: #fff; position: relative; left: -6px; }
+.pp-flag.tr i::after { content: ''; position: absolute; width: 19px; height: 19px; border-radius: 50%; background: #e30a17; left: 6px; top: 2.5px; }
+.pp-flag.tr::after { content: ''; position: absolute; width: 11px; height: 11px; left: 44px; top: 20.5px; background: #fff; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); transform: rotate(-18deg); }
 .pp-other { margin-top: 22px; padding-top: 16px; border-top: 2px dashed var(--line); }
 .stamps.small { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
 .stamps.small .slot .sn { font-size: 11px; }

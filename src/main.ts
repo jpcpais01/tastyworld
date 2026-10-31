@@ -32,8 +32,9 @@ import { DISHES, ALL_DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
-import { AMALFI, CITY, isCity, goToCity } from './world/cityId';
+import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity } from './world/cityId';
 import { farCoast } from './engine/farcoast';
+import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
 import { PLACES, GUEST_LINES, CAPSULES, GACHA_PRICE, roomName, keeperOf, Buyable } from './data/places';
@@ -99,6 +100,8 @@ function playerLook(wear: Record<string, boolean>, color = 0xd8452f): Look {
 
 /** How far photo mode lets the camera wander from the traveller (metres). */
 const PHOTO_REACH = 16;
+/** Istanbul's five calls to prayer (game hours): dawn, noon, afternoon, sunset, night. */
+const EZAN = [5.8, 13.1, 16.2, 19.05, 20.6];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Game {
@@ -185,6 +188,8 @@ class Game {
   private mealZoom = 0;
   private crowd!: Crowd;
   private lastToll = -1;
+  /** Which of the day's calls to prayer last sounded (-2 until the first frame, so loading mid-call stays quiet). */
+  private lastEzan = -2;
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
   private cats: Cat[] = [];
@@ -363,7 +368,15 @@ class Game {
     this.matCut.side = THREE.DoubleSide;
     this.worldGroup.add(this.doorClosed, this.doorOpen, this.shelfClosed, this.shelfOpen);
     // the rest of Tokyo beyond the map, with gaps where the canal and the two avenues carry on
-    if (AMALFI) {
+    if (ISTANBUL) {
+      // the city beyond the map: Galata and its tower over the Horn, Asia across the Bosphorus, the old city's domes
+      const far = farIstanbul(sh, [WX0, WZ0, WX1, WZ1]);
+      this.worldGroup.add(far.ground, far.houses);
+      this.r.composite.uniforms.uWaterBounds.value.set(-4000, -4000, 4000, 4000);
+      this.r.composite.uniforms.uSea.value = 1;
+      this.r.camera.far = 1800;
+      this.r.camera.updateProjectionMatrix();
+    } else if (AMALFI) {
       // the coast beyond the map: the Lattari mountains, Atrani and Ravello, and the open sea to the horizon
       const far = farCoast(sh, [WX0, WZ0, WX1, WZ1]);
       this.worldGroup.add(far.ground, far.houses);
@@ -472,7 +485,7 @@ class Game {
       const st = STALL[sa.id];
       if (!st) continue;
       const act = new Actor(buildPerson(st.vendorLook), this.chars);
-      act.position.set(sa.vendor[0], AMALFI ? this.ground(sa.stand[0], sa.stand[1]) : this.navWorld.heightAt(sa.vendor[0], sa.vendor[1]), sa.vendor[1]);
+      act.position.set(sa.vendor[0], HILLSIDE ? this.ground(sa.stand[0], sa.stand[1]) : this.navWorld.heightAt(sa.vendor[0], sa.vendor[1]), sa.vendor[1]);
       act.facing = act.targetFacing = sa.vendor[2];
       act.anim = 'cook';
       this.worldGroup.add(act.root);
@@ -518,7 +531,7 @@ class Game {
       });
     }
     // chef inside the hidden restaurant
-    const kak = STALL[AMALFI ? 'grotta' : 'kakurega'];
+    const kak = STALL[AMALFI ? 'grotta' : ISTANBUL ? 'gizli' : 'kakurega'];
     this.chef = new Actor(buildPerson(kak.vendorLook), this.chars);
     this.chef.position.set(a.chef[0], 0, a.chef[2]);
     this.chef.facing = this.chef.targetFacing = 0;
@@ -526,12 +539,12 @@ class Game {
     this.insideGroup.add(this.chef.root);
     this.interactables.push({
       key: 'chef', x: a.counterStand[0], z: a.counterStand[1], stand: a.counterStand, pick: [a.chef[0], 1.6, a.chef[2]], r: 1.6, inside: true,
-      prompt: () => [AMALFI ? 'squid' : 'sushi', TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
+      prompt: () => [AMALFI ? 'squid' : ISTANBUL ? 'pot' : 'sushi', TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
       act: () => this.openStall(kak, this.chef, [a.chef[0], a.chef[2]]),
     });
     this.interactables.push({
       key: 'exit', x: a.interiorExit[0], z: a.interiorExit[1], stand: a.interiorExit, pick: [a.interiorExit[0], 1.2, a.interiorExit[1]], r: 1.3, inside: true,
-      prompt: () => ['door', TEXT.hidden.exit, AMALFI ? 'Push the door open' : 'Slide the door open'],
+      prompt: () => ['door', TEXT.hidden.exit, HILLSIDE ? 'Push the door open' : 'Slide the door open'],
       act: () => void this.teleport(false),
     });
 
@@ -548,6 +561,8 @@ class Game {
         tourist: 'photo', salaryman: 'phone', student: 'phone', florist: 'browse',
         // Amalfi: the painter studies the view, the lemon man checks his crates, the lifeguard stretches, Don Matteo prays
         painter: 'browse', limonaio: 'browse', pescatore: 'browse', lifeguard: 'exercise', priest: 'pray',
+        // Istanbul: the imam prays, the carpet man and the auntie size up the street, the angler watches his line
+        imam: 'pray', halici: 'browse', teyze: 'browse', olta: 'browse', kaptan: 'phone',
       } as Record<string, Anim>)[id.id] ?? 'idle';
       const entry = { actor: act, id: id.id, home: id.pos, baseFacing: face, talk: 0, waved: false, habit, habitT: 3 + Math.random() * 8 };
       this.idlers.push(entry);
@@ -577,13 +592,16 @@ class Game {
       person: (look) => lazy(new Actor(buildPerson(look), this.chars, false, true)),
       dog: (seed) => { const d = lazy(new Actor(buildDog(seed), this.chars, true, true)); d.dog = true; return d; },
       vehicle: (kind, seed) => lazy(new Actor(kind === 'bike' ? bikeModel(seed) : scooterModel(seed), this.chars, true, true)),
-      boat: (seed) => lazy(new Actor(AMALFI ? gozzoModel(seed) : swanBoatModel(seed), this.chars, true, true)),
+      boat: (seed) => lazy(new Actor(HILLSIDE ? gozzoModel(seed) : swanBoatModel(seed), this.chars, true, true)),
     });
     this.crowd.router = this.paths;
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
     const m = this.r.isMobile;
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
-    this.crowd.populate(AMALFI
+    // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
+    this.crowd.populate(ISTANBUL
+      ? m ? { walkers: 95, joggers: 2, dogs: 5, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 210, joggers: 4, dogs: 9, cyclists: 0, couriers: 0, boats: 4, exercise: 0 }
+      : AMALFI
       ? m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 }
       : m ? { walkers: 85, joggers: 4, dogs: 4, cyclists: 5, couriers: 3, boats: 2, exercise: 6 } : { walkers: 190, joggers: 8, dogs: 8, cyclists: 10, couriers: 6, boats: 3, exercise: 9 });
     this.crowd.settle(this.tod.hour);
@@ -618,7 +636,7 @@ class Game {
     a.manekis.forEach((m, i) => {
       this.interactables.push({
         key: `maneki-${i}`, x: m[0], z: m[2], stand: [m[0], m[2]], pick: [m[0], 0.6, m[2]], r: 1.4, inside: false,
-        prompt: () => this.s.manekis.includes(i) ? [AMALFI ? 'sparkle' : 'cat', TEXT.charm.one, TEXT.charm.found] : ['sparkle', TEXT.charm.seen, TEXT.charm.hint],
+        prompt: () => this.s.manekis.includes(i) ? [HILLSIDE ? 'sparkle' : 'cat', TEXT.charm.one, TEXT.charm.found] : ['sparkle', TEXT.charm.seen, TEXT.charm.hint],
         act: () => this.findManeki(i),
       });
     });
@@ -645,7 +663,7 @@ class Game {
     });
 
     // on a hillside every label in the street sits above the ground under its stand, not above sea level
-    if (AMALFI) for (const it of this.interactables) if (!it.inside) it.pick = [it.pick[0], it.pick[1] + this.ground(it.stand[0], it.stand[1]), it.pick[2]];
+    if (HILLSIDE) for (const it of this.interactables) if (!it.inside && !it.room && !it.key.startsWith('lift-')) it.pick = [it.pick[0], it.pick[1] + this.ground(it.stand[0], it.stand[1]), it.pick[2]];
 
     // notifications already earned before this session should not re-toast
     for (const m of MISSIONS) { const [x, y] = m.progress(this.s); if (x >= y) this.notified.add(m.id); }
@@ -730,6 +748,8 @@ class Game {
       const info = HOTEL[ha.id];
       const lift = a.rooms.find((r) => r.id === ha.lobby)?.lift;
       if (!info || !lift) continue;
+      // Istanbul's hotels are placed by the city builder: they take the name of the street they open onto
+      if (!info.street) info.street = zoneAt(ha.entrance[0], ha.entrance[1])?.name ?? TEXT.name;
       const stairs = info.theme === 'ryokan';
       const icon = stairs ? 'stairs' : 'lift';
       this.interactables.push({
@@ -755,10 +775,11 @@ class Game {
           return [rm.type === 'tatami' ? 'futon' : 'bed', ROOM_TYPE[rm.type].name, h >= 17 || h < 6 ? 'Sleep until morning' : 'Take a nap'];
         }, () => { this.player.targetFacing = rm.bed.facing; void this.sleepIn(rm); });
         it('win', rm.window.stand, rm.window.pick, () => ['skyline', 'The window', 'Look out over the city'], () => this.lookOut(rm));
-        it('tea', rm.tea.stand, rm.tea.pick, () => ['tea', rm.type === 'tatami' ? 'Tea set' : 'Kettle', 'Make a cup of green tea'], () => {
+        it('tea', rm.tea.stand, rm.tea.pick, () => ['tea', ISTANBUL ? 'Çaydanlık' : rm.type === 'tatami' ? 'Tea set' : 'Kettle', ISTANBUL ? 'Brew a glass of çay' : 'Make a cup of green tea'], () => {
           this.player.targetFacing = rm.tea.facing;
           this.audio.play('pop');
-          this.ui.toast('tea', 'Green tea', rm.type === 'tatami' ? 'The okami left a pot of sencha and two rice crackers. Perfect.' : 'The kettle clicks off. A tea bag from the tray, hot water and a moment to yourself.');
+          if (ISTANBUL) this.ui.toast('tea', 'Çay', 'The double kettle hisses. Strong tea from the top pot, hot water from the bottom, a tulip glass and two sugar cubes.');
+          else this.ui.toast('tea', 'Green tea', rm.type === 'tatami' ? 'The okami left a pot of sencha and two rice crackers. Perfect.' : 'The kettle clicks off. A tea bag from the tray, hot water and a moment to yourself.');
           this.startMeal('tea', null, () => {});
         });
       }
@@ -921,6 +942,7 @@ class Game {
   /** The HUD goal while the traveller still needs a bed tonight, and a nudge when the sun starts to set. */
   private hotelGoal(): void {
     if (AMALFI) return; // no hotels to find on the coast yet
+    if (!this.w.anchors.hotels.length) return;
     const h = this.tod.hour, b = this.s.hotel;
     let g: { icon: string; title: string; sub: string } | null = null;
     if (this.started && !this.inside) {
@@ -958,7 +980,7 @@ class Game {
   }
 
   private gacha(pos: V3): void {
-    if (this.s.yen < GACHA_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough yen', `A capsule costs ¥${GACHA_PRICE}.`); return; }
+    if (this.s.yen < GACHA_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `A capsule costs ¥${GACHA_PRICE}.`); return; }
     this.s.yen -= GACHA_PRICE;
     // the golden shrimp is rare; everything else is equally likely
     const roll = Math.random();
@@ -1029,7 +1051,7 @@ class Game {
 
   /** Height of the walkable ground (m) under a spot in the street: 0 in flat Tokyo. */
   private ground(x: number, z: number): number {
-    if (!AMALFI) return 0;
+    if (!HILLSIDE) return 0;
     const n = this.navWorld;
     if (n.walkable(x, z)) return n.heightAt(x, z);
     // on a counter, a plinth or in a doorway: the nearest floor round it
@@ -1059,6 +1081,7 @@ class Game {
   /** The slow orbit over the old town behind the title screen. */
   private titleView(): void {
     if (AMALFI) this.cam.target.set(6, 6, 6);
+    else if (ISTANBUL) this.cam.target.set(4, 4, 20);
     else this.cam.target.set(34, 0, 30);
     this.cam.zoom = 30;
     this.cam.setOrbit(0.05);
@@ -1132,7 +1155,7 @@ class Game {
     this.viewDist = dist;
     if (this.streamer) this.streamer.dist = dist;
     // the voxel city fades out at the view distance, but the skyline beyond the map stays visible further
-    this.r.persp.far = Math.max(dist + 10, AMALFI ? 1700 : 650); // the mountains of the coast stand a kilometre and more away
+    this.r.persp.far = Math.max(dist + 10, HILLSIDE ? 1700 : 650); // the mountains of the coast stand a kilometre and more away
     this.r.persp.fov = st.fov;
     this.r.persp.updateProjectionMatrix();
     this.cam.maxZoom = 34 + THREE.MathUtils.clamp((dist - 80) / 220, 0, 1) * 46;
@@ -1271,7 +1294,7 @@ class Game {
     this.audio.play('chime');
     this.player.flash = 1;
     const n = this.s.manekis.length;
-    if (n < 3) this.ui.toast(AMALFI ? 'sparkle' : 'cat', `${AMALFI ? 'Majolica lemon' : 'Lucky cat'} ${n} / 3`, n === 1 ? TEXT.charm.first : TEXT.charm.next, true);
+    if (n < 3) this.ui.toast(HILLSIDE ? 'sparkle' : 'cat', `${AMALFI ? 'Majolica lemon' : ISTANBUL ? 'Nazar bead' : 'Lucky cat'} ${n} / 3`, n === 1 ? TEXT.charm.first : TEXT.charm.next, true);
     else {
       this.ui.toast('lantern', TEXT.charm.all, TEXT.charm.allText, true);
       this.setDoor(true);
@@ -1281,7 +1304,7 @@ class Game {
   }
 
   private vend(): void {
-    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough yen', 'Even a can of tea costs ¥130.'); return; }
+    if (this.s.yen < 130) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', 'Even a can of tea costs ¥130.'); return; }
     this.s.yen -= 130;
     const drinks = [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
     const d = drinks[Math.floor(Math.random() * drinks.length)];
@@ -1367,7 +1390,7 @@ class Game {
       const id = await album.add(photo);
       this.photo.showShot({ id, ...photo });
       this.s.photos = (this.s.photos ?? 0) + 1;
-      if (AMALFI) this.s.flags.photosA = (this.s.flags.photosA ?? 0) + 1;
+      if (HILLSIDE) this.s.flags.photosA = (this.s.flags.photosA ?? 0) + 1;
       this.afterChange();
       this.save();
     }).catch((e) => {
@@ -1424,8 +1447,8 @@ class Game {
       setTimeout(() => { this.chef.anim = 'cook'; }, 1600);
     } else {
       const hd = a.hiddenDoor;
-      this.player.position.set(hd.stand[0] - (AMALFI ? 0 : 0.6), 0, hd.stand[1]);
-      this.player.facing = this.player.targetFacing = AMALFI ? Math.PI : -Math.PI / 2;
+      this.player.position.set(hd.stand[0] - (HILLSIDE ? 0 : 0.6), 0, hd.stand[1]);
+      this.player.facing = this.player.targetFacing = HILLSIDE ? Math.PI : -Math.PI / 2;
       this.cam.bounds = [WX0 + 2, WZ0 + 2, WX1 - 2, WZ1 - 2];
       this.cam.zoom = this.r.isMobile ? 15 : 17;
       this.r.shared.uBounds.value.set(WX0, WZ0, WX1, WZ1);
@@ -1967,7 +1990,7 @@ class Game {
       return;
     }
     const py0 = this.player.position.y;
-    const hit = AMALFI && !this.inside
+    const hit = HILLSIDE && !this.inside && !this.upstairs
       ? this.cam.pick(x, y, this.nav, undefined, Math.min(50, py0 + 24), Math.max(-3, py0 - 24))
       : this.cam.pick(x, y, this.nav, undefined, this.upstairs ? this.upstairs.room.y + 3 : 12);
     if (!hit) return;
@@ -2271,7 +2294,7 @@ class Game {
     }
     this.wasInside = this.inside;
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
-    if (AMALFI) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
+    if (HILLSIDE) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
   }
 
   private frame(now: number): void {
@@ -2347,6 +2370,12 @@ class Game {
         this.ui.toast('flower', 'The lemon terraces', 'The whole town below, the sea beyond. Worth every step.', true);
         this.afterChange();
       }
+      // the terrace of the Süleymaniye, the whole Horn below
+      if (ISTANBUL && this.started && !this.inside && !this.upstairs && !this.s.flags.climbed && pl.y > 12.5) {
+        this.s.flags.climbed = true;
+        this.ui.toast('skyline', 'The Süleymaniye terrace', 'The Golden Horn below, Galata across it, Asia beyond the Bosphorus. Worth every step.', true);
+        this.afterChange();
+      }
       const rn = rm ? roomName(rm.kind, rm.nth, rm.hotel) : null;
       const up = this.upstairs, hi = up && HOTEL[up.hotel.id];
       const z = this.inside ? { name: TEXT.hidden.name, jp: TEXT.hidden.local } : up && hi ? { name: `${hi.name} · ${roomNo(up.room.floor)}`, jp: hi.jp } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: TEXT.name, jp: TEXT.local };
@@ -2359,7 +2388,7 @@ class Game {
         const d = Math.hypot(e.pos[0] - pl.x, e.pos[2] - pl.z);
         sizzle = Math.max(sizzle, 1 - d / 7);
       }
-      const water = this.inside ? 0 : AMALFI ? THREE.MathUtils.clamp((pl.x - 22) / 22, 0, 1) : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
+      const water = this.inside ? 0 : ISTANBUL ? THREE.MathUtils.clamp(1 - Math.min(30 - pl.x, 44 - pl.z) / 18, 0, 1) : AMALFI ? THREE.MathUtils.clamp((pl.x - 22) / 22, 0, 1) : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
       this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
       // Sant'Andrea strikes the hours (not through the small hours)
       const hr = Math.floor(this.tod.hour);
@@ -2369,6 +2398,18 @@ class Game {
           this.audio.toll(hr % 12 || 12, 0.22 * THREE.MathUtils.clamp(1 - d / 160, 0.2, 1));
         }
         this.lastToll = hr;
+      }
+      // the call to prayer, from the New Mosque first and the Süleymaniye a beat later, five times a day
+      if (ISTANBUL) {
+        const slot = EZAN.findIndex((t) => this.tod.hour >= t && this.tod.hour < t + 0.25);
+        if (slot !== this.lastEzan) {
+          if (slot >= 0 && this.lastEzan !== -2 && this.started) {
+            const near = (x: number, z: number) => THREE.MathUtils.clamp(1 - Math.hypot(pl.x - x, pl.z - z) / 200, 0.25, 1);
+            this.audio.ezan(0.2 * near(6, 10), 0);
+            this.audio.ezan(0.12 * near(-137, -15), 2.6);
+          }
+          this.lastEzan = slot;
+        }
       }
       this.audio.scene(pl.x, pl.z);
       if (this.started && Math.floor(this.s.playTime) % 10 === 0) this.save();

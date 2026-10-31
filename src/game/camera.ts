@@ -32,6 +32,8 @@ export class IsoCamera {
   /** First-person mode: look direction (yaw matches actor facing, atan2(x, z)) and pitch. */
   fp = false;
   fpYaw = 0;
+  /** Set when the player looks around by hand; while it holds, auto-walking leaves the view alone. */
+  lookedByHand = false;
   fpPitch = 0;
   /** Player ground speed, for a gentle head bob. */
   fpSpeed = 0;
@@ -71,6 +73,7 @@ export class IsoCamera {
   /** Mouse or drag look, in radians. */
   look(dYaw: number, dPitch: number): void {
     this.fpYaw = wrapAngle(this.fpYaw - dYaw);
+    if (dYaw || dPitch) this.lookedByHand = true;
     this.fpPitch = THREE.MathUtils.clamp(this.fpPitch - dPitch, -MAX_PITCH, MAX_PITCH);
   }
 
@@ -88,7 +91,7 @@ export class IsoCamera {
   }
 
   rotate(dir: number): void {
-    if (this.fp) this.fpTurn -= (dir * Math.PI) / 4;
+    if (this.fp) { this.fpTurn -= (dir * Math.PI) / 4; this.lookedByHand = true; }
     else this.yaw += (dir * Math.PI) / 2;
   }
 

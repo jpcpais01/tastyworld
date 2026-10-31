@@ -28,6 +28,12 @@ export const ISTANBUL = CITY === 'istanbul';
 /** Cities built on a heightfield (streets climb, labels and seats follow the ground), not on Tokyo's flat street level. */
 export const HILLSIDE = AMALFI || ISTANBUL;
 
+/**
+ * Pick this city's entry. Every city must be listed, so a new CityId fails to compile until it has its own words,
+ * dishes and sounds instead of quietly inheriting Tokyo's.
+ */
+export const perCity = <T>(m: Record<CityId, T>): T => m[CITY];
+
 export const isCity = (id: string): id is CityId => known(id) !== null;
 
 /** What to pick up after the page reloads into another city: board straight away, host a co-op trip, or join one. */

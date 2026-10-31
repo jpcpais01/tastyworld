@@ -7,8 +7,7 @@ import { STALL } from '../data/stalls';
 import { MISSIONS, ITEMS, Mission, trackedMission, SECRET_MISSION } from '../data/missions';
 import { ROOM_TYPE, roomNo, byStairs, type HotelInfo, type HotelRoomSpec } from '../data/hotels';
 import { PATCH_NOTES } from '../data/patchNotes';
-import { TEXT } from '../data/cityText';
-import { AMALFI, ISTANBUL } from '../world/cityId';
+import { TEXT, localName } from '../data/cityText';
 import { CAPSULES, Buyable } from '../data/places';
 import { CookingGame } from './cooking';
 import { G } from './glyphs';
@@ -31,7 +30,7 @@ const firstSentence = (t: string) => (t.match(/^.*?[.!?](\s|$)/)?.[0] ?? t).trim
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 
 /** A few words on how a dish tastes, from its flavour profile. */
-function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: number }): string[] {
+function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: number }, drink?: 'hot' | 'cold'): string[] {
   const words: Record<string, [string, string, string]> = {
     sweet: ['Lightly sweet', 'Sweet', 'Very sweet'],
     savory: ['A little savoury', 'Savoury', 'Deeply savoury'],
@@ -41,7 +40,8 @@ function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: n
   const out = (Object.entries(f) as [keyof typeof words, number][])
     .filter(([, v]) => v >= 3).sort((a, b) => b[1] - a[1]).slice(0, 3)
     .map(([k, v]) => words[k][Math.min(2, v - 3)]);
-  if (f.crunch <= 1 && out.length < 3) out.push(f.sweet >= 3 ? 'Soft and fluffy' : 'Silky');
+  if (drink) out.splice(2, 1, drink === 'hot' ? 'Warming' : 'Ice cold');
+  else if (f.crunch <= 1 && out.length < 3) out.push(f.sweet >= 3 ? 'Soft and fluffy' : 'Silky');
   return out;
 }
 
@@ -67,8 +67,15 @@ export interface GameHooks {
 
 interface Label { el: HTMLElement; pos: [number, number, number]; visible: boolean; until?: number; }
 
-/** A noren curtain: one fabric panel per character of the shop's name (two when it is long). */
+/** The sign over a stall's sheet: a noren curtain in Tokyo, a striped awning over the name elsewhere. */
 function noren(jp: string, secret = false): HTMLElement {
+  const sign = TEXT.sign;
+  if (sign.kind === 'awning') {
+    const el = h('div', 'awning' + (secret ? ' secret' : ''), `<i class="rod"></i><div class="aw"></div><b>${esc(jp)}</b>`);
+    el.style.setProperty('--aw', sign.color);
+    return el;
+  }
+  // one fabric panel per character of the shop's name (two when it is long)
   const chars = [...(jp.split(' ').pop() ?? '')];
   const per = chars.length > 5 ? 2 : 1;
   const words: string[] = [];
@@ -168,7 +175,7 @@ export class UI {
       <div class="hud-tl">
         <div class="glass place">
           <div class="tod" id="h-tod">${G.sun}</div>
-          <div class="place-name" id="h-loc">Temple Plaza</div>
+          <div class="place-name" id="h-loc">${esc(TEXT.name)}</div>
           <span class="clock" id="h-clock">16:36</span>
         </div>
         <button class="glass party hidden" id="h-party" aria-label="Your co-op trip"></button>
@@ -176,7 +183,7 @@ export class UI {
       </div>
       <div class="hud-tr">
         <div class="glass bar">
-          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${AMALFI ? '30.00' : ISTANBUL ? '1350' : '3,000'}</span></div>
+          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${TEXT.startPurse}</span></div>
           <span class="sep"></span>
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
@@ -297,7 +304,8 @@ export class UI {
   location(name: string, jp: string, clock: string): void {
     if (name !== this.lastZone) {
       this.lastZone = name;
-      this.locName.innerHTML = `${esc(name)}${jp ? `<span class="jp">${jp}</span>` : ''}`;
+      const local = localName(name, jp);
+      this.locName.innerHTML = `${esc(name)}${local ? `<span class="jp">${esc(local)}</span>` : ''}`;
       this.locName.classList.remove('swap');
       void this.locName.offsetWidth;
       this.locName.classList.add('swap');
@@ -466,7 +474,7 @@ export class UI {
   stall(st: StallInfo): void {
     const p = this.panel();
     p.appendChild(noren(st.jp, st.hidden));
-    this.head(p, esc(st.name), '', `${esc(st.street)} · ${st.hidden ? 'Omakase counter' : st.restaurant ? 'Restaurant' : 'Street stall'}`);
+    this.head(p, esc(st.name), '', `${esc(st.street)} · ${st.hidden ? TEXT.hiddenKind : st.restaurant ? 'Restaurant' : 'Street stall'}`);
     const body = h('div', 'panel-body');
     const greet = st.greeting[Math.floor(Math.random() * st.greeting.length)];
     body.innerHTML = `<div class="vendor-line"><span class="ava">${esc(st.vendor.charAt(0))}</span><div class="say"><b>${esc(st.vendor)}</b>“${esc(greet)}”</div></div>`;
@@ -480,7 +488,7 @@ export class UI {
       card.innerHTML = `
         <div class="dimg">${this.icons[id] ? `<img src="${this.icons[id]}" alt="">` : ''}${got ? `<span class="badge">${G.check}Stamped</span>` : '<span class="badge red">New</span>'}</div>
         <div>
-          <h3>${esc(d.name)}<span class="jp">${d.jp}</span></h3>
+          <h3>${esc(d.name)}<span class="jp">${esc(localName(d.name, d.jp))}</span></h3>
           <p>${esc(d.tagline)}</p>
           <div class="row">
             <button class="btn btn-red" data-a="taste">Taste · ${yen(d.price)}</button>
@@ -613,13 +621,13 @@ export class UI {
       <div class="sv-img">${this.icons[id] ? `<img src="${this.icons[id]}" alt="">` : ''}</div>
       <div class="sv-body">
         <div class="sv-eye">${o.isNew ? `${G.sparkle}New stamp` : o.count > 1 ? `Your ${ordinal(o.count)} ${esc(d.name.split(' ').pop()!.toLowerCase())}` : 'Stamped'}</div>
-        <h3>${esc(d.name)}<span class="jp">${d.jp}</span></h3>
-        <div class="sv-notes">${tasteNotes(d.flavor).map((n) => `<span>${esc(n)}</span>`).join('')}</div>
+        <h3>${esc(d.name)}<span class="jp">${esc(localName(d.name, d.jp))}</span></h3>
+        <div class="sv-notes">${tasteNotes(d.flavor, d.drink).map((n) => `<span>${esc(n)}</span>`).join('')}</div>
         ${o.cooked ? `<div class="sv-cook"><span class="stars-sm">${stars(o.cooked)}</span>You made this one. ${esc(STALL[d.stall]?.vendor ?? 'The vendor')} tipped you ${yen(o.tip ?? 0)}.</div>` : ''}
         <p class="sv-line">${esc(line)}</p>
-        <div class="sv-foot"><span class="jp">ごちそうさまでした</span><button class="sv-more">The story ${G.book}</button></div>
+        <div class="sv-foot"><span class="jp">${esc(TEXT.thanks)}</span><button class="sv-more">The story ${G.book}</button></div>
       </div>
-      ${o.isNew ? `<div class="stamp new"><div><span>${d.jp.slice(0, 2)}</span>TOKYO<br>NEW!</div></div>` : ''}`);
+      ${o.isNew ? `<div class="stamp new"><div><span>${esc(TEXT.stamp.mark(d))}</span>${TEXT.stamp.city}<br>NEW!</div></div>` : ''}`);
     const x = h('button', 'close', G.close);
     x.setAttribute('aria-label', 'Close');
     x.onclick = (e) => { e.stopPropagation(); this.audio.play('click'); dismiss(); };
@@ -652,7 +660,7 @@ export class UI {
     const d = DISH[id];
     const p = this.panel();
     const hero = h('div', 'taste-hero', `<div class="rays"></div>${this.icons[id] ? `<img src="${this.icons[id]}" alt="${esc(d.name)}">` : ''}
-      <div class="stamp${isNew ? ' new' : ''}"><div><span>${d.jp.slice(0, 2)}</span>TOKYO<br>${isNew ? 'NEW!' : 'TASTED'}</div></div>`);
+      <div class="stamp${isNew ? ' new' : ''}"><div><span>${esc(TEXT.stamp.mark(d))}</span>${TEXT.stamp.city}<br>${isNew ? 'NEW!' : 'TASTED'}</div></div>`);
     hero.appendChild(this.closeBtn());
     p.appendChild(hero);
     p.appendChild(h('div', 'taste-head', `<div class="eyebrow">${isNew ? 'New stamp' : 'Food passport'}</div><h2>${esc(d.name)}</h2><div class="jp-line"><span class="jp">${d.jp}</span>${esc(d.romaji)}</div><div class="tagline">${esc(d.tagline)}</div>`));
@@ -676,16 +684,16 @@ export class UI {
   }
 
   // passport ------------------------------------------------------------------------------
-  passport(tab: 'stamps' | 'missions' | 'items' | 'album' | 'tokyo' = 'stamps'): void {
+  passport(tab: 'stamps' | 'missions' | 'items' | 'album' | 'city' = 'stamps'): void {
     const p = this.panel('panel passport');
     const got = DISHES.filter((d) => this.s.tasted[d.id]).length;
-    this.head(p, 'Food Passport', AMALFI ? 'Italia' : ISTANBUL ? 'Türkiye' : '日本', `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
+    this.head(p, 'Food Passport', TEXT.country, `${got} of ${DISHES.length} stamps${this.s.title ? ` · ${esc(this.s.title)}` : ''}`, G.passport);
     const tabs = h('div', 'pp-tabs');
     const seg = h('div', 'seg');
     seg.setAttribute('role', 'tablist');
     tabs.appendChild(seg);
     const page = h('div', 'pp-page');
-    const names: [typeof tab, string, string][] = [['stamps', 'Stamps', G.bowl], ['missions', 'Missions', G.target], ['items', 'Bag', G.bag], ['album', 'Album', G.image], ['tokyo', TEXT.name, G.book]];
+    const names: [typeof tab, string, string][] = [['stamps', 'Stamps', G.bowl], ['missions', 'Missions', G.target], ['items', 'Bag', G.bag], ['album', 'Album', G.image], ['city', TEXT.name, G.book]];
     const render = (t: typeof tab) => {
       seg.innerHTML = '';
       for (const [k, n, ic] of names) {
@@ -700,7 +708,7 @@ export class UI {
       else if (t === 'missions') this.ppMissions(page, () => render('missions'));
       else if (t === 'items') this.ppItems(page);
       else if (t === 'album') this.ppAlbum(page);
-      else this.ppTokyo(page);
+      else this.ppCity(page);
     };
     p.appendChild(tabs);
     p.appendChild(page);
@@ -709,7 +717,7 @@ export class UI {
 
   private ppStamps(page: HTMLElement) {
     const got = DISHES.filter((d) => this.s.tasted[d.id]).length;
-    page.innerHTML = `<div class="pp-cover"><div class="pp-flag${AMALFI ? ' it' : ISTANBUL ? ' tr' : ''}"><i></i></div><div><b>${esc(TEXT.name)} ${AMALFI || ISTANBUL ? '' : `<span class="jp" style="font-weight:400;font-size:15px">${TEXT.local}</span>`}</b><p>Collect a stamp for every dish you taste or cook.</p><div class="pbar"><span><i style="width:${(got / DISHES.length) * 100}%"></i></span>${got}/${DISHES.length}</div></div></div>`;
+    page.innerHTML = `<div class="pp-cover"><div class="pp-flag${TEXT.flag ? ` ${TEXT.flag}` : ''}"><i></i></div><div><b>${esc(TEXT.name)} ${localName(TEXT.name, TEXT.local) ? `<span class="jp" style="font-weight:400;font-size:15px">${esc(TEXT.local)}</span>` : ''}</b><p>Collect a stamp for every dish you taste or cook.</p><div class="pbar"><span><i style="width:${(got / DISHES.length) * 100}%"></i></span>${got}/${DISHES.length}</div></div></div>`;
     const grid = h('div', 'stamps');
     for (const d of DISHES) {
       const has = !!this.s.tasted[d.id];
@@ -718,13 +726,13 @@ export class UI {
       const cooked = this.s.cooked[d.id] ?? 0;
       const slot = h('button', 'slot' + (has ? ' got' : ' locked'), `
         ${cooked ? `<span class="stars">${G.star.repeat(cooked)}</span>` : ''}
-        ${has ? `<span class="ss">${d.jp.slice(0, 1)}</span>` : `<span class="lk">${hidden ? G.lock : ''}</span>`}
+        ${has ? `<span class="ss">${esc([...TEXT.stamp.mark(d)][0] ?? '')}</span>` : `<span class="lk">${hidden ? G.lock : ''}</span>`}
         ${this.icons[d.id] ? `<img src="${this.icons[d.id]}" alt="">` : ''}
-        <div class="sn">${hidden && !has ? '???' : esc(d.name)}<small>${has ? d.jp : hidden ? 'A secret counter' : esc(st?.name ?? '')}</small></div>`);
+        <div class="sn">${hidden && !has ? '???' : esc(d.name)}<small>${has ? esc(localName(d.name, d.jp) || d.romaji) : hidden ? 'Somewhere secret' : esc(st?.name ?? '')}</small></div>`);
       slot.onclick = () => {
         this.audio.play('click');
         if (has) this.taste(d.id, false);
-        else this.toast('compass', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? (AMALFI ? 'Some say the majolica lemons know the way.' : ISTANBUL ? 'Some say the blue nazar beads know the way.' : 'Some say the lucky cats know the way.') : `${st?.street ?? `Somewhere in ${TEXT.name}`}.`);
+        else this.toast('compass', hidden ? 'A secret dish' : `Find it at ${st?.name ?? 'a stall'}`, hidden ? TEXT.hidden.friendHint : `${st?.street ?? `Somewhere in ${TEXT.name}`}.`);
       };
       grid.appendChild(slot);
     }
@@ -769,9 +777,9 @@ export class UI {
     }
   }
 
-  private ppItems(page: HTMLElement) {
-    // little finds first: daruma and gachapon capsules
-    const caps = h('div', 'sec finds', `<h4>Finds</h4><p><span>${icon('daruma')}Daruma found: <b>${this.s.darumas.length}/8</b></span><span>${icon('capsule')}Capsule charms: <b>${this.s.capsules.length}/${CAPSULES.length}</b></span></p>`);
+  private ppFinds(page: HTMLElement) {
+    const daruma = TEXT.finds ? `<span>${icon('daruma')}Daruma found: <b>${this.s.darumas.length}/8</b></span>` : '';
+    const caps = h('div', 'sec finds', `<h4>Finds</h4><p>${daruma}<span>${icon('capsule')}Capsule charms: <b>${this.s.capsules.length}/${CAPSULES.length}</b></span></p>`);
     const grid = h('div', 'capsules');
     for (const c of CAPSULES) {
       const got = this.s.capsules.includes(c.id);
@@ -779,6 +787,12 @@ export class UI {
     }
     caps.appendChild(grid);
     page.appendChild(caps);
+  }
+
+  private ppItems(page: HTMLElement) {
+    // little finds first: daruma and gachapon capsules
+    // only where they are hidden and sold, or once a few capsules have travelled with you
+    if (TEXT.finds || this.s.capsules.length) this.ppFinds(page);
     if (!this.s.items.length) {
       page.appendChild(h('div', 'empty', `<div class="ei">${G.bag}</div>Your bag is empty.<br>Complete missions to earn souvenirs for your traveller.`));
       return;
@@ -884,34 +898,21 @@ export class UI {
     if (photos.length > 1) window.addEventListener('keydown', keys);
   }
 
-  private ppTokyo(page: HTMLElement) {
-    if (ISTANBUL) {
-      page.innerHTML = `
-      <div class="sec fact"><h4>Istanbul</h4>${esc(TEXT.passport.fact)}</div>
-      <div class="sec fact"><h4>Çarşı &amp; iskele</h4>Eminönü is where the city has always shopped and sailed: the vaulted Spice Bazaar, the Grand Bazaar's sixty streets up the hill, and the ferry piers where boats cross between Europe and Asia all day long.</div>
-      <div class="sec fact"><h4>Etiquette</h4><ul>${TEXT.passport.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
-      <div class="sec fact"><h4>Words to know</h4><div class="words"><b>Merhaba</b><span>Hello</span><b>Afiyet olsun</b><span>Enjoy your meal</span><b>Çok güzel</b><span>Very beautiful, very good</span><b>Teşekkürler</b><span>Thank you</span></div></div>`;
-      return;
-    }
-    if (AMALFI) {
-      page.innerHTML = `
-      <div class="sec fact"><h4>Amalfi</h4>${esc(TEXT.passport.fact)}</div>
-      <div class="sec fact"><h4>Scale e limoni</h4>The town has more stairs than streets. Lanes climb from the piazza through tunnels and under houses to the terraces, where lemons grow under chestnut pergolas and are still carried down by hand.</div>
-      <div class="sec fact"><h4>Etiquette</h4><ul>${TEXT.passport.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
-      <div class="sec fact"><h4>Words to know</h4><div class="words"><b>Buongiorno</b><span>Good morning</span><b>Buonissimo</b><span>Delicious</span><b>Un cuoppo</b><span>A paper cone of fried things</span><b>Salute</b><span>Cheers</span></div></div>`;
-      return;
-    }
+  /** The city's own page: what it is, its streets, how to behave and a few words to try. */
+  private ppCity(page: HTMLElement) {
+    const P = TEXT.passport;
+    const local = localName(TEXT.name, TEXT.local);
     page.innerHTML = `
-      <div class="sec fact"><h4>Tokyo · 東京</h4>Once the fishing village of Edo, Tokyo became the shogun's capital in 1603 and grew into the largest city on Earth. Its food culture was born on the street: sushi, tempura and soba all started as quick snacks sold from stalls to busy workers.</div>
-      <div class="sec fact"><h4>Yatai &amp; yokochō</h4>Yatai are portable food carts that appear at dusk. Yokochō are narrow alleys packed with tiny counters, many dating from the post-war markets of the 1940s.</div>
-      <div class="sec fact"><h4>Etiquette</h4><ul><li>Say “itadakimasu” before eating and “gochisōsama” after.</li><li>Eat near the stall instead of walking with your food.</li><li>Slurping noodles is a compliment to the cook.</li><li>No tipping in real Tokyo! Here, vendors reward your help in the kitchen.</li></ul></div>
-      <div class="sec fact"><h4>Words to know</h4><div class="words"><b>Irasshaimase</b><span>Welcome!</span><b>Oishii</b><span>Delicious</span><b>Omakase</b><span>“I leave it to you”, the chef's choice</span><b>Kanpai</b><span>Cheers</span></div></div>`;
+      <div class="sec fact"><h4>${esc(TEXT.name)}${local ? ` · ${esc(local)}` : ''}</h4>${esc(P.fact)}</div>
+      <div class="sec fact"><h4>${esc(P.streets[0])}</h4>${esc(P.streets[1])}</div>
+      <div class="sec fact"><h4>Etiquette</h4><ul>${P.tips.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>
+      <div class="sec fact"><h4>Words to know</h4><div class="words">${P.words.map(([w, m]) => `<b>${esc(w)}</b><span>${esc(m)}</span>`).join('')}</div></div>`;
   }
 
   // settings + notes ----------------------------------------------------------------------
   settings(): void {
     const p = this.panel();
-    this.head(p, 'Settings', '設定', '', G.gear);
+    this.head(p, 'Settings', TEXT.panels.settings, '', G.gear);
     const body = h('div', 'panel-body');
     const st = this.s.settings;
     const group = (name: string) => {
@@ -1001,7 +1002,7 @@ export class UI {
 
   notes(): void {
     const p = this.panel();
-    this.head(p, 'Patch notes', 'お知らせ', 'What changed in Tasty World.', G.sparkle);
+    this.head(p, 'Patch notes', TEXT.panels.notes, 'What changed in Tasty World.', G.sparkle);
     const body = h('div', 'panel-body notes');
     body.innerHTML = PATCH_NOTES.map((n, i) => `<div class="note"><div class="nh"><span class="badge${i ? ' gold' : ' red'}">v${n.version}</span><h3>${esc(n.title)}</h3></div><div class="nd">${n.date}</div><ul>${n.items.map((it) => `<li>${esc(it)}</li>`).join('')}</ul></div>`).join('');
     p.appendChild(body);

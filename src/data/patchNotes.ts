@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.3',
+    date: '2026-10-31',
+    title: 'Every city in its own words',
+    items: [
+      'Passport stamps now carry the city you tasted the dish in, so a limoncello says Amalfi, not Tokyo.',
+      'After a meal Amalfi says “Grazie, era buonissimo!” and Istanbul “Elinize sağlık!”, and vendors hand dishes over and you dig in with words from the place you are in.',
+      'Drinks are described like drinks: limoncello and ayran come ice cold and salep is warming, no longer “soft and fluffy”.',
+      'Street names no longer repeat themselves in small print (no more “Piazza dei Dogi · i Dogi”).',
+      'Stall menus in Amalfi and Istanbul hang under striped awnings instead of Japanese noren curtains.',
+      'The passport, pocket map, settings and patch notes speak the local language in every city, and the Bag only lists daruma where they are hidden.',
+      'Tokyo\'s fireflies no longer blink over the Golden Horn, and there are no more koi in Amalfi\'s fountain.',
+    ],
+  },
+  {
     version: '0.16.2',
     date: '2026-10-31',
     title: 'Amalfi a tavola, and four hotels',

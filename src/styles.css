@@ -346,8 +346,19 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .noren .cloth span:nth-child(3n) { animation-delay: -3.1s; }
 .noren.secret .cloth span { background-color: var(--indigo); }
 @keyframes sway { 50% { transform: rotate(0.8deg) skewX(-1deg); } }
-.noren + .panel-head { padding-top: 16px; }
-@media (max-width: 560px) { .noren { height: 66px; } .noren .cloth { left: 16px; right: 16px; } .noren .cloth span { font-size: 17px; } }
+.noren + .panel-head, .awning + .panel-head { padding-top: 16px; }
+/* elsewhere a striped canvas awning with a scalloped hem, the name painted below it */
+.awning { position: relative; height: 74px; background: var(--lacquer); }
+.awning .rod { position: absolute; left: 10px; right: 10px; top: 8px; height: 7px; border-radius: 7px; z-index: 2; background: linear-gradient(180deg, #8a8f96, #565b62); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35); }
+.awning .aw { position: absolute; left: 16px; right: 16px; top: 11px; height: 30px; transform-origin: 50% 0; animation: sway 6s ease-in-out infinite;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.14)), repeating-linear-gradient(90deg, var(--aw) 0 18px, #fff6ea 18px 36px);
+  -webkit-mask: radial-gradient(9px 7px at 9px 0, #000 98%, transparent) 0 100% / 18px 7px repeat-x, linear-gradient(#000, #000) 0 0 / 100% calc(100% - 6px) no-repeat;
+  mask: radial-gradient(9px 7px at 9px 0, #000 98%, transparent) 0 100% / 18px 7px repeat-x, linear-gradient(#000, #000) 0 0 / 100% calc(100% - 6px) no-repeat;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3)); }
+.awning.secret .aw { --aw: var(--indigo); }
+.awning b { position: absolute; left: 0; right: 0; bottom: 7px; text-align: center; color: #fff6ea; font-family: var(--display, inherit); font-weight: 600; font-size: 19px; letter-spacing: 0.08em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 16px; }
+@media (max-width: 560px) { .awning { height: 66px; } .awning b { font-size: 16px; } .noren { height: 66px; } .noren .cloth { left: 16px; right: 16px; } .noren .cloth span { font-size: 17px; } }
 .vendor-line { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
 .vendor-line .ava { width: 40px; height: 40px; border-radius: 50%; background: var(--sun); color: #5a3d08; display: grid; place-items: center; font-family: var(--display); font-weight: 600; font-size: 17px; flex: none; box-shadow: inset 0 -3px 0 var(--sun-deep), 0 2px 6px rgba(60, 34, 16, 0.18); }
 .vendor-line .say { position: relative; background: var(--card); border-radius: 4px 16px 16px 16px; padding: 10px 14px; font-size: 14px; line-height: 1.45; box-shadow: 0 1px 0 rgba(92, 58, 28, 0.1), 0 4px 12px -6px rgba(60, 34, 16, 0.2); }

@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.23',
+    date: '2026-10-31',
+    title: 'Number plates',
+    items: [
+      'Istanbul\'s house doors have their blue enamel number plates beside them, and many have a brass knocker.',
+    ],
+  },
+  {
     version: '0.16.22',
     date: '2026-10-31',
     title: 'Kilims and more cats',

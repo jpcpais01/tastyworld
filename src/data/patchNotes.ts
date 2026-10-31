@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.11',
+    date: '2026-10-31',
+    title: 'More steps up the terraces',
+    items: [
+      'Amalfi\'s and Istanbul\'s terraces now have steps between them too, not only down to the lane: where one garden terrace stands a storey over the next, a flight joins the two, every few houses along the edge.',
+      'Terraces whose wall runs on the slant, or that are too narrow to cut steps into, get a flight built up against the wall instead, with a small landing at the top.',
+      'Steps cut into a terrace that climbs away from its edge now go all the way up to its ground, and no flight cuts a terrace in two any more.',
+      'In the Ruga dei Mercanti the walls reach down to the gardens beside it, so a shop let into the wall no longer opens a hole down to the terrace below.',
+    ],
+  },
+  {
     version: '0.17.10',
     date: '2026-10-31',
     title: 'Blocky hills all the way out',

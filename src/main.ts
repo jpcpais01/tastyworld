@@ -1926,7 +1926,7 @@ class Game {
         if (j.look) {
           // auto-walking: dragging turns the view around the traveller and the walk carries on
           if (!j.looked && Math.hypot(dx, dy) > 14) j.looked = true;
-          if (j.looked && !this.ui.busy) this.cam.orbitBy(-(e.clientX - px) * 0.006, 0);
+          if (j.looked && !this.ui.busy) this.cam.walkTurn(-(e.clientX - px) * 0.006);
           return;
         }
         if (!j.active && Math.hypot(dx, dy) > 14) { j.active = true; this.path = []; this.pending = null; }
@@ -2138,7 +2138,7 @@ class Game {
         }
       }
     }
-    if (!this.path.length) this.cam.lookedByHand = false; // the next auto-walk starts facing its way again
+    if (!this.path.length) this.cam.endWalk(); // the next auto-walk starts facing its way again
     if (speed > 0) {
       const hv = this.nav.standHeightVox(p.x, p.z);
       const from = hv === 255 ? 12 : hv;
@@ -2146,8 +2146,8 @@ class Game {
       if (this.path.length > 0) {
         p.x += dx * step; p.z += dz * step;
         pl.targetFacing = Math.atan2(dx, dz);
-        // follow the walking direction, unless the player has taken the view to look around
-        if (this.cam.fp && !this.cam.lookedByHand) this.cam.turnToward(pl.targetFacing, dt);
+        // the view follows the walking direction, keeping whatever look offset the player has dialled in
+        this.cam.autoWalk(pl.targetFacing, dt);
       } else {
         // free movement slides along walls and nudges round corners, chairs and tree trunks
         const m = this.nav.slide(p.x, p.z, dx, dz, step, from, this.slideSide, PLAYER_REACH);

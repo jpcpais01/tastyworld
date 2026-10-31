@@ -125,25 +125,20 @@ const int PARENT[12] = int[12](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3);
 ${SWAY_FN}
 #endif
 ${VOXEL_SCALES}
+// What the fragment shader needs is packed tight: a voxel face is a few pixels across, so the city is
+// millions of vertices a frame and every value passed along costs. Per face: x = aPack.x (face | scale << 3 |
+// seam << 7) | aPack.z (edges | vary << 4) << 8, y = colour rgba8 (unpacked in VOXEL_FRAG).
+flat out uvec2 vFlat;
 flat out vec3 vNormal;
-flat out vec4 vEdge;
-flat out float vScale;
-flat out float vVary;
-#ifdef CUTAWAY
-flat out float vSeam;
-flat out vec3 vU; // the face's in-plane axes, the directions vQuad measures along
-flat out vec3 vV;
-#endif
 out vec3 vWorld;
 #ifdef SWAY
 out vec3 vRest; // world position before the sway: shadows are looked up where the cached shadow map drew it
+#else
+out vec3 vCell; // (swaying meshes are placed in world space, where vRest gives the cell)
 #endif
-out vec3 vCell;
-out vec4 vColor;
 out vec4 vLight;
 out vec4 vQuad;
-out float vAO;
-out float vSky;
+out vec2 vAoSky;
 
 vec3 faceNormal(float f) {
   if (f < 0.5) return vec3(1, 0, 0);
@@ -160,25 +155,18 @@ mat3 rotZ(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0, -s, c, 0
 void main() {
   // a face kept between two buildings (world/mesher.ts) stays buried unless the cutaway can expose it
   float seam = step(127.5, aPack.x);
-#ifdef CUTAWAY
-  vSeam = seam;
-#else
+#ifndef CUTAWAY
   if (seam > 0.5) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
 #endif
   float pk = aPack.x - seam * 128.0;
   float face = mod(pk, 8.0);
   float sIdx = floor(pk / 8.0 + 0.01);
-  vScale = SCALES[int(sIdx)];
   vec3 n = faceNormal(face);
-#ifdef CUTAWAY
-  // FACE_U / FACE_V in world/mesher.ts
-  vU = face < 1.5 ? vec3(0.0, 1.0 - face, face) : face < 2.5 ? vec3(0, 0, 1) : face < 4.5 ? vec3(1, 0, 0) : vec3(0, 1, 0);
-  vV = face < 0.5 ? vec3(0, 0, 1) : face < 1.5 ? vec3(0, 1, 0) : face < 2.5 ? vec3(1, 0, 0) : face < 3.5 ? vec3(0, 0, 1) : face < 4.5 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+  uvec4 c8 = uvec4(aColor * 255.0 + 0.5);
+  vFlat = uvec2(uint(aPack.x + 0.5) | (uint(aPack.z + 0.5) << 8), c8.r | (c8.g << 8) | (c8.b << 16) | (c8.a << 24));
+#ifndef SWAY
+  vCell = position - n * (0.5 * SCALES[int(sIdx)]);
 #endif
-  float edges = mod(aPack.z, 16.0);
-  vVary = floor(aPack.z / 16.0 + 0.01) * 0.02;
-  vEdge = vec4(mod(edges, 2.0), mod(floor(edges / 2.0), 2.0), mod(floor(edges / 4.0), 2.0), floor(edges / 8.0));
-  vCell = position - n * (0.5 * vScale);
   vec3 p = position;
 #ifdef CHARACTER
 #ifdef POSE_TEXTURE
@@ -204,9 +192,9 @@ void main() {
     j = PARENT[j];
   }
   p += off.xyz;
-  vSky = 1.0;
+  vAoSky.y = 1.0;
 #else
-  vSky = aPack.w / 255.0;
+  vAoSky.y = aPack.w / 255.0;
 #endif
 #ifdef SWAY
   vRest = (modelMatrix * vec4(p, 1.0)).xyz;
@@ -224,10 +212,9 @@ void main() {
   vNormal = normalize(mat3(modelMatrix) * n);
 #endif
   vWorld = wp.xyz;
-  vColor = aColor;
   vLight = aLight;
   vQuad = aQuad;
-  vAO = aPack.y / 255.0;
+  vAoSky.x = aPack.y / 255.0;
   vec4 vp = viewMatrix * wp;
   // Props (fine voxels) often sit flush on the coarse world, e.g. a sign over window trim, so their faces can be
   // coplanar with world faces and z-fight. Nudge fine voxels a hair towards the camera, along the view ray so the
@@ -319,25 +306,21 @@ float cutAt(vec3 p, vec2 fwdH, out float id) {
   return dot(p.xz, fwdH) > c.w ? c.y : c.x;
 }
 #endif
+flat in uvec2 vFlat; // see VOXEL_VERT
 flat in vec3 vNormal;
-flat in vec4 vEdge;
-flat in float vScale;
-flat in float vVary;
-#ifdef CUTAWAY
-flat in float vSeam;
-flat in vec3 vU;
-flat in vec3 vV;
-#endif
 in vec3 vWorld;
 #ifdef SWAY
 in vec3 vRest;
-#endif
+#else
 in vec3 vCell;
-in vec4 vColor;
+#endif
 in vec4 vLight;
 in vec4 vQuad;
-in float vAO;
-in float vSky;
+in vec2 vAoSky;
+#ifdef SWAY
+uniform mat4 modelMatrix;
+#endif
+${VOXEL_SCALES}
 layout(location = 0) out vec4 outColor;
 
 #ifndef ICON
@@ -379,6 +362,25 @@ float sunShadow(vec3 n, out float w) {
 #endif
 
 void main() {
+  // unpack the face (VOXEL_VERT)
+  uint fx = vFlat.x;
+  float face = float(fx & 7u);
+  float vScale = SCALES[int((fx >> 3u) & 15u)];
+  uint ez = fx >> 8u;
+  vec4 vEdge = vec4(uvec4(ez, ez >> 1u, ez >> 2u, ez >> 3u) & 1u);
+  float vVary = float((ez >> 4u) & 15u) * 0.02;
+  vec4 vColor = vec4((uvec4(vFlat.y) >> uvec4(0u, 8u, 16u, 24u)) & 255u) / 255.0;
+  float vAO = vAoSky.x, vSky = vAoSky.y;
+#ifdef SWAY
+  // swaying meshes are only ever moved, never turned, so the voxel's rest position less the move is its cell
+  vec3 vCell = vRest - modelMatrix[3].xyz - (face < 1.5 ? vec3(1.0 - 2.0 * face, 0, 0) : face < 3.5 ? vec3(0, 5.0 - 2.0 * face, 0) : vec3(0, 0, 9.0 - 2.0 * face)) * (0.5 * vScale);
+#endif
+#ifdef CUTAWAY
+  float vSeam = float((fx >> 7u) & 1u);
+  // the face's in-plane axes, the directions vQuad measures along (FACE_U / FACE_V in world/mesher.ts)
+  vec3 vU = face < 1.5 ? vec3(0.0, 1.0 - face, face) : face < 2.5 ? vec3(0, 0, 1) : face < 4.5 ? vec3(1, 0, 0) : vec3(0, 1, 0);
+  vec3 vV = face < 0.5 ? vec3(0, 0, 1) : face < 1.5 ? vec3(0, 1, 0) : face < 2.5 ? vec3(1, 0, 0) : face < 3.5 ? vec3(0, 0, 1) : face < 4.5 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+#endif
 #ifdef LODFADE
   // level-of-detail swap: old and new meshes split the pixels by a 4x4 ordered dither, so it dissolves instead of popping
   ivec2 bq = ivec2(gl_FragCoord.xy) & 3;

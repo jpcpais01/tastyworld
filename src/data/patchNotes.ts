@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.10.18',
+    date: '2026-10-31',
+    title: 'Leaner city shader',
+    items: [
+      'Each corner of every voxel face now hands the graphics card about a third less data to colour and light it with, from 32 values down to 21. The city is made of millions of small faces, so this lightens the heaviest part of every frame, and the picture is unchanged.',
+    ],
+  },
+  {
     version: '0.10.17',
     date: '2026-10-31',
     title: 'The city carries on',

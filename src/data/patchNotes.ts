@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.56',
+    date: '2026-10-31',
+    title: 'Landings without the loading screen',
+    items: [
+      'Flying to another city no longer drops you onto the old loading screen after touchdown. The arrival curtain stays up while the city is built: Tokyo\'s noren sways in the breeze with its lanterns and petals, Amalfi\'s lemon boughs stir in the sea mist, and Istanbul\'s tile wall ripples out from its centre, with a thin thread along the bottom showing how far the city has got.',
+      'The curtain now parts only once the streets around you are loaded and running smoothly, so the city never first appears mid-hitch, whether you fly across the world or take a lap over the city you are in.',
+      'The trip now starts with the camera already behind you, instead of gliding over from the title view.',
+    ],
+  },
+  {
     version: '0.16.55',
     date: '2026-10-31',
     title: 'Auto-walk takes the stairs',

@@ -37,7 +37,8 @@ import { DISHES, ALL_DISHES } from './data/dishes';
 import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
-import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity } from './world/cityId';
+import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
+import { nightAt, dropLanding } from './ui/arrival';
 import { farCoast } from './engine/farcoast';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
@@ -129,6 +130,8 @@ class Game {
   coop: Coop | null = null;
   /** The travel map covers the screen, so the 3D world can rest. */
   private covered = false;
+  /** Veils waiting to lift until the view is streamed in and running smoothly (see settled()). */
+  private calm: { t0: number; run: number; done: () => void }[] = [];
   private remotes = new Map<string, Remote>();
   private cityMap!: CityMap;
   private beacon!: Beacon;
@@ -281,6 +284,7 @@ class Game {
       board: (d, coop) => this.start(d, coop),
       home: () => this.goHome(),
       arrivalHour: () => this.tod.hour,
+      settled: () => this.settled(),
       cover: (on) => { this.covered = on; },
       notes: () => this.ui.notes(),
       coop: () => this.coop,
@@ -308,7 +312,8 @@ class Game {
   }
 
   // ------------------------------------------------------------------ loading
-  async load(): Promise<void> {
+  /** Build the city. `boarding`: the page reloaded into it mid-landing, so stream the streets the trip starts in. */
+  async load(boarding = false): Promise<void> {
     // each worker builds the whole city but keeps only its strip of chunk rows; fewer on phones to save memory
     const cores = navigator.hardwareConcurrency || 2;
     const parts = Math.max(1, Math.min(this.r.isMobile ? 2 : 4, cores - 1));
@@ -338,9 +343,9 @@ class Game {
     this.ui.loading(0.82, TEXT.loading[0]);
     await sleep(16);
     this.buildScene();
-    // stream in what the title screen shows before lifting the curtain
+    // stream in what shows first (the title screen, or the street the plane has landed you in) before lifting the curtain
     this.ui.loading(0.86, TEXT.loading[1]);
-    this.titleView();
+    if (boarding) this.boardView(); else this.titleView();
     this.updateCamera(0.016);
     const done = this.streamer.ready();
     const tick = setInterval(() => this.streamer.update(0.05, this.streamView()), 50);
@@ -1157,6 +1162,35 @@ class Game {
     this.cam.snap();
   }
 
+  /** The camera as a trip starts, right behind the traveller. It always happens under a veil, so it snaps there. */
+  private boardView(): void {
+    this.cam.setOrbit(0);
+    this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
+    this.cam.zoom = this.r.isMobile ? 15 : 17;
+    this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
+    this.cam.snap();
+  }
+
+  /**
+   * Resolves once what the camera sees is streamed in and frames come smoothly (shaders compiled, meshes uploaded,
+   * the crowd placed): the moment to lift a veil, so the city is never first seen hitching. Gives up waiting after
+   * 8 s, whatever the frames do.
+   */
+  settled(): Promise<void> {
+    return new Promise((done) => this.calm.push({ t0: performance.now(), run: 0, done }));
+  }
+
+  /** Ten frames in a row under 50 ms with the view streamed in, at least a quarter second after asking. */
+  private checkCalm(now: number, raw: number): void {
+    const smooth = !this.covered && raw < 50 && this.streamer.settled;
+    this.calm = this.calm.filter((c) => {
+      c.run = smooth && now - c.t0 > 250 ? c.run + 1 : 0;
+      if (c.run < 10 && now - c.t0 < 8000) return true;
+      c.done();
+      return false;
+    });
+  }
+
   title(): void {
     this.titleView();
     this.ui.loaded();
@@ -1175,7 +1209,7 @@ class Game {
         this.s.trip = null;
       }
       saveNow(this.s);
-      goToCity(dest.id, { board: dest.id });
+      goToCity(dest.id, { board: dest.id, night: nightAt(this.tod.hour) });
       return;
     }
     this.started = true;
@@ -1192,9 +1226,7 @@ class Game {
       this.setCoop(coop);
     }
     if (this.s.pin) this.setPin(this.s.pin);
-    this.cam.setOrbit(0);
-    this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
-    this.cam.zoom = this.r.isMobile ? 15 : 17;
+    this.boardView();
     this.ui.showHud(true);
     this.applySettings();
     let fp = false;
@@ -2485,6 +2517,7 @@ class Game {
     requestAnimationFrame((t) => this.frame(t));
     const raw = now - this.last;
     this.last = now;
+    if (this.calm.length) this.checkCalm(now, raw);
     const dt = Math.min(0.05, raw / 1000);
     this.perf.begin(raw);
     const sh = this.r.shared;
@@ -2618,16 +2651,20 @@ async function boot() {
     game = new Game();
   } catch (e) {
     console.error(e);
+    dropLanding();
     document.getElementById('load-stage')!.textContent = `Your browser needs WebGL 2 to visit ${TEXT.name}. Try a recent Chrome, Safari or Firefox.`;
     return;
   }
   try {
-    await game.load();
+    // a reload into another city mid-landing (boot.ts has the veil back up): build the street the trip starts in
+    const resume = peekResume();
+    await game.load(!!resume && 'board' in resume);
     game.title();
     // ?debug exposes the game for automated screenshots and console poking
     if (new URLSearchParams(location.search).has('debug')) (window as unknown as { game: Game }).game = game;
   } catch (e) {
     console.error(e);
+    dropLanding();
     game.ui.loadError(`Something went wrong while building ${TEXT.name}.`);
   }
 }

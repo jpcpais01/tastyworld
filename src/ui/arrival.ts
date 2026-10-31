@@ -9,13 +9,20 @@ import type { CityId } from '../world/cityId';
  *
  * Everything is DOM with transform and opacity transitions only, so it stays on the compositor while the city
  * loads underneath. The art is a handful of inline SVGs used as backgrounds (each rasterised once per size).
+ * While it covers the screen it keeps moving (cloth sways, boughs stir, the tile wall ripples, clouds drift) for
+ * as long as the city takes, so the wait is part of the landing and never a frozen frame.
  */
 export interface Veil {
   /** Roll in; resolves once the screen is fully covered. */
   cover(): Promise<void>;
+  /** How far the city underneath has got (0..1): a thin thread along the bottom fills up. */
+  progress(f: number): void;
   /** Part to show what is underneath, then clean up. */
   part(): void;
 }
+
+/** The veil is dressed for night when the plane lands before 6:00 or from 19:00. */
+export const nightAt = (hour: number): boolean => hour < 6 || hour >= 19;
 
 interface Built { coverMs: number; partMs: number }
 type Theme = (v: HTMLElement, night: boolean) => Built;
@@ -255,16 +262,21 @@ const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 /**
  * The veil for landing in `dest` (a destination id), at night or by day. Make it at take-off: it is built, its art
  * decoded and painted once while the plane is in the air, so the first time it rolls in is as smooth as the tenth.
+ *
+ * A `held` veil is already covering: it is put back up as a page loads into another city, over the same wash the
+ * page painted first (index.html), and fades its pieces in once their art is decoded.
  */
-export function arrivalVeil(parent: HTMLElement, dest: string, night: boolean): Veil {
+export function arrivalVeil(parent: HTMLElement, dest: string, night: boolean, held = false): Veil {
   const theme = (THEMES as Record<string, Theme | undefined>)[dest] ?? clouds;
   const v = el(`veil ${theme !== clouds ? `arr-${dest}` : 'arr-clouds'}${night ? ' night' : ''}`);
+  const bar = el('vp', '', '<i></i>');
   let size = '', times = { coverMs: 0, partMs: 0 };
   const build = () => {
     v.replaceChildren();
     v.removeAttribute('style');
     size = `${innerWidth}x${innerHeight}`;
     times = theme(v, night);
+    v.appendChild(bar);
     // parse every SVG once up front (data URLs are cached by the image loader, so the backgrounds reuse them)
     const urls = new Set<string>();
     for (const e of [v, ...v.querySelectorAll<HTMLElement>('[style]')]) {
@@ -283,20 +295,78 @@ export function arrivalVeil(parent: HTMLElement, dest: string, night: boolean): 
     v.classList.remove('warm');
     warming = null;
   })();
-  parent.appendChild(v);
-  void build().then(warm);
+  let shown: Promise<void>;
   // a trip that never lands (closed mid-flight) should not leave it behind
-  const stale = setTimeout(() => v.remove(), 180000);
+  let stale = 0;
+  if (held) {
+    // straight into the covering pose, no roll-in; the pieces fade in over the wash once their art is ready
+    v.classList.add('on', 'held');
+    parent.appendChild(v);
+    shown = Promise.race([build(), sleep(450)]).then(async () => {
+      await frame();
+      v.classList.add('shown');
+      await sleep(260);
+      v.classList.remove('held', 'shown');
+    });
+  } else {
+    parent.appendChild(v);
+    shown = build().then(warm);
+    stale = window.setTimeout(() => v.remove(), 180000);
+  }
   return {
     cover: async () => {
       clearTimeout(stale);
       if (!v.isConnected) parent.appendChild(v);
+      if (held) { await shown; return; }
       if (size !== `${innerWidth}x${innerHeight}`) { await warming; await build(); }
       await warming;
       await warm();
       v.classList.add('on');
       await sleep(times.coverMs);
     },
-    part: () => { v.classList.add('out'); setTimeout(() => v.remove(), times.partMs); },
+    progress: (f) => {
+      v.classList.add('busy');
+      bar.style.setProperty('--f', Math.max(0, Math.min(1, f)).toFixed(3));
+    },
+    part: () => {
+      void shown.then(() => {
+        v.classList.add('out');
+        setTimeout(() => v.remove(), times.partMs);
+      });
+    },
   };
+}
+
+// --------------------------------------------------------------------------------------------- across a reload
+/**
+ * Flying to another city reloads the page (each page builds one city). The old page leaves with the veil covering
+ * the screen; the new one puts it straight back up (boot.ts) and it keeps playing while the city is built, until
+ * the game lifts it. index.html marks the page with data-land first, so not even one frame of the old loading
+ * screen shows in between.
+ */
+let carried: Veil | null = null;
+
+/** Put the veil back up as the page loads; resolves once it is showing (or soon after, whatever the art does). */
+export function holdLanding(parent: HTMLElement, dest: string, night: boolean): Promise<void> {
+  carried = arrivalVeil(parent, dest, night, true);
+  return carried.cover();
+}
+
+/** The veil carried over the reload, if the page has one up. */
+export const landing = (): Veil | null => carried;
+
+/** Lift the carried veil (the city is ready underneath). */
+export function endLanding(): void {
+  const v = carried;
+  carried = null;
+  if (!v) return;
+  v.part();
+  document.documentElement.removeAttribute('data-land');
+}
+
+/** Something went wrong building the city: drop the veil at once so the loading screen can say what. */
+export function dropLanding(): void {
+  carried = null;
+  document.documentElement.removeAttribute('data-land');
+  document.querySelectorAll('.veil').forEach((e) => e.remove());
 }

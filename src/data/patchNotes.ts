@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.16.46',
+    date: '2026-10-31',
+    title: 'Istanbul\'s streets, house by house',
+    items: [
+      'The teal tile bands and cross-shaped tiles that showed on the outside walls of many Istanbul shops, restaurants and hotels are gone. They were the tiles and plates from inside the rooms showing through the wall. Inside, the tiles now stay on the walls you share with the next building, and the plates hang inside the room.',
+      'Every building in Istanbul is now finished in its own way. Plaster comes in twenty-two colours, and some blocks are bare brick laced with stone or banded stone and brick. Some have a ground floor of rusticated stone or a second colour, and some have string courses, corner quoins, pilasters and a cornice with dentils.',
+      'Windows now come in six kinds: shuttered with a pediment (some with the shutters closed), round-arched with a keystone, plain framed, tall French windows onto iron balconettes, flat brick arches and paired lights. Each building sets its own window spacing and trim colour.',
+      'The wooden houses come in more colours, some with upright boards and battens, corner posts and lattice screens on the upper windows.',
+      'Doors come in more colours, some with a fanlight. Shopfronts and restaurant fronts have their own frame colours and glazing, and their signs come in four styles: a painted band, a gilt-framed board, letters painted on the wall, or lit letters.',
+      'A few fronts, about one in fifteen, have a panel of İznik tiles over the door or a tiled frieze under the cornice, in tulip, saz leaf, çintamani or turquoise designs.',
+    ],
+  },
+  {
     version: '0.16.45',
     date: '2026-10-31',
     title: 'Arrivals dressed for the city',

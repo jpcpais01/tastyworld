@@ -4,6 +4,7 @@ import {
 } from './shaders';
 import { WATER_Y } from '../world/layout';
 import { SunShadows } from './shadows';
+import { Sky, SKY_GLSL, skyUniforms, cloudUniforms } from './sky';
 
 export type Quality = 'low' | 'medium' | 'high';
 
@@ -41,6 +42,7 @@ export function makeSharedUniforms() {
     uNight: { value: 0 },
     uEmitDay: { value: 0.5 },
     uCloud: { value: 0.25 },
+    ...cloudUniforms(),
     /** Covered markets: warm light and lamps lit all day inside these rects (x0, z0, x1, z1 m), under each top. */
     uWarm: { value: [new THREE.Vector4(1, 1, 0, 0), new THREE.Vector4(1, 1, 0, 0), new THREE.Vector4(1, 1, 0, 0)] },
     uWarmTop: { value: new THREE.Vector3(-1e9, -1e9, -1e9) },
@@ -122,6 +124,8 @@ export class Renderer {
   private matHalf: THREE.ShaderMaterial;
   readonly composite: THREE.ShaderMaterial;
   readonly shadows: SunShadows;
+  readonly sky: Sky;
+  private fwd = new THREE.Vector3();
   private w = 1;
   private h = 1;
   /** Render target height in pixels. */
@@ -152,7 +156,9 @@ export class Renderer {
     this.matUp.blending = THREE.AdditiveBlending;
     this.matUp.transparent = true;
     this.matHalf = fsMaterial(HALF_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } });
-    this.composite = fsMaterial(COMPOSITE_FRAG, {
+    const skyU = skyUniforms();
+    this.composite = fsMaterial(COMPOSITE_FRAG.replace('//#SKY', SKY_GLSL), {
+      ...skyU, tCloud: this.shared.tCloud, uCloudGeo: this.shared.uCloudGeo, uCloudMap: this.shared.uCloudMap,
       tScene: { value: null }, tDepth: { value: null }, tBloom: { value: null }, tHalf: { value: null }, tParticles: { value: null },
       uInvViewProj: { value: new THREE.Matrix4() }, uViewProj: { value: new THREE.Matrix4() },
       uCamFwd: { value: this.shared.uCamFwd.value }, uRes: { value: new THREE.Vector2() }, uClip: this.clip,
@@ -166,6 +172,7 @@ export class Renderer {
       uWaterBounds: { value: new THREE.Vector4(-5, 42.9, 80, 50.1) }, uSea: { value: 0 },
       tShore: { value: null }, uShoreRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     });
+    this.sky = new Sky(this.shared, skyU, this.shared, this.composite.uniforms.uSkyTop.value, this.composite.uniforms.uSkyHorizon.value);
     this.resize();
   }
 
@@ -253,6 +260,8 @@ export class Renderer {
     cam.updateMatrixWorld();
     this.clip.value.set(cam.near, cam.far, this.firstPerson ? 1 : 0);
     this.shared.uViewProj.value.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    // the sky first: it sets the haze colour every far shader fades into
+    this.sky.update(this.shared.uTime.value, cam.getWorldDirection(this.fwd), (m, t) => this.pass(m, t));
     // sun shadows fade in with the sun; by night the moon is too dim to need them and the baked light carries it
     const sc = this.shared.uSunColor.value;
     const sunLum = sc.r * 0.2126 + sc.g * 0.7152 + sc.b * 0.0722;
@@ -310,6 +319,7 @@ export class Renderer {
     u.uInvViewProj.value.copy(u.uViewProj.value).invert();
     u.uSSR.value = this.quality === 'low' ? 0 : 1;
     u.uShafts.value = this.quality === 'high' ? 1 : 0;
+    u.uCloudSteps.value = this.quality === 'high' ? 56 : this.quality === 'medium' ? 40 : 24;
     this.pass(this.composite, null);
   }
 

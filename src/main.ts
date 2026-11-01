@@ -13,7 +13,7 @@ import { Streamer, StreamView } from './engine/streamer';
 import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look, CHAR_FINE } from './world/characters';
-import { bikeModel, scooterModel, swanBoatModel, gozzoModel, cabinModel, CABIN_HANG } from './world/vehicles';
+import { bikeModel, scooterModel, swanBoatModel, gozzoModel, cabinModel, CABIN_HANG, tobogganModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
@@ -228,6 +228,8 @@ class Game {
   private cats: Cat[] = [];
   /** Funchal's cable car to Monte: its line and the cabins running up and down it. */
   private cable: { line: CableLine; len: number[]; total: number; t: number; cabins: Actor[] } | null = null;
+  /** Monte's toboggans sliding down to Livramento, each steered by two carreiros running behind. */
+  private sleds: { path: [number, number, number][]; runs: { t: number; sled: Actor; men: Actor[] }[]; parked?: Actor[] } | null = null;
   private chef!: Actor;
   private blobs!: Blobs;
   private koi: Koi | null = null;
@@ -429,6 +431,7 @@ class Game {
       this.worldGroup.add(far.ground, far.houses);
       const len = far.cable.pts.slice(1).map((p, i) => Math.hypot(p[0] - far.cable.pts[i][0], p[1] - far.cable.pts[i][1]));
       this.cable = { line: far.cable, len, total: len.reduce((a, b) => a + b, 0), t: 0, cabins: [] };
+      this.sleds = { path: far.sled, runs: [] };
       // its quintas up the amphitheatre, house by house with the town's own voxels
       this.farTown = new FarTown(this.r.gl, sh, [WX0, WZ0, WX1, WZ1], far.lots, `city:${CITY}`);
       this.worldGroup.add(this.farTown.group);
@@ -725,6 +728,24 @@ class Game {
         this.cable.cabins.push(act);
       }
       this.updateCable(0);
+    }
+    if (this.sleds) {
+      // the carreiros in their white cotton and straw boaters
+      const carreiro = (i: number): Look => ({ skin: [0xc98f6a, 0xb9805a, 0xd9a27a][i % 3], hair: 0x2a2220, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'tee', accent: 0xf4f1ea, bottom: 0xf4f1ea, shoes: 0x2a2a2e, hat: 'straw', hatColor: 0xe8d8a8, moustache: i % 2 === 0 });
+      for (let i = 0; i < 3; i++) {
+        const sled = new Actor(tobogganModel(70 + i), this.chars, true);
+        const men = [0, 1].map((k) => new Actor(buildPerson(carreiro(i * 2 + k)), this.chars));
+        for (const a of [sled, ...men]) this.worldGroup.add(a.root);
+        this.sleds.runs.push({ t: i / 3, sled, men });
+      }
+      // and one waiting at the foot of the cable car for customers, its two carreiros chatting beside it
+      const px = 24.6, pz = 34.5, py = this.navWorld.heightAt(px, pz);
+      const parked = new Actor(tobogganModel(90), this.chars, true);
+      parked.position.set(px, py, pz); parked.facing = parked.targetFacing = Math.PI;
+      const men = [0, 1].map((k) => { const m = new Actor(buildPerson(carreiro(7 + k)), this.chars); const mx = px + (k ? 0.9 : -0.9), mz = pz + 0.6; m.position.set(mx, this.navWorld.heightAt(mx, mz), mz); m.facing = m.targetFacing = k ? -2.2 : 2.2; m.anim = 'talk'; return m; });
+      for (const a of [parked, ...men]) { this.worldGroup.add(a.root); a.update(0); a.light(this.lm); this.crowd.addObstacle(a.position.x, a.position.z); }
+      this.sleds.parked = [parked, ...men];
+      this.updateSleds(0);
     }
 
     // cats
@@ -2380,10 +2401,39 @@ class Game {
       while (k < cb.len.length - 1 && s > cb.len[k]) { s -= cb.len[k]; k++; }
       const f = Math.min(1, s / cb.len[k]), [xa, ya] = pts[k], [xb, yb] = pts[k + 1];
       act.position.set(xa + (xb - xa) * f, ya + (yb - ya) * f - CABIN_HANG, cb.line.z + (up ? -1 : 1) * cb.line.gap);
-      act.facing = act.targetFacing = Math.PI / 2;
+      act.facing = act.targetFacing = 0; // (the grip runs along the rope, which runs along x)
       act.update(dt);
       act.lightOpen(sun);
     });
+  }
+
+  /** Each run takes about forty seconds, and the next sled sets off from the top as one reaches the bottom. */
+  private updateSleds(dt: number): void {
+    const sl = this.sleds;
+    if (!sl) return;
+    const h = this.tod.hour, open = h > 9 && h < 18, P = sl.path, n = P.length - 1;
+    const sun = h > 7.5 && h < 18.5 ? 1 : h > 6.5 && h < 19.5 ? 0.6 : 0.22;
+    const at = (u: number): [number, number, number, number] => {
+      const f = Math.max(0, Math.min(n - 1e-4, u * n)), i = Math.floor(f), k = f - i, a = P[i], b = P[i + 1];
+      return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, Math.atan2(b[0] - a[0], b[2] - a[2])];
+    };
+    for (const a of sl.parked ?? []) a.update(dt);
+    for (const r of sl.runs) {
+      if (open) r.t = (r.t + dt / 40) % 1;
+      const [x, y, z, yaw] = at(r.t);
+      r.sled.position.set(x, y, z);
+      r.sled.facing = r.sled.targetFacing = yaw;
+      r.sled.update(dt); r.sled.lightOpen(sun);
+      // the two men behind, either side, holding the ropes and running with it
+      const [bx, by, bz] = at(r.t - 0.006);
+      r.men.forEach((m, k) => {
+        const side = k ? 0.55 : -0.55;
+        m.position.set(bx + Math.cos(yaw) * side, by, bz - Math.sin(yaw) * side);
+        m.facing = m.targetFacing = yaw;
+        m.anim = open ? 'run' : 'idle'; m.speed = 3;
+        m.update(dt); m.lightOpen(sun);
+      });
+    }
   }
 
   private updateCats(dt: number): void {
@@ -2421,6 +2471,7 @@ class Game {
       this.perf.lap('birds');
       this.updateCats(dt);
       this.updateCable(dt);
+      this.updateSleds(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
         const d = Math.hypot(pp.x - v.actor.position.x, pp.z - v.actor.position.z);

@@ -146,7 +146,7 @@ const TREE_BOXES: [number, number, number, number, number, number][][] = [
 /** The cable car to Monte: the line its cabins run along (x, height in m) at z, up one rope and down the other. */
 export interface CableLine { z: number; gap: number; pts: [number, number][] }
 
-export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh; lots: FarLot[]; cable: CableLine } {
+export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh; lots: FarLot[]; cable: CableLine; sled: [number, number, number][] } {
   const [x0, z0, x1, z1] = rect;
   const outside = (x: number, z: number) => Math.max(x0 - x, x - x1, z0 - z, z - z1, 0);
   // height where the far ground meets the map: what the map itself has at its edge, so the seam is a step at most
@@ -599,6 +599,22 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
     ropes.push([x - 8, y + 4, CZ - 5, x + 2, y + 5, CZ + 5, 0xa5603f, 0]);
   }
 
+  // ---- the toboggan run: from below Monte's church down the steep lanes towards Livramento, a ribbon of worn grey
+  // paving the sleds slide along (main.ts runs them), a point every 3 m on the ground
+  const sled: [number, number, number][] = [];
+  for (let t = 0; t <= 1.0001; t += 1 / 80) {
+    const x = -500 + 170 * t + Math.sin(t * 9) * 6, z = 18 + 80 * t + Math.sin(t * 13 + 1) * 9;
+    sled.push([x, groundAt(x, z), z]);
+  }
+  for (let i = 1; i < sled.length; i++) {
+    const [xa, ya, za] = sled[i - 1], [xb, yb, zb] = sled[i];
+    const n = Math.ceil(Math.hypot(xb - xa, zb - za) / 1.25);
+    for (let k = 0; k < n; k++) {
+      const f = (k + 0.5) / n, x = xa + (xb - xa) * f, z = za + (zb - za) * f, y = ya + (yb - ya) * f;
+      ropes.push([x - 1.6, y - 0.6, z - 1.6, x + 1.6, y + 0.06, z + 1.6, (k + i) % 3 ? 0x8a8580 : 0x6e6a66, 0]);
+    }
+  }
+
   // ---- the paths' stones: a 1.25 m tread every metre, laid on the ground and stepping in half metres where the
   // ground steps more, so each trail is a flight of stairs up the slope (only near town: further off it's a thread)
   const steps: [number, number, number, number, number, number, number][] = [];
@@ -766,5 +782,5 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
   floor.frustumCulled = false;
   floor.renderOrder = 11;
   ground.add(floor);
-  return { ground, houses, lots, cable };
+  return { ground, houses, lots, cable, sled };
 }

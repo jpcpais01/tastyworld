@@ -171,7 +171,7 @@ export class Renderer {
       uBloom: { value: 0.6 }, uExposure: { value: 1 }, uTilt: { value: 0.6 }, uSSR: { value: 1 }, uShafts: { value: 1 },
       uGradeShadow: { value: new THREE.Color(1, 1, 1) }, uGradeHigh: { value: new THREE.Color(1, 1, 1) },
       uSaturation: { value: 1.08 }, uVignette: { value: 0.55 }, uFade: { value: 1 },
-      uWaterBounds: { value: new THREE.Vector4(-5, 42.9, 80, 50.1) }, uSea: { value: 0 },
+      uWaterBounds: { value: new THREE.Vector4(-5, 42.9, 80, 50.1) }, uSea: { value: 0 }, uWet: { value: 0 }, uWetY: { value: 0 },
       tShore: { value: null }, uShoreRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     });
     this.sky = new Sky(this.shared, skyU, this.shared, this.composite.uniforms.uSkyTop.value, this.composite.uniforms.uSkyHorizon.value);

@@ -51,7 +51,7 @@ import { NeoLifeSys } from './neo/life';
 import { Rain } from './neo/rain';
 import { SkyTraffic } from './neo/skytraffic';
 import { Drones } from './neo/drones';
-import { NEO_REMARKS } from './data/neo';
+import { NEO_REMARKS, STRAY_NAMES } from './data/neo';
 import { Umbrellas } from './neo/umbrellas';
 import { Hologram, HALO_SONG } from './neo/hologram';
 import { neoShop } from './neo/roles';
@@ -111,8 +111,6 @@ interface Shop {
 }
 
 interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; it: Interactable | null; wait?: boolean; stuck?: number; }
-/** 2040's strays, by their place in the city's list: a fed one follows you and answers to its name. */
-const STRAY_NAMES = ['Byte', 'Miso', 'Static', 'Ghost', 'Noodle', 'Volt'];
 /** A friend on a co-op trip, drawn from the samples they send. */
 interface Remote { actor: Actor; look: string; tag: HTMLElement; name: string; tx: number; ty: number; tz: number; }
 
@@ -1220,9 +1218,12 @@ class Game {
     const follow = !!this.coop && !this.coop.host;
     const keep = this.s.settings.timeOfDay !== null || follow;
     const to = night ? 7 : (h + 2) % 24;
-    const sub = keep
+    let sub = keep
       ? follow ? 'Your trip leader keeps the clock, so the city kept its hour.' : 'The time of day is fixed in your settings, so the city kept its hour.'
       : night ? `${info?.name ?? 'The hotel'} · the city is waking up` : TEXT.nap;
+    // in 2040 the cat that follows you came up too, and slept on your feet
+    const cat = NEO && this.s.life?.cat !== undefined && !this.cats[this.s.life.cat]?.wait ? STRAY_NAMES[this.s.life.cat % STRAY_NAMES.length] : null;
+    if (cat) sub = `${sub} ${cat} slept curled up on your feet.`;
     const first = night && !this.s.stays.includes(rm.hotel);
     this.vitals?.rested(night ? 100 : 40);
     await this.ui.sleep(h, keep ? h : to, night ? 'Good morning!' : 'What a lovely nap', sub, () => {

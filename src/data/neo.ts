@@ -491,6 +491,9 @@ export const NEO_ITEMS: Record<string, { name: string; icon: IconName; desc: str
 };
 
 /** What people passing say about you: your chrome, your glow, how you look tonight. */
+/** 2040's strays, by their place in the city's list: a fed one follows you and answers to its name. */
+export const STRAY_NAMES = ['Byte', 'Miso', 'Static', 'Ghost', 'Noodle', 'Volt'];
+
 export const NEO_REMARKS = {
   chrome: ['Nice arm. Clinic on Spindle?', 'Is that real chrome? It is. Wow.', 'Careful with that arm in the rain, it squeaks.', 'My cousin has an arm like that. Opens jars all day.'],
   implant: ['Love the glow. Very thirty-eight.', 'Your face is blinking, did you know?', 'That implant colour suits you.', 'Ooh, who did your cheek?'],

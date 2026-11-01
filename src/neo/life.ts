@@ -7,6 +7,7 @@ import { HOTEL } from '../data/hotels';
 import { STALL, STALLS } from '../data/stalls';
 import { PLACES } from '../data/places';
 import { TEXT } from '../data/cityText';
+import { STRAY_NAMES } from '../data/neo';
 import { zoneAt } from '../world/layout';
 import type { Vitals } from './vitals';
 import { defaultLife, type NeoLife } from './state';
@@ -396,6 +397,7 @@ export class NeoLifeSys {
         { label: 'Home meals', value: String(L.homeCooked) },
         { label: 'Days lived', value: String(L.day) },
         { label: 'Blackouts', value: String(L.faints) },
+        ...(L.cat !== undefined ? [{ label: 'Your cat', value: STRAY_NAMES[L.cat % STRAY_NAMES.length] }] : []),
       ],
       secrets: SECRETS.map((x) => ({ name: x.name, text: x.text, found: x.found(this.h.s, L) })),
       homeName: this.homeValid() ? this.homeName() : null,

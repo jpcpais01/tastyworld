@@ -1881,6 +1881,7 @@ class Game {
     e.talk++;
     if (e.id === 'obaachan') this.s.flags.metFumiko = true;
     if (NEO && e.id === 'netrunner' && this.lifeSys.wren(info.name)) { e.actor.anim = 'idle'; return; }
+    if (NEO && e.id === 'courier' && this.lifeSys.zip(info.name)) { e.actor.anim = 'idle'; return; }
     this.ui.dialogue(info.name, [line], () => { e.actor.anim = 'idle'; });
   }
 

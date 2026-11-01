@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.14',
+    date: '2026-11-01',
+    title: '2040: the unmarked package',
+    items: [
+      'A new story run from Zip the courier: a package with no name and no return address, just "the Halo" on the tape. Nobody will admit it is theirs. Follow it across the city, from the Mile to the docks to the Spire, and find out who wrote the song the Halo sings at midnight.',
+    ],
+  },
+  {
     version: '0.20.13',
     date: '2026-11-01',
     title: 'Upstairs views open up',

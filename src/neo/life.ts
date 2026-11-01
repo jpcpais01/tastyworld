@@ -57,6 +57,7 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'midnight', name: 'The Halo sings', text: 'DJ Nyx swears the hologram over the crossing sings at midnight.', found: (_s, L) => L.secrets.includes('midnight') },
   { id: 'floor13', name: 'Floor 13', text: 'Zip the courier says never to take the stairs in Kowa Flats after midnight.', found: (_s, L) => L.secrets.includes('floor13') },
   { id: 'star', name: 'Look up', text: 'Brother Anselm says the towers forgot the sky, and asks you to look up once a day.', found: (_s, L) => L.secrets.includes('star') },
+  { id: 'tape', name: 'The unmarked package', text: 'Zip the courier has a package nobody will admit is theirs.', found: (_s, L) => L.secrets.includes('tape') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 
@@ -232,6 +233,15 @@ export class NeoLifeSys {
       this.busy = false;
     };
     this.busy = true;
+    if (s.who) {
+      // a story stop: the line is spoken, and the run's end may have more to tell
+      this.h.dialogue(s.who, [s.arrive], () => {
+        const last = this.gigs.last;
+        done(0, last ? 'Delivered.' : 'Passed on.');
+        if (last && g.id === 'tape') this.tapeEnd();
+      });
+      return;
+    }
     if (s.task === 'cook') {
       const st = STALL[s.stall!] ?? STALLS.find((x) => x.recipe);
       if (!st) { done(); return; }
@@ -469,6 +479,49 @@ export class NeoLifeSys {
     this.setQ('hGrow', grow + 1);
     this.h.play('pop');
     this.h.ui.toast('drop', 'Watered', grow + 1 >= 3 ? 'Something is ready to pick. Ines is watching the bed.' : 'One more day of water and it is ready.', grow + 1 >= 3);
+  }
+
+  // ------------------------------------------------------------------ Zip's unmarked package
+
+  /** Zip the courier: once, an unmarked package that nobody will admit is theirs. */
+  zip(name: string): boolean {
+    const st = this.q('tape');
+    if (st >= 2) return false;
+    if (this.gigs.gig) {
+      if (this.gigs.gig.id === 'tape') { this.h.dialogue(name, ['Still got the package? Follow the pin. Whoever it is for, they have waited long enough.']); return true; }
+      return false;
+    }
+    const at = (id: string): [number, number] => {
+      const i = this.h.anchors.idlers.find((x) => x.id === id);
+      return i ? [i.pos[0], i.pos[2]] : [0, 0];
+    };
+    const [nx, nz] = at('dj'), [tx, tz] = at('dockhand'), [wx, wz] = at('netrunner');
+    this.h.dialogue(name, [
+      st === 1 ? 'You dropped the package? It came back to the hub. It always comes back. Try again?' : 'Hey, you. Want an odd one? This came into the hub with no name and no return address. Just "the Halo" written on the tape.',
+      'Nobody on the board will touch it. They say it hums at night. I say it pays 400.',
+      'Start with DJ Nyx on the Mile. Nyx knows everybody.',
+    ], () => {
+      this.setQ('tape', 1);
+      this.take({
+        id: 'tape', kind: 'courier', title: 'The unmarked package', client: 'nobody', text: 'An unmarked package with "the Halo" on the tape.', pay: 400, par: 0, bonus: 0,
+        stops: [
+          { x: nx, z: nz, name: 'DJ Nyx on the Mile', who: 'DJ Nyx', arrive: '"Not mine. But I know that handwriting... Big Tomas, down on the docks. He used to run the Halo\'s sound rig, back when it had one."' },
+          { x: tx, z: tz, name: 'Big Tomas on the docks', who: 'Big Tomas', arrive: '"The Halo? Ha. I wired that thing in \'31. This is not for me, friend. It is for the netrunner in the Spire. Her mother wrote the song."' },
+          { x: wx, z: wz, name: 'Wren in the Spire', who: 'Wren', arrive: 'Wren turns the package over twice before she opens it. Inside: an old tape, and a card. "For W., when you are ready to hear it."' },
+        ],
+      });
+    });
+    return true;
+  }
+
+  /** The package opened: Wren and her mother's song. */
+  private tapeEnd(): void {
+    this.setQ('tape', 2);
+    this.h.dialogue('Wren', [
+      'It is her. My mother\'s voice, singing the Halo song, the one it plays at midnight. She wrote it before the vats, before Helix, before me.',
+      'I always thought the city stole it. She gave it away, so everyone would have it.',
+      'Thank you. Really. Go and hear it at midnight some time. It sounds different once you know.',
+    ], () => this.discover('tape', 'The unmarked package', 'Now you know who wrote the Halo\'s song.'));
   }
 
   /** Wren, the netrunner by the Halo, who starts the Helix job and pays for it. */

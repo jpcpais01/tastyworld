@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.21.5',
+    date: '2026-11-01',
+    title: 'Low quality looks better',
+    items: [
+      'Low quality draws at your screen\'s full resolution again, so it is sharp instead of soft.',
+      'Sun shadows are back on Low, from a smaller, lighter shadow map, so streets and people keep their shadows.',
+    ],
+  },
+  {
     version: '0.21.4',
     date: '2026-11-01',
     title: 'Friends face the right way',

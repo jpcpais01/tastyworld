@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.1',
+    date: '2026-11-01',
+    title: 'Funchal: the cable car to Monte, and six more places to eat',
+    items: [
+      'The cable car now runs from the station by the gardens up over the rooftops to Monte: red cabins glide up one rope and down the other from eight in the morning to eight at night, over steel pylons on the mountainside, to the top station by Monte\'s church.',
+      'Six new places to eat, each with a cook, a cooking challenge and two dishes: the Bar do Mercado (tremoços and an ice-cold Coral), the Churrasqueira da Sé (piri-piri chicken and fried sweet potato), the Taberna da Sardinha (grilled sardines and octopus salad), the Casa de Chá do Jardim (lemon verbena tea and almond tart), the Gelataria da Marina (passion fruit ice cream and a banana milkshake) and the Snack-Bar Avenida (the Madeiran cachorro and a Laranjada). Funchal now has 38 dishes.',
+      'Every restaurant and café in Funchal is now fully furnished: laid tables with a light over each, shelves of bottles and plates, pictures on the walls, a working kitchen, plants by the windows, and the hidden tasca laid for dinner.',
+      'The rocks along the sea are now bare black basalt instead of grass, and the cable car station has a proper roof sloping up towards the hill.',
+    ],
+  },
+  {
     version: '0.18.0',
     date: '2026-11-01',
     title: 'New destination: Funchal, Madeira',

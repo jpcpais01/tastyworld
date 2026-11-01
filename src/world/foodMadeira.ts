@@ -9,11 +9,13 @@ const S = 1 / 40;
 export type MadeiraFood =
   | 'bolocaco' | 'prego' | 'poncha' | 'nikita' | 'maracuja' | 'anona' | 'malasada' | 'brisa'
   | 'espetada' | 'milhofrito' | 'espada' | 'lapas' | 'atum' | 'caldeirada' | 'sopatomate' | 'vinhalhos'
-  | 'bolomel' | 'queijada' | 'madeira' | 'broas' | 'chinesa' | 'nata' | 'picado' | 'sopatrigo' | 'gaiado' | 'pudim';
+  | 'bolomel' | 'queijada' | 'madeira' | 'broas' | 'chinesa' | 'nata' | 'picado' | 'sopatrigo' | 'gaiado' | 'pudim'
+  | 'tremocos' | 'coral' | 'frango' | 'batatadoce' | 'sardinhas' | 'polvo' | 'cha' | 'torta' | 'gelado' | 'batido' | 'cachorro' | 'laranjada';
 
 export const MADEIRA_FOODS: readonly MadeiraFood[] = ['bolocaco', 'prego', 'poncha', 'nikita', 'maracuja', 'anona', 'malasada', 'brisa',
   'espetada', 'milhofrito', 'espada', 'lapas', 'atum', 'caldeirada', 'sopatomate', 'vinhalhos',
-  'bolomel', 'queijada', 'madeira', 'broas', 'chinesa', 'nata', 'picado', 'sopatrigo', 'gaiado', 'pudim'];
+  'bolomel', 'queijada', 'madeira', 'broas', 'chinesa', 'nata', 'picado', 'sopatrigo', 'gaiado', 'pudim',
+  'tremocos', 'coral', 'frango', 'batatadoce', 'sardinhas', 'polvo', 'cha', 'torta', 'gelado', 'batido', 'cachorro', 'laranjada'];
 
 /** A white plate with the island's blue rim. */
 function plate(p: Prop, c: FC, cx: number, cz: number, r: number): void {
@@ -364,6 +366,148 @@ function pudim(c: FC): Prop {
   return p;
 }
 
+function tremocos(c: FC): Prop {
+  const p = new Prop(24, 7, 18, S);
+  // a saucer of golden lupins glistening in brine, a second one for the skins, a sprig of parsley
+  p.cylY(8, 9, 6.5, 0, 0, c.ceramicWhite); p.cylY(8, 9, 6.5, 1, 1, (x, _y, z) => (Math.hypot(x + 0.5 - 8, z + 0.5 - 9) > 5.5 ? c.ceramicWhite : 0));
+  const r = rng(311);
+  for (let k = 0; k < 22; k++) { const a = r() * Math.PI * 2, d = r() * 4.6; const x = 8 + Math.cos(a) * d, z = 9 + Math.sin(a) * d; p.ellipsoid(x, 2, z, 1.3, 1, 1.1, (xx) => (xx % 3 === 0 ? c.cornDark : c.corn)); }
+  p.set(7, 4, 8, c.parsley); p.set(9, 4, 10, c.garlicW);
+  p.cylY(18.5, 9, 4, 0, 1, c.ceramicWhite);
+  for (const [x, z] of [[17, 8], [19, 10], [18, 11], [20, 8]]) p.set(x, 2, z, c.husk);
+  return p;
+}
+
+function coral(c: FC): Prop {
+  const p = new Prop(16, 26, 14, S);
+  // the brown bottle with its red and white label, a small glass of gold with a collar of foam
+  p.cylY(5, 7, 2.6, 0, 13, (_x, y) => (y >= 4 && y <= 9 ? (y === 6 || y === 7 ? c.ceramicWhite : c.paperRed) : c.bottleDark));
+  p.cylY(5, 7, 1.3, 14, 20, c.bottleDark); p.cylY(5, 7, 1.5, 21, 21, c.paperRed);
+  p.cylY(11.5, 7, 2.6, 0, 10, c.glass); p.cylY(11.5, 7, 1.9, 1, 8, c.honeyTop); p.cylY(11.5, 7, 2, 9, 10, c.cream);
+  return p;
+}
+
+function frango(c: FC): Prop {
+  const p = new Prop(30, 10, 24, S);
+  plate(p, c, 15, 12, 11.5);
+  // half a chicken split flat, charred and glossy with chilli oil, a pile of chips, a wedge of lemon
+  p.ellipsoid(11, 3.5, 11, 7, 2.6, 5.2, (x, y, z) => ((x * 3 + z * 5 + y) % 7 === 0 ? c.char : (x + z) % 5 === 0 ? c.chili : c.chickenGlaze));
+  p.ellipsoid(7, 3, 16, 2.5, 1.6, 1.8, c.chickenGlaze);
+  const r = rng(212);
+  for (let k = 0; k < 14; k++) { const x = 18 + Math.floor(r() * 6), z = 6 + Math.floor(r() * 12), y = 2 + Math.floor(r() * 2); if (r() < 0.5) p.box(x, y, z, x + 3, y, z, c.fry); else p.box(x, y, z, x, y, z + 3, c.fry); }
+  p.box(9, 6, 9, 10, 6, 10, c.parsley); p.box(21, 2, 18, 22, 3, 19, c.lemon);
+  return p;
+}
+
+function batatadoce(c: FC): Prop {
+  const p = new Prop(24, 9, 22, S);
+  plate(p, c, 12, 11, 10);
+  // fat wedges of golden sweet potato, caramel at the edges, a pinch of salt
+  const r = rng(77);
+  for (let k = 0; k < 9; k++) {
+    const x = 5 + Math.floor(r() * 11), z = 5 + Math.floor(r() * 10), y = 2 + (k > 5 ? 2 : 0), along = r() < 0.5;
+    p.box(x, y, z, x + (along ? 5 : 1), y + 1, z + (along ? 1 : 5), (xx, yy, zz) => ((xx + zz + yy) % 4 === 0 ? c.caramel : yy === y + 1 ? c.pumpkin : c.fry));
+  }
+  p.set(10, 6, 10, c.sugar); p.set(13, 6, 9, c.sugar);
+  return p;
+}
+
+function sardinhas(c: FC): Prop {
+  const p = new Prop(30, 9, 24, S);
+  plate(p, c, 15, 12, 11.5);
+  // a slice of bread under three grilled sardines, boiled potatoes, a little pepper and onion salad
+  p.box(6, 2, 6, 17, 2, 16, (x, _y, z) => (x === 6 || x === 17 || z === 6 || z === 16 ? c.breadCrust : c.breadIn));
+  for (const z of [7, 10.5, 14]) {
+    const zz = Math.round(z);
+    p.box(5, 3, zz, 17, 4, zz + 1, (x, y) => (x < 7 ? c.mackerelBack : y === 4 ? ((x + zz) % 3 === 0 ? c.char : c.mackerelBack) : c.mackerel));
+    p.set(18, 3, zz, c.mackerelBack); p.set(19, 3, zz, c.mackerel);
+  }
+  for (const [x, z] of [[21, 7], [23, 11]]) p.ellipsoid(x, 3, z, 2.2, 1.8, 2.2, c.potato);
+  for (let k = 0; k < 8; k++) p.set(20 + (k % 4), 2, 15 + (k >> 2), k % 3 === 0 ? c.tomato : k % 3 === 1 ? c.pepper : c.redOnion);
+  p.set(22, 3, 15, c.parsley);
+  return p;
+}
+
+function polvo(c: FC): Prop {
+  const p = new Prop(24, 10, 24, S);
+  bowl(p, c.ceramicWhite, 12, 12, 10, 4);
+  // chunks of tender octopus, rings of red onion, red and green pepper, coriander, a gloss of olive oil
+  const r = rng(54);
+  for (let k = 0; k < 16; k++) { const a = r() * Math.PI * 2, d = r() * 6.5; const x = 12 + Math.cos(a) * d, z = 12 + Math.sin(a) * d; p.ellipsoid(x, 4, z, 1.6, 1.2, 1.4, (xx, yy) => (yy > 4 ? c.octopus : (xx % 2 ? c.octopusLight : c.octopus))); }
+  for (let k = 0; k < 18; k++) { const a = r() * Math.PI * 2, d = r() * 7; p.set(Math.round(12 + Math.cos(a) * d), 5, Math.round(12 + Math.sin(a) * d), [c.redOnion, c.pepper, c.lettuce, c.parsley][k % 4]); }
+  p.set(9, 3, 14, c.oil); p.set(15, 3, 9, c.oil);
+  return p;
+}
+
+function cha(c: FC): Prop {
+  const p = new Prop(26, 18, 18, S);
+  // a china teapot with a blue band, a cup of pale gold tea on its saucer, a sprig of lemon verbena
+  p.ellipsoid(8, 6, 9, 5, 5, 5, (_x, y) => (y === 6 || y === 7 ? c.ceramicBlue : c.ceramicWhite));
+  p.cylY(8, 9, 2, 11, 11, c.ceramicWhite); p.set(8, 12, 9, c.ceramicBlue);
+  for (let k = 0; k < 4; k++) p.set(13 + k, 6 + k, 9, c.ceramicWhite);
+  p.box(1, 5, 9, 2, 8, 9, c.ceramicWhite);
+  p.cylY(20, 9, 4.5, 0, 0, c.ceramicWhite); p.cylY(20, 9, 3, 1, 4, c.ceramicWhite); p.cylY(20, 9, 2.3, 2, 4, c.tea);
+  p.box(23, 2, 9, 24, 3, 9, c.ceramicWhite);
+  p.set(18, 1, 13, c.leaf); p.set(19, 1, 14, c.leaf); p.set(20, 1, 14, c.mint);
+  return p;
+}
+
+function torta(c: FC): Prop {
+  const p = new Prop(24, 9, 20, S);
+  p.cylY(12, 10, 9, 0, 0, c.ceramicWhite);
+  // a wedge of almond tart: a crisp shortcrust base, a deep layer of sliced almonds set in shining caramel
+  for (let x = 5; x <= 19; x++) for (let z = 5; z <= 15; z++) {
+    if (Math.abs(z - 10) > (x - 5) * 0.38 + 0.5) continue;
+    for (let y = 1; y <= 5; y++) p.set(x, y, z, y <= 2 ? (x === 19 ? c.shortcrustHi : c.shortcrust) : y === 5 ? ((x * 3 + z * 7) % 4 === 0 ? c.almond : c.caramel) : (x + z + y) % 3 === 0 ? c.almond : c.honeyTop);
+  }
+  p.box(3, 1, 15, 10, 1, 15, c.steelLight);
+  return p;
+}
+
+function gelado(c: FC): Prop {
+  const p = new Prop(14, 30, 14, S);
+  // a crisp wafer cone, a scoop of pale banana, a scoop of passion fruit on top with its black seeds
+  for (let y = 0; y < 14; y++) p.cylY(7, 7, 0.8 + y * 0.22, y, y, (x, yy, z) => ((x + z + yy) % 3 === 0 ? c.waferDark : c.wafer));
+  p.ellipsoid(7, 16, 7, 3.8, 3.2, 3.8, c.banana);
+  p.ellipsoid(7, 21.5, 7, 3.6, 3.2, 3.6, (x, y, z) => ((x * 3 + y * 5 + z * 7) % 6 === 0 ? c.seed : c.passion));
+  p.set(7, 25, 7, c.mint);
+  return p;
+}
+
+function batido(c: FC): Prop {
+  const p = new Prop(14, 30, 14, S);
+  // a tall glass of thick banana milkshake, a froth of cream, a red and white straw and a slice of banana
+  for (let y = 0; y < 22; y++) p.cylY(7, 7, y < 2 ? 2.8 : 3 + y * 0.05, y, y, c.glass);
+  p.cylY(7, 7, 2.6, 1, 19, (_x, y) => (y > 17 ? c.cream : c.custard));
+  p.ellipsoid(7, 21, 7, 3.2, 1.6, 3.2, c.cream);
+  for (let y = 12; y < 29; y++) p.set(9, y, 6, y % 2 ? c.paperRed : c.ceramicWhite);
+  p.box(3, 20, 7, 4, 22, 7, c.banana);
+  return p;
+}
+
+function cachorro(c: FC): Prop {
+  const p = new Prop(30, 10, 16, S);
+  p.box(1, 0, 1, 28, 0, 14, c.paper);
+  // a long roll pressed on the grill, sausage and melted cheese inside, crisp potato sticks heaped on, mustard
+  p.box(3, 1, 4, 26, 3, 11, (x, y, z) => (y === 1 ? (x % 4 === 0 ? c.char : c.breadCrust) : z === 4 || z === 11 ? c.breadCrust : c.breadIn));
+  p.box(4, 4, 6, 25, 4, 9, c.cheese);
+  p.box(2, 4, 7, 27, 5, 8, c.sausage);
+  const r = rng(908);
+  for (let k = 0; k < 40; k++) { const x = 4 + Math.floor(r() * 21), z = 5 + Math.floor(r() * 6); p.set(x, 6 + (r() < 0.4 ? 1 : 0), z, r() < 0.5 ? c.fry : c.potatoHi); }
+  for (let x = 5; x < 25; x += 2) p.set(x, 7 + (x % 4 === 1 ? 1 : 0), 7 + (x % 3), c.mustard);
+  return p;
+}
+
+function laranjada(c: FC): Prop {
+  const p = new Prop(16, 26, 14, S);
+  // the clear glass bottle of orange soda with its old label, a glass with ice beside it
+  p.cylY(5, 7, 2.6, 0, 12, (_x, y) => (y >= 4 && y <= 8 ? (y === 6 ? c.paper : c.orange) : c.orangeIn));
+  p.cylY(5, 7, 1.3, 13, 19, c.glass); p.cylY(5, 7, 1.0, 13, 15, c.orangeIn); p.cylY(5, 7, 1.5, 20, 20, c.steel);
+  p.cylY(11.5, 7, 2.6, 0, 9, c.glass); p.cylY(11.5, 7, 1.9, 1, 7, c.orange); p.cylY(11.5, 7, 2, 8, 9, 0);
+  p.set(11, 7, 6, c.ceramicWhite); p.set(12, 6, 8, c.ceramicWhite);
+  return p;
+}
+
 export function buildMadeiraFood(id: MadeiraFood, c: FC): Prop {
   switch (id) {
     case 'bolocaco': return bolocaco(c);
@@ -392,5 +536,17 @@ export function buildMadeiraFood(id: MadeiraFood, c: FC): Prop {
     case 'sopatrigo': return sopatrigo(c);
     case 'gaiado': return gaiado(c);
     case 'pudim': return pudim(c);
+    case 'tremocos': return tremocos(c);
+    case 'coral': return coral(c);
+    case 'frango': return frango(c);
+    case 'batatadoce': return batatadoce(c);
+    case 'sardinhas': return sardinhas(c);
+    case 'polvo': return polvo(c);
+    case 'cha': return cha(c);
+    case 'torta': return torta(c);
+    case 'gelado': return gelado(c);
+    case 'batido': return batido(c);
+    case 'cachorro': return cachorro(c);
+    case 'laranjada': return laranjada(c);
   }
 }

@@ -98,3 +98,38 @@ export function gozzoModel(seed: number): CharModel {
   g.box(6, 1, 0, 6, 3, 1, motor);
   return rigidModel(g, pal, 0.125);
 }
+
+/**
+ * A cabin of the cable car up to Monte: an eight-seat gondola, red with a white roof and bands of glass all round,
+ * hanging from its grip on a bent arm. Its origin is the bottom of the cabin; the grip is 4 m above it.
+ */
+export const CABIN_HANG = 54 * 0.075;
+export function cabinModel(seed: number): CharModel {
+  const pal = new Palette();
+  const r = rng(seed);
+  const red = pal.add(0xd83a2a, { vary: 0.03 }), white = pal.add(0xf4f1ea, { vary: 0.02 }), glass = pal.add(0x9ab8c8, { vary: 0.03 });
+  const dark = pal.add(0x2b2a2a, { vary: 0.01 }), steel = pal.add(0x8a8e90, { vary: 0.02 });
+  const num = pal.add(r() < 0.5 ? 0xf2c74a : 0xf4f1ea, { vary: 0.02 });
+  const W = 24, D = 26, H = 56;
+  const g = new Grid(W, H, D);
+  const cx = W / 2, cz = D / 2;
+  for (let y = 0; y < 27; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    // rounded corners, a little narrower at the floor and under the roof
+    const inset = y < 3 ? 3 - y : y > 23 ? y - 23 : 0;
+    const ex = Math.abs(x + 0.5 - cx) - (cx - 1 - inset), ez = Math.abs(z + 0.5 - cz) - (cz - 1 - inset);
+    if (ex > 0 || ez > 0 || (ex > -3 && ez > -3 && Math.hypot(ex + 3, ez + 3) > 3)) continue;
+    const shell = ex > -1.5 || ez > -1.5 || y === 0 || y >= 25;
+    if (!shell) continue;
+    let v = red;
+    if (y >= 25) v = white;
+    else if (y >= 12 && y <= 22) v = (x % 6 === 0 || z % 6 === 0) && !(y > 13 && y < 21) ? red : glass;
+    else if (y === 11 || y === 23) v = white;
+    else if (y < 3) v = dark;
+    if (y === 7 && z === 0 && x > 9 && x < 14) v = num;
+    g.set(x, y, z, v);
+  }
+  // the hanger: up from the roof, bent over to the grip above the middle
+  for (let y = 27; y < 52; y++) { g.set(Math.round(cx), y, Math.round(cz), steel); g.set(Math.round(cx) - 1, y, Math.round(cz), steel); }
+  for (let x = Math.round(cx) - 3; x <= Math.round(cx) + 3; x++) for (let y = 52; y < H; y++) g.set(x, y, Math.round(cz), y > 53 ? dark : steel);
+  return rigidModel(g, pal, 0.075);
+}

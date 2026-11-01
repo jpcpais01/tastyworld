@@ -209,6 +209,52 @@ export class Audio {
     this.rainTone!.frequency.setTargetAtTime(sheltered ? 700 : 9000, t, 0.4);
   }
 
+  private droneBus: GainNode | null = null;
+  private sirenBuf: AudioBuffer | null = null;
+  private sirenT = 40;
+  private sirenOut: BiquadFilterNode | null = null;
+
+  /**
+   * 2040's city: the buzz of a drone passing overhead (`drone`: metres to the nearest), and now and then after dark a
+   * siren far off across the towers (`outdoors`: on the street). Call every frame with the frame's dt.
+   */
+  city(dt: number, drone: number, night: boolean, outdoors: boolean): void {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    if (!this.droneBus) {
+      this.droneBus = this.gain(0, this.amb);
+      const tone = this.filter('bandpass', 900, 0.8, this.droneBus);
+      // four rotors a little out of tune with one another, a buzz that beats and wobbles
+      const buzz = this.render(2, LSR, () => {
+        const f = [182, 187, 191, 196];
+        const ph = [0, 0, 0, 0];
+        return (tt) => {
+          let v = 0;
+          for (let i = 0; i < 4; i++) { ph[i] += f[i] * (1 + 0.01 * Math.sin(tt * 3 + i)) / LSR; v += (ph[i] % 1) * 2 - 1; }
+          return v * 0.22 + noise() * 0.08;
+        };
+      }, true);
+      this.loop(buzz, 1, tone);
+    }
+    const near = outdoors ? Math.max(0, 1 - drone / 16) : 0;
+    this.droneBus.gain.setTargetAtTime(near * near * 0.09, t, 0.25);
+    if (!night || !outdoors) return;
+    if ((this.sirenT -= dt) > 0) return;
+    this.sirenT = 70 + Math.random() * 110;
+    // a two-tone wail, far away: low-passed and quiet, from one side
+    this.sirenBuf ??= this.render(5, LSR, () => {
+      let ph = 0;
+      return (tt) => {
+        const f = 620 + 180 * (Math.floor(tt * 1.4) % 2) + 30 * Math.sin(tt * 9);
+        ph += f / LSR;
+        const env = Math.min(1, tt * 1.5) * Math.min(1, (5 - tt) * 0.8);
+        return Math.sin(ph * Math.PI * 2) * 0.5 * env + Math.sin(ph * Math.PI * 4) * 0.12 * env;
+      };
+    });
+    this.sirenOut ??= this.filter('lowpass', 1300, 0.5, this.amb);
+    this.fire(this.sirenBuf, t, 0.05 + Math.random() * 0.03, this.sirenOut, 0.9 + Math.random() * 0.2, undefined, Math.random() * 1.6 - 0.8);
+  }
+
   /** Where the listener is. Call a few times a second. */
   scene(x: number, z: number): void {
     if (!this.ctx) return;

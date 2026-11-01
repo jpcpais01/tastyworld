@@ -3,7 +3,7 @@ import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
 import { farHouses, type FarTower } from './farhouses';
 import type { FarLot } from '../world/farTiles';
-import { hillY, footY, shoreY, headlandY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
+import { hillY, footY, shoreY, headlandY, valleyZ, ROAD_X0, ROAD_X1, coastX } from '../world/amalfiPlan';
 
 /**
  * The Amalfi Coast past the edges of the playable map. The Lattari mountains climb from the town's two flanks to
@@ -31,20 +31,9 @@ function vnoise(x: number, z: number): number {
 }
 const fbm = (x: number, z: number) => vnoise(x, z) * 0.5 + vnoise(x * 2.1 + 5, z * 2.1 - 3) * 0.3 + vnoise(x * 4.3 - 7, z * 4.3 + 1) * 0.2;
 
-/** The water's edge (x) along the coast at z, beyond the map. */
-export function coastX(z: number): number {
-  if (z > 0) {
-    // west: the coast bends gently seaward past Conca dei Marini, a headland every few hundred metres
-    const t = Math.max(0, z - 80);
-    return 46 + t * 0.22 + 22 * Math.sin(t * 0.011) * smooth(0, 120, t) + 9 * Math.sin(t * 0.031 + 1.3) * smooth(0, 60, t);
-  }
-  // east: under the headland, then Atrani's cove behind it and the coast on towards Minori
-  const t = Math.max(0, -80 - z);
-  const cove = 52 * Math.exp(-(((z + 265) / 42) ** 2));
-  return 36 - t * 0.08 + 10 * Math.sin(t * 0.017) * smooth(0, 80, t) - cove;
-}
 
 /** The middle of the coast road west of the town (x), beyond the map: it leaves the map down the middle of the shore road. */
+export { coastX };
 const roadX = (z: number) => coastX(z) - 15;
 
 /**

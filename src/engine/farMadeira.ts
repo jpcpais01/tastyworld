@@ -3,7 +3,7 @@ import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
 import { farHouses, type FarTower, type FarStone } from './farhouses';
 import type { FarLot } from '../world/farTiles';
-import { hillY, shoreY, ribZ, ROAD_X0, PROM_X1, TELE } from '../world/madeiraPlan';
+import { hillY, shoreY, ribZ, ROAD_X0, PROM_X1, TELE, coastX } from '../world/madeiraPlan';
 
 /**
  * Madeira past the edges of the Funchal map: the amphitheatre of the city climbing on all sides to the mountains,
@@ -25,14 +25,9 @@ function vnoise(x: number, z: number): number {
 }
 const fbm = (x: number, z: number) => vnoise(x, z) * 0.5 + vnoise(x * 2.1 + 5, z * 2.1 - 3) * 0.3 + vnoise(x * 4.3 - 7, z * 4.3 + 1) * 0.2;
 
-/** The water's edge (x) along the coast at z, beyond the map: the bay opens out seaward on both sides. */
-export function coastX(z: number): number {
-  const t = Math.max(0, Math.abs(z) - 88);
-  if (z > 0) return 46 + t * 0.2 + 16 * Math.sin(t * 0.012) * smooth(0, 120, t) + 6 * Math.sin(t * 0.037 + 0.7) * smooth(0, 60, t);
-  return 46 + t * 0.26 + 20 * Math.sin(t * 0.009 + 0.4) * smooth(0, 140, t) + 7 * Math.sin(t * 0.029 + 2.1) * smooth(0, 60, t);
-}
 
 /** The middle of the coast road west of the town (x), beyond the map: it leaves the map down the middle of the shore road. */
+export { coastX };
 const roadX = (z: number) => coastX(z) - 15;
 
 /**

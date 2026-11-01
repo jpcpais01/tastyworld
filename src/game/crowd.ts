@@ -71,7 +71,7 @@ interface Ride { person: Actor; seat: number; scooter: boolean; parked: boolean 
 
 /** What the crowd asks of Tokyo's traffic: the walk lights, and whether a car is in the way of the next step. */
 interface CrowdTraffic {
-  walkOk(c: Crosswalk | null): boolean;
+  walkOk(c: Crosswalk | null, x: number, z: number): boolean;
   carAt(x: number, z: number, r: number): boolean;
 }
 
@@ -674,8 +674,8 @@ export class Crowd {
   }
   private near = { d: Infinity, speed: 0, x: 0, z: 0 };
 
-  /** Is anyone (or their dog) standing within r metres (at most 2) of a point? For drivers looking down the road. */
-  occupied(x: number, z: number, r: number): boolean {
+  /** Is anyone (or their dog, unless `pets` is false) standing within r metres (at most 2) of a point? For drivers looking down the road. */
+  occupied(x: number, z: number, r: number, pets = true): boolean {
     const kx = Math.floor(x / CELL) + 512, kz = Math.floor(z / CELL) + 512, r2 = r * r;
     for (let ix = kx - 1; ix <= kx + 1; ix++) for (let iz = kz - 1; iz <= kz + 1; iz++) {
       const l = this.grid.get(ix * 1024 + iz);
@@ -684,7 +684,7 @@ export class Crowd {
         if (o.hidden) continue;
         const p = o.actor.position;
         if ((p.x - x) ** 2 + (p.z - z) ** 2 < r2) return true;
-        const pet = o.pet?.actor.position;
+        const pet = pets ? o.pet?.actor.position : undefined;
         if (pet && (pet.x - x) ** 2 + (pet.z - z) ** 2 < r2) return true;
       }
     }
@@ -1221,7 +1221,7 @@ export class Crowd {
     // about to step into an avenue: cross on the walk light, waiting at the kerb for it
     if (w.kerb && this.traffic) {
       if (onCarriageway(p.x, p.z)) w.kerb = null;
-      else if (!this.traffic.walkOk(w.kerb.c)) {
+      else if (!this.traffic.walkOk(w.kerb.c, w.kerb.x, w.kerb.z)) {
         const k = w.kerb;
         if (Math.hypot(k.x - p.x, k.z - p.z) > 0.25) { this.steer(w, k.x, k.z, w.pace, dt, pl, w.mate, near); return; }
         w.doing = { k: 'kerb', c: k.c, face: Math.atan2(w.tgt[0] - p.x, w.tgt[1] - p.z) };
@@ -1329,7 +1329,7 @@ export class Crowd {
       case 'kerb':
         if (!w.ride) a.anim = 'idle';
         a.targetFacing = d.face;
-        if (!this.traffic || this.traffic.walkOk(d.c)) w.doing = null;
+        if (!this.traffic || this.traffic.walkOk(d.c, p.x, p.z)) w.doing = null;
         return;
       case 'wait':
         if (!w.ride) a.anim = d.anim;

@@ -7,6 +7,7 @@ import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, Sta
 import { Prop, rotateProp, bench, bush, grassTuft } from './props';
 import { buildFood, type FoodId } from './food';
 import { SWAY } from './sway';
+import { offRoad } from './shoreRoads';
 import { mosqueInterior, mosqueWalls, HALL_ROOM } from './sacred';
 import type { RoomAnchor, RoomKind } from './interiors';
 import { paneOf, type HotelAnchor, type HotelRoomAnchor } from './hotels';
@@ -625,25 +626,6 @@ function turkishFlag(c: IC2): Prop {
   return p;
 }
 
-/** The tram of the T1 line, waiting at its stop: white and red, two cars, pantograph up. Built along x. */
-function tram(c: IC2): Prop {
-  const L = 112, W = 10;
-  const p = new Prop(L, 16, W, 0.25);
-  p.box(0, 1, 0, L - 1, 12, W - 1, (x, y, z) => {
-    if (y <= 2) return x % 18 < 3 ? c.iron : c.hullDark;
-    if (y === 3) return c.tramRed;
-    const side = z === 0 || z === W - 1;
-    if (side && y >= 6 && y <= 10) return x % 9 === 0 || x % 56 < 2 ? c.tramWhite : (x % 56 > 20 && x % 56 < 25 && y < 10 ? c.glassDark : c.glass);
-    if ((x === 0 || x === L - 1) && y >= 6 && y <= 10 && z > 1 && z < W - 2) return c.glass;
-    return y === 11 || y === 12 ? c.tramWhite : y === 5 || y === 4 ? c.tramRed : c.tramWhite;
-  });
-  p.box(1, 2, 1, L - 2, 11, W - 2, 0);
-  p.box(1, 1, 1, L - 2, 1, W - 2, c.grey);
-  p.box(54, 1, 0, 57, 12, W - 1, c.hullDark);
-  for (const x0 of [24, 80]) { p.box(x0, 13, 4, x0 + 6, 13, 5, c.iron); p.box(x0 + 2, 14, 4, x0 + 3, 15, 5, c.iron); }
-  return p;
-}
-
 /** A shoeshine man's brass box, gleaming. */
 function shoeshine(c: IC2): Prop {
   const p = new Prop(7, 8, 5);
@@ -875,14 +857,14 @@ export function buildIstanbul(win?: Window): BuildResult {
   for (const [x, y, z] of charms) b.place(nazar(c), x, y, z);
   const door = hiddenDoorway(ctx);
 
-  const P = (x: number, z: number) => [x, z] as [number, number];
   const anchors: Anchors = {
     spawn: [18, 0, 36],
     stalls,
     hiddenDoor: door,
     interiorExit: [0, 0], interiorSpawn: [0, 0, 0], chef: [0, 0, 0], counterStand: [0, 0],
     manekis: charms,
-    graph: { nodes: plan.nodes.map(([x, z]) => P(x, z)), edges: plan.edges.map(([i, j]) => [i, j] as [number, number]) },
+    // the walking graph keeps off the tracks: the line down the tram avenue walks its west pavement
+    graph: { nodes: plan.nodes.map(([x, z]) => offRoad(x, z)), edges: plan.edges.map(([i, j]) => [i, j] as [number, number]) },
     idlers: [
       { id: 'teyze', pos: [8, 0, 37.5] },
       { id: 'olta', pos: [-17, 0, 58] },
@@ -3142,7 +3124,7 @@ function tramLine(ctx: Ctx): void {
     const len = Math.hypot(bx - ax, bz - az);
     for (let t = 0; t <= len; t += V * 0.5) {
       const f = t / len, x = ax + (bx - ax) * f, z = az + (bz - az) * f, y = ay + (by - ay) * f;
-      for (const off of [-1.6, -0.6, 0.6, 1.6]) {
+      for (const off of [-2, -1, 1, 2]) {
         const vx = Math.floor((x + off) / V), vz = Math.floor(z / V);
         if (g.touches(vx, vz, vx, vz)) g.set(vx, layerOf(y) - 1, vz, c.rail);
       }
@@ -3160,8 +3142,7 @@ function tramLine(ctx: Ctx): void {
     b.place(shelter, x, stopY, -30, x < 12 ? 0 : 2);
     b.lamp(x, stopY + 2.4, -30, WHITEWARM, 5, 0.6);
   }
-  b.place(tram(c), 12 + 1.1, hillY(12, -31) - 0.1, -31, 1);
-  b.block(12.1, -45, 14.3, -17.5);
+  // the trams themselves run up and down the line (game/shoreTraffic.ts)
 }
 
 /** Trees on the slopes and in the courtyards, flowers in the gardens; benches and cats' houses in the lanes. */

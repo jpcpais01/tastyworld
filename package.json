@@ -1,11 +1,12 @@
 {
   "name": "tastyworld",
   "private": true,
-  "version": "0.20.35",
+  "version": "0.20.36",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:2040": "tsc --noEmit && GAME=2040 vite build",
     "preview": "vite preview",
     "icons": "node scripts/make-icons.mjs",
     "check:world": "tsx scripts/bake-test.ts",

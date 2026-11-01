@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.36',
+    date: '2026-11-01',
+    title: '2040 gets a home of its own',
+    items: [
+      '2040 can now run on its own website, opening straight into Halcyon City, while it stays playable at /2040 here too.',
+    ],
+  },
+  {
     version: '0.20.35',
     date: '2026-11-01',
     title: '2040: caught in the light',

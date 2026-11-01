@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.21.1',
+    date: '2026-11-01',
+    title: '2040: neon shopfronts and a cyberpunk skyline',
+    items: [
+      'Halcyon\'s shops have proper neon fronts now: steel canopies with a lit edge, a glowing sign band over the door and light tubes up both sides. The Lantern Market and the Sump keep their striped awnings and paper lanterns.',
+      'Inside, every shop and bar has a strip of coloured light under the ceiling along its walls.',
+      'The sprawl beyond the city is 2040\'s own: towers and megablocks to the horizon with lit signs up their faces, instead of Tokyo\'s houses.',
+    ],
+  },
+  {
     version: '0.21.0',
     date: '2026-11-01',
     title: '2040: Halcyon City rebuilt',

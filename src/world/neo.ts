@@ -290,7 +290,7 @@ function cyberDress(lot: Lot, n: NC, H: number, floors: number, seed: number, d:
 
 function neonBuilding(lot: Lot, n: NC, o: BuildingOpts, d: District) {
   const { H } = building(lot, o);
-  if (o.floors >= 3) neonDress(lot, H, o.floors, o.seed);
+  if (o.floors >= 3) neonDress(lot, H, o.floors, o.seed, 0.22);
   cyberDress(lot, n, H, o.floors, o.seed, d);
   return H;
 }

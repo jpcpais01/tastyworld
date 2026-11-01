@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.22',
+    date: '2026-11-01',
+    title: '2040: tired neon',
+    items: [
+      'Not every sign in Halcyon is in good repair. About one blade sign in five now has a tube on its way out: it hums along and then stutters off and on in bursts, each sign on its own beat.',
+    ],
+  },
+  {
     version: '0.20.21',
     date: '2026-11-01',
     title: '2040: your record',

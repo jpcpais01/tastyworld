@@ -359,16 +359,19 @@ function house(lot: Lot, seed: number, mix: Mix, r: () => number) {
 }
 
 const NEONS = (b: Builder) => [b.c.neonPink, b.c.neonCyan, b.c.neonViolet, b.c.neonYellow, b.c.neonGreen, b.c.neonOrange];
+const NEON_HEX = [0xff5fb4, 0x5ff0ff, 0xa47bff, 0xffd84a, 0x6dff9a, 0xff8a3a];
 const NEON_RGB: [number, number, number][] = [[1, 0.4, 0.75], [0.35, 0.9, 1], [0.65, 0.5, 1], [1, 0.86, 0.35], [0.5, 1, 0.65], [1, 0.6, 0.3]];
 
 /** Friendly neon on a tall building: blade signs, glowing bands, a screen, a crown of light. */
-export function neonDress(lot: Lot, H: number, floors: number, seed: number) {
+/** `tired`: 0..1, the chance this building's sign has a tube on its way out (it flickers; see the voxel shader). */
+export function neonDress(lot: Lot, H: number, floors: number, seed: number, tired = 0) {
   const b = lot.b, c = b.c;
   const r = rng(seed * 7 + 3);
   const w = lot.width;
   const neons = NEONS(b);
   const ni = Math.floor(r() * neons.length), nj = (ni + 1 + Math.floor(r() * 4)) % neons.length;
-  const n1 = neons[ni], n2 = neons[nj];
+  const n1 = neons[ni];
+  const n2 = tired > 0 && rng(seed * 13 + 5)() < tired ? b.pal.add(NEON_HEX[nj], { emit: 0.93, vary: 0.03 }) : neons[nj];
   const GH = 14, FH = 12;
   // a blade sign standing out from the corner, a column of glyphs edged in light
   if (w >= 12) {

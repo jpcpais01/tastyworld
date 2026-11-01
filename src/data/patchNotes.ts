@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.17',
+    date: '2026-11-01',
+    title: '2040: splashes in the rain',
+    items: [
+      'When it rains in Halcyon the drops now splash on the streets around you, little rings spreading and fading across the pavement. They stay out from under awnings and off the rooftops.',
+    ],
+  },
+  {
     version: '0.20.16',
     date: '2026-11-01',
     title: '2040: drones over the streets',

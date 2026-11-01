@@ -73,11 +73,69 @@ void main() {
 }
 `;
 
+/** Splash rings where drops hit the street, round the player: each ring grows and fades in half a second. */
+const RINGS = 700;
+const RING_BOX = 34;
+
+const RING_VERT = /* glsl */ `
+in vec4 aSeed; // x, z (0..1), phase, size
+uniform float uTime;
+uniform float uRain;
+uniform vec3 uCenter;
+out vec2 vUv;
+out float vAge;
+out float vOn;
+out vec4 vClip;
+void main() {
+  float cyc = uTime * 1.6 + aSeed.z * 13.0;
+  float age = fract(cyc);
+  // each ring lands somewhere new every cycle, so the pattern never repeats in place
+  float k = floor(cyc);
+  vec2 jit = fract(vec2(sin(k * 12.9898 + aSeed.x * 78.2), sin(k * 39.346 + aSeed.y * 11.1)) * 43758.5453);
+  vec2 xz = uCenter.xz + (fract(aSeed.xy + jit) - 0.5) * ${RING_BOX.toFixed(1)};
+  vOn = step(fract(aSeed.z * 5.31), uRain) * smoothstep(1.0, 0.7, length(xz - uCenter.xz) / ${(RING_BOX / 2).toFixed(1)});
+  vAge = age;
+  vUv = position.xy;
+  float r = (0.1 + age * 0.45) * (0.7 + aSeed.w * 0.6);
+  vec3 wp = vec3(xz.x + position.x * r, uCenter.y + 0.06, xz.y + position.y * r);
+  vClip = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+  gl_Position = vClip;
+}
+`;
+
+const RING_FRAG = /* glsl */ `
+precision highp float;
+${COMMON}
+uniform sampler2D tDepth;
+uniform vec3 uClip;
+uniform vec3 uTint;
+in vec2 vUv;
+in float vAge;
+in float vOn;
+in vec4 vClip;
+layout(location = 0) out vec4 outColor;
+void main() {
+  float d = length(vUv) * 2.0;
+  // a thin bright ring with a faint fill, fading as it spreads
+  float ring = smoothstep(0.62, 0.86, d) * smoothstep(1.0, 0.88, d);
+  float a = vOn * (ring * 0.55 + 0.05 * step(d, 0.9)) * (1.0 - vAge) * (1.0 - vAge);
+  vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5;
+  float lz = linZ(vClip.z / vClip.w * 0.5 + 0.5, uClip);
+  // the ring lies on the street: anything well in front of it (a person, a car, a roof) hides it
+  a *= clamp((linZ(texture(tDepth, suv).r, uClip) - lz) * 2.5 + 1.0, 0.0, 1.0);
+  outColor = vec4(uTint * a, a * 0.3);
+}
+`;
+
 export class Rain {
+  private ringMat: THREE.ShaderMaterial;
+  private rings: THREE.Mesh;
   private mat: THREE.ShaderMaterial;
   private mesh: THREE.Mesh;
   /** 0..1, eased toward the weather's target. */
   amount = 0;
+  /** The street level under the player, where the splashes land. */
+  ground = 0;
   private cover = 1;
   private right = new THREE.Vector3();
 
@@ -106,6 +164,24 @@ export class Rain {
     this.mesh.frustumCulled = false;
     this.mesh.visible = false;
     r.particleScene.add(this.mesh);
+
+    const rg = new THREE.InstancedBufferGeometry();
+    rg.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0]), 3));
+    rg.setIndex([0, 1, 2, 0, 2, 3]);
+    const rs = new Float32Array(RINGS * 4);
+    for (let i = 0; i < RINGS; i++) rs.set([rnd(), rnd(), rnd(), rnd()], i * 4);
+    rg.setAttribute('aSeed', new THREE.InstancedBufferAttribute(rs, 4));
+    rg.instanceCount = RINGS;
+    this.ringMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: RING_VERT, fragmentShader: RING_FRAG,
+      uniforms: { uTime: r.shared.uTime, uRain: { value: 0 }, uCenter: { value: new THREE.Vector3() }, tDepth: r.particleDepth, uClip: r.clip, uTint: this.mat.uniforms.uTint },
+      transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    });
+    this.rings = new THREE.Mesh(rg, this.ringMat);
+    this.rings.frustumCulled = false;
+    this.rings.visible = false;
+    r.particleScene.add(this.rings);
   }
 
   /** How hard it should be raining at this hour of this day (0 dry .. 1 a downpour). */
@@ -123,6 +199,12 @@ export class Rain {
     this.cover += ((sheltered ? 0 : 1) - this.cover) * Math.min(1, dt * 3);
     const a = this.amount * this.cover;
     this.mesh.visible = a > 0.01;
+    // splashes only out on the street, under the open sky
+    this.rings.visible = a > 0.05 && !sheltered;
+    if (this.rings.visible) {
+      this.ringMat.uniforms.uRain.value = Math.min(1, a * 1.2);
+      this.ringMat.uniforms.uCenter.value.set(center.x, this.ground, center.z);
+    }
     if (!this.mesh.visible) return;
     const u = this.mat.uniforms;
     u.uRain.value = a;

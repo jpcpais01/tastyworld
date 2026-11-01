@@ -3186,6 +3186,7 @@ class Game {
     } else this.lookUpT = 0;
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     if (this.rain) this.audio.rain(this.rain.amount, !!(this.inside || this.upstairs || this.roomHere));
+    if (this.rain) this.rain.ground = this.player.position.y;
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);
     this.perf.lap('effects');

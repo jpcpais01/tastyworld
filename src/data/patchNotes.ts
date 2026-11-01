@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.8',
+    date: '2026-11-01',
+    title: 'Funchal: dolphins in the bay',
+    items: [
+      'A pod of three dolphins now works the bay beyond the Santa Maria, swimming a slow loop and leaping clear of the water every few seconds. Watch for them from the promenade or the end of the breakwater.',
+    ],
+  },
+  {
     version: '0.18.7',
     date: '2026-11-01',
     title: 'Funchal: the Santa Maria in the bay',

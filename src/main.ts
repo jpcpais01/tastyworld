@@ -13,7 +13,7 @@ import { Streamer, StreamView } from './engine/streamer';
 import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look, CHAR_FINE } from './world/characters';
-import { bikeModel, scooterModel, swanBoatModel, gozzoModel, cabinModel, CABIN_HANG, tobogganModel } from './world/vehicles';
+import { bikeModel, scooterModel, swanBoatModel, gozzoModel, cabinModel, CABIN_HANG, tobogganModel, dolphinModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
@@ -230,6 +230,8 @@ class Game {
   private cats: Cat[] = [];
   /** Funchal's cable car to Monte: its line and the cabins running up and down it. */
   private cable: { line: CableLine; len: number[]; total: number; t: number; cabins: Actor[] } | null = null;
+  /** A pod of dolphins working the bay off Funchal, leaping now and then. */
+  private dolphins: { t: number; acts: Actor[] } | null = null;
   /** Monte's toboggans sliding down to Livramento, each steered by two carreiros running behind. */
   private sleds: { path: [number, number, number][]; runs: { t: number; sled: Actor; men: Actor[] }[]; parked?: Actor[]; sellers?: Actor[] } | null = null;
   private chef!: Actor;
@@ -766,6 +768,8 @@ class Game {
         return w;
       });
       this.updateSleds(0);
+      // three dolphins out in the bay, beyond the Santa Maria
+      this.dolphins = { t: 0, acts: [0, 1, 2].map((i) => { const d = new Actor(dolphinModel(i), this.chars, true); d.root.rotation.order = 'YXZ'; d.root.visible = false; this.worldGroup.add(d.root); return d; }) };
     }
 
     // cats
@@ -2427,6 +2431,28 @@ class Game {
     });
   }
 
+  /** The pod swims a slow loop round the bay; each dolphin breaks the surface in a leap every few seconds. */
+  private updateDolphins(dt: number): void {
+    const dp = this.dolphins;
+    if (!dp) return;
+    dp.t += dt;
+    const h = this.tod.hour, sun = h > 7.5 && h < 18.5 ? 1 : h > 6.5 && h < 19.5 ? 0.6 : 0.22;
+    const w = 0.035, a = dp.t * w, cx = 80 + 8 * Math.cos(a), cz = -2 + 16 * Math.sin(a);
+    const hx = -8 * Math.sin(a), hz = 16 * Math.cos(a), hl = Math.hypot(hx, hz), fx = hx / hl, fz = hz / hl, head = Math.atan2(fx, fz);
+    dp.acts.forEach((d, i) => {
+      const period = 6.5 + i * 1.1, dur = 1.3, ph = (dp.t + i * 2.3) % period;
+      const u = ph / dur;
+      if (u > 1 || this.inside) { d.root.visible = false; return; }
+      const side = (i - 1) * 2.4, back = i * 1.8 - (u - 0.5) * 4;
+      d.position.set(cx + fz * side - fx * back, -1.1 + 1.9 * Math.sin(Math.PI * u), cz - fx * side - fz * back);
+      d.facing = d.targetFacing = head;
+      d.update(dt);
+      d.root.rotation.x = -Math.atan2(1.9 * Math.PI * Math.cos(Math.PI * u), 4);
+      d.root.visible = true;
+      d.lightOpen(sun);
+    });
+  }
+
   /** Each run takes about forty seconds, and the next sled sets off from the top as one reaches the bottom. */
   private updateSleds(dt: number): void {
     const sl = this.sleds;
@@ -2497,6 +2523,7 @@ class Game {
       this.perf.lap('birds');
       this.updateCats(dt);
       this.updateCable(dt);
+      this.updateDolphins(dt);
       this.updateSleds(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }

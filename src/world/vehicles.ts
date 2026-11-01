@@ -157,3 +157,32 @@ export function tobogganModel(seed: number): CharModel {
   }
   return rigidModel(g, pal, 0.075);
 }
+
+/**
+ * A common dolphin for the bay: grey back, pale flanks and belly, a short beak, the dorsal fin and level flukes.
+ * Its length runs along z, the beak at +z; the origin is under the middle of the body.
+ */
+export function dolphinModel(seed: number): CharModel {
+  const pal = new Palette();
+  const back = pal.add(seed % 2 ? 0x4a5560 : 0x56606a, { vary: 0.02 }), flank = pal.add(0x9aa4ac, { vary: 0.02 }), belly = pal.add(0xe2e4e2, { vary: 0.02 });
+  const eye = pal.add(0x161616, { vary: 0 });
+  const W = 16, H = 14, D = 44, g = new Grid(W, H, D), cx = W / 2, cy = 5.5;
+  for (let z = 0; z < D; z++) {
+    const t = z / (D - 1);
+    // stout behind the head, tapering to the tail stock; the beak a narrow snout out front
+    const r = t > 0.9 ? 1.6 : t > 0.82 ? 1.6 + (0.9 - t) * 38 : 4.6 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.15 + 0.06)), 0.7) + 0.4;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const dx = x + 0.5 - cx, dy = (y + 0.5 - cy) * 1.15;
+      if (Math.hypot(dx, dy) > r) continue;
+      g.set(x, y, z, dy > r * 0.35 ? back : dy > -r * 0.3 ? flank : belly);
+    }
+  }
+  // flukes, level and swept back, at the tail
+  for (let z = 0; z < 5; z++) for (let x = 0; x < W; x++) if (Math.abs(x + 0.5 - cx) < 2 + (5 - z) * 1.3 && Math.abs(x + 0.5 - cx) > z * 0.4) g.set(x, Math.round(cy), z, back);
+  // the dorsal fin, raked back
+  for (let y = 0; y < 5; y++) for (let z = 20 - y; z < 26 - y * 1.4; z++) g.set(Math.floor(cx), Math.round(cy + 4.6) + y, z, back);
+  // flippers and eyes
+  for (let i = 0; i < 3; i++) { g.set(Math.round(cx - 4.5 - i), Math.round(cy - 2), 30 - i, flank); g.set(Math.round(cx + 3.5 + i), Math.round(cy - 2), 30 - i, flank); }
+  g.set(Math.round(cx - 3), Math.round(cy + 1), 36, eye); g.set(Math.round(cx + 2), Math.round(cy + 1), 36, eye);
+  return rigidModel(g, pal, 0.05);
+}

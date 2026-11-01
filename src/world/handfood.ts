@@ -162,6 +162,18 @@ export function mealKit(id: string): MealKit {
     case 'sopatrigo': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: spoon(c), steam: 0.9, hot: true, scale: 0.6 });
     case 'gaiado': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: fork(c), scale: 0.6 });
     case 'pudim': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: spoon(c), scale: 0.66 });
+    case 'tremocos': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), held: fork(c), scale: 0.66 });
+    case 'coral': return kit('sip', { held: bottle(c.honeyTop, c.paperRed, c), drink: true, bites: 2 });
+    case 'frango': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: fork(c), steam: 0.7, hot: true, scale: 0.56 });
+    case 'batatadoce': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: fork(c), crunch: true, steam: 0.5, hot: true, scale: 0.62 });
+    case 'sardinhas': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: fork(c), steam: 0.6, hot: true, scale: 0.56 });
+    case 'polvo': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), held: fork(c), scale: 0.6 });
+    case 'cha': return kit('sip', { held: glass(c.tea, c, false), drink: true, bites: 2, steam: 0.6, hot: true });
+    case 'torta': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.steelLight]), held: fork(c), crunch: true, scale: 0.66 });
+    case 'gelado': return kit('bite', { held: cone(c), biteR: 3.6, scale: 0.72 });
+    case 'batido': return kit('sip', { held: glass(c.custard, c, true), drink: true, bites: 3 });
+    case 'cachorro': return kit('bite', { held: sando(c, c.sausage), biteR: 4.4, crunch: true, steam: 0.4, hot: true, scale: 0.7 });
+    case 'laranjada': return kit('sip', { held: bottle(c.orange, c.paper, c), drink: true, bites: 2 });
   }
   return snackKit(id, kit, pal, c);
 }

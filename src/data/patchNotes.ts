@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.18.1',
+    version: '0.18.2',
     date: '2026-11-01',
     title: 'New skies, and Mount Fuji',
     items: [
@@ -17,6 +17,17 @@ export const PATCH_NOTES: PatchNote[] = [
       'The white mist on the horizon is gone. Far buildings now fade into the colour of the sky behind them, blue at noon and warm toward a low sun, so the city reads as distant instead of fogged.',
       'A blocky sun and moon cross the sky, and the stars wheel slowly through the night. Tokyo and Istanbul glow with city light, while Amalfi and Funchal show far more stars, and the Milky Way.',
       'Tokyo: Mount Fuji now stands far to the west, snow-capped above the Tanzawa range, with Hakone and the Okutama ridges on either side, all in voxels. It turns red at dawn and dusk and shows in the canal\'s reflection. Look west down the canal, or from any high place.',
+    ],
+  },
+  {
+    version: '0.18.1',
+    date: '2026-11-01',
+    title: 'Funchal: the cable car to Monte, and six more places to eat',
+    items: [
+      'The cable car now runs from the station by the gardens up over the rooftops to Monte: red cabins glide up one rope and down the other from eight in the morning to eight at night, over steel pylons on the mountainside, to the top station by Monte\'s church.',
+      'Six new places to eat, each with a cook, a cooking challenge and two dishes: the Bar do Mercado (tremoços and an ice-cold Coral), the Churrasqueira da Sé (piri-piri chicken and fried sweet potato), the Taberna da Sardinha (grilled sardines and octopus salad), the Casa de Chá do Jardim (lemon verbena tea and almond tart), the Gelataria da Marina (passion fruit ice cream and a banana milkshake) and the Snack-Bar Avenida (the Madeiran cachorro and a Laranjada). Funchal now has 38 dishes.',
+      'Every restaurant and café in Funchal is now fully furnished: laid tables with a light over each, shelves of bottles and plates, pictures on the walls, a working kitchen, plants by the windows, and the hidden tasca laid for dinner.',
+      'The rocks along the sea are now bare black basalt instead of grass, and the cable car station has a proper roof sloping up towards the hill.',
     ],
   },
   {

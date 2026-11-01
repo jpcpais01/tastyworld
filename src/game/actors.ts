@@ -280,6 +280,14 @@ export class Actor {
     return this.anim === 'walk' || this.anim === 'run';
   }
 
+  /** Full sun and sky, for a body hanging in the open air above everything (a cable car's cabin). */
+  lightOpen(sun = 1): void {
+    this.sun = sun;
+    this.uCharLight.value.set(sun, 1, 0);
+    this.uCharLamp.value.set(0, 0, 0);
+    this.writeLight();
+  }
+
   light(lm: LightMap2D): void {
     sampleLightmap(lm, this.root.position.x, this.root.position.z, tmpL);
     this.sun = tmpL[0];

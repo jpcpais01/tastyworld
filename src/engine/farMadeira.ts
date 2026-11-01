@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
-import { farHouses, type FarTower } from './farhouses';
+import { farHouses, type FarTower, type FarStone } from './farhouses';
 import type { FarLot } from '../world/farTiles';
-import { hillY, shoreY, ribZ, ROAD_X0, PROM_X1 } from '../world/madeiraPlan';
+import { hillY, shoreY, ribZ, ROAD_X0, PROM_X1, TELE } from '../world/madeiraPlan';
 
 /**
  * Madeira past the edges of the Funchal map: the amphitheatre of the city climbing on all sides to the mountains,
@@ -143,7 +143,10 @@ const TREE_BOXES: [number, number, number, number, number, number][][] = [
   [[0, 0, 0, 0.5, 1.7, 0.5], [0, 1.4, 0, 3.4, 1.3, 3.0], [1.0, 2.2, 0.4, 2.0, 0.9, 1.9], [-1.1, 1.7, -0.7, 1.9, 1.0, 1.6], [0.3, 0.8, 0.0, 0.45, 0.9, 0.45]],
 ];
 
-export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh; lots: FarLot[] } {
+/** The cable car to Monte: the line its cabins run along (x, height in m) at z, up one rope and down the other. */
+export interface CableLine { z: number; gap: number; pts: [number, number][] }
+
+export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh; lots: FarLot[]; cable: CableLine } {
   const [x0, z0, x1, z1] = rect;
   const outside = (x: number, z: number) => Math.max(x0 - x, x - x1, z0 - z, z - z1, 0);
   // height where the far ground meets the map: what the map itself has at its edge, so the seam is a step at most
@@ -551,6 +554,51 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
   // church towers: São Pedro and Santa Luzia up the hill, Santa Maria Maior to the east, Monte's two on the ridge
   const towers: FarTower[] = ([[-200, -20, 0xf2eee6], [-150, -150, 0xf2eee6], [-60, 210, 0xf2eee6], [-520, 20, 0xf4f1ea], [-520, 34, 0xf4f1ea]] as const).map(([x, z, color]) => ({ x, z, ground: groundAt(x, z), h: 22, color }));
 
+  // ---- the cable car from the garden station up over the city to Monte: steel pylons outside the town, two ropes,
+  // the top station by Monte's church. The first span leaves the station high enough to clear every roof in town.
+  const CZ = (TELE[1] + TELE[3]) / 2, GAP = 1.7, AX = TELE[0], AY = 8.5, END = -488;
+  const pylX = [-132, -250, -370];
+  const pts: [number, number][] = [[AX, AY]];
+  let y1 = groundAt(pylX[0], CZ) + 18;
+  for (let x = -112; x < AX - 4; x += 2) y1 = Math.max(y1, AY + (hillY(x, CZ) + 16 - AY) * (AX - pylX[0]) / (AX - x));
+  pts.push([pylX[0], y1]);
+  for (const x of pylX.slice(1)) pts.push([x, groundAt(x, CZ) + 18]);
+  pts.push([END, groundAt(END, CZ) + 7]);
+  // (raise a pylon wherever the rope would sag into the slope before it)
+  for (let pass = 0; pass < 4; pass++) for (let i = 1; i < pts.length; i++) {
+    const [xa, ya] = pts[i - 1], [xb, yb] = pts[i];
+    for (let k = 1; k < 20; k++) {
+      const x = xa + (xb - xa) * (k / 20), y = ya + (yb - ya) * (k / 20), gy = x < -112 ? groundAt(x, CZ) : hillY(x, CZ) + 14;
+      if (y < gy + 8) { pts[i][1] += gy + 8 - y; break; }
+    }
+  }
+  const cable: CableLine = { z: CZ, gap: GAP, pts };
+  const ropes: FarStone[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const [xa, ya] = pts[i - 1], [xb, yb] = pts[i], n = Math.ceil(Math.abs(xa - xb) / 0.75);
+    for (let k = 0; k < n; k++) {
+      const xm = xa + (xb - xa) * ((k + 0.5) / n), ym = ya + (yb - ya) * ((k + 0.5) / n), half = Math.abs(xb - xa) / n / 2 + 0.02;
+      const dy = Math.abs(yb - ya) / n / 2 + 0.03;
+      for (const s of [-1, 1]) ropes.push([xm - half, ym - dy, CZ + s * GAP - 0.04, xm + half, ym + dy, CZ + s * GAP + 0.04, 0x2b2a2a, 0]);
+    }
+  }
+  // the pylons: a tapering steel mast with a crossarm carrying both ropes on its sheaves
+  for (const [x, y] of pts.slice(1, -1)) {
+    const gy = groundAt(x, CZ) - 1;
+    for (let k = 0; k < 3; k++) {
+      const t0 = gy + (y - gy) * (k / 3), t1 = gy + (y - gy) * ((k + 1) / 3), w = 1.0 - k * 0.25;
+      ropes.push([x - w, t0, CZ - w, x + w, t1, CZ + w, 0x7a7e80, 0]);
+    }
+    ropes.push([x - 0.35, y - 0.2, CZ - GAP - 0.5, x + 0.35, y + 0.35, CZ + GAP + 0.5, 0x5a5e60, 0]);
+  }
+  // the top station at Monte: a white block with a tiled roof, the ropes running into it
+  {
+    const [x, y] = pts[pts.length - 1], gy = groundAt(x, CZ) - 1;
+    ropes.push([x - 9, gy, CZ - 6, x + 3, y + 3, CZ + 6, 0xf2eee6, 0]);
+    ropes.push([x - 9.5, y + 3, CZ - 6.5, x + 3.5, y + 4, CZ + 6.5, 0xb9714f, 0]);
+    ropes.push([x - 8, y + 4, CZ - 5, x + 2, y + 5, CZ + 5, 0xa5603f, 0]);
+  }
+
   // ---- the paths' stones: a 1.25 m tread every metre, laid on the ground and stepping in half metres where the
   // ground steps more, so each trail is a flight of stairs up the slope (only near town: further off it's a thread)
   const steps: [number, number, number, number, number, number, number][] = [];
@@ -568,7 +616,7 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
     });
   }
   // (the houses themselves are the town's own, in voxels: engine/fartown.ts)
-  const houses = farHouses(u, SQUASH, HAZE, towers, steps);
+  const houses = farHouses(u, SQUASH, HAZE, towers, [...steps, ...ropes]);
 
   // ---- trees: on the scrub and in the woods near town, lemons in rows on the terraces, an olive or a cypress by
   // the villages; none on a path or in a house
@@ -718,5 +766,5 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
   floor.frustumCulled = false;
   floor.renderOrder = 11;
   ground.add(floor);
-  return { ground, houses, lots };
+  return { ground, houses, lots, cable };
 }

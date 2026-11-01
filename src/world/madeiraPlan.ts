@@ -193,6 +193,12 @@ export const FOOD_PLACES: { id: string; near: [number, number]; w: number; dep: 
   { id: 'adega', near: [-20, 6.5], w: 7, dep: 6 },
   { id: 'picado', near: [-34, 25], w: 6.5, dep: 6 },
   { id: 'segredo', near: [11.5, 82], w: 6, dep: 6, secret: true },
+  { id: 'mercado', near: [-22, 39], w: 6.5, dep: 6 },
+  { id: 'churrasqueira', near: [-1, -59], w: 6.5, dep: 6 },
+  { id: 'taberna', near: [-29, 60], w: 6.5, dep: 6 },
+  { id: 'cha', near: [9, 32], w: 6.5, dep: 6 },
+  { id: 'gelataria', near: [13, -3], w: 6.5, dep: 6 },
+  { id: 'snack', near: [-43, -24], w: 6.5, dep: 6 },
 ];
 
 /** The six hotels, placed the same way: a lobby on the path, `rooms` guest floors above it. */

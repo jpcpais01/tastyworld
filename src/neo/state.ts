@@ -33,6 +33,8 @@ export interface NeoLife {
   faints: number;
   /** Floors visited in multi-storey buildings ('building:floor'). */
   floors: string[];
+  /** The stray cat (its index in the city's cats) that took you on after you fed it, if one has. */
+  cat?: number;
 }
 
 export function defaultLife(): NeoLife {

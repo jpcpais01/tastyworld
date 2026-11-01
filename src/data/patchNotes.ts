@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.30',
+    date: '2026-11-01',
+    title: '2040: a cat of your own',
+    items: [
+      'Halcyon\'s stray cats can be fed a fish snack. The one you feed decides you are its person and follows you around the city, trotting to keep up, sitting when you stop, and finding you again after a lift ride. Talk to it to have it wait somewhere, and again to call it along. Feed a different stray to switch.',
+      'Passers-by notice your cat, and Old Mei by the canal has a word about the strays. A new secret.',
+    ],
+  },
+  {
     version: '0.20.29',
     date: '2026-11-01',
     title: '2040: softer reflections',

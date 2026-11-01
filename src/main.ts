@@ -110,7 +110,9 @@ interface Shop {
   name: string; local: string; keeper: string; place: string; stock: Souvenir[];
 }
 
-interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; it: Interactable | null; }
+interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; it: Interactable | null; wait?: boolean; stuck?: number; }
+/** 2040's strays, by their place in the city's list: a fed one follows you and answers to its name. */
+const STRAY_NAMES = ['Byte', 'Miso', 'Static', 'Ghost', 'Noodle', 'Volt'];
 /** A friend on a co-op trip, drawn from the samples they send. */
 interface Remote { actor: Actor; look: string; tag: HTMLElement; name: string; tx: number; ty: number; tz: number; }
 
@@ -844,9 +846,34 @@ class Game {
       this.cats.push(cat);
       this.interactables.push(cat.it = {
         key: `cat-${i}`, x: c[0], z: c[2], stand: [c[0], c[2]], pick: [c[0], 0.5, c[2]], r: 1.2, inside: false,
-        prompt: () => ['cat', 'Neighbourhood cat', 'Pet the cat'],
+        prompt: () => {
+          if (!NEO) return ['cat', 'Neighbourhood cat', 'Pet the cat'];
+          const name = STRAY_NAMES[i % STRAY_NAMES.length];
+          if (this.lifeSys.cat === i) return ['cat', name, cat.wait ? 'Call it along' : 'Tell it to stay'];
+          return ['cat', 'Stray cat', `Feed it a fish snack (${TEXT.money(2)})`];
+        },
         act: () => {
           const p = cat.actor.position;
+          if (NEO) {
+            const name = STRAY_NAMES[i % STRAY_NAMES.length];
+            if (this.lifeSys.cat === i) {
+              cat.wait = !cat.wait;
+              this.audio.play('meow');
+              this.ui.bubble(`cat-${i}`, cat.wait ? `${name} sits down to wait, tail round its paws.` : `${name} trots after you.`, [p.x, p.y + 0.8, p.z]);
+              cat.actor.anim = 'sit'; cat.target = null; cat.timer = cat.wait ? 1e9 : 0;
+              return;
+            }
+            if (!this.lifeSys.feedCat(i)) return;
+            // the old friend goes back to its corner
+            for (const o of this.cats) if (o !== cat) { o.wait = false; o.timer = Math.min(o.timer, 2); }
+            cat.wait = false;
+            this.audio.play('meow');
+            cat.actor.anim = 'eat';
+            cat.target = null;
+            cat.timer = 2.5;
+            this.ui.bubble(`cat-${i}`, `The cat wolfs the snack, then winds round your legs. You call it ${name}.`, [p.x, p.y + 0.8, p.z]);
+            return;
+          }
           this.audio.play('meow');
           cat.actor.anim = 'sit';
           cat.target = null;
@@ -1638,6 +1665,7 @@ class Game {
     if ((this.rain?.amount ?? 0) > 0.3) opts.push(R.rain);
     if (h >= 23 || h < 4) opts.push(R.late);
     if (L.secrets.length >= 4) opts.push(R.famous);
+    if (L.cat !== undefined && !this.cats[L.cat]?.wait) opts.push(R.cat, R.cat);
     return opts.length ? pick(opts[Math.floor(Math.random() * opts.length)]) : null;
   }
 
@@ -2890,9 +2918,13 @@ class Game {
   }
 
   private updateCats(dt: number): void {
-    for (const c of this.cats) {
+    const mine = NEO ? this.lifeSys.cat : undefined;
+    for (let i = 0; i < this.cats.length; i++) {
+      const c = this.cats[i];
       const a = c.actor, p = a.position;
       c.timer -= dt;
+      if (i === mine && !c.wait && !this.upstairs && c.timer <= 0) { this.followCat(c, dt); continue; }
+      if (i === mine && c.wait) { a.anim = 'sit'; continue; }
       if (c.target) {
         const dx = c.target[0] - p.x, dz = c.target[1] - p.z, d = Math.hypot(dx, dz);
         if (d < 0.08) { c.target = null; a.anim = 'sit'; c.timer = 4 + Math.random() * 8; }
@@ -2904,6 +2936,42 @@ class Game {
       }
       p.y = this.navWorld.heightAt(p.x, p.z);
     }
+  }
+
+  /** A fed stray at your heels: it trots a pace behind you, sits when you stop, and catches up if it lost you. */
+  private followCat(c: Cat, dt: number): void {
+    const a = c.actor, p = a.position, pl = this.player.position, f = this.player.facing;
+    // a spot just behind and to the left of you
+    const tx = pl.x - Math.sin(f) * 0.9 + Math.cos(f) * 0.45, tz = pl.z - Math.cos(f) * 0.9 - Math.sin(f) * 0.45;
+    const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx, dz);
+    c.target = null;
+    // you stopped: it settles wherever it is near you, so you can turn to it without it circling round you
+    const dp = Math.hypot(pl.x - p.x, pl.z - p.z);
+    if (this.player.speed < 0.1 && dp > 0.35 && dp < 1.7 && a.anim !== 'walk' && a.anim !== 'run') {
+      a.anim = 'sit';
+      a.targetFacing = Math.atan2(pl.x - p.x, pl.z - p.z);
+      p.y = this.navWorld.heightAt(p.x, p.z);
+      return;
+    }
+    if (d > 24 || (c.stuck ?? 0) > 1.5) {
+      // lost you (a lift, a long run, a wall): it turns up beside you, as cats do
+      if (this.navWorld.canStand(tx, tz, this.navWorld.standHeightVox(pl.x, pl.z), 0.1)) { p.x = tx; p.z = tz; }
+      else { p.x = pl.x; p.z = pl.z; }
+      c.stuck = 0;
+    } else if (d > 0.3) {
+      const v = Math.min(5.2, Math.max(0.7, d * 1.6)), step = Math.min(d, v * dt);
+      const nx = p.x + (dx / d) * step, nz = p.z + (dz / d) * step;
+      if (this.navWorld.canStand(nx, nz, this.navWorld.standHeightVox(p.x, p.z), 0.1)) { p.x = nx; p.z = nz; c.stuck = 0; }
+      else c.stuck = (c.stuck ?? 0) + dt;
+      a.targetFacing = Math.atan2(dx, dz);
+      a.anim = v > 1.6 ? 'run' : 'walk';
+      a.speed = v;
+    } else {
+      a.anim = 'sit';
+      a.targetFacing = Math.atan2(pl.x - p.x, pl.z - p.z);
+    }
+    if (this.player.speed < 0.1 && d <= 0.3) a.anim = 'sit';
+    p.y = this.navWorld.heightAt(p.x, p.z);
   }
 
   private updateNPCs(dt: number): void {
@@ -2954,8 +3022,11 @@ class Game {
         }
       }
       // keep cat prompts on the moving cats
-      for (const c of this.cats) {
-        const it = c.it;
+      const mine = NEO ? this.lifeSys.cat : undefined;
+      for (let i = 0; i < this.cats.length; i++) {
+        const c = this.cats[i], it = c.it;
+        // the cat at your heels only takes the prompt when you step right up to it
+        if (it && NEO) it.r = i === mine && !c.wait ? 0.6 : 1.2;
         if (it) { it.x = it.stand[0] = c.actor.position.x; it.z = it.stand[1] = c.actor.position.z; it.pick[0] = it.x; it.pick[2] = it.z; }
       }
       // a vendor nearby calls out now and then

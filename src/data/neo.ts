@@ -374,7 +374,7 @@ export const NEO_IDLERS: Record<string, Idler> = {
   kid: { id: 'kid', name: 'Pixel', look: look({ skin: 0x8a5a3c, hair: 0xa47bff, hairStyle: 'bob', top: 0xf2c74a, topStyle: 'tee', accent: 0xa47bff, shorts: true, glasses: true }),
     lines: ['Nobody has beaten TRN on Neon Racer since 2037. Nobody. It is up on the arcade floor of Orbit Mall if you want to embarrass yourself.', 'The claw machine is rigged. I have won it twice anyway.', 'My mum says the Halo fish are just light. I named them anyway. The fast one is Gill.', 'Vending machines glitch. Like one can in a dozen comes free. I keep count. Buy enough and you will see.'] },
   fisher: { id: 'fisher', name: 'Old Mei', look: look({ skin: 0xc98f6a, hair: 0xb9b6b0, hairStyle: 'bun', top: 0x4a3a2a, topStyle: 'vest', accent: 0xf08a2c, hat: 'straw', hatColor: 0xd8c08a }),
-    lines: ['The canal had real fish when I was a girl. Now it has lights. I fish for the lights.', 'On a dry night, look straight up and keep looking. Sometimes the clouds open for you.', 'My grandson works the docks. He says the cranes sing when it rains. He is a poet, unfortunately.'] },
+    lines: ['The canal had real fish when I was a girl. Now it has lights. I fish for the lights.', 'On a dry night, look straight up and keep looking. Sometimes the clouds open for you.', 'My grandson works the docks. He says the cranes sing when it rains. He is a poet, unfortunately.', 'The strays here have seen everything. Feed one and it will walk you home every night after. They remember.'] },
 };
 
 export const NEO_CHAT = [
@@ -502,5 +502,6 @@ export const NEO_REMARKS = {
   tattoo: ['Your face is glowing. The ink, I mean.', 'Who did your circuit work? It is clean.'],
   rain: ['Nice umbrella. Mine glows the wrong colour.', 'Rain never stops for long here. Ten minutes, tops.', 'The street shines when it rains. Look down sometimes.'],
   late: ['Night owl too, hm?', 'The Halo sings at midnight. Did you hear it yet?', 'Nothing good opens after three. Except everything.'],
+  cat: ['Is that your cat? It walks like it owns the street.', 'Your cat just gave me a look. Rude.', 'Hey kitty kitty. No? Fine.', 'Strays never follow anyone. What did you feed it?'],
   famous: ['Wait, are you the one who keeps finding things?', 'People talk about you on the Mile, you know.', 'You. You are the one asking about the Halo.'],
 };

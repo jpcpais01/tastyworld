@@ -60,6 +60,7 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'tape', name: 'The unmarked package', text: 'Zip the courier has a package nobody will admit is theirs.', found: (_s, L) => L.secrets.includes('tape') },
   { id: 'scan', name: 'Your record', text: 'Officer Ruiz says the patrol drones know everything about everyone. Stand in one\'s light after dark.', found: (_s, L) => L.secrets.includes('scan') },
   { id: 'jackpot', name: 'Glitch in the machine', text: 'Pixel swears one vending can in every dozen comes free, if the machine is in the mood.', found: (_s, L) => L.secrets.includes('jackpot') },
+  { id: 'stray', name: 'A friend for the road', text: 'Halcyon\'s strays are wary, but they never forget who fed them.', found: (_s, L) => L.secrets.includes('stray') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 
@@ -110,6 +111,30 @@ export class NeoLifeSys {
     this.h.ui.toast('signal', title, text, true);
     this.h.changed();
   }
+
+  /**
+   * A stray cat fed out of your pocket. Two credits of fish snack; the first time it is the start of a friendship,
+   * and the cat follows you about from then on. Returns false when the pocket is empty.
+   */
+  feedCat(i: number): boolean {
+    if (!this.spend(2)) {
+      this.h.play('fail');
+      this.h.ui.toast('purse', 'Empty pockets', `A fish snack from the vending rack costs ${TEXT.money(2)}.`);
+      return false;
+    }
+    this.h.play('coin');
+    const L = this.life, first = L.cat === undefined;
+    L.cat = i;
+    if (first) this.discover('stray', 'A friend for the road', 'The cat has decided you are its person now. It will tag along wherever you go.');
+    else this.h.changed();
+    return true;
+  }
+
+  /** The cat that follows you, if any. */
+  get cat(): number | undefined { return this.life.cat; }
+
+  /** Let the cat go back to its own corner (feed it again to have it back). */
+  releaseCat(): void { this.life.cat = undefined; this.h.changed(); }
 
   /** A patrol drone held its light on you long enough to read your record out loud. */
   scanned(): void {

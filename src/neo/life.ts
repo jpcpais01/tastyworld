@@ -55,6 +55,8 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'trn', name: 'Beat TRN', text: 'The Neon Racer high score at Orbit Mall has stood since 2037.', found: (_s, L) => L.secrets.includes('trn') },
   { id: 'harvest', name: 'First harvest', text: 'Plant the old seed lines in the Greenhouse and see them through to the table.', found: (_s, L) => L.secrets.includes('harvest') },
   { id: 'midnight', name: 'The Halo sings', text: 'DJ Nyx swears the hologram over the crossing sings at midnight.', found: (_s, L) => L.secrets.includes('midnight') },
+  { id: 'floor13', name: 'Floor 13', text: 'Zip the courier says never to take the stairs in Kowa Flats after midnight.', found: (_s, L) => L.secrets.includes('floor13') },
+  { id: 'star', name: 'Look up', text: 'Brother Anselm says the towers forgot the sky, and asks you to look up once a day.', found: (_s, L) => L.secrets.includes('star') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 
@@ -104,6 +106,21 @@ export class NeoLifeSys {
     this.h.play('chime');
     this.h.ui.toast('signal', title, text, true);
     this.h.changed();
+  }
+
+  /** Climbing the stairs of Kowa Flats between midnight and four: a landing the building does not have. */
+  floorThirteen(): void {
+    const seen = this.life.secrets.includes('floor13');
+    if (seen && Math.random() < 0.7) return;
+    this.h.shake();
+    this.h.dialogue('The stairwell', seen ? [
+      'The landing sign says 13 again. The corridor of screens is there. Nobody at the end this time, only a yellow raincoat on a hook.',
+    ] : [
+      'Halfway up, the stairwell light dies. When it stutters back on, the sign on the landing reads 13. Kowa Flats has six floors.',
+      'A corridor runs off the landing, lined with old screens, every one showing the same rainy street: the one outside, an hour ago.',
+      'At the far end someone in a yellow raincoat lifts a hand. The light dies again before you can tell whether it was a wave or a warning.',
+      'When it comes back, you are on your own landing, as if nothing happened.',
+    ], () => this.discover('floor13', 'Floor 13', 'Zip did warn you.'));
   }
 
   private earn(n: number): void {

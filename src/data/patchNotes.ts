@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.7',
+    date: '2026-11-01',
+    title: '2040: rumours worth chasing',
+    items: [
+      'Some of what Halcyon\'s regulars tell you is true. Zip has a warning about the stairs in Kowa Flats after midnight, and Brother Anselm keeps telling people to look up. Two new secrets.',
+    ],
+  },
+  {
     version: '0.20.6',
     date: '2026-11-01',
     title: '2040: the Halo hologram',

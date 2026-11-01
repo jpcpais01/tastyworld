@@ -1129,6 +1129,7 @@ class Game {
     this.audio.play('door');
     fade.classList.remove('on');
     const info = HOTEL[ha.id];
+    if (NEO && ha.id === 'kowaflats' && this.tod.hour < 4) this.lifeSys.floorThirteen();
     if (!this.roomsSeen.has(rm.id)) {
       this.roomsSeen.add(rm.id);
       if (info.venue) { /* a venue floor speaks for itself (neo/life.ts) */ }
@@ -1513,6 +1514,7 @@ class Game {
   private holo: Hologram | null = null;
   private songT = 0;
   private songLine = 0;
+  private lookUpT = 0;
   /** 2040's life sim (built on first use, once the world's anchors exist). */
   private get lifeSys(): NeoLifeSys {
     return (this.lifeSysV ??= new NeoLifeSys({
@@ -3151,6 +3153,17 @@ class Game {
         }
       } else if (!sing) { this.songLine = 0; this.songT = 0; }
     }
+    // Brother Anselm's advice: look straight up on a dry night, in first person, and hold it
+    if (NEO && this.started && this.cam.fp && !this.inside && !this.upstairs && !this.roomHere && this.cam.fpPitch > 1.05
+      && (this.rain?.amount ?? 0) < 0.2 && (this.tod.hour >= 20 || this.tod.hour < 5) && !this.ui.busy) {
+      if ((this.lookUpT += dt) > 2.5 && !this.lifeSys.life.secrets.includes('star')) {
+        this.lookUpT = 0;
+        this.ui.dialogue('Look up', [
+          'For a moment the cloud over the towers tears open, and the smog and the neon thin out together.',
+          'A star. One real star, over Halcyon. Then the cloud closes again.',
+        ], () => this.lifeSys.discover('star', 'Look up', 'Brother Anselm would be pleased.'));
+      }
+    } else this.lookUpT = 0;
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);

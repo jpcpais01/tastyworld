@@ -159,7 +159,7 @@ export class Traffic {
   private hidden = false;
   private max: number;
   private poles: { p: LensPole; copy: number; tex: Float32Array; shown: boolean }[] = [];
-  private zebraPts = new Map<Crosswalk, { road: Float32Array; kerb: Float32Array }>();
+  private zebraPts = new Map<Crosswalk, { road: Float32Array; kerb: Float32Array; edge: Uint8Array }>();
   private mtx = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -371,8 +371,8 @@ export class Traffic {
 
   /**
    * Anyone on a zebra, or (unless the car has waited its turn) at its kerbs about to step out? A car that has waited
-   * its turn (`band`: its own lane, across the road) only waits for those in its way, not for someone lingering at
-   * the far edge of the road who is waiting for it to go.
+   * its turn (`band`: its own lane, across the road) no longer waits for someone lingering at the very edge of the
+   * road, waiting for it to go, unless they are in its way; anyone out on the crossing it still waits for.
    */
   private zebraBusy(c: Crosswalk, pl: V2, friends: V2[], people: TrafficPeople | null, kerbs: boolean, band?: [number, number]): boolean {
     let z = this.zebraPts.get(c);
@@ -380,7 +380,7 @@ export class Traffic {
       // rows of points across the carriageway every 80 cm down the zebra, and a point just past either kerb on each
       const a = c.av, ew = a.ew, w0 = (ew ? a.z0 : a.x0) * V, w1 = ((ew ? a.z1 : a.x1) + 1) * V;
       const l0 = c.lo * V, l1 = (c.hi + 1) * V, nr = Math.max(1, Math.round((l1 - l0) / 0.8)), rows = Array.from({ length: nr }, (_, i) => l0 + ((i + 0.5) * (l1 - l0)) / nr);
-      const road: number[] = [], kerb: number[] = [];
+      const road: number[] = [], kerb: number[] = [], edge: number[] = [];
       // (the road row stays clear of the kerbs, a footway over a bridge included: someone waiting there for a gap
       // is not yet on the zebra)
       const on = (u: number, v: number) => onCarriageway(ew ? u : v, ew ? v : u);
@@ -389,17 +389,17 @@ export class Traffic {
         while (k0 < w1 && !on(u, k0 + 0.05)) k0 += 0.25;
         while (k1 > k0 && !on(u, k1 - 0.05)) k1 -= 0.25;
         const r0 = k0 + 0.45, r1 = k1 - 0.45, n = Math.max(2, Math.round((r1 - r0) / 0.9));
-        for (let i = 0; i <= n; i++) { const v = r0 + ((r1 - r0) * i) / n; road.push(ew ? u : v, ew ? v : u); }
+        for (let i = 0; i <= n; i++) { const v = r0 + ((r1 - r0) * i) / n; road.push(ew ? u : v, ew ? v : u); edge.push(i === 0 || i === n ? 1 : 0); }
         if (this.net.kerbM > 0) for (const v of [k0 - this.net.kerbM, k1 + this.net.kerbM]) kerb.push(ew ? u : v, ew ? v : u);
       }
-      z = { road: Float32Array.from(road), kerb: Float32Array.from(kerb) };
+      z = { road: Float32Array.from(road), kerb: Float32Array.from(kerb), edge: Uint8Array.from(edge) };
       this.zebraPts.set(c, z);
     }
     const ew = c.av.ew;
-    const hit = (xs: Float32Array, r: number) => {
+    const hit = (xs: Float32Array, r: number, edge?: Uint8Array) => {
       for (let i = 0; i < xs.length; i += 2) {
         const x = xs[i], zz = xs[i + 1];
-        if (band) { const v = ew ? zz : x; if (v < band[0] - r || v > band[1] + r) continue; }
+        if (band && edge?.[i >> 1]) { const v = ew ? zz : x; if (v < band[0] - r || v > band[1] + r) continue; }
         if ((x - pl[0]) ** 2 + (zz - pl[1]) ** 2 < r * r) return true;
         for (const f of friends) if ((x - f[0]) ** 2 + (zz - f[1]) ** 2 < r * r) return true;
         // (a dog a step ahead of its owner at the kerb is not a reason to stop: its owner is)
@@ -407,7 +407,7 @@ export class Traffic {
       }
       return false;
     };
-    return hit(z.road, 0.5) || (kerbs && hit(z.kerb, 0.55));
+    return hit(z.road, 0.5, z.edge) || (kerbs && hit(z.kerb, 0.55));
   }
 
   // ------------------------------------------------------------------ cars

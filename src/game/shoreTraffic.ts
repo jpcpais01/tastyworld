@@ -19,8 +19,17 @@ export function shoreNet(signals: Anchors['signals'] = []): Network {
   return r.tram ? tramNet(r) : roadNet(r, poles);
 }
 
-/** Lane centre (x) at z for traffic heading +z (`up`) or -z: keeping right, +z keeps to the low-x side. */
-const laneX = (r: ShoreRoad, z: number, up: boolean) => shoreX(r, z) + (up ? -r.lane : r.lane);
+/**
+ * Lane centre (x) at z for traffic heading +z (`up`) or -z: keeping right, +z keeps to the low-x side. Over a bridge
+ * with a footway on that side the lane eases over, so that a bus keeps clear of the people on it.
+ */
+const laneX = (r: ShoreRoad, z: number, up: boolean) => {
+  const x = shoreX(r, z) + (up ? -r.lane : r.lane), f = r.footway;
+  if (!up || !f) return x;
+  const want = f.x1 + 0.4 + 1.3, d = Math.max(f.z0 - z, z - f.z1, 0);
+  const t = Math.min(1, Math.max(0, 1 - (d - 2) / 6));
+  return x + Math.max(0, want - x) * t * t * (3 - 2 * t);
+};
 
 /** Stop lines for every crossing, both ways. */
 function planes(r: ShoreRoad): StopPlane[] {

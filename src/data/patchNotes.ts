@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.15',
+    date: '2026-11-01',
+    title: '2040: six new faces',
+    items: [
+      'Six more of Halcyon\'s regulars to meet, each with something worth hearing: Doc Vasquez the street surgeon, Grandma Zhou of the Lantern Market, Kenji the busker on Meridian, Officer Ruiz on patrol, Pixel the arcade kid by the Mile, and Old Mei fishing for lights on the canal.',
+    ],
+  },
+  {
     version: '0.20.14',
     date: '2026-11-01',
     title: '2040: the unmarked package',

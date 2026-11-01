@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.23',
+    date: '2026-11-01',
+    title: '2040: the crowd films the Halo',
+    items: [
+      'When the Halo sings at midnight, people round the crossing stop where they are, turn to it and hold their phones up to film it.',
+      'The rings of light in the Halo Crossing\'s paving now glow up onto the people standing on them, and the pink ring overhead tints the square, so the plaza reads at night.',
+    ],
+  },
+  {
     version: '0.20.22',
     date: '2026-11-01',
     title: '2040: tired neon',

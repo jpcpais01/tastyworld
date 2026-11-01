@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.28',
+    date: '2026-11-01',
+    title: 'Vending machines fixed, and a glitch in 2040',
+    items: [
+      'Fixed a bug where drinking a can from a vending machine could get stuck partway (in every city).',
+      '2040: Halcyon\'s vending machines sell their own drinks (glow tea, synth-cola, oat-milk protein, black can coffee). Coffee wakes you up a little and the rest take the edge off hunger. Pixel says one machine in a dozen glitches and pays out twice. A new secret.',
+    ],
+  },
+  {
     version: '0.20.27',
     date: '2026-11-01',
     title: '2040: creator on phones',

@@ -1949,9 +1949,26 @@ class Game {
   private vend(): void {
     if (this.s.yen < VENDING_PRICE) { this.audio.play('fail'); this.ui.toast('purse', 'Not enough money', `Even a can of tea costs ${TEXT.money(VENDING_PRICE)}.`); return; }
     this.s.yen -= VENDING_PRICE;
-    const drinks = [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
+    const drinks = NEO
+      ? [['tea', 'Glow tea', 'Clunk. A can of green tea with a little light in it, for no reason anyone remembers.'], ['latte', 'Oat-milk protein', 'Thick, sweet, and says it is a meal. It nearly is.'], ['can', 'Synth-cola', 'Fizzes blue. Tastes of the year 2000, which nobody here remembers either.'], ['coffee', 'Black can coffee', 'Halcyon runs on it. The can is warm before you even open it.']]
+      : [['tea', 'Hot green tea', 'Clunk! A warm can rolls out. Japanese machines sell hot and cold drinks.'], ['latte', 'Royal milk tea', 'Sweet, creamy and warm. A vending machine classic.'], ['can', 'Ramune soda', 'Pop the marble to open it!'], ['coffee', 'Canned coffee', 'Tokyo runs on canned coffee.']];
     const d = drinks[Math.floor(Math.random() * drinks.length)];
     this.audio.play('coin');
+    if (NEO && this.s.life) {
+      // a drink takes the edge off: coffee wakes you up a little, the rest fill you a little
+      if (d[0] === 'coffee') this.vitals?.rested(8); else this.vitals?.ate(d[0] === 'latte' ? 12 : 5);
+      // and once in a while the machine glitches and pays out twice (Pixel keeps count)
+      if (Math.random() < 1 / 12) {
+        this.s.yen += VENDING_PRICE;
+        this.cam.shake = 0.08;
+        this.afterChange();
+        // the drink first, then what the machine did: the receipt reads over the first sip
+        this.startMeal(d[0], null, () => {});
+        this.ui.dialogue('The vending machine', ['The screen flickers. Two cans drop instead of one, your credits come back, and a receipt curls out of the slot.', 'It says, in tiny print: "SORRY FOR THE INCONVENIENCE. HAVE A NICE LIFE."']);
+        this.lifeSys.discover('jackpot', 'Glitch in the machine', 'A vending machine paid you back and threw in a drink. Pixel was right.');
+        return;
+      }
+    }
     this.ui.toast(d[0], d[1], d[2]);
     this.afterChange();
     this.startMeal(d[0], null, () => {});

@@ -545,7 +545,7 @@ export class Meal {
         const u = Math.sin(Math.min(1, this.phaseT / 0.9) * Math.PI);
         this.restPose(pl, 0.18 * u, [0.22 * u + 0.08, 0, 0]);
         this.holdPose();
-        if (!this.picked) {
+        if (!this.picked && this.table) {
           // reach for the cup or the bun on the table and take it in hand
           const w = sstep(this.phaseT / 0.45);
           const at = this.fromWorldM(this.tmp2.copy(this.table!).add(this.tmp.set(0, this.gripLift(this.held!) + 0.01, 0)));

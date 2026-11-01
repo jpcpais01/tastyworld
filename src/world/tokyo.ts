@@ -408,8 +408,28 @@ export interface BuildingOpts {
 }
 
 /** A building the hotel list names (by its lot) becomes that hotel: its look, its height and a lobby downstairs. */
+/**
+ * Tokyo's second menu: the district's own shops (by their lot's corner, in voxels) whose cooks serve passport
+ * dishes. The street layout is untouched; only who stands behind the counter changes (see data/tokyoMenu.ts).
+ */
+const TOKYO_RESTAURANTS: Record<string, RestaurantSpec> = {
+  '160,260': { id: 'odenya', foods: ['oden', 'yakionigiri'] },
+  '80,376': { id: 'katsu', foods: ['tonkatsu', 'katsusando'] },
+  '160,376': { id: 'unagi', foods: ['unadon', 'umaki'] },
+  '516,-72': { id: 'yoshoku', foods: ['omurice', 'hambagu'] },
+  '396,-72': { id: 'sukiyaki', foods: ['sukiyaki', 'chawanmushi'] },
+  '226,128': { id: 'kanmi', foods: ['anmitsu', 'kakigori'] },
+  '42,4': { id: 'pan', foods: ['fruitsando', 'kurimupan'] },
+  '-128,120': { id: 'chaya', foods: ['matcha', 'warabimochi'] },
+  '150,76': { id: 'sakaba', foods: ['sashimi', 'agedashi'] },
+  '328,-184': { id: 'robata', foods: ['sabashio', 'nikujaga'] },
+  '128,-72': { id: 'udon', foods: ['kitsune', 'curryudon'] },
+};
+
 export function hotelize(lot: Lot, o: BuildingOpts): BuildingOpts {
   const hi = hotelAt(lot.x0, lot.z0);
+  const menu = !hi && !o.restaurant ? TOKYO_RESTAURANTS[`${lot.x0},${lot.z0}`] : undefined;
+  if (menu) o = { ...o, restaurant: menu };
   return hi && !o.hotel ? { ...o, was: o.ground, ground: 'hotel', style: hi.style, floors: hi.floors, hotel: hi, awning: undefined, restaurant: undefined, secret: undefined, doorA: undefined, roof: 'flat' } : o;
 }
 
@@ -1737,10 +1757,9 @@ export function buildTokyo(win?: Window): BuildResult {
       darumas.push([s.pos[0], s.pos[1], s.pos[2]]);
     });
   }
-  stalls.push(...b.stallAnchors);
-
-  // the city around the old district
+  // the city around the old district (its restaurants' cooks join the stall anchors too)
   const city = buildCity(b);
+  stalls.push(...b.stallAnchors);
 
   const anchors: Anchors = {
     spawn: [11.2, 0, 12.5],

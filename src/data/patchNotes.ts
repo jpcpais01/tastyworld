@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.17',
+    date: '2026-11-01',
+    title: 'Tokyo: 22 new dishes',
+    items: [
+      'Tokyo\'s passport now holds 38 dishes, up from 16. Eleven of the district\'s own restaurants, cafés and shops have cooks who now serve them, each with two dishes and a cooking challenge.',
+      'In the Hikari Ginza arcade: oden simmered all day with grilled rice balls, a thick tonkatsu set and katsu sando, and charcoal-grilled eel in a lacquer box with an eel omelette.',
+      'Around Center-gai: a yōshoku house with omurice and sizzling hambāgu, and an old sukiyaki house with beef cooked at the table and chawanmushi.',
+      'By the canal and on Kaminari Lane: cream anmitsu and a tower of matcha kakigōri at a sweets café, and a bakery with fruit sandwiches and kurīmu pan. In Yanaka, a tea house serves whisked matcha with a seasonal sweet and warabi mochi.',
+      'On Lantern Alley, an izakaya with a sashimi platter and agedashi tofu; under the tracks, a robata grill with salt-grilled mackerel and nikujaga; on Hikari-dori, kitsune udon and curry udon (bib included).',
+      'Every one has a pin on the map. New missions: Under the Noren and Afternoon Sweets.',
+    ],
+  },
+  {
     version: '0.18.16',
     date: '2026-11-01',
     title: 'Istanbul: fifty places to eat',

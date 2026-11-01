@@ -8,6 +8,55 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.19.0',
+    date: '2026-11-01',
+    title: 'Souvenir shops open in every city',
+    items: [
+      'The shops finally work. Walk up to a shopkeeper and browse their shelf: about 190 local pieces across four cities, from a ₺50 nazar keyring to a Hereke silk rug, each drawn as its own little voxel model with the story behind it.',
+      'Istanbul: 58 bazaar and street shops sell carpets, mosaic lamps, İznik tiles, copper, silk, jewellery, leather, slippers, spices, tea, lokum, hamam goods, nazar beads, coffee and old books.',
+      'Haggle in the bazaar. The price on the tag is where the talking starts: make an offer, watch the keeper\'s patience, and if you turn to walk away, the price may follow you out of the door.',
+      'Tokyo\'s shops each have a trade now: zakka, pottery, Kappabashi knives, toys and crafts, washi paper, second-hand books and florists. Amalfi sells Vietri ceramics, limoncello, Amalfi paper, linen and sandals, and deli goods along Via Lorenzo and in the Ruga. Funchal sells embroidery, Madeira wine, crafts and flowers.',
+      'Everyday, fine, rare and one-of-a-kind pieces. Rare pieces are spread between the shops of a trade, and each one-of-a-kind piece is in a single shop. Ask around: keepers will tell you who has it.',
+      'A souvenir shelf in your passport\'s Bag keeps everything you bring home, city by city, with what you paid.',
+      'Three new missions in every city: a first souvenir, a collection of eight, and a one-of-a-kind find.',
+    ],
+  },
+  {
+    version: '0.18.17',
+    date: '2026-11-01',
+    title: 'Tokyo: 22 new dishes',
+    items: [
+      'Tokyo\'s passport now holds 38 dishes, up from 16. Eleven of the district\'s own restaurants, cafés and shops have cooks who now serve them, each with two dishes and a cooking challenge.',
+      'In the Hikari Ginza arcade: oden simmered all day with grilled rice balls, a thick tonkatsu set and katsu sando, and charcoal-grilled eel in a lacquer box with an eel omelette.',
+      'Around Center-gai: a yōshoku house with omurice and sizzling hambāgu, and an old sukiyaki house with beef cooked at the table and chawanmushi.',
+      'By the canal and on Kaminari Lane: cream anmitsu and a tower of matcha kakigōri at a sweets café, and a bakery with fruit sandwiches and kurīmu pan. In Yanaka, a tea house serves whisked matcha with a seasonal sweet and warabi mochi.',
+      'On Lantern Alley, an izakaya with a sashimi platter and agedashi tofu; under the tracks, a robata grill with salt-grilled mackerel and nikujaga; on Hikari-dori, kitsune udon and curry udon (bib included).',
+      'Every one has a pin on the map. New missions: Under the Noren and Afternoon Sweets.',
+    ],
+  },
+  {
+    version: '0.18.16',
+    date: '2026-11-01',
+    title: 'Istanbul: fifty places to eat',
+    items: [
+      'Istanbul now has 50 places to eat, up from 31, and 42 dishes for your passport, up from 16.',
+      'Eight new sit-down places across the old town, each with its own cook and two dishes: İskender kebap with butter poured at the table and baked rice pudding at Bursalı İskenderci; lahmacun and purple şalgam at the Urfa salon; Black Sea pide and fried hamsi at Karadenizli; beans, rice and lentil soup at the tradesmen\'s lokanta; grilled köfte and piyaz at Selim Usta\'s; chicken-breast pudding and burnt kazandibi at Muhallebici Nurettin; menemen and clotted cream with honey at the breakfast house; and a meze tray with fried squid at the meyhane.',
+      'Inside the Grand Bazaar, Muhsin Efendi brews Turkish coffee with a cube of lokum, and the Kalpakçılar lokanta serves karnıyarık and cold cacık to the shopkeepers at noon. The bazaars also gained a Turkish delight shop, tea houses, a pudding shop and börek counters.',
+      'Three new street carts: kumpir and chocolate waffles on the Bosphorus quay, lokma and boza on Eminönü Square, and Ayşe Teyze rolling gözleme on her iron sac by the Golden Horn, with a glass of tea.',
+      'Every new place has a pin on the map, counts toward the food places you have found, and has its own cooking challenge.',
+      'New missions: Lokanta Hopping, Street Corner Gourmet and Forty Years (coffee in the bazaar, tea on the quay).',
+    ],
+  },
+  {
+    version: '0.18.15',
+    date: '2026-11-01',
+    title: 'A new landing in Madeira',
+    items: [
+      'Landing in Madeira now has an arrival all its own. Instead of a wall of tiles, the island rises out of the Atlantic in voxel layers: the peaks around Pico Ruivo, the sea of cloud that sits on them, the green terraced poios, Funchal\'s amphitheatre of white houses around the Sé, and the bay with its promenade palms and the Santa Maria at anchor.',
+      'While the city loads, the cloud sea drifts along the mountainside, the water glints and a cable car climbs its wire towards Monte. Then the camera dives into the town, every layer rushing past at its own depth, and you are standing in Funchal. At night the stars are out and the windows are lit.',
+    ],
+  },
+  {
     version: '0.18.14',
     date: '2026-11-01',
     title: 'Calm cherry petals from above',

@@ -186,8 +186,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   // ---------------------------------------------------------------- Istanbul (`names` hold [English, Turkish])
   kahve: {
     label: 'Coffee house',
-    names: [['Kahveci Hüseyin', 'Kahveci Hüseyin'], ['Köşe Kahvesi', 'Köşe Kahvesi'], ['Han Kahvesi', 'Han Kahvesi']],
-    keepers: ['Hüseyin Bey', 'Kadir Usta', 'Ercan'],
+    names: [['Kahveci Hüseyin', 'Kahveci Hüseyin'], ['Köşe Kahvesi', 'Köşe Kahvesi'], ['Han Kahvesi', 'Han Kahvesi'], ['Divan Kahvehanesi', 'Kahvehane'], ['Tavla Kahvesi', 'Tavla Kahvesi'], ['Çınaraltı Kahvesi', 'Çınaraltı']],
+    keepers: ['Hüseyin Bey', 'Kadir Usta', 'Ercan', 'Nevzat Bey', 'Cemil Amca', 'Levent'],
     keeperLook: LOOKS.waiter,
     lines: [
       'Turkish coffee is boiled once, slowly, in a little copper cezve. If it boils over, start again. No shortcuts.',
@@ -203,8 +203,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   cay: {
     label: 'Tea house',
-    names: [['Çay Ocağı Yıldız', 'Çay Ocağı'], ['Lale Çay Evi', 'Lale Çay Evi']],
-    keepers: ['Çaycı Remzi', 'Gülsüm Abla'],
+    names: [['Çay Ocağı Yıldız', 'Çay Ocağı'], ['Lale Çay Evi', 'Lale Çay Evi'], ['Han Çay Ocağı', 'Çay Ocağı'], ['Semaver Çay Evi', 'Semaver']],
+    keepers: ['Çaycı Remzi', 'Gülsüm Abla', 'Çaycı Bilal', 'Fadime Teyze'],
     keeperLook: LOOKS.waiter,
     lines: [
       'Istanbul drinks more tea than anyone on earth. Ten glasses a day is nothing. I carry them on a swinging tray to every shop on the street.',
@@ -219,8 +219,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   lokanta: {
     label: 'Lokanta',
-    names: [['Esnaf Lokantası Şahin', 'Esnaf Lokantası'], ['Lokanta Hacı Baba', 'Hacı Baba'], ['Ev Yemekleri Nur', 'Ev Yemekleri'], ['Çarşı Lokantası', 'Çarşı Lokantası']],
-    keepers: ['Şahin Usta', 'Hacı Bey', 'Nur Hanım', 'Mustafa'],
+    names: [['Esnaf Lokantası Şahin', 'Esnaf Lokantası'], ['Lokanta Hacı Baba', 'Hacı Baba'], ['Ev Yemekleri Nur', 'Ev Yemekleri'], ['Çarşı Lokantası', 'Çarşı Lokantası'], ['Lokanta Bereket', 'Bereket'], ['Sofra Lokantası', 'Sofra']],
+    keepers: ['Şahin Usta', 'Hacı Bey', 'Nur Hanım', 'Mustafa', 'Bereket Usta', 'Emine Hanım'],
     keeperLook: LOOKS.usta,
     lines: [
       'Point at what you want. Everything in the steam tray was cooked this morning, the way our mothers cook.',
@@ -236,8 +236,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   kebap: {
     label: 'Kebab house',
-    names: [['Kebapçı Halil', 'Kebapçı'], ['Ocakbaşı Ali Usta', 'Ocakbaşı'], ['Urfa Sofrası', 'Urfa Sofrası']],
-    keepers: ['Halil Usta', 'Ali Usta', 'Mahmut'],
+    names: [['Kebapçı Halil', 'Kebapçı'], ['Ocakbaşı Ali Usta', 'Ocakbaşı'], ['Urfa Sofrası', 'Urfa Sofrası'], ['Adana Kebap Salonu', 'Adana Kebap'], ['Çöp Şiş Tahir', 'Çöp Şiş'], ['Kebapçı Antepli', 'Antepli']],
+    keepers: ['Halil Usta', 'Ali Usta', 'Mahmut', 'Tahir Usta', 'Kemal', 'Antepli Murat'],
     keeperLook: LOOKS.usta,
     lines: [
       'Adana is spicy, Urfa is not. Both are minced by hand with a big curved knife called a zırh.',
@@ -252,8 +252,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   pide: {
     label: 'Pide house',
-    names: [['Karadeniz Pide', 'Karadeniz Pide Salonu'], ['Pideci Rıza', 'Pideci']],
-    keepers: ['Rıza Usta', 'Temel'],
+    names: [['Karadeniz Pide', 'Karadeniz Pide Salonu'], ['Pideci Rıza', 'Pideci'], ['Konya Etli Ekmek', 'Etli Ekmek'], ['Pide Fırını Samsun', 'Pide Fırını']],
+    keepers: ['Rıza Usta', 'Temel', 'Konyalı Ömer', 'Samsunlu Erol'],
     keeperLook: LOOKS.baker,
     lines: [
       'Pide is a boat of bread. We are from the Black Sea coast, so ours have a lot of butter. A lot.',
@@ -268,8 +268,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   borek: {
     label: 'Börek shop',
-    names: [['Börekçi Saray', 'Börekçi'], ['Su Böreği Hatice', 'Su Böreği']],
-    keepers: ['Saray Usta', 'Hatice Teyze'],
+    names: [['Börekçi Saray', 'Börekçi'], ['Su Böreği Hatice', 'Su Böreği'], ['Çarşı Börekçisi', 'Börekçisi'], ['Kol Böreği Melek', 'Kol Böreği']],
+    keepers: ['Saray Usta', 'Hatice Teyze', 'Vedat Usta', 'Melek Hanım'],
     keeperLook: LOOKS.baker,
     lines: [
       'Su böreği: the sheets of dough are boiled before they are layered. It takes all morning and it is gone by eleven.',
@@ -284,8 +284,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   muhallebi: {
     label: 'Pudding shop',
-    names: [['Muhallebici Sultan', 'Muhallebici'], ['Saray Muhallebicisi', 'Muhallebicisi']],
-    keepers: ['Sultan Hanım', 'İsmail Bey'],
+    names: [['Muhallebici Sultan', 'Muhallebici'], ['Saray Muhallebicisi', 'Muhallebicisi'], ['Sütçü Ahmet', 'Sütçü'], ['Tatlıcı Gülizar', 'Tatlıcı']],
+    keepers: ['Sultan Hanım', 'İsmail Bey', 'Sütçü Ahmet', 'Gülizar Hanım'],
     keeperLook: LOOKS.white,
     lines: [
       'Tavuk göğsü is a milk pudding made with chicken breast. Yes, really. The palace cooks invented it and you cannot taste the chicken, only silk.',
@@ -300,8 +300,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   lokum: {
     label: 'Lokum shop',
-    names: [['Lokumcu Hacı Bekir', 'Lokumcu'], ['Lokum ve Şekerleme', 'Şekerleme']],
-    keepers: ['Bekir Bey', 'Ayten Hanım'],
+    names: [['Lokumcu Hacı Bekir', 'Lokumcu'], ['Lokum ve Şekerleme', 'Şekerleme'], ['Akide Şekercisi', 'Akide Şekeri']],
+    keepers: ['Bekir Bey', 'Ayten Hanım', 'Şekerci Nazım'],
     keeperLook: LOOKS.bazaar,
     lines: [
       'Lokum means "a morsel for the throat". Starch, sugar and patience, stirred for hours in a copper pan.',

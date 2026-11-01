@@ -529,7 +529,7 @@ const AMALFI: Trade[] = [
     ['riserva', 'rare', eur(120), 'box', [0x5e3b26, 0xf2e04a, 0xc8a050], 'Family riserva', 'Riserva di famiglia', 'Three bottles from the old family terrace, numbered by hand, in a chestnut box. Only sixty are made each year.'],
   ]),
   trade('amalfi', 'carta', {
-    label: 'Paper workshop', local: 'Cartiera', word: ['Paper', 'Carta di Amalfi'],
+    label: 'Paper workshop', local: 'Cartiera', word: ['Paper', 'Cartiera'],
     wrap: 'laid between sheets of its own paper and tied with a ribbon and a wax seal',
     keeperLook: L.craft,
     lines: [
@@ -546,7 +546,7 @@ const AMALFI: Trade[] = [
     ['ledger', 'treasure', eur(600), 'book', [0x5a3a22, 0xe8dcc0, 0x8a2a1a], 'Paper mill ledger', 'Registro antico', 'A ledger from 1820 on the mill\'s own paper, its pages full of orders for paper to Naples, Rome and Marseille.'],
   ]),
   trade('amalfi', 'lino', {
-    label: 'Linen and sandal shop', local: 'Lino e sandali', word: ['Linen', 'Moda Positano'],
+    label: 'Linen and sandal shop', local: 'Lino e sandali', word: ['Linen', 'Lini'],
     wrap: 'folded round a sheet of tissue and slipped into a white cotton bag',
     keeperLook: L.linen,
     lines: [
@@ -724,7 +724,8 @@ export function shopIdentity(t: Trade, k: number, seed: number): { name: string;
   switch (t.city) {
     case 'tokyo': return { name: `${be} ${we}`, local: `${bl}${wl}`, keeper };
     case 'istanbul': return { name: `${be} ${we}`, local: `${bl} ${wl}`, keeper };
-    default: return { name: `${we} ${be}`, local: `${wl} ${bl}`, keeper };
+    // on the coast and the island the sign is the name: Ceramiche Esposito, Bordados Freitas
+    default: return { name: `${wl} ${bl}`, local: `${wl} ${bl}`, keeper };
   }
 }
 

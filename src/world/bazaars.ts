@@ -522,7 +522,7 @@ export function bazaarShop(ctx: Ctx, f: Frame, lt: LotPlan, use: Use | undefined
   for (let y = 0; y <= rr; y++) for (let z = Z0; z <= Z1; z++) for (let x = X0; x <= X1; x++) if (Math.hypot(x + 0.5 - (X0 + X1 + 1) / 2, z + 0.5 - (Z0 + Z1 + 1) / 2, y * 1.2) <= rr) g.set(x, top + 1 + y, z, c.lead);
   const [vx0, vz0] = f.xz(1, 0), [vx1, vz1] = f.xz(W - 2, D - 2);
   b.indoor.push([Math.min(vx0, vx1), base, Math.min(vz0, vz1), Math.max(vx0, vx1), base + 10, Math.max(vz0, vz1)]);
-  if (use?.room) { foodRoom(ctx, f, lt, use.room, true, undefined, true); return; }
+  if (use?.room) { foodRoom(ctx, f, lt, use.room, true, use.restaurant, true); return; }
   const kinds = grand ? GRAND_KINDS : SPICE_KINDS;
   const kind = bazaarTrade(lt);
   // a shop on a corner opens onto the cross hall too, under its own sign

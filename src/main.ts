@@ -3214,6 +3214,10 @@ class Game {
     } else this.lookUpT = 0;
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     if (this.rain) this.audio.rain(this.rain.amount, !!(this.inside || this.upstairs || this.roomHere));
+    if (this.drones && this.started) {
+      const out = !this.inside && !this.upstairs && !this.roomHere, h = this.tod.hour;
+      this.audio.city(dt, out ? this.drones.nearest(this.player.position) : 1e9, h >= 20 || h < 5, out);
+    }
     if (this.rain) {
       this.rain.ground = this.player.position.y;
       // Halcyon's streets are never quite dry: a sheen always, puddles and mirrored neon in a shower, drying slowly after

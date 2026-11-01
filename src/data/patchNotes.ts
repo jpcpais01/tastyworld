@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.24',
+    date: '2026-11-01',
+    title: '2040: the sound of the city',
+    items: [
+      'You can now hear the drones: a rotor buzz that swells as one passes overhead and fades as it goes. After dark, now and then, a siren wails somewhere far off across the towers.',
+    ],
+  },
+  {
     version: '0.20.23',
     date: '2026-11-01',
     title: '2040: the crowd films the Halo',

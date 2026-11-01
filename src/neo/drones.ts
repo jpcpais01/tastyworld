@@ -141,6 +141,19 @@ export class Drones {
   }
 
   /** `player`: where the player stands, if out on foot (a patrol may stop and light them up after dark). */
+  /** Metres from `p` to the nearest drone. */
+  nearest(p: THREE.Vector3): number {
+    let best = 1e9;
+    for (const m of [this.courier, this.patrol]) {
+      for (let i = 0; i < m.count; i++) {
+        m.getMatrixAt(i, this.m);
+        this.aim.setFromMatrixPosition(this.m);
+        best = Math.min(best, this.aim.distanceTo(p));
+      }
+    }
+    return best;
+  }
+
   update(dt: number, night: number, visible: boolean, player: THREE.Vector3 | null = null): void {
     for (const m of [this.courier, this.patrol, this.red, this.blue]) m.visible = visible;
     for (const b of this.beams) b.visible = visible && night > 0.05;

@@ -7,6 +7,8 @@ import { SunShadows } from './shadows';
 import { Sky, SKY_GLSL, skyUniforms, cloudUniforms } from './sky';
 
 export type Quality = 'low' | 'medium' | 'high';
+/** Low quality's share of the screen resolution per axis (0.75 = 56% of the pixels). */
+const LOW_SCALE = 0.75;
 
 /**
  * 64 x 64 random values that tile, filtered and repeating: value noise for the drifting cloud shadows at
@@ -111,6 +113,10 @@ export class Renderer {
   readonly particleRes: THREE.IUniform<THREE.Vector2> = { value: new THREE.Vector2(1, 1) };
   quality: Quality;
   renderScale = 1;
+  /** Draw at the screen's full resolution whatever the quality (the photo shutter's one frame). */
+  fullRes = false;
+  /** Drawing below the screen's resolution just now (by quality or by the auto render scale)? */
+  get scaled(): boolean { return this.quality === 'low' || this.renderScale < 1; }
   /** Hears each render pass start by name (the perf overlay times them on the GPU). */
   onPass: ((name: string) => void) | null = null;
   private pixelRatio = 1;
@@ -134,7 +140,11 @@ export class Renderer {
   get pixelHeight(): number { return this.h; }
   private frameTimes: number[] = [];
   private lastAdapt = 0;
+  /** Checks in a row that found the frame slow with the render scale already at its floor. */
+  private floorSlow = 0;
   autoQuality = true;
+  /** Auto quality: called when even the lowest render scale can't hold the frame rate (step a tier down). */
+  onSlow: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement, quality: Quality) {
     this.quality = quality;
@@ -175,6 +185,7 @@ export class Renderer {
       tShore: { value: null }, uShoreRect: { value: new THREE.Vector4(0, 0, 1, 1) },
     });
     this.sky = new Sky(this.shared, skyU, this.shared, this.composite.uniforms.uSkyTop.value, this.composite.uniforms.uSkyHorizon.value);
+    this.liteComposite();
     this.resize();
   }
 
@@ -186,9 +197,22 @@ export class Renderer {
     return this.quality === 'high' ? 4 : this.quality === 'medium' ? 2 : 0;
   }
 
+  /**
+   * Low quality is built for integrated GPUs, where every full-screen pixel costs: it draws at three quarters
+   * of the screen's resolution (the browser scales it up), with no multisampling, no real-time sun shadows
+   * (the baked sun light stays) and the LITE composite (simpler water, no reflections, no caustics).
+   */
+  private liteComposite(): void {
+    const lite = this.quality === 'low';
+    if (!!this.composite.defines.LITE === lite) return;
+    if (lite) this.composite.defines.LITE = 1;
+    else delete this.composite.defines.LITE;
+    this.composite.needsUpdate = true;
+  }
+
   resize(): void {
     const dprCap = this.isMobile ? (this.quality === 'high' ? 2 : 1.6) : this.quality === 'low' ? 1 : 2;
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, dprCap) * this.renderScale;
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, dprCap) * (this.quality === 'low' && !this.fullRes ? LOW_SCALE : 1) * (this.fullRes ? 1 : this.renderScale);
     const cw = window.innerWidth, ch = window.innerHeight;
     this.gl.setPixelRatio(1);
     this.gl.setSize(Math.max(1, Math.round(cw * this.pixelRatio)), Math.max(1, Math.round(ch * this.pixelRatio)), false);
@@ -232,6 +256,7 @@ export class Renderer {
     if (q === this.quality) return;
     this.quality = q;
     this.shadows.setQuality(q);
+    this.liteComposite();
     this.resize();
   }
 
@@ -251,7 +276,14 @@ export class Renderer {
     const sorted = [...this.frameTimes].sort((a, b) => a - b);
     const p50 = sorted[Math.floor(sorted.length * 0.5)];
     let changed = false;
-    if (p50 > 21 && this.renderScale > 0.55) { this.renderScale = Math.max(0.55, this.renderScale - 0.12); changed = true; }
+    // already at the lowest scale and still slow twice running: the tier has to come down instead
+    this.floorSlow = p50 > 22 && this.renderScale <= 0.551 ? this.floorSlow + 1 : 0;
+    if (this.floorSlow >= 2 && this.quality !== 'low' && this.onSlow) {
+      this.floorSlow = 0;
+      this.renderScale = 0.8;
+      this.onSlow();
+      changed = true;
+    } else if (p50 > 21 && this.renderScale > 0.55) { this.renderScale = Math.max(0.55, this.renderScale - 0.12); changed = true; }
     else if (p50 < 13.5 && this.renderScale < 1) { this.renderScale = Math.min(1, this.renderScale + 0.08); changed = true; }
     if (changed) { this.lastAdapt = now; this.frameTimes.length = 0; this.resize(); }
     else this.lastAdapt = now - 1500;
@@ -269,7 +301,8 @@ export class Renderer {
     const sc = this.shared.uSunColor.value;
     const sunLum = sc.r * 0.2126 + sc.g * 0.7152 + sc.b * 0.0722;
     this.onPass?.('shadows');
-    this.shadows.update(gl, this.scene, cam, this.firstPerson, this.shared.uSunDir.value, THREE.MathUtils.smoothstep(sunLum, 0.075, 0.15));
+    // (none at low quality: the baked sun carries the light, and the CPU and GPU skip the shadow passes)
+    this.shadows.update(gl, this.scene, cam, this.firstPerson, this.shared.uSunDir.value, this.quality === 'low' ? 0 : THREE.MathUtils.smoothstep(sunLum, 0.075, 0.15));
     // scene
     this.onPass?.('world');
     gl.setRenderTarget(this.rtScene);
@@ -322,7 +355,7 @@ export class Renderer {
     u.uInvViewProj.value.copy(u.uViewProj.value).invert();
     u.uSSR.value = this.quality === 'low' ? 0 : 1;
     u.uShafts.value = this.quality === 'high' ? 1 : 0;
-    u.uCloudSteps.value = this.quality === 'high' ? 56 : this.quality === 'medium' ? 40 : 24;
+    u.uCloudSteps.value = this.quality === 'high' ? 56 : this.quality === 'medium' ? 40 : 16;
     this.pass(this.composite, null);
   }
 

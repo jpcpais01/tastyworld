@@ -19,7 +19,7 @@ const enum P { Slab = 4, Tower = 9, Majolica = 11 }
 const rgb = (hex: number): [number, number, number] => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 
 /** A stone box laid on the ground (a path's tread or step): corners (m) and colour. */
-export type FarStone = [number, number, number, number, number, number, number];
+export type FarStone = [number, number, number, number, number, number, number, number?];
 
 export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: string, HAZE: string, towers: FarTower[], stones: FarStone[] = []): THREE.Mesh {
   const parts: number[] = [];
@@ -42,7 +42,7 @@ export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: stri
 
   // the paths' treads and steps
   house = [0, 0, 0, 0.5];
-  for (const [ax, ay, az, bx, by, bz, c] of stones) box(ax, ay, az, bx, by, bz, P.Slab, c, 2);
+  for (const [ax, ay, az, bx, by, bz, c, lod] of stones) box(ax, ay, az, bx, by, bz, P.Slab, c, lod ?? 2); // (an optional eighth value: 0 never drops out)
 
   const n = parts.length / 16;
   const g = new THREE.InstancedBufferGeometry();

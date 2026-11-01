@@ -13,7 +13,7 @@ import { Streamer, StreamView } from './engine/streamer';
 import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look, CHAR_FINE } from './world/characters';
-import { bikeModel, scooterModel, swanBoatModel, gozzoModel } from './world/vehicles';
+import { bikeModel, scooterModel, swanBoatModel, gozzoModel, cabinModel, CABIN_HANG } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
@@ -43,7 +43,7 @@ import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, CITY, isCity, goToCity, perCity, p
 import { nightAt, dropLanding } from './ui/arrival';
 import { FarTown } from './engine/fartown';
 import { farCoast } from './engine/farcoast';
-import { farMadeira } from './engine/farMadeira';
+import { farMadeira, type CableLine } from './engine/farMadeira';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
@@ -226,6 +226,8 @@ class Game {
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
   private cats: Cat[] = [];
+  /** Funchal's cable car to Monte: its line and the cabins running up and down it. */
+  private cable: { line: CableLine; len: number[]; total: number; t: number; cabins: Actor[] } | null = null;
   private chef!: Actor;
   private blobs!: Blobs;
   private koi: Koi | null = null;
@@ -425,6 +427,8 @@ class Game {
       // the island beyond the map: the city's amphitheatre, Monte, the peaks behind, and the Atlantic to the horizon
       const far = farMadeira(sh, [WX0, WZ0, WX1, WZ1]);
       this.worldGroup.add(far.ground, far.houses);
+      const len = far.cable.pts.slice(1).map((p, i) => Math.hypot(p[0] - far.cable.pts[i][0], p[1] - far.cable.pts[i][1]));
+      this.cable = { line: far.cable, len, total: len.reduce((a, b) => a + b, 0), t: 0, cabins: [] };
       // its quintas up the amphitheatre, house by house with the town's own voxels
       this.farTown = new FarTown(this.r.gl, sh, [WX0, WZ0, WX1, WZ1], far.lots, `city:${CITY}`);
       this.worldGroup.add(this.farTown.group);
@@ -711,6 +715,17 @@ class Game {
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
     this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, ground: w.ground, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);
+
+    // the cable car's cabins, spaced along both ropes
+    if (this.cable) {
+      const n = Math.round((this.cable.total * 2) / 46);
+      for (let i = 0; i < n; i++) {
+        const act = new Actor(cabinModel(500 + i), this.chars, true);
+        this.worldGroup.add(act.root);
+        this.cable.cabins.push(act);
+      }
+      this.updateCable(0);
+    }
 
     // cats
     a.cats.forEach((c, i) => {
@@ -2348,6 +2363,29 @@ class Game {
     pl.light(this.upstairs?.lm ?? this.lm);
   }
 
+  /** The cable car runs from eight in the morning to eight at night at 4 m/s, a cabin every 46 m of rope. */
+  private updateCable(dt: number): void {
+    const cb = this.cable;
+    if (!cb) return;
+    const h = this.tod.hour, running = h > 8 && h < 20;
+    if (running) cb.t += dt * 4;
+    const L = cb.total, n = cb.cabins.length, sun = h > 7.5 && h < 18.5 ? 1 : h > 6.5 && h < 19.5 ? 0.6 : 0.22;
+    const pts = cb.line.pts;
+    cb.cabins.forEach((act, i) => {
+      // up one rope and back down the other, round the wheels at either end
+      let s = (cb.t + (i * 2 * L) / n) % (2 * L);
+      const up = s < L;
+      if (!up) s = 2 * L - s;
+      let k = 0;
+      while (k < cb.len.length - 1 && s > cb.len[k]) { s -= cb.len[k]; k++; }
+      const f = Math.min(1, s / cb.len[k]), [xa, ya] = pts[k], [xb, yb] = pts[k + 1];
+      act.position.set(xa + (xb - xa) * f, ya + (yb - ya) * f - CABIN_HANG, cb.line.z + (up ? -1 : 1) * cb.line.gap);
+      act.facing = act.targetFacing = Math.PI / 2;
+      act.update(dt);
+      act.lightOpen(sun);
+    });
+  }
+
   private updateCats(dt: number): void {
     for (const c of this.cats) {
       const a = c.actor, p = a.position;
@@ -2382,6 +2420,7 @@ class Game {
       this.birds.update(dt, this.tod.hour, pl.position.x, pl.position.z, viewR, threats, (x, z, r) => this.crowd.nearest(x, z, r), food);
       this.perf.lap('birds');
       this.updateCats(dt);
+      this.updateCable(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
         const d = Math.hypot(pp.x - v.actor.position.x, pp.z - v.actor.position.z);

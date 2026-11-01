@@ -90,7 +90,7 @@ const ISTANBUL_MISSIONS: Mission[] = [
   { id: 'i-master', name: 'Master of Istanbul', desc: `Collect all ${AMALFI_COUNT} Istanbul passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: lira(2500), title: 'Istanbul Gourmet', item: 'goldtulip' } },
 ];
 
-const MADEIRA_STALL_IDS = ['caco', 'poncha', 'frutas', 'malasadas', 'espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado'];
+const MADEIRA_STALL_IDS = ['caco', 'poncha', 'frutas', 'malasadas', 'espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
 const MADEIRA_MISSIONS: Mission[] = [
   { id: 'm-first-bite', name: 'Bom Apetite', desc: 'Taste your first dish in Funchal.', progress: (s) => [Math.min(1, AMALFI_TASTED(s)), 1], reward: { yen: eur(20) } },
   { id: 'm-trio', name: 'Três Sabores', desc: 'Discover three foods of the island.', progress: (s) => [Math.min(3, AMALFI_TASTED(s)), 3], reward: { yen: eur(30), item: 'carapuca' } },
@@ -108,7 +108,7 @@ const MADEIRA_MISSIONS: Mission[] = [
   { id: 'm-photos', name: 'Postal', desc: 'Take three photos of the island in photo mode.', progress: (s) => [Math.min(3, s.flags.photosA ?? 0), 3], reward: { yen: eur(25) } },
   { id: 'm-master', name: 'Master of Madeira', desc: `Collect all ${AMALFI_COUNT} Madeira passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: eur(120), title: 'Madeira Gourmet', item: 'goldazulejo' } },
 ];
-const MADEIRA_TABLES = ['espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado'];
+const MADEIRA_TABLES = ['espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
 
 export const MISSIONS: Mission[] = perCity({ tokyo: TOKYO_MISSIONS, amalfi: AMALFI_MISSIONS, istanbul: ISTANBUL_MISSIONS, madeira: MADEIRA_MISSIONS });
 /** The mission for the hidden restaurant, which stays secret until its door is found. */

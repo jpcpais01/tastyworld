@@ -11,7 +11,8 @@ import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { madeiraPlan, K, col, layerOf, isPath, wildRock, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, PROM_X1, ribZ, RIB_HALF, bedY, SE, SE_TOWER, MERCADO, JARDIM, TELE, FORT_C, fortR, MAR_CX, MAR_CZ, MAR_A0, MAR_A1, moleRadii, waterX, type Plan } from './madeiraPlan';
 import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
-import { paintColors, picture, hangIn, type PaintColors } from './paintings';
+import { paintColors, picture, hangIn, type PaintColors, type PictureKind } from './paintings';
+import { dineColors, dressWalls, kitchenLine, tableTop, pendants, counterPiece, cornerPlant, rug, cornice, hangRail, windowBench, hiddenKitchenDress, onWall, bare, walls, put, type Dine, type Goods, type TableStyle, type WallLook } from './dining';
 
 /**
  * Funchal: the old town and the seafront of Madeira's capital. White plaster and black basalt, terracotta roofs and
@@ -644,6 +645,8 @@ function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: n
           case K.Lane: return d === 0 ? (hash3(xx >> 1, 6, zz >> 1) < 0.5 ? c.cobble : c.cobbleB) : masonry(c, xx, y, zz, wallW);
           case K.Lot: return masonry(c, xx, y, zz, false);
           default: {
+            // (by the sea the rock is bare black basalt, a tuft of sea fennel here and there; up the hill it greens)
+            if (wild && mx > ROAD_X0) return d === 0 && hash3(xx, 4, zz) < 0.08 ? c.grassDry : d === 0 ? (hash3(xx, 5, zz) < 0.5 ? c.lava : c.lavaB) : cliffRock(c, xx, y, zz);
             if (wild) return d === 0 ? [c.grassDry, c.herb, c.moss][Math.floor(hash3(xx, y >> 1, zz) * 2.5)] : cliffRock(c, xx, y, zz);
             if (d === 0) { const n = hash3(xx, 9, zz); return n < 0.55 ? c.grass : n < 0.8 ? c.herb : c.soil; }
             if (d === 1) return c.soil;
@@ -1491,8 +1494,7 @@ function teleferico(b: Builder, c: AC): void {
   const g = b.grid;
   const Y = layerOf(PIAZZA_Y);
   const X0 = Math.round(TELE[0] / V), Z0 = Math.round(TELE[1] / V), X1 = Math.round(TELE[2] / V) - 1, Z1 = Math.round(TELE[3] / V) - 1;
-  b.occlude(X0, Z0, X1, Z1, PIAZZA_Y + 8, PIAZZA_Y + 0.95, 'building');
-  b.occluders[b.occluders.length - 1].floor = PIAZZA_Y;
+  b.block(TELE[0], TELE[1], TELE[2], TELE[3]);
   if (!g.touches(X0, Z0, X1, Z1)) return;
   g.box(X0, Y, Z0, X1, Y + 22, Z1, (x, y, z) => {
     const u = Math.min(x - X0, X1 - x, z - Z0, Z1 - z);
@@ -2112,6 +2114,7 @@ function segredo(b: Builder, c: AC, anchors: Anchors): BuildResult['interior'] {
   lamp(50 * V, 1.5, 9 * V, [1, 0.55, 0.25], 6, 1.4);
   lamp(30 * V, 2.0, 8 * V, WHITEWARM, 6, 0.7);
   lamp(4 * V, 2.2, 30 * V, WARM, 4, 0.6);
+  hiddenKitchenDress({ pal: b.pal, g, place, lamp, G, style: 'it', wood: c.door, top: c.azulejoW, cushion: [c.hullRed, c.shutterBlue], seed: 2538 });
   // the way out: a low door at the front corner
   g.box(56, G, 44, 63, G + 12, 47, c.lavaB);
   g.box(58, G, 44, 61, G + 9, 44, c.door);
@@ -2203,14 +2206,13 @@ function chair(c: AC, wood: number): Prop {
 }
 
 /** A small square table under a cloth that hangs over its edges. */
-function eatTable(c: AC, cloth: number, cloth2: number, wood: number): Prop {
+function eatTable(_c: AC, cloth: number, cloth2: number, wood: number): Prop {
   const p = new Prop(5, 6, 5);
   p.box(2, 0, 2, 2, 4, 2, wood);
   p.box(1, 0, 1, 3, 0, 3, wood);
   p.box(0, 5, 0, 4, 5, 4, (x, _y, z) => ((x + z) % 2 ? cloth : cloth2));
   for (const [x, z] of [[0, 0], [4, 0], [0, 4], [4, 4], [2, 0], [0, 2], [4, 2], [2, 4]]) p.set(x, 4, z, (x + z) % 2 ? cloth : cloth2);
-  p.set(2, 6, 2, c.white); // a little vase or a candle
-  return p;
+  return p; // (what is laid on it comes from the dining kit: see eateryDress)
 }
 
 const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank' | 'marble' | 'tile'; wall: ACol; wain: ACol; cloth: [ACol, ACol]; front: ACol; awning: [ACol, ACol] }> = {
@@ -2222,9 +2224,15 @@ const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank
   tasca: { floor: 'cotto', wall: 'plasterOld', wain: 'shutterGreen', cloth: ['hullGreen', 'cream'], front: 'shutterGreen', awning: ['hullGreen', 'cream'] },
   adega: { floor: 'plank', wall: 'cantariaB', wain: 'door', cloth: ['stripeDark', 'stripeDark'], front: 'door', awning: ['door', 'ochre'] },
   picado: { floor: 'tile', wall: 'cream', wain: 'ochre', cloth: ['majolicaYellow', 'white'], front: 'shutterBrown', awning: ['majolicaYellow', 'white'] },
+  mercado: { floor: 'tile', wall: 'whiteWarm', wain: 'azulejo', cloth: ['white', 'white'], front: 'shutterGreen', awning: ['shutterGreen', 'white'] },
+  churrasqueira: { floor: 'cotto', wall: 'cream', wain: 'cantaria', cloth: ['hullRed', 'white'], front: 'shutterBrown', awning: ['hullRed', 'cream'] },
+  taberna: { floor: 'plank', wall: 'white', wain: 'shutterBlue', cloth: ['ferryBlue', 'white'], front: 'shutterBlue', awning: ['ferryBlue', 'white'] },
+  cha: { floor: 'marble', wall: 'white', wain: 'shutterGreen', cloth: ['white', 'cream'], front: 'shutterGreen', awning: ['hullGreen', 'white'] },
+  gelataria: { floor: 'check', wall: 'white', wain: 'ochre', cloth: ['majolicaYellow', 'white'], front: 'ochre', awning: ['majolicaYellow', 'white'] },
+  snack: { floor: 'tile', wall: 'cream', wain: 'hullRed', cloth: ['hullRed', 'white'], front: 'hullRed', awning: ['hullRed', 'white'] },
 };
 /** Which of the Amalfi rooms each Funchal place furnishes itself like: the coffee bar, the pastry case, the hearth, the fish on ice... */
-const EAT_LOOK: Record<string, string> = { cafe: 'duomo', pastelaria: 'dolceria', espetada: 'masseria', espada: 'saraceno', atum: 'colatura', tasca: 'gemma', adega: 'cantina', picado: 'ruocco' };
+const EAT_LOOK: Record<string, string> = { cafe: 'duomo', pastelaria: 'dolceria', espetada: 'masseria', espada: 'saraceno', atum: 'colatura', tasca: 'gemma', adega: 'cantina', picado: 'ruocco', mercado: 'andrea', churrasqueira: 'forno', taberna: 'chiostro', cha: 'terrazza', gelataria: 'duomo', snack: 'ruocco' };
 
 /**
  * A restaurant's ground floor: a room on the level of the path, its door open, windows either side, a majolica
@@ -2432,7 +2440,72 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
   }
   lamp(mid + 0.5, D * 0.4, 2.5, WARM, 6, 1.0);
   lamp((ca0 + ca1) / 2, cd0 - 0.5, 2.5, WARM, 4.5, 0.8);
+  eateryDress(b, c, lt, L, (a, y, d) => { const [x, z] = at(a, d); return g.get(x, F + 1 + y, z); }, (a, y, d, v) => { const [x, z] = at(a, d); g.set(x, F + 1 + y, z, v); });
 }
+
+/** Each restaurant's look in the dining kit: what is on its shelves, its walls, over its tables and on its counter. */
+const EAT_DRESS: Record<string, { goods: Goods[]; pics?: PictureKind[]; plates?: 'blue' | 'yellow' | 'green' | 'mixed' | 'pink'; rail?: WallLook['rail']; pend: 'cone' | 'globe' | 'bell' | 'cage'; shade: 'W' | 'A' | 'G'; table: TableStyle; counter: ('register' | 'fruit' | 'cake' | 'bread' | 'menu' | 'vase' | 'jars' | 'machine')[]; plant: 'lemon' | 'olive' | 'fig' | 'palm' | 'monstera'; menu?: boolean; mirror?: boolean; kitchen?: boolean }> = {
+  duomo: { goods: ['cups', 'bottles', 'jars'], pics: ['coast'], plates: 'blue', pend: 'bell', shade: 'W', table: 'cafe', counter: ['machine', 'cake', 'register'], plant: 'palm', mirror: true },
+  gemma: { goods: ['wine', 'jars', 'plates'], pics: ['lemons', 'coast'], plates: 'mixed', rail: 'garland', pend: 'cone', shade: 'A', table: 'it', counter: ['bread', 'vase', 'register'], plant: 'lemon', kitchen: true },
+  saraceno: { goods: ['bottles', 'plates', 'wine'], pics: ['coast'], plates: 'blue', rail: 'pans', pend: 'globe', shade: 'W', table: 'it', counter: ['fruit', 'register'], plant: 'monstera', menu: true, kitchen: true },
+  forno: { goods: ['jars', 'bottles', 'tins'], pics: ['coast'], plates: 'yellow', rail: 'utensils', pend: 'cage', shade: 'A', table: 'it', counter: ['jars', 'menu', 'register'], plant: 'olive', menu: true, kitchen: true },
+  cantina: { goods: ['wine', 'wine', 'glasses'], pics: ['lemons'], rail: 'garland', pend: 'cage', shade: 'A', table: 'it', counter: ['bread', 'register'], plant: 'olive', menu: true },
+  ruocco: { goods: ['bread', 'jars', 'tins'], pics: ['coast'], plates: 'yellow', pend: 'bell', shade: 'W', table: 'cafe', counter: ['register', 'bread'], plant: 'fig', menu: true },
+  andrea: { goods: ['bottles', 'tins', 'jars'], pend: 'cone', shade: 'W', table: 'it', counter: ['register', 'jars'], plant: 'palm', menu: true },
+  dolceria: { goods: ['cups', 'jars', 'glasses'], pics: ['lemons'], plates: 'pink', pend: 'globe', shade: 'W', table: 'cafe', counter: ['cake', 'register', 'vase'], plant: 'fig', mirror: true },
+  chiostro: { goods: ['books', 'wine', 'plates'], pics: ['coast', 'lemons'], plates: 'green', pend: 'bell', shade: 'A', table: 'it', counter: ['vase', 'register', 'fruit'], plant: 'lemon' },
+  colatura: { goods: ['bottles', 'jars', 'plates'], pics: ['coast'], plates: 'blue', rail: 'garland', pend: 'globe', shade: 'W', table: 'it', counter: ['jars', 'register'], plant: 'monstera', kitchen: true },
+  masseria: { goods: ['copper', 'jars', 'wine'], pics: ['lemons'], plates: 'mixed', rail: 'herbs', pend: 'cage', shade: 'A', table: 'it', counter: ['bread', 'fruit', 'register'], plant: 'olive', kitchen: true },
+  terrazza: { goods: ['wine', 'glasses', 'plates'], pics: ['coast'], pend: 'bell', shade: 'W', table: 'it', counter: ['vase', 'register', 'fruit'], plant: 'palm', mirror: true },
+};
+
+/**
+ * The finish on a restaurant's room, from the dining kit: the walls dressed (a shelf high up, majolica plates,
+ * pictures of the coast and the lemon groves, a clock, a mirror or a menu board), a light over every table and the
+ * table laid, the counter's ends set out, the cook's line under the back shelves, a big plant in each front corner,
+ * a mat inside the door and a moulding under the ceiling.
+ */
+function eateryDress(b: Builder, c: AC, lt: LotPlan, L: ReturnType<typeof eateryLayout>, get: Dine['get'], set: Dine['set']): void {
+  const id = lt.food!;
+  // (Funchal's places borrow the furnishing of the Amalfi room they are laid out like: EAT_LOOK)
+  const dr = EAT_DRESS[EAT_LOOK[id] ?? id];
+  if (!dr) return;
+  const { W, D, mid, ca0, ca1, cd0 } = L;
+  const R: Dine = { b, A0: 1, A1: W - 2, D0: 1, D1: D - 2, top: 10, floorY: L.floorY, seed: lt.seed, get, set, m: L.P };
+  const k = dineColors(b.pal);
+  const plates: [number, number][] = dr.plates === 'blue' ? [[c.majolicaBlue, c.majolicaYellow], [c.majolicaBlue, c.majolicaBlue]]
+    : dr.plates === 'yellow' ? [[c.majolicaYellow, c.majolicaBlue], [c.majolicaYellow, c.majolicaGreen]]
+      : dr.plates === 'green' ? [[c.majolicaGreen, c.majolicaYellow], [c.majolicaBlue, c.majolicaGreen]]
+        : dr.plates === 'pink' ? [[c.rose, c.majolicaYellow], [c.pink, c.majolicaWhite]]
+          : dr.plates ? [[c.majolicaBlue, c.majolicaYellow], [c.majolicaYellow, c.majolicaGreen], [c.majolicaGreen, c.majolicaBlue]] : [];
+  const shade = dr.shade === 'A' ? k.shadeA : dr.shade === 'G' ? k.shadeG : k.shadeW;
+  // the cook's line first, so the walls dress round it
+  if (dr.kitchen) kitchenLine(R, k, 2, Math.min(ca1 - 1, W - 7), { body: c.majolicaWhite, top: c.marble, hood: false, rail: false, plates: false, d: D - 2 });
+  dressWalls(R, k, { goods: dr.goods, board: k.wood, pictures: dr.pics, plates: plates.length ? plates : undefined, shade, menu: dr.menu, clock: !dr.menu, mirror: dr.mirror, rail: dr.rail, only: ['L', 'R'] });
+  // the back wall over the shelves: a rail of something hanging from the beam
+  if (dr.rail && bare(R, walls(R).L, 3, 8, 9, 10)) onWall(R, walls(R).L, hangRail(k, 20, dr.rail, lt.seed), 5.5, 2.0);
+  // the tables laid, a light over each
+  const spots: [number, number][] = [];
+  for (const t of L.tables) {
+    put(R, tableTop(k, dr.table, 10, 10, ['w', 'e'], lt.seed + t.a * 7 + t.d), t.a + 1, t.d + 1, 0.75, 2);
+    spots.push([t.a + 1, t.d + 1]);
+  }
+  pendants(R, k, spots, dr.pend, shade, 2.2);
+  // the counter's ends
+  dr.counter.forEach((kind, i) => {
+    const a = i === 0 ? ca1 - 0.6 : i === 1 ? ca0 + 0.7 : ca1 - 2.4;
+    put(R, counterPiece(k, kind, lt.seed + i), a, cd0 + 1, 1.0, 0);
+  });
+  // a big plant in each front corner, a mat inside the door, the moulding round the ceiling
+  cornerPlant(R, k, 1, 1, dr.plant, k.potTerra);
+  cornerPlant(R, k, W - 3, 1, dr.plant, k.potTerra);
+  rug(R, mid - 2, 1, mid + 2, 2, [k.rugR, k.rugO, k.rugC], 'border');
+  // a bench under each front window with pots of geraniums and herbs
+  windowBench(R, k, 3, mid - 5, c.door, c.marble);
+  windowBench(R, k, mid + 5, W - 4, c.door, c.marble);
+  cornice(R, c.sill);
+}
+
 
 // ---------------------------------------------------------------------------------------------- hotels
 

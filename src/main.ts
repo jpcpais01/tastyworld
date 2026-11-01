@@ -1582,8 +1582,10 @@ class Game {
     this.player.position.set(a.spawn[0], this.navWorld.heightAt(a.spawn[0], a.spawn[2]), a.spawn[2]);
     this.player.facing = this.player.targetFacing = Math.PI * 0.25;
     this.cam.setOrbit(0);
-    this.cam.target.set(a.spawn[0], 1.0, a.spawn[2]);
-    this.cam.zoom = this.r.isMobile ? 4.2 : 3.4;
+    // on a tall phone screen the panel fills the bottom half: frame the body in the top half instead
+    const tall = window.innerHeight > window.innerWidth * 1.2;
+    this.cam.target.set(a.spawn[0], tall ? -0.95 : 1.0, a.spawn[2]);
+    this.cam.zoom = tall ? 6.6 : this.r.isMobile ? 4.2 : 3.4;
     this.cam.snap();
     const restore = life.look;
     // the mirror wants light: hold the sky at the last of the sunset, neon already on, until you step out

@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.27',
+    date: '2026-11-01',
+    title: '2040: creator on phones',
+    items: [
+      'On a phone held upright, the 2040 character creator now frames your whole body above the panel, so you can see every change you make.',
+    ],
+  },
+  {
     version: '0.20.26',
     date: '2026-11-01',
     title: '2040: the opening shot',

@@ -22,6 +22,18 @@ export const PATCH_NOTES: PatchNote[] = [
     ],
   },
   {
+    version: '0.17.18',
+    date: '2026-11-01',
+    title: 'Restaurants worth sitting down in',
+    items: [
+      'Every restaurant, café, izakaya, kissaten, soba shop, bakery, lokanta, kahve and sweet shop in Tokyo, Amalfi and Istanbul has been furnished from scratch to the same level: laid tables with plates, cutlery, glasses, bread, wine, tea or coffee, hanging lights over the tables, shelves of bottles and jars, menus, clocks, mirrors, pictures, plates on the walls, rugs, big potted plants and window seats.',
+      'Each kitchen behind the counter is now a working one, with hobs, sinks, hoods, pans on rails and stacks of plates, and the counters carry tills, cake stands, coffee machines, fruit and bread.',
+      'Tokyo izakayas have a tatami back room with low tables and cushions, cafés and kissatens open into a second seating room with a bookcase, and bakeries show their bakehouse with oven and bread racks.',
+      'Amalfi trattorias have majolica plates on the walls, garlands and hanging herbs; Istanbul\'s lokantas, kahves and pide shops have İznik tile bands, copper lanterns, kilims, tavla boards and nargiles; Tokyo has paper lanterns, beer crates and kamidana shrine shelves.',
+      'The three hidden places are fully laid too, with place settings at the counter, pendant lights and two small tables.',
+    ],
+  },
+  {
     version: '0.17.17',
     date: '2026-11-01',
     title: 'Real houses on the hills round Amalfi',

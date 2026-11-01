@@ -12,6 +12,7 @@ import {
   postBox, trafficMirror, bollard, scooter, aFrame, binCorner, flowerStand, bookCart, fishDisplay, breadShelf, jizo, meters,
   billboard, antenna, planterBox, cafeTable,
 } from './props';
+import { hiddenKitchenDress } from './dining';
 import { buildFood, FoodId } from './food';
 import { buildCity, hillAt } from './city';
 import { tokyoBeyond, beyondCell } from './tokyoEdge';
@@ -1884,6 +1885,7 @@ function buildInterior(b: Builder, anchors: Anchors): BuildResult['interior'] {
   // food on the counter
   place(buildFood('nigiri', b.pal), 22.5 * V, 1.0, 24 * V, 2);
   place(buildFood('tamagoyaki', b.pal), 31.5 * V, 1.0, 24 * V, 2);
+  hiddenKitchenDress({ pal: b.pal, g, place, lamp, G, style: 'jp', wood: c.woodDark, top: c.lacquerDark, cushion: [c.lacquer, b.ic.zabutonB], seed: 1821 });
   // entrance door frame (front-right open side)
   g.box(56, G, 44, 63, G + 12, 47, c.cedar);
   g.box(58, G, 44, 61, G + 9, 44, c.shoji);

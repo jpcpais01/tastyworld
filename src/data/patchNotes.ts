@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.31',
+    date: '2026-11-01',
+    title: '2040: strangers love your cat',
+    items: [
+      'When your cat sits at your feet, people walking past sometimes stop, crouch down and make a fuss of it.',
+    ],
+  },
+  {
     version: '0.20.30',
     date: '2026-11-01',
     title: '2040: a cat of your own',

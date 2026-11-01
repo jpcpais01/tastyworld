@@ -261,6 +261,8 @@ class Game {
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
   private cats: Cat[] = [];
+  /** Where your 2040 cat sits, for passers-by to fuss over. */
+  private petSpot = { x: 0, z: 0, lines: NEO_REMARKS.pet };
   /** Funchal's cable car to Monte: its line and the cabins running up and down it. */
   private cable: { line: CableLine; len: number[]; total: number; t: number; cabins: Actor[] } | null = null;
   /** A pod of dolphins working the bay off Funchal, leaping now and then. */
@@ -2919,6 +2921,12 @@ class Game {
 
   private updateCats(dt: number): void {
     const mine = NEO ? this.lifeSys.cat : undefined;
+    if (NEO && this.crowd) {
+      const c = mine !== undefined ? this.cats[mine] : undefined, p = c?.actor.position;
+      const spot = this.petSpot;
+      if (p) { spot.x = p.x; spot.z = p.z; }
+      this.crowd.pettable = c && c.actor.anim === 'sit' && !this.upstairs ? spot : null;
+    }
     for (let i = 0; i < this.cats.length; i++) {
       const c = this.cats[i];
       const a = c.actor, p = a.position;

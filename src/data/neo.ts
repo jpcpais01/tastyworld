@@ -503,5 +503,6 @@ export const NEO_REMARKS = {
   rain: ['Nice umbrella. Mine glows the wrong colour.', 'Rain never stops for long here. Ten minutes, tops.', 'The street shines when it rains. Look down sometimes.'],
   late: ['Night owl too, hm?', 'The Halo sings at midnight. Did you hear it yet?', 'Nothing good opens after three. Except everything.'],
   cat: ['Is that your cat? It walks like it owns the street.', 'Your cat just gave me a look. Rude.', 'Hey kitty kitty. No? Fine.', 'Strays never follow anyone. What did you feed it?'],
+  pet: ['Who is a good kitty? You are.', 'Oh, look at you. Hello, little one.', 'Soft! So soft. Is it chipped? It is not chipped.', 'Hey, gorgeous. Got anything for me? No? Same.', 'You lucky thing, someone loves you.'],
   famous: ['Wait, are you the one who keeps finding things?', 'People talk about you on the Mile, you know.', 'You. You are the one asking about the Halo.'],
 };

@@ -262,6 +262,10 @@ export class Crowd {
   spectacle: { x: number; z: number; r: number; id: number } | null = null;
   private filmed = new Map<Walker, number>();
   private specT = 0;
+  /** A pet sitting at the player's feet (2040's cat): a passer-by brushing past may crouch to make a fuss of it. */
+  pettable: { x: number; z: number; lines: string[] } | null = null;
+  private fussed = new WeakSet<Walker>();
+  private fussT = 0;
   private remarkT = 12;
   private nodes: V2[];
   private zones: string[];
@@ -681,6 +685,7 @@ export class Crowd {
     this.meetings(dt);
     this.remarkT -= dt;
     if (this.spectacle && (this.specT -= dt) <= 0) this.watch();
+    if (this.pettable && (this.fussT -= dt) <= 0) this.fuss(pl);
     this.overhear(dt, pl);
     this.boats?.update(dt, hour);
     this.exercise?.update(dt, hour);
@@ -1636,6 +1641,24 @@ export class Crowd {
       this.filmed.set(w, sp.id);
       w.doing = { k: 'wait', t: rnd(6, 14), anim: Math.random() < 0.75 ? 'photo' : 'idle', face: Math.atan2(dx, dz) };
       w.actor.hold = 'none';
+    }
+  }
+
+  /** Someone walking right past the pet stops, crouches beside it for a few seconds and says something to it. */
+  private fuss(pl: CrowdPlayer): void {
+    this.fussT = 0.4;
+    const pt = this.pettable!;
+    for (const w of this.walkers) {
+      if (w.hidden || w.lead || w.ride || w.pet || w.ring >= 0 || w.run || w.doing || w.mode !== 'foot' || this.fussed.has(w)) continue;
+      const p = w.actor.position, dx = pt.x - p.x, dz = pt.z - p.z;
+      if (dx * dx + dz * dz > 1.7 * 1.7) continue;
+      this.fussed.add(w);
+      if (Math.random() < 0.6) continue;
+      w.doing = { k: 'wait', t: rnd(3, 5), anim: 'kneel', face: Math.atan2(dx, dz) };
+      w.actor.hold = 'none';
+      this.say(`fuss-${this.walkers.indexOf(w)}`, pick(pt.lines), p, 2.6, pl);
+      this.fussT = 12;
+      return;
     }
   }
 

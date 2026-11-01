@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.3',
+    date: '2026-11-01',
+    title: '2040: rain and sky traffic',
+    items: [
+      'Rain comes to Halcyon. Showers roll in and out through the day, heavier after dark, each day with its own weather. Step under a roof or into a building and it stops.',
+      'Flying cars now run on seven sky lanes over the avenues, the rings and the canal: white lights ahead, red behind, thrusters glowing underneath, in three liveries.',
+    ],
+  },
+  {
     version: '0.20.2',
     date: '2026-11-01',
     title: '2040: Helix Dynamics and Orbit Mall',

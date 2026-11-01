@@ -48,6 +48,8 @@ import { neoTitle } from './neo/title';
 import { openCreator } from './neo/creator';
 import { Vitals } from './neo/vitals';
 import { NeoLifeSys } from './neo/life';
+import { Rain } from './neo/rain';
+import { SkyTraffic } from './neo/skytraffic';
 import { neoShop } from './neo/roles';
 import { defaultLife } from './neo/state';
 import { nightAt, dropLanding, endLanding } from './ui/arrival';
@@ -580,6 +582,7 @@ class Game {
     this.blobs = new Blobs(this.r.scene, 160);
     if (a.koiArea) this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, a.petals);
+    if (NEO) { this.rain = new Rain(this.r); this.skyCars = new SkyTraffic(this.worldGroup as unknown as THREE.Scene, this.r); }
     this.beams = new SkylightBeams(this.r, a.shafts ?? []);
     (a.warm ?? []).slice(0, 3).forEach(([x0, z0, x1, z1, top], i) => { this.r.shared.uWarm.value[i].set(x0, z0, x1, z1); this.r.shared.uWarmTop.value.setComponent(i, top); });
     this.beacon = new Beacon(this.r.scene);
@@ -1491,6 +1494,10 @@ class Game {
   // ------------------------------------------------------------------ 2040
   private vitals: Vitals | null = null;
   private lifeSysV: NeoLifeSys | null = null;
+  /** Halcyon's showers. */
+  private rain: Rain | null = null;
+  /** Flying cars along the sky lanes. */
+  private skyCars: SkyTraffic | null = null;
   /** 2040's life sim (built on first use, once the world's anchors exist). */
   private get lifeSys(): NeoLifeSys {
     return (this.lifeSysV ??= new NeoLifeSys({
@@ -3108,7 +3115,9 @@ class Game {
     sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi?.update(sh.uTime.value);
+    this.skyCars?.update(dt, sh.uTime.value);
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
+    if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);
     this.perf.lap('effects');
     this.updateGuide(dt);

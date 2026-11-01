@@ -36,7 +36,7 @@ export interface CharModel {
 export interface Look {
   skin: number;
   hair: number;
-  hairStyle: 'short' | 'bob' | 'bun' | 'long' | 'bald' | 'spiky' | 'ponytail';
+  hairStyle: 'short' | 'bob' | 'bun' | 'long' | 'bald' | 'spiky' | 'ponytail' | 'afro' | 'braids' | 'mohawk' | 'undercut';
   top: number;
   topStyle: 'tee' | 'jacket' | 'apron' | 'yukata' | 'suit' | 'sailor' | 'vest' | 'cardigan' | 'happi';
   accent: number;
@@ -66,6 +66,12 @@ export interface Look {
   tattoo?: number;
 }
 
+const mixHex = (a: number, b: number, t: number) => {
+  let o = 0;
+  for (const s of [16, 8, 0]) o |= Math.round(((a >> s) & 255) * (1 - t) + ((b >> s) & 255) * t) << s;
+  return o;
+};
+
 const SKINS = [0xf6d2b4, 0xeec39f, 0xe0ac86, 0xc98f6a, 0xa8714f, 0xf9dcc4];
 const HAIRS = [0x1d1a1c, 0x2a1d17, 0x3b2a20, 0x5a3b26, 0x8a5a36, 0x6b6b70, 0xb9b6b0, 0x1d1a1c, 0x2a1d17];
 const TOPS = [0xe8e4da, 0x3f6e9a, 0xd9534a, 0x4f9a6b, 0xf2c74a, 0x8a6fb0, 0x2b3a62, 0xf08ac0, 0x6a8a9a, 0xd98a5a, 0x2f2f35, 0xf4f1ea];
@@ -75,7 +81,10 @@ const SHOES = [0x2a2a2e, 0xf2efe7, 0x6b4630, 0xc9463d, 0x3f6e9a];
 export function randomLook(seed: number): Look {
   const r = rng(seed);
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
-  const hairStyles: Look['hairStyle'][] = ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald'];
+  // Halcyon's crowd wears more of the styles the 2040 creator offers
+  const hairStyles: Look['hairStyle'][] = NEO
+    ? ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald', 'afro', 'braids', 'mohawk', 'undercut', 'undercut']
+    : ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald'];
   // a summer coast dresses lighter than a Tokyo street: tees and linen, shorts, straw hats and sunglasses
   const topStyles: Look['topStyle'][] = perCity({ tokyo: ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'], amalfi: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], istanbul: ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'], madeira: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], neo: ['jacket', 'jacket', 'jacket', 'tee', 'suit', 'vest', 'jacket', 'cardigan', 'tee'] });
   const topStyle = pick(topStyles);
@@ -269,7 +278,44 @@ function coarsePerson(look: Look): { model: CharModel; ink: Ink } {
 
   // hair
   const hs = look.hairStyle;
-  if (hs !== 'bald') {
+  if (hs === 'mohawk') {
+    // shaved sides with a short shadow of regrowth, a tall crest from brow to nape
+    const shade = C(mixHex(look.skin, look.hair, 0.35), 0.03);
+    box(2, 18, 1, 2, 20, 4, shade, PART.head); box(7, 18, 1, 7, 20, 4, shade, PART.head);
+    box(4, 21, 1, 5, 23, 6, hair, PART.head);
+    box(4, 24, 2, 5, 24, 5, hair, PART.head);
+    box(4, 16, 1, 5, 20, 1, hair, PART.head);
+  } else if (hs === 'undercut') {
+    // clipped sides and back, a long top swept over to the right and down past the brow
+    const shade = C(mixHex(look.skin, look.hair, 0.4), 0.03);
+    box(2, 17, 1, 2, 20, 4, shade, PART.head); box(7, 17, 1, 7, 20, 4, shade, PART.head);
+    box(2, 16, 1, 7, 20, 1, shade, PART.head);
+    box(2, 21, 1, 7, 22, 6, hair, PART.head);
+    box(3, 23, 2, 7, 23, 6, hair, PART.head);
+    box(5, 21, 7, 8, 21, 7, hair, PART.head);
+    box(8, 19, 2, 8, 22, 6, hair, PART.head);
+  } else if (hs === 'afro') {
+    // a full round crown of curls, clear of the face
+    box(1, 19, 0, 8, 23, 5, hair, PART.head);
+    box(2, 24, 1, 7, 24, 5, hair, PART.head);
+    box(2, 21, 6, 7, 23, 6, hair, PART.head);
+    box(0, 19, 1, 0, 22, 4, hair, PART.head); box(9, 19, 1, 9, 22, 4, hair, PART.head);
+    box(2, 17, 0, 7, 18, 1, hair, PART.head);
+    for (const [x, z] of [[1, 0], [8, 0], [1, 5], [8, 5]] as [number, number][]) { grid.set(x, 23, z, 0); parts[23 * W * D + z * W + x] = 0; }
+  } else if (hs === 'braids') {
+    // a neat cap of hair and a curtain of long braids down the back and over the shoulders, beads at the tips
+    box(2, 21, 1, 7, 22, 6, hair, PART.head);
+    box(2, 16, 1, 7, 21, 1, hair, PART.head);
+    box(2, 18, 1, 2, 21, 4, hair, PART.head); box(7, 18, 1, 7, 21, 4, hair, PART.head);
+    box(2, 21, 6, 7, 21, 6, hair, PART.head);
+    const bead = C(look.accent, 0.02);
+    for (let x = 2; x <= 7; x++) {
+      const end = 10 + ((x * 7) % 3);
+      box(x, end, 0, x, 20, 0, hair, PART.head);
+      if (x % 2 === 0) set(x, end - 1, 0, bead, PART.head);
+    }
+    for (const x of [1, 8]) { box(x, 13, 2, x, 21, 2, hair, PART.head); set(x, 12, 2, bead, PART.head); }
+  } else if (hs !== 'bald') {
     box(2, 21, 1, 7, 22, 6, hair, PART.head);
     box(2, 16, 1, 7, 21, 1, hair, PART.head);
     box(2, 18, 1, 2, 21, 4, hair, PART.head); box(7, 18, 1, 7, 21, 4, hair, PART.head);

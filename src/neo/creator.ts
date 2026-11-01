@@ -19,7 +19,8 @@ const NEON = [0x2ad8ff, 0xff5fb4, 0xa47bff, 0xffdc5a, 0x7dffa8, 0xff9a4a, 0xf2ef
 type Opt<T> = { label: string; value: T };
 const HAIR_STYLES: Opt<Look['hairStyle']>[] = [
   { label: 'Crop', value: 'short' }, { label: 'Bob', value: 'bob' }, { label: 'Bun', value: 'bun' }, { label: 'Long', value: 'long' },
-  { label: 'Spikes', value: 'spiky' }, { label: 'Tail', value: 'ponytail' }, { label: 'Shaved', value: 'bald' },
+  { label: 'Spikes', value: 'spiky' }, { label: 'Tail', value: 'ponytail' }, { label: 'Afro', value: 'afro' }, { label: 'Braids', value: 'braids' },
+  { label: 'Mohawk', value: 'mohawk' }, { label: 'Undercut', value: 'undercut' }, { label: 'Shaved', value: 'bald' },
 ];
 const TOPS: Opt<Look['topStyle']>[] = [
   { label: 'Street jacket', value: 'jacket' }, { label: 'Tee', value: 'tee' }, { label: 'Corp suit', value: 'suit' }, { label: 'Utility vest', value: 'vest' },

@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.32',
+    date: '2026-11-01',
+    title: '2040: four new hairstyles',
+    items: [
+      'The 2040 character creator has four new hairstyles: an afro, long braids with beads at the tips, a mohawk with shaved sides, and an undercut swept to one side. Halcyon\'s crowd wears them too.',
+    ],
+  },
+  {
     version: '0.20.31',
     date: '2026-11-01',
     title: '2040: strangers love your cat',

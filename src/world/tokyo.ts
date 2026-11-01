@@ -79,6 +79,12 @@ export interface Occluder {
   claim?: [number, number, number, number];
 }
 
+/**
+ * Someone who keeps to one spot. A shopkeeper (`shop`, a trade id from data/souvenirs.ts) serves at their counter:
+ * the player walks to `stand` (metres) to browse.
+ */
+export interface Extra { pos: [number, number, number]; face: number; seed: number; indoor?: boolean; shop?: string; stand?: [number, number] }
+
 export interface Anchors {
   spawn: [number, number, number];
   stalls: StallAnchor[];
@@ -99,7 +105,7 @@ export interface Anchors {
   cats: [number, number, number][];
   /** People who keep to one spot all day (Istanbul's anglers on the bridge): where, facing which way, their look. */
   /** People who keep to one spot; `indoor` ones stand inside a shop, off the street's nav, at pos's own height. */
-  extras?: { pos: [number, number, number]; face: number; seed: number; indoor?: boolean }[];
+  extras?: Extra[];
   emitters: Emitter[];
   /** Where fireflies dance on summer nights (metres). */
   fireflies: [number, number, number][];

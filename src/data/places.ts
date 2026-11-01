@@ -5,6 +5,8 @@ import { randomLook, Look } from '../world/characters';
 import { HOTEL } from './hotels';
 import { perCity } from '../world/cityId';
 import { lira } from './money';
+import { roomTrade, tradeOf, shopIdentity } from './souvenirs';
+import { CITY } from '../world/cityId';
 
 /** Something small a shop sells over the counter. */
 export interface Buyable { icon: IconName; name: string; price: number; text: string; snack?: boolean; }
@@ -426,8 +428,18 @@ export const VENDING_PRICE = 160;
 export function roomName(kind: RoomKind, nth: number, hotel?: string): [string, string] {
   const h = hotel ? HOTEL[hotel] : undefined;
   if (h) return [h.name, h.jp];
+  const t = tradeRoom(kind, nth);
+  if (t) { const id = shopIdentity(t.trade, t.k, 0); return [id.name, id.local]; }
   const n = PLACES[kind].names;
   return n[nth % n.length];
+}
+
+/** A walk-in room that is a souvenir shop (Tokyo's general shops, bookshops and florists): its trade and its number
+ *  among that trade's shops. */
+function tradeRoom(kind: RoomKind, nth: number) {
+  const id = roomTrade(kind, nth);
+  const trade = id ? tradeOf(CITY, id) : undefined;
+  return trade ? { trade, k: kind === 'shop' ? Math.floor(nth / 5) : nth } : null;
 }
 
 export function keeperOf(kind: RoomKind, nth: number, seed: number, hotel?: string): { name: string; look: Look } {
@@ -435,5 +447,7 @@ export function keeperOf(kind: RoomKind, nth: number, seed: number, hotel?: stri
   if (h) return { name: h.keeper, look: { ...randomLook(seed), backpack: undefined, ...h.keeperLook } as Look };
   const p = PLACES[kind];
   const look = { ...randomLook(seed), backpack: undefined, ...p.keeperLook } as Look;
+  const t = tradeRoom(kind, nth);
+  if (t) return { name: shopIdentity(t.trade, t.k, 0).keeper, look: { ...look, ...t.trade.keeperLook } as Look };
   return { name: p.keepers[nth % p.keepers.length], look };
 }

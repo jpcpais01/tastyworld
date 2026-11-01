@@ -7,6 +7,7 @@ import { HOTEL, HOTELS } from './hotels';
 import { perCity } from '../world/cityId';
 import { eur, lira } from './money';
 import { MADEIRA_ITEMS } from './madeira';
+import { CITY_SOUVENIRS } from './souvenirs';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -110,7 +111,22 @@ const MADEIRA_MISSIONS: Mission[] = [
 ];
 const MADEIRA_TABLES = ['espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
 
-export const MISSIONS: Mission[] = perCity({ tokyo: TOKYO_MISSIONS, amalfi: AMALFI_MISSIONS, istanbul: ISTANBUL_MISSIONS, madeira: MADEIRA_MISSIONS });
+/** Every city's souvenir shops: a first piece to take home, a shelf of eight, and a piece the city has only one of. */
+function shopMissions(p: string, city: string, first: number, eight: number): Mission[] {
+  const mine = (s: SaveState) => CITY_SOUVENIRS.filter((it) => s.souvenirs?.[it.id] !== undefined);
+  return [
+    { id: `${p}souvenir`, name: 'Something to Remember', desc: `Buy your first souvenir in ${city}.`, progress: (s) => [Math.min(1, mine(s).length), 1], reward: { yen: first } },
+    { id: `${p}collector`, name: 'Souvenir Collector', desc: `Take home eight different souvenirs from the shops of ${city}.`, progress: (s) => [Math.min(8, mine(s).length), 8], reward: { yen: eight } },
+    { id: `${p}treasure`, name: 'One of a Kind', desc: `Find a piece nobody else in ${city} sells, and make it yours. Shopkeepers know who has what.`, progress: (s) => [mine(s).some((it) => it.tier === 'treasure') ? 1 : 0, 1], reward: { title: 'Treasure Hunter' } },
+  ];
+}
+
+export const MISSIONS: Mission[] = perCity({
+  tokyo: [...TOKYO_MISSIONS, ...shopMissions('', 'Tokyo', 2000, 6000)],
+  amalfi: [...AMALFI_MISSIONS, ...shopMissions('a-', 'Amalfi', eur(15), eur(40))],
+  istanbul: [...ISTANBUL_MISSIONS, ...shopMissions('i-', 'Istanbul', lira(500), lira(1500))],
+  madeira: [...MADEIRA_MISSIONS, ...shopMissions('m-', 'Madeira', eur(15), eur(40))],
+});
 /** The mission for the hidden restaurant, which stays secret until its door is found. */
 export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret', madeira: 'm-secret' });
 

@@ -852,6 +852,8 @@ uniform float uSaturation;
 uniform float uVignette;
 uniform float uFade;
 uniform vec4 uWaterBounds;
+uniform float uWet;         // 0..1: rain-wet streets at y = uWetY mirror what stands on them (2040)
+uniform float uWetY;
 uniform float uSea;         // 1: open sea (no current, long swell, foam on the beach), 0: Tokyo's canal
 uniform sampler2D tShore;   // signed distance to the water's edge (see computeShore)
 uniform vec4 uShoreRect;    // origin x, z and 1 / extent x, z (metres)
@@ -1089,6 +1091,54 @@ void main() {
       water = mix(water, uFogColor, 1.0 - exp(-fd * fd));
     }
     col = water;
+  } else if (uWet > 0.0 && abs(wpos.y - uWetY) < 0.03) {
+    // a rain-wet street: the paving darkens, and in the puddles and the sheen the neon above is mirrored
+    // (screen-space, like the water: what is not on screen falls back to the night sky)
+    float pud = smoothstep(0.45, 0.7, vnoise(wpos.xz * 0.32) * 0.7 + vnoise(wpos.xz * 1.1) * 0.3);
+    // a slow, gentle unevenness (fine noise here would speckle the mirror image pixel by pixel)
+    vec2 rip = vec2(vnoise(wpos.xz * 1.7 + uTime * 0.25), vnoise(wpos.zx * 1.7 - uTime * 0.2)) - 0.5;
+    vec3 nrm = normalize(vec3(rip.x * mix(0.05, 0.015, pud), 1.0, rip.y * mix(0.05, 0.015, pud)));
+    vec3 refl = reflect(rd, nrm);
+    vec3 rcol = skyColor(refl) * 0.5;
+    float hitW = 0.0;
+    if (uSSR > 0.0) {
+      float stepLen = 0.15;
+      vec3 rp = wpos + nrm * 0.02, prev = rp;
+      for (int i = 0; i < 18; i++) {
+        prev = rp;
+        rp += refl * stepLen;
+        stepLen *= 1.24;
+        vec4 clip = uViewProj * vec4(rp, 1.0);
+        vec2 suv = clip.xy / clip.w * 0.5 + 0.5;
+        if (suv.x < 0.0 || suv.y < 0.0 || suv.x > 1.0 || suv.y > 1.0) break;
+        float sd = texture(tDepth, suv).r;
+        float rz = clip.z / clip.w * 0.5 + 0.5;
+        if (sd < rz && linZ(rz, uClip) - linZ(sd, uClip) < (uClip.z > 0.5 ? 1.2 : 8.0)) {
+          // close in on the surface the ray went behind, so the mirror image keeps its edges
+          vec3 lo = prev, hi = rp;
+          for (int j = 0; j < 4; j++) {
+            vec3 mid = (lo + hi) * 0.5;
+            vec4 mc = uViewProj * vec4(mid, 1.0);
+            vec2 mu = mc.xy / mc.w * 0.5 + 0.5;
+            if (texture(tDepth, mu).r < mc.z / mc.w * 0.5 + 0.5) hi = mid; else lo = mid;
+          }
+          vec4 hc = uViewProj * vec4(hi, 1.0);
+          suv = hc.xy / hc.w * 0.5 + 0.5;
+          vec3 hp = worldAt(suv, texture(tDepth, suv).r);
+          if (hp.y > uWetY + 0.05) {
+            vec2 edgeF = smoothstep(vec2(0.0), vec2(0.08), suv) * smoothstep(vec2(0.0), vec2(0.08), 1.0 - suv);
+            // tall things fade out of the puddle: a wet street mirrors what is near it most clearly
+            hitW = edgeF.x * edgeF.y * (1.0 - float(i) / 18.0) * mix(1.0, 0.45, smoothstep(1.0, 14.0, hp.y - uWetY));
+            rcol = mix(rcol, texture(tScene, suv).rgb, hitW);
+          }
+          break;
+        }
+      }
+    }
+    float cosT = clamp(dot(-rd, nrm), 0.0, 1.0);
+    float fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
+    float k = uWet * mix(0.22, 0.62, pud) * clamp(fres * 2.5 + 0.35, 0.0, 1.0);
+    col = mix(col * mix(1.0, 0.7, uWet * (0.4 + 0.6 * pud)), rcol, k);
   } else if (wpos.y < uWaterY + 0.4 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w) {
     // wet stone just above the waterline, with a waterline that rises and falls with the lapping
     float sdw = shoreDist(wpos.xz);

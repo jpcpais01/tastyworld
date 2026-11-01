@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.19',
+    date: '2026-11-01',
+    title: '2040: wet streets',
+    items: [
+      'Halcyon\'s streets are never quite dry. The pavement now has a rain sheen that mirrors the neon, the Halo, the umbrellas and the people walking over it, with deeper puddles here and there. In a shower it gets wetter and shinier, and it dries slowly after.',
+    ],
+  },
+  {
     version: '0.20.18',
     date: '2026-11-01',
     title: '2040: people notice you',

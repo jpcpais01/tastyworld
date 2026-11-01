@@ -1518,6 +1518,8 @@ class Game {
   private skyCars: SkyTraffic | null = null;
   private drones: Drones | null = null;
   private droneNight = 0;
+  private wet = 0.3;
+  private wetY: number | null = null;
   private umbrellas: Umbrellas | null = null;
   private holo: Hologram | null = null;
   private songT = 0;
@@ -3205,7 +3207,15 @@ class Game {
     } else this.lookUpT = 0;
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     if (this.rain) this.audio.rain(this.rain.amount, !!(this.inside || this.upstairs || this.roomHere));
-    if (this.rain) this.rain.ground = this.player.position.y;
+    if (this.rain) {
+      this.rain.ground = this.player.position.y;
+      // Halcyon's streets are never quite dry: a sheen always, puddles and mirrored neon in a shower, drying slowly after
+      const tgt = Math.max(0.3, this.rain.amount), k = tgt > this.wet ? 0.3 : 0.01;
+      this.wet += (tgt - this.wet) * Math.min(1, dt * k);
+      const cu = this.r.composite.uniforms, out = !this.inside && !this.upstairs && !this.roomHere;
+      cu.uWet.value = out ? this.wet : 0;
+      cu.uWetY.value = this.wetY ??= this.navWorld.heightAt(this.w.anchors.spawn[0], this.w.anchors.spawn[2]);
+    }
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);
     this.perf.lap('effects');

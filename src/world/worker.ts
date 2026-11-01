@@ -1,6 +1,11 @@
 /// <reference lib="webworker" />
 import { WorldPart, PartInit } from './bake';
 import type { MeshData } from './mesher';
+import type { FarLot } from './farTiles';
+import { AMALFI } from './cityId';
+
+// the villages round Amalfi are baked by a worker of their own (engine/fartown.ts), imported only there
+let farTown: Promise<import('./amalfiFar').FarTown> | null = null;
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -8,13 +13,17 @@ declare const self: DedicatedWorkerGlobalScope;
 export type WorkerIn =
   | { type: 'init'; part: number; parts: number }
   | { type: 'mesh'; id: number; ix: number; iz: number; lod: number }
-  | { type: 'owners'; id: Uint16Array };
+  | { type: 'owners'; id: Uint16Array }
+  /** The houses on the slopes outside the map: lay them out, then mesh tiles of them at a level of detail. */
+  | { type: 'farInit'; lots: FarLot[] }
+  | { type: 'farMesh'; id: number; tiles: number[]; lod: number };
 
 /** Messages a world worker sends back. */
 export type WorkerOut =
   | { type: 'progress'; stage: string; f: number }
   | { type: 'ready'; init: PartInit }
-  | { type: 'mesh'; id: number; ix: number; iz: number; lod: number; mesh: MeshData | null };
+  | { type: 'mesh'; id: number; ix: number; iz: number; lod: number; mesh: MeshData | null }
+  | { type: 'farMesh'; id: number; meshes: { mesh: MeshData; home: Float32Array }[] };
 
 const meshBuffers = (m: MeshData, out: Transferable[]) => {
   out.push(m.positions.buffer, m.attrs.buffer, m.indices.buffer, m.sway.buffer);
@@ -23,9 +32,16 @@ const meshBuffers = (m: MeshData, out: Transferable[]) => {
 
 let part: WorldPart | null = null;
 
-self.onmessage = (e: MessageEvent<WorkerIn>) => {
+self.onmessage = async (e: MessageEvent<WorkerIn>) => {
   const msg = e.data;
-  if (msg.type === 'init') {
+  if (msg.type === 'farInit' && AMALFI) {
+    farTown = import('./amalfiFar').then((m) => new m.FarTown(msg.lots));
+  } else if (msg.type === 'farMesh' && farTown) {
+    const meshes = (await farTown).mesh(msg.tiles, msg.lod);
+    const tr: Transferable[] = [];
+    for (const m of meshes) { meshBuffers(m.mesh, tr); tr.push(m.home.buffer); }
+    self.postMessage({ type: 'farMesh', id: msg.id, meshes } satisfies WorkerOut, tr);
+  } else if (msg.type === 'init') {
     let last = 0;
     part = new WorldPart(msg.part, msg.parts);
     const init = part.init((stage, f) => {

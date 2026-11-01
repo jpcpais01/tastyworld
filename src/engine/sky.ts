@@ -42,6 +42,10 @@ const LOOKS: Record<string, Look> = {
     mie: 0.75, glow: [0.006, 0.0045, 0.005], stars: 0.011, milkyWay: 1,
     cloud: { base: 1150, cell: 52, layers: 5, cover: 0.22, fade: 15000 }, backdrop: null, farHaze: 1 / 60000,
   },
+  madeira: {
+    mie: 0.85, glow: [0.012, 0.009, 0.01], stars: 0.008, milkyWay: 0.7,
+    cloud: { base: 950, cell: 44, layers: 6, cover: 0.3, fade: 13000 }, backdrop: null, farHaze: 1 / 55000,
+  },
   istanbul: {
     mie: 1.35, glow: [0.026, 0.017, 0.016], stars: 0.0045, milkyWay: 0,
     cloud: { base: 360, cell: 22, layers: 6, cover: 0.28, fade: 6500 }, backdrop: null, farHaze: 1 / 40000,

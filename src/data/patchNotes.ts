@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.20',
+    date: '2026-11-01',
+    title: '2040: the docks after dark',
+    items: [
+      'The Rust Docks come alive at night. Floodlights hang under the crane booms with red beacons on top. Sodium light masts line the container yards and the dock streets glow orange. People have made homes in the top containers, with lit windows and a strip of neon over each, and the reefers blink green on their ends.',
+    ],
+  },
+  {
     version: '0.20.19',
     date: '2026-11-01',
     title: '2040: wet streets',

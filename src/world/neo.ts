@@ -37,6 +37,7 @@ function neoColors(b: Builder) {
     rustRed: a(0x7a3e2c, 0.08), rustBrown: a(0x5a3a2a, 0.08), maroon: a(0x5a2a32, 0.05), navy: a(0x2a3248, 0.05), plum: a(0x3e2e48, 0.05),
     blackGlass: a(0x1c2430, 0.03, { glass: true }), blueGlass: a(0x2a4058, 0.04, { glass: true }), litGlass: a(0x7fa6c8, 0.04, { emit: 0.75, night: true, glass: true }),
     corrugated: a(0x6a7074, 0.06), corrugatedB: a(0x58606a, 0.06), container: [a(0xb0432e, 0.04), a(0x2e6a9a, 0.04), a(0xd8a63a, 0.04), a(0x3e7a4e, 0.04), a(0x8a8e92, 0.04), a(0x6a3a7a, 0.04)],
+    beacon: a(0xff2a2a, 0.02, { emit: 1 }), flood: a(0xfff0d0, 0.02, { emit: 1 }), sodium: a(0xffb060, 0.02, { emit: 1 }), ledG: a(0x4aff7a, 0.02, { emit: 1 }),
     steel: a(0x6a7078, 0.04), steelDark: a(0x3a3e44, 0.04), yellowSteel: a(0xd8a830, 0.04), chrome: a(0xb8c0c8, 0.03),
     neon: [a(0xff4fa8, 0.02, { emit: 1 }), a(0x46e8ff, 0.02, { emit: 1 }), a(0xa070ff, 0.02, { emit: 1 }), a(0xffd84a, 0.02, { emit: 1 }), a(0x6dff9a, 0.02, { emit: 1 }), a(0xff7a3a, 0.02, { emit: 1 })],
     screen: [a(0x3a5aff, 0.08, { emit: 0.85 }), a(0xff4fa8, 0.08, { emit: 0.85 }), a(0x46e8ff, 0.08, { emit: 0.85 }), a(0xfff0c8, 0.05, { emit: 0.9 })],
@@ -437,6 +438,16 @@ function crane(b: Builder, n: NC, x: number, z: number) {
   g.box(X - 30, G + 40, Z + 6, X - 30, G + 65, Z + 6, n.steelDark);
   g.box(X - 33, G + 36, Z + 3, X - 27, G + 39, Z + 9, n.container[1]);
   b.lamp(x + 2, 16.5, z + 1.5, [1, 0.3, 0.2], 4, 0.6);
+  // red warning beacons on the frame and both ends of the boom, for the sky traffic
+  for (const [bx, bz] of [[0, 0], [16, 12]]) g.box(X + bx, G + 66, Z + bz, X + bx, G + 66, Z + bz, n.beacon);
+  g.box(X - 40, G + 68, Z + 6, X - 40, G + 68, Z + 7, n.beacon); g.box(X + 30, G + 68, Z + 6, X + 30, G + 68, Z + 7, n.beacon);
+  // floodlights under the boom wash the yard and the quay below
+  for (const fx of [-34, -18, 20]) {
+    g.box(X + fx, G + 65, Z + 5, X + fx + 1, G + 65, Z + 8, n.flood);
+    b.lamp((X + fx) * V + 0.25, 14, (Z + 6.5) * V, [1, 0.92, 0.75], 16, 0.7);
+  }
+  // the operator's cab is lit
+  g.box(X + 4, G + 58, Z + 2, X + 4, G + 61, Z + 10, n.litGlass);
   b.occlude(X - 40, Z, X + 30, Z + 13, 17.5, 2, 'landmark');
 }
 
@@ -448,7 +459,20 @@ function containers(b: Builder, n: NC, x0: number, z0: number, x1: number, z1: n
       const h = 1 + Math.floor(r() * 3);
       for (let l = 0; l < h; l++) {
         const col = n.container[Math.floor(r() * n.container.length)];
-        g.box(x, G + l * 10, z, x + 23, G + l * 10 + 9, z + 9, (xx, yy) => ((xx - x) % 3 === 0 ? n.steelDark : yy === G + l * 10 + 9 ? n.steel : col));
+        const y0 = G + l * 10;
+        g.box(x, y0, z, x + 23, y0 + 9, z + 9, (xx, yy) => ((xx - x) % 3 === 0 ? n.steelDark : yy === y0 + 9 ? n.steel : col));
+        const top = l === h - 1, roll = r();
+        if (top && l > 0 && roll < 0.3) {
+          // someone lives up here: a window cut in each long side, lit from inside, a strip of neon over it
+          for (const zz of [z, z + 9]) {
+            g.box(x + 6, y0 + 3, zz, x + 15, y0 + 6, zz, n.litGlass);
+            g.box(x + 6, y0 + 7, zz, x + 15, y0 + 7, zz, n.neon[Math.floor(r() * 6)]);
+          }
+          g.box(x + 23, y0 + 1, z + 3, x + 23, y0 + 7, z + 6, n.steelDark);
+        } else if (roll < 0.45) {
+          // a reefer: its status panel blinks green on the end
+          g.box(x + 23, y0 + 5, z + 4, x + 23, y0 + 5, z + 5, n.ledG);
+        }
       }
       b.block((x) * V, z * V, (x + 24) * V, (z + 10) * V);
     }
@@ -519,7 +543,7 @@ function furnish(b: Builder, n: NC, vending: [number, number, number][]) {
         }
         if (pickI === 0 || pickI === 5) {
           b.place(streetLamp(k), wx, 0, wz, face);
-          b.lamp(wx, 3.6, wz, pickI ? COOL : [0.85, 0.75, 1], 8, 0.9);
+          b.lamp(wx, 3.6, wz, wx > 136 ? [1, 0.7, 0.42] : pickI ? COOL : [0.85, 0.75, 1], 8, 0.9);
           b.block(wx - 0.25, wz - 0.25, wx + 0.25, wz + 0.25);
         } else if (pickI === 2) {
           b.place(holoPole(b, n, i), wx, 0, wz, face);
@@ -633,6 +657,17 @@ export function buildNeo(win?: Window): BuildResult {
   for (const [x0, z0, x1, z1] of YARDS) {
     containers(b, n, x0 + 2, z0 + 3, x1 - 9, z1 - 3, x0 * 7 + z0);
     crane(b, n, x1 - 8, (z0 + z1) / 2 - 2);
+    // sodium light masts down the yard's street side
+    for (let z = z0 + 8; z < z1 - 4; z += 18) {
+      const mx = x0 + 1.25, mz = z;
+      const X = M(mx), Z = M(mz);
+      b.grid.box(X, G, Z, X, G + 47, Z, n.steelDark);
+      b.grid.box(X - 1, G + 48, Z - 2, X + 1, G + 48, Z + 2, n.steelDark);
+      b.grid.box(X - 1, G + 47, Z - 2, X + 1, G + 47, Z + 2, n.sodium);
+      b.grid.set(X, G + 50, Z, n.beacon);
+      b.lamp(mx + 2, 11, mz, [1, 0.68, 0.38], 15, 0.85);
+      b.block(mx - 0.3, mz - 0.3, mx + 0.3, mz + 0.3);
+    }
   }
   // boats
   const vending: [number, number, number][] = [];

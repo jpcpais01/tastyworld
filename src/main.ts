@@ -229,7 +229,7 @@ class Game {
   /** Funchal's cable car to Monte: its line and the cabins running up and down it. */
   private cable: { line: CableLine; len: number[]; total: number; t: number; cabins: Actor[] } | null = null;
   /** Monte's toboggans sliding down to Livramento, each steered by two carreiros running behind. */
-  private sleds: { path: [number, number, number][]; runs: { t: number; sled: Actor; men: Actor[] }[]; parked?: Actor[] } | null = null;
+  private sleds: { path: [number, number, number][]; runs: { t: number; sled: Actor; men: Actor[] }[]; parked?: Actor[]; sellers?: Actor[] } | null = null;
   private chef!: Actor;
   private blobs!: Blobs;
   private koi: Koi | null = null;
@@ -745,6 +745,14 @@ class Game {
       const men = [0, 1].map((k) => { const m = new Actor(buildPerson(carreiro(7 + k)), this.chars); const mx = px + (k ? 0.9 : -0.9), mz = pz + 0.6; m.position.set(mx, this.navWorld.heightAt(mx, mz), mz); m.facing = m.targetFacing = k ? -2.2 : 2.2; m.anim = 'talk'; return m; });
       for (const a of [parked, ...men]) { this.worldGroup.add(a.root); a.update(0); a.light(this.lm); this.crowd.addObstacle(a.position.x, a.position.z); }
       this.sleds.parked = [parked, ...men];
+      // the flower sellers at the market gate in island dress: red waistcoat, red skirt, the little black carapuça
+      const florista = (i: number): Look => ({ skin: [0xd9a27a, 0xc98f6a][i % 2], hair: 0x2a2220, hairStyle: 'bun', top: 0xf4f1ea, topStyle: 'vest', accent: 0xc0242c, bottom: 0xc0242c, skirt: true, shoes: 0x2a2a2e, hat: 'beanie', hatColor: 0x1c1c20 });
+      this.sleds.sellers = ([[-2.5, 30.1, Math.PI / 2], [-1.6, 29.0, 2.4]] as const).map(([x, z, f], k) => {
+        const w = new Actor(buildPerson(florista(k)), this.chars);
+        w.position.set(x, this.navWorld.heightAt(x, z), z); w.facing = w.targetFacing = f; w.anim = k ? 'talk' : 'idle';
+        this.worldGroup.add(w.root); w.update(0); w.light(this.lm); this.crowd.addObstacle(x, z);
+        return w;
+      });
       this.updateSleds(0);
     }
 
@@ -2418,6 +2426,7 @@ class Game {
       return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, Math.atan2(b[0] - a[0], b[2] - a[2])];
     };
     for (const a of sl.parked ?? []) a.update(dt);
+    for (const a of sl.sellers ?? []) { a.root.visible = h > 8 && h < 19.5 && !this.inside && !this.upstairs; if (a.root.visible) a.update(dt); }
     for (const r of sl.runs) {
       if (open) r.t = (r.t + dt / 40) % 1;
       const [x, y, z, yaw] = at(r.t);

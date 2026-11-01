@@ -599,6 +599,35 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
     ropes.push([x - 8, y + 4, CZ - 5, x + 2, y + 5, CZ + 5, 0xa5603f, 0]);
   }
 
+  // Nossa Senhora do Monte between its two towers: a white nave framed in black basalt, its gabled front to the sea,
+  // and the long stair of grey basalt the pilgrims climb on their knees, falling away down the slope in front
+  {
+    const X0 = -538, X1 = -521, Z0 = 22.5, Z1 = 31.5, zc = (Z0 + Z1) / 2;
+    const gy = Math.min(groundAt(X0, zc), groundAt(X1, zc), groundAt(X1, Z0), groundAt(X1, Z1)) - 1, top = gy + 15;
+    ropes.push([X0, gy, Z0, X1, top, Z1, 0xf4f1ea, 0]);
+    for (const [x, z] of [[X1, Z0], [X1, Z1], [X0, Z0], [X0, Z1]]) ropes.push([x - 0.6, gy, z - 0.6, x + 0.6, top + 0.3, z + 0.6, 0x2c2a2a, 0]);
+    ropes.push([X0 - 0.3, top, Z0 - 0.3, X1 + 0.3, top + 0.6, Z1 + 0.3, 0x2c2a2a, 0]);
+    // the roof in steps of tile, and the pediment on the front stepped up to a cross
+    for (let i = 0; i < 5; i++) ropes.push([X0, top + 0.6 + i * 0.9, Z0 + i * 0.95, X1 - 0.6, top + 1.5 + i * 0.9, Z1 - i * 0.95, 0xb5643f, 0]);
+    for (let i = 0; i < 5; i++) ropes.push([X1 - 0.6, top + 0.6 + i * 0.9, Z0 + i * 0.95, X1 + 0.4, top + 1.5 + i * 0.9, Z1 - i * 0.95, i % 4 === 0 ? 0x2c2a2a : 0xf4f1ea, 0]);
+    ropes.push([X1 - 0.2, top + 5.1, zc - 0.2, X1 + 0.2, top + 7.2, zc + 0.2, 0x2c2a2a, 0]);
+    ropes.push([X1 - 0.2, top + 6.2, zc - 0.8, X1 + 0.2, top + 6.6, zc + 0.8, 0x2c2a2a, 0]);
+    // the portal and the three windows over it, dark in the white
+    ropes.push([X1, gy + 1, zc - 1.3, X1 + 0.25, gy + 5.5, zc + 1.3, 0x3a2a22, 0]);
+    ropes.push([X1, gy + 0.6, zc - 2, X1 + 0.35, gy + 6.4, zc + 2, 0x2c2a2a, 0]);
+    for (const dz of [-2.6, 0, 2.6]) ropes.push([X1, gy + 8.5, zc + dz - 0.5, X1 + 0.3, gy + 11.5, zc + dz + 0.5, 0x23354a, 0]);
+    // the stair: flights of basalt down the slope to the east, a landing at each turn
+    let y = gy + 0.4;
+    for (let x = X1 + 1; x < X1 + 34; x += 0.9) {
+      const gd = groundAt(x, zc);
+      if (gd > y + 0.5) continue;
+      const ny = Math.max(gd - 0.2, y - 0.45);
+      ropes.push([x, Math.min(ny, gd) - 1.5, zc - 2.2, x + 0.9, ny, zc + 2.2, (Math.round(x / 0.9) % 6) ? 0x55524e : 0x8a8580, 0]);
+      for (const sz of [-1, 1]) ropes.push([x, ny, zc + sz * 2.2 - 0.25, x + 0.9, ny + 0.5, zc + sz * 2.2 + 0.25, 0xf2eee6, 0]);
+      y = ny;
+    }
+  }
+
   // ---- the toboggan run: from below Monte's church down the steep lanes towards Livramento, a ribbon of worn grey
   // paving the sleds slide along (main.ts runs them), a point every 3 m on the ground
   const sled: [number, number, number][] = [];

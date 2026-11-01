@@ -40,6 +40,8 @@ type Persona = 'commuter' | 'local' | 'tourist' | 'student' | 'elder' | 'jogger'
 type Mode = 'foot' | 'jog' | 'ride';
 
 interface Seat { x: number; z: number; y: number; face: number; approach: V2; bench: number; taken: Walker | null; }
+/** Stands in for the traveller on a seat they have taken (no walker is ever this one). */
+const TRAVELLER = {} as Walker;
 interface Taken extends Spot { taken: Walker | null }
 interface Step { anim: Anim; t: number; face?: number; hold?: 'phone' | 'none' }
 
@@ -1081,6 +1083,22 @@ export class Crowd {
     const r = this.route(`${from ? `${nx.toFixed(1)},${nz.toFixed(1)}` : w.node}>${key}`, nx, nz, to[0], to[1]);
     if (!r || !r.length) return false;
     this.setPath(w, r, goal);
+    return true;
+  }
+
+  /** The seats people sit on (bench halves, terrace chairs, steps), so the traveller can take one too. */
+  get publicSeats(): readonly { x: number; z: number; y: number; face: number; approach: V2 }[] { return this.seats; }
+
+  /** Nobody else sits on seat `i`, or is on the way to it. */
+  seatFree(i: number): boolean { const t = this.seats[i]?.taken; return !t || t === TRAVELLER; }
+
+  /** Keep seat `i` for the traveller (on) or give it back. False when someone sits there, or is on the way to it. */
+  holdSeat(i: number, on: boolean): boolean {
+    const s = this.seats[i];
+    if (!s) return false;
+    if (!on) { if (s.taken === TRAVELLER) s.taken = null; return true; }
+    if (s.taken && s.taken !== TRAVELLER) return false;
+    s.taken = TRAVELLER;
     return true;
   }
 

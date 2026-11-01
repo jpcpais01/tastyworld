@@ -4,6 +4,7 @@ import type { Look } from '../world/characters';
 import { perCity } from '../world/cityId';
 import { MADEIRA_STALLS } from './madeira';
 import { ISTANBUL_MORE_STALLS } from './istanbulMenu';
+import type { Service } from './service';
 
 export type StepKind = 'pick' | 'mix' | 'heat' | 'chop' | 'order' | 'flip';
 
@@ -37,6 +38,11 @@ export interface StallInfo {
   hidden?: boolean;
   /** Sit-down restaurant inside a building rather than a street stall. */
   restaurant?: boolean;
+  /**
+   * How it serves (data/service.ts): 'table' (sit, a waiter brings the menu and serves at the table), 'counter'
+   * (a display case, things to take away in a paper bag) or 'stall'. Left out: a restaurant serves at the tables.
+   */
+  service?: Service;
 }
 
 const I = (name: string, icon: IconName): Ingredient => ({ name, icon });

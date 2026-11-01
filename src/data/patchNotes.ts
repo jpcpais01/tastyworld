@@ -8,6 +8,21 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.19.0',
+    date: '2026-11-01',
+    title: 'Eating out: terraces, waiters and bakeries',
+    items: [
+      'Sit down anywhere. Every bench, café chair, tea-garden stool and sunny step in town is a seat: walk up and sit. Any move gets you up again, or use the new stand-up button.',
+      'Table service. Take a seat inside a restaurant, or at a table on a terrace out front, and a waiter notices you, walks over with the menu and waits while you choose. Tap up to four things, order, and watch the kitchen work: the waiter carries each course out in both hands, sets it down in front of you and you eat it at the table. Drinks come first, then the dishes, then dessert, and the empty plates are cleared as the next course arrives.',
+      'The bill comes at the end on a little paper slip, paid the way each city does it. Amalfi adds the coperto and you can round up or leave a couple of euros. In Madeira the bolo do caco couvert comes to the table on its own, and you can send it back. Istanbul takes five or ten per cent for the waiter. In Japan nobody tips, the ocha is free and keeps coming, and an izakaya seat comes with an otōshi starter. If you get up early, you pay for what you ate on the way out.',
+      'Every table-service place also pours the house drinks: acqua minerale, a glass of the house white and draught beer in Amalfi; Madeira wine, maracujá juice and a bica in Funchal; çay, Turkish coffee and şalgam in Istanbul; draught beer, iced oolong and ramune in Tokyo. They come in new glasses, mugs and tea cups that you hold and drink from.',
+      'At a restaurant\'s counter, the cook now offers "Find me a table" and walks you to a free one. You can still taste or cook standing at the counter.',
+      'Bakeries, pastry shops, the gelateria, konbini, fırın, börek and lokum counters now sell from a glass display case. Pick as many as you like: the first is wrapped to eat right away and the rest go in your bag.',
+      'Your bag (B, or the new bag button) holds up to eight things for later. Eat them anywhere, best sitting on a bench with a view or at a café table. Dishes from the bag still count for your passport.',
+      'Terraces in Amalfi\'s piazza, along Funchal\'s largo and on Tokyo\'s canal promenade now have proper café tables with cloths and real chairs at table height.',
+    ],
+  },
+  {
     version: '0.18.16',
     date: '2026-11-01',
     title: 'Istanbul: fifty places to eat',

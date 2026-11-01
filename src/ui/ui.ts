@@ -15,6 +15,7 @@ import { G } from './glyphs';
 import { icon, IconName } from './emblems';
 import { album, sharePhoto, canShareFiles, ALBUM_MAX, type Photo } from '../game/album';
 import { landing } from './arrival';
+import type { DineKit } from './dining';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -149,6 +150,8 @@ export class UI {
   onPhoto: (() => void) | null = null;
   onPace: (() => void) | null = null;
   onEndTrip: (() => void) | null = null;
+  onBag: (() => void) | null = null;
+  onStand: (() => void) | null = null;
   open: string | null = null;
   /** On a co-op trip as a guest: the leader's sky is shared, so the time of day setting waits. */
   skyFromLeader = false;
@@ -205,11 +208,13 @@ export class UI {
       <div class="hud-bl">
         <div class="controls" id="h-keys">
           <button class="glass kb" id="h-kb" title="Controls" aria-label="Show controls">${G.keyboard}</button>
-          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> pace</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span></div>
+          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> pace</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span><span><kbd>B</kbd> bag</span></div>
         </div>
       </div>
       <div class="hud-br">
         <div class="glass bar">
+          <button id="h-stand" class="hidden" title="Stand up" aria-label="Stand up">${G.walk}</button>
+          <button id="h-bag" class="hidden" title="Your bag (B)" aria-label="Your bag">${G.bag}<span class="count" id="h-bagn"></span></button>
           <button id="h-wave" class="hidden" title="Wave (G)" aria-label="Wave to your friends">${G.wave}</button>
           <button id="h-pace" title="Walking pace: normal (Shift)" aria-label="Walking pace: normal">${G.pace2}</button>
           <button id="h-photo" title="Photo mode (C)" aria-label="Photo mode">${G.camera}</button>
@@ -234,6 +239,8 @@ export class UI {
     tap('h-view', () => this.onView?.());
     tap('h-photo', () => this.onPhoto?.());
     tap('h-pace', () => this.onPace?.());
+    tap('h-bag', () => this.onBag?.());
+    tap('h-stand', () => this.onStand?.());
     tap('h-track', () => {
       if (this.goalInfo) return this.map();
       // a reward to claim opens the missions page right at it
@@ -451,6 +458,27 @@ export class UI {
     setTimeout(() => r.remove(), 650);
   }
 
+  /** The bag button shows how many things are in it (hidden when empty); the stand-up button shows while seated. */
+  setBag(n: number): void {
+    $('h-bag').classList.toggle('hidden', n <= 0);
+    $('h-bagn').textContent = n > 0 ? String(n) : '';
+  }
+  setSeated(on: boolean): void { $('h-stand').classList.toggle('hidden', !on); }
+
+  /** The panels and helpers the eating-out sheets (ui/dining.ts) are built with. */
+  dineKit(): DineKit {
+    return {
+      panel: (cls, onClose) => { const p = this.panel(cls, onClose); this.closeHook = onClose ?? null; return p; },
+      head: (p, title, jp = '', sub = '', ic = '', onClose) => this.head(p, title, jp, sub, ic, onClose),
+      close: () => this.close(),
+      icons: this.icons,
+      play: (n) => this.audio.play(n),
+      toast: (ic, title, text) => this.toast(ic, title, text),
+      wallet: () => this.s.yen,
+      tasted: (id) => !!this.s.tasted[id],
+    };
+  }
+
   // ------------------------------------------------------------------ panels
   private panel(cls = 'panel', onClose?: () => void): HTMLElement {
     this.close(false);
@@ -496,13 +524,19 @@ export class UI {
   get busy(): boolean { return !!this.open || !!this.dialogueEl; }
 
   // stall menu ------------------------------------------------------------------------------
-  stall(st: StallInfo): void {
+  stall(st: StallInfo, extra: { label: string; icon: string; act: () => void } | null = null): void {
     const p = this.panel();
     p.appendChild(noren(st.jp, st.hidden));
     this.head(p, esc(st.name), '', `${esc(st.street)} · ${st.hidden ? TEXT.hiddenKind : st.restaurant ? 'Restaurant' : 'Street stall'}`);
     const body = h('div', 'panel-body');
     const greet = st.greeting[Math.floor(Math.random() * st.greeting.length)];
     body.innerHTML = `<div class="vendor-line"><span class="ava">${esc(st.vendor.charAt(0))}</span><div class="say"><b>${esc(st.vendor)}</b>“${esc(greet)}”</div></div>`;
+    if (extra) {
+      // a sit-down place: a table and the waiter; a pastry shop: the display case
+      const b = h('button', 'btn btn-hero dine-way', `${icon(extra.icon)}<span>${esc(extra.label)}</span>`);
+      b.onclick = () => { this.audio.play('click'); this.close(); extra.act(); };
+      body.appendChild(b);
+    }
     const menu = h('div', 'menu');
     for (const id of st.dishes) {
       const d = DISH[id];

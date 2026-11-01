@@ -59,6 +59,8 @@ export interface SaveState {
   stays: string[];
   /** The spot pinned on the city map, if any. */
   pin?: { x: number; z: number; name: string; jp?: string; id?: string } | null;
+  /** Things bought at a bakery or a pastry counter to eat later (game/dineout.ts). */
+  bag?: { id: string; name: string; dish: boolean; icon?: string; city: string }[];
   settings: Settings;
   title?: string;
   /** How the traveller appears to friends on co-op trips. */

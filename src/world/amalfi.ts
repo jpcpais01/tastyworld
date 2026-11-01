@@ -2,7 +2,7 @@ import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
 import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, StallAnchor } from './tokyo';
-import { Prop, rotateProp, bench, cafeTable, scooter, stool, bush, grassTuft } from './props';
+import { Prop, rotateProp, bench, scooter, stool, bush, grassTuft, terraceTable, terraceChair, TERRACE_TOP } from './props';
 import { buildFood, type FoodId } from './food';
 import type { RoomAnchor, RoomNpc } from './interiors';
 import { STALL } from '../data/stalls';
@@ -575,7 +575,7 @@ export function buildAmalfi(win?: Window): BuildResult {
       { id: 'priest', pos: [-22, 0, 7] },
     ],
     benches: b.benches,
-    stools: b.stools,
+    stools: b.stools, cafeTables: b.cafeTables,
     // people sit along both sides of the cathedral steps, looking down over the piazza, the middle left to climb
     stepSeats: [-7, -9.5, -12, -14.5, -17].flatMap((x) => [9.9, 10.7, 17.3, 18.1].map((z) => [x + (z % 2) * 0.4, z, Math.PI / 2] as [number, number, number])),
     cats: [[1.5, 0, -4], [-21, 0, 3.5], [38, 0, 44], [-60, 0, -2], [17, 0, 28.5]],
@@ -2026,10 +2026,11 @@ function piazza(b: Builder, c: AC): void {
   b.emitters.push({ kind: 'steam', pos: [10, PIAZZA_Y + 1.6, 12], rate: 0 });
   // café terraces along the north side of the piazza and below the steps
   const terrace = (x: number, z: number, cloth: number, seed: number) => {
-    b.place(cafeTable(k(b), cloth), x, PIAZZA_Y, z);
-    b.place(stool(k(b), c.iron), x - 0.55, PIAZZA_Y, z);
-    b.place(stool(k(b), c.iron), x + 0.55, PIAZZA_Y, z);
+    b.place(terraceTable(k(b), cloth, seed), x, PIAZZA_Y, z);
+    b.place(terraceChair(k(b), c.rope, c.iron), x - 0.55, PIAZZA_Y, z, 1);
+    b.place(terraceChair(k(b), c.rope, c.iron), x + 0.55, PIAZZA_Y, z, 3);
     b.stools.push([x - 0.55, z, Math.PI / 2, PIAZZA_Y], [x + 0.55, z, -Math.PI / 2, PIAZZA_Y]);
+    b.cafeTables.push([x, z, PIAZZA_Y + TERRACE_TOP]);
     if (seed % 2 === 0) b.place(umbrella(c, seed), x, PIAZZA_Y, z);
     // after dark a little light on every table, and the café's light spilling over its terrace
     b.lamp(x, PIAZZA_Y + 1.1, z, WARM, 2.5, 0.5);
@@ -2633,12 +2634,13 @@ function eateryLayout(lt: LotPlan) {
 /** Which tables have someone eating at them: a seat each side, about half of them taken. */
 function eaterySeats(lt: LotPlan) {
   const L = eateryLayout(lt);
-  const seats: { x: number; z: number; face: number; taken: boolean }[] = [];
+  const seats: { x: number; z: number; face: number; taken: boolean; table: [number, number] }[] = [];
   L.tables.forEach((t, i) => {
+    const table = L.P(t.a + 1, t.d + 1);
     for (const s of [-1, 1]) {
       const [x, z] = L.P(s < 0 ? t.a - 0.5 : t.a + 2.5, t.d + 1);
       const dir = s < 0 ? L.ax : [-L.ax[0], -L.ax[1]];
-      seats.push({ x, z, face: Math.atan2(dir[0], dir[1]), taken: hash3(lt.seed + i, s + 3, 17) < 0.4 });
+      seats.push({ x, z, face: Math.atan2(dir[0], dir[1]), taken: hash3(lt.seed + i, s + 3, 17) < 0.4, table });
     }
   });
   return seats;
@@ -2655,11 +2657,13 @@ function eateryAnchors(plan: Plan): { stalls: StallAnchor[]; rooms: RoomAnchor[]
     stalls.push({ id: lt.food, stand: [sx, sz], vendor: [vx, vz, Math.atan2(L.out[0], L.out[1])], label: [lx, L.floorY + 3.5, lz] });
     const [ax0, az0] = L.P(1, 1), [ax1, az1] = L.P(L.W - 1, L.D - 1);
     const [dx, dz] = L.P(L.mid + 0.5, 1.6);
-    const npcs: RoomNpc[] = eaterySeats(lt).filter((s) => s.taken).map((s, i) => ({ role: 'guest', pos: [s.x, L.floorY + 0.5, s.z], facing: s.face, sit: true, seed: lt.seed + i * 13 }));
+    const all = eaterySeats(lt);
+    const npcs: RoomNpc[] = all.filter((s) => s.taken).map((s, i) => ({ role: 'guest', pos: [s.x, L.floorY + 0.5, s.z], facing: s.face, sit: true, seed: lt.seed + i * 13 }));
     rooms.push({
       id: `eat-${lt.food}`, kind: 'cafe', nth: rooms.length, stall: lt.food,
       rect: [Math.min(ax0, ax1), Math.min(az0, az1), Math.max(ax0, ax1), Math.max(az0, az1)],
       door: [dx, dz], npcs, spots: [],
+      seats: all.map((s) => ({ pos: [s.x, L.floorY + 0.5, s.z], face: s.face, table: [s.table[0], L.floorY + 0.75, s.table[1]], taken: s.taken })),
     });
   }
   return { stalls, rooms };

@@ -22,6 +22,7 @@ import { PathService } from './game/paths';
 import { BodyDetails } from './game/details';
 import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
+import { Dining } from './game/dineout';
 import { CharacterBatch } from './game/charbatch';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi, SkylightBeams } from './game/fx';
@@ -79,6 +80,8 @@ interface Interactable {
   pick: V3;
   r: number;
   inside: boolean;
+  /** Only picked by a tap or a click from this close (seats: there is a bench on every corner). */
+  reach?: number;
   /** A hotel room upstairs that this belongs to (it is only there while the player is in that room). */
   room?: string;
   prompt(): [string, string, string] | null;
@@ -218,6 +221,8 @@ class Game {
   private server: Actor | null = null;
   private mealZoom = 0;
   private crowd!: Crowd;
+  /** Seats, table service, display cases and the bag (game/dineout.ts). */
+  private dine!: Dining;
   private lastToll = -1;
   /** Moves whatever lives beyond the map (Istanbul's ferries), once a frame. */
   private farTick: ((dt: number) => void) | null = null;
@@ -829,6 +834,29 @@ class Game {
     // on a hillside every label in the street sits above the ground under its stand, not above sea level
     if (HILLSIDE) for (const it of this.interactables) if (!it.inside && !it.room && !it.key.startsWith('lift-')) it.pick = [it.pick[0], it.pick[1] + this.ground(it.stand[0], it.stand[1]), it.pick[2]];
 
+    // every seat in town, the waiters, the terraces and the bag
+    const game = this;
+    this.dine = new Dining({
+      nav: this.navWorld, ui: this.ui, audio: this.audio, s: this.s, crowd: this.crowd,
+      get player() { return game.player; },
+      spawn: (look) => lazy(new Actor(buildPerson(look), this.chars, false, true)),
+      add: (it) => this.interactables.push(it),
+      walkTo: (it) => {
+        const p = this.player.position;
+        const path = this.nav.findPath(p.x, p.z, it.stand[0], it.stand[1], PLAYER_REACH);
+        if (path) { this.path = path; this.pending = it; this.audio.play('click'); }
+      },
+      startMeal: (id, server, done, table, line) => this.startMeal(id, server, done, table, line),
+      meal: () => this.meal,
+      endMeal: () => this.endMeal(),
+      eat: (d) => this.eat(d),
+      afterChange: () => this.afterChange(),
+    });
+    this.dine.build(a.rooms, a.cafeTables ?? []);
+    this.dine.refreshBag();
+    this.ui.onBag = () => this.dine.openBag();
+    this.ui.onStand = () => this.dine.stand();
+
     // notifications already earned before this session should not re-toast
     for (const m of MISSIONS) { const [x, y] = m.progress(this.s); if (x >= y) this.notified.add(m.id); }
   }
@@ -875,6 +903,7 @@ class Game {
             setTimeout(() => { if (act.anim === 'bow') act.anim = anim; }, 1200);
             this.audio.play('pop');
             const line = place.lines[entry.talk++ % place.lines.length];
+            if (this.dine.counterRoom(rm, info.name, line, act)) return;
             this.ui.shop(name, jp, `${place.label} · ${info.name}`, info.name, line, place.buy, (it) => this.buyThing(it));
           },
         });
@@ -1365,6 +1394,7 @@ class Game {
   /** The end-trip button: the trip summary with the two ways out (fly home, or on to another city). */
   private endTrip(): void {
     if (!this.started || this.ui.busy || this.cityMap.isOpen) return;
+    if (this.dine?.seated && !this.meal) this.dine.stand();
     if (this.meal || this.sleeping || this.inside) {
       this.ui.toast('depart', 'Not just yet', this.meal ? 'Finish your plate first. The plane can wait.' : this.sleeping ? 'Sleep in. The plane can wait till morning.' : 'Step back out into the street first.');
       return;
@@ -1451,7 +1481,7 @@ class Game {
    * Serve and eat something: the vendor (if any) hands it over, then the traveller eats it bite by bite
    * (game/meal.ts). Walking away finishes it on the spot; a tap or the interact key hurries it along.
    */
-  private startMeal(id: string, server: Actor | null, done: () => void): void {
+  private startMeal(id: string, server: Actor | null, done: () => void, table: THREE.Vector3 | null = null, serveLine?: string): Meal {
     this.endMeal();
     for (const v of this.vendors) if (v.actor === server) v.waveT = 0;
     this.path = [];
@@ -1469,14 +1499,19 @@ class Game {
       canStand: (x, z) => nav.canStand(x, z, nav.standHeightVox(pl.position.x, pl.position.z)),
       bubble: (key, text, pos, secs) => this.ui.bubble(key, text, pos, secs),
       fx: (steam, amount, sparkle) => this.particles.meal(steam, amount, sparkle),
+      table, serveLine,
     }, done);
+    return this.meal;
   }
 
   private endMeal(): void {
-    if (!this.meal) return;
-    this.meal.stop();
-    this.meal.dispose();
+    const m = this.meal;
+    if (!m) return;
     this.meal = null;
+    m.stop();
+    // a course at a table: the visit keeps the empties until the waiter clears them
+    if (this.dine?.owns(m)) this.dine.ended(m);
+    else m.dispose();
     if (!this.cam.fp && this.mealZoom) this.cam.zoom = this.mealZoom;
   }
 
@@ -1539,7 +1574,7 @@ class Game {
     if (v) v.waveT = 1.6;
     else { vendor.anim = 'bow'; setTimeout(() => { vendor.anim = 'cook'; }, 1400); }
     this.audio.play('pop');
-    this.ui.stall(st);
+    this.ui.stall(st, this.dine.stallExtra(st, vendor));
   }
 
   private talk(e: { actor: Actor; id: string; talk: number }): void {
@@ -2085,6 +2120,7 @@ class Game {
         case 'KeyM': this.ui.open ? this.ui.close() : this.ui.map(); break;
         case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
         case 'KeyG': if (!this.ui.busy) this.wave(); break;
+        case 'KeyB': this.ui.open ? this.ui.close() : this.dine.openBag(); break;
         case 'ShiftLeft': case 'ShiftRight': if (!this.ui.busy) this.cyclePace(); break;
         case 'KeyC': this.setPhoto(true); break;
         case 'Escape': this.ui.endDialogue(); this.ui.close(); break;
@@ -2266,8 +2302,9 @@ class Game {
     if (this.near) { this.interact(); return; }
     const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
     let best: Interactable | null = null, bd = 60;
+    const pp = this.player.position;
     for (const it of this.interactables) {
-      if (!this.usable(it)) continue;
+      if (!this.usable(it) || (it.reach && Math.hypot(it.x - pp.x, it.z - pp.z) > it.reach)) continue;
       const sp = this.screen(it.pick);
       if (!sp) continue;
       const d = Math.hypot(sp[0] - cx, sp[1] - cy);
@@ -2284,8 +2321,9 @@ class Game {
     if (this.meal) { this.meal.hurry(); return; }
     // tapped an interactable?
     let best: Interactable | null = null, bd = 46;
+    const pp = this.player.position;
     for (const it of this.interactables) {
-      if (!this.usable(it)) continue;
+      if (!this.usable(it) || (it.reach && Math.hypot(it.x - pp.x, it.z - pp.z) > it.reach)) continue;
       const sp = this.screen(it.pick);
       if (!sp) continue;
       const d = Math.hypot(sp[0] - x, sp[1] - y);
@@ -2324,6 +2362,21 @@ class Game {
   // ------------------------------------------------------------------ simulation
   private movePlayer(dt: number): void {
     const pl = this.player, p = pl.position;
+    if (this.dine?.seated) {
+      // sitting: any move (keys, the stick, a tap on the street) gets up first
+      const k = this.keys;
+      const go = this.started && !this.sleeping && !this.photoOn && (!this.ui.busy || this.cityMap.isOpen) && (this.path.length > 0 || !!this.joy?.active
+        || k.has('KeyW') || k.has('KeyA') || k.has('KeyS') || k.has('KeyD') || k.has('ArrowUp') || k.has('ArrowDown') || k.has('ArrowLeft') || k.has('ArrowRight'));
+      if (go) this.dine.stand();
+      else {
+        this.dine.hold(dt);
+        this.cam.endWalk();
+        this.fallV = 0;
+        pl.update(dt);
+        pl.light(this.upstairs?.lm ?? this.lm);
+        return;
+      }
+    }
     let dx = 0, dz = 0, speed = 0, run = false;
     // under the pocket map only a walk already under way carries on
     const mapOpen = this.cityMap.isOpen;
@@ -2600,6 +2653,7 @@ class Game {
         e.t = away ? 8 + Math.random() * 14 : 3 + Math.random() * 4;
       }
     }
+    this.dine?.draw(pp, this.inside || !!this.upstairs, all);
     for (const e of this.roomActors) {
       const q = e.actor.position;
       const d = Math.hypot(pp.x - q.x, pp.z - q.z);
@@ -2664,6 +2718,8 @@ class Game {
       const score = fp ? d - (((it.x - p.x) * f.x + (it.z - p.z) * f.z) / (fl * Math.max(d, 0.05))) * 0.8 : d;
       if (score < bd) { bd = score; best = it; }
     }
+    // seated, the prompt is about the table (call the waiter, the bag, stand up)
+    best = this.dine?.prompt ?? best;
     this.near = best;
     const pr = best && this.started && !this.ui.busy ? best.prompt() : null;
     if (pr && best) this.ui.prompt(best.key + pr[1], pr[0], pr[1], pr[2]);
@@ -2757,11 +2813,13 @@ class Game {
     this.movePlayer(dt);
     this.updateRemotes(dt);
     this.perf.lap('player');
+    this.dine?.update(dt, this.player.position, this.inside);
     this.updateNPCs(dt);
     if (this.meal) {
       this.meal.place(dt);
       if (this.meal.finished) this.endMeal();
     }
+    this.dine?.place(dt);
     this.perf.lap('animation');
     this.updateNear();
     this.updateCamera(dt);

@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.13',
+    date: '2026-11-01',
+    title: 'Overhead view stays put',
+    items: [
+      'Leaving first-person view now returns you to exactly the overhead angle and zoom you had before, instead of turning the view to wherever you were looking.',
+    ],
+  },
+  {
     version: '0.18.12',
     date: '2026-11-01',
     title: 'Funchal: a new Portuguese Sé',

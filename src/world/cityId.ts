@@ -17,6 +17,8 @@ export const CITY: CityId = (() => {
   if (g.process?.env) return known(g.process.env.CITY) ?? 'tokyo';
   if (!g.document) return known(g.name?.startsWith('city:') ? g.name.slice(5) : null) ?? 'tokyo';
   // 2040 is its own game on its own page: its city is always Halcyon, whatever Tasty World last visited
+  // (built on its own, see vite.config.ts, it is the whole site)
+  if (typeof __SOLO_2040__ !== 'undefined' && __SOLO_2040__) return 'neo';
   if ((g as { location?: { pathname?: string } }).location?.pathname?.startsWith('/2040')) return 'neo';
   try {
     const q = known(new URLSearchParams(g.location?.search ?? '').get('city'));

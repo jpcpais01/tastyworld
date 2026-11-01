@@ -1,5 +1,5 @@
 /**
- * Offline oblique render of the whole of Halcyon City (no WebGL): `CITY=neo npx tsx scripts/neo-shot.ts out.png [step]`.
+ * Offline oblique render of the whole of Halcyon City (no WebGL): `CITY=neo npx tsx scripts/neo-shot.ts out.png [step] [x0 z0 x1 z1 (m)]`.
  * Looks north from over the south edge, every `step`-th voxel column drawn as a stack of voxels, flat-shaded by face.
  */
 import { writeFileSync } from 'node:fs';
@@ -10,7 +10,10 @@ const out = process.argv[2] ?? 'neo.png';
 const step = Number(process.argv[3] ?? 2);
 const r = buildWorld();
 const { grid, pal } = r;
-const x0 = grid.wx0, x1 = grid.wx1, z0 = grid.wz0, z1 = grid.wz1, sy = grid.sy;
+// optional area in metres: x0 z0 x1 z1
+const area = process.argv.slice(4).map(Number);
+const [x0, z0, x1, z1] = area.length === 4 ? area.map((v) => Math.round(v / 0.25)) : [grid.wx0, grid.wz0, grid.wx1, grid.wz1];
+const sy = grid.sy;
 const K = 0.6; // depth foreshortening: screen rows per voxel of z
 const W = Math.ceil((x1 - x0) / step), H = Math.ceil(((z1 - z0) * K + sy) / step);
 const rgb = new Uint8Array(W * H * 3).fill(18);

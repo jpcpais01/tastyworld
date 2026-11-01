@@ -82,9 +82,10 @@ export interface Ring { open: Rect[]; green: Rect[] }
 
 /**
  * `lift` raises the ground and every building on it to the height of a hilly city's surroundings (m at x, z); the
- * apron is then a grid that follows it instead of four flat quads.
+ * apron is then a grid that follows it instead of four flat quads. `cyber` makes it 2040's sprawl: no houses, towers
+ * everywhere and far taller, megablocks and lit signs on every block.
  */
-export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300, tower?: [number, number], ring?: Ring, lift?: (x: number, z: number) => number): { city: THREE.Mesh; ground: THREE.Mesh } {
+export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300, tower?: [number, number], ring?: Ring, lift?: (x: number, z: number) => number, cyber = false): { city: THREE.Mesh; ground: THREE.Mesh } {
   const [x0, z0, x1, z1] = rect;
   const parts: number[] = [];
   let seed = 9173;
@@ -135,14 +136,14 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2;
     base = at(cx, cz);
     const r = rnd();
-    const pTower = c > 0.25 && k > 0.45 && w > 9 ? c * 0.55 : 0;
-    const pHouse = Math.max(0.08, 0.62 - k * 0.7 - c * 0.5);
+    const pTower = cyber ? (w > 7 ? 0.25 + 0.4 * k + c * 0.3 : 0) : c > 0.25 && k > 0.45 && w > 9 ? c * 0.55 : 0;
+    const pHouse = cyber ? 0 : Math.max(0.08, 0.62 - k * 0.7 - c * 0.5);
     if (r < pTower) {
       // a tower, as varied as real ones: slab or square, glass or stone, a set-back or none, rarely a mast
       const stone = rnd() < 0.4, ts = stone ? 0.6 + rnd() * 0.4 : rnd() * 0.6;
       const fc = stone ? pick(STONE) : pick(DARK);
       const fl = stone ? 3.4 : 3.8;
-      const h = Math.round((40 + rnd() * 55 + c * c * 90) / fl) * fl;
+      const h = Math.round((cyber ? 45 + rnd() * 90 + k * 80 + c * 120 : 40 + rnd() * 55 + c * c * 90) / fl) * fl;
       const ph = rnd() < 0.6 ? (1 + Math.floor(rnd() * 3)) * 3.4 : 0;
       if (ph) part(cx, cz, w, d, 0, ph, 1, pick(MID));
       const slab = rnd() < 0.4;
@@ -156,7 +157,9 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       } else part(cx, cz, sw, sd, ph, h - ph, 2, fc, ts);
       part(cx, cz, tw + 0.2, td + 0.2, top, 0.8, 4, stone ? fc : '#6c7076');
       if (rnd() < 0.6) part(cx + (rnd() - 0.5) * tw * 0.4, cz + (rnd() - 0.5) * td * 0.4, tw * 0.4, td * 0.4, top, 3 + rnd() * 2, 4, '#9a9893');
-      if (rnd() < 0.15) part(cx, cz, 0.35, 0.35, top + 3, 6 + rnd() * 10, 4, '#d0d0d0');
+      if (rnd() < (cyber ? 0.5 : 0.15)) part(cx, cz, 0.35, 0.35, top + 3, 6 + rnd() * 10, 4, '#d0d0d0');
+      // 2040: a lit sign band or two up the tower's face
+      if (cyber) for (let i = 0; i < 1 + Math.floor(rnd() * 2); i++) part(cx + (rnd() - 0.5) * tw * 0.5, face === 0 ? cz - td / 2 - 0.3 : cz + td / 2 + 0.3, Math.min(tw * 0.6, 8), 0.3, 6 + rnd() * (top - 14), 3 + rnd() * 5, 5, pick(SIGN));
     } else if (r < pTower + pHouse) {
       // a house: two or three floors, mostly a stepped tile roof, sometimes flat with a balcony rail
       const h = (rnd() < 0.65 ? 2 : 3) * 2.9 + 0.3;
@@ -173,7 +176,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       } else part(hx, hz, hw + 0.15, hd + 0.15, h, 0.6, 4, '#9a9690');
     } else if (r < pTower + pHouse + 0.45) {
       // an apartment block: balconies down its long faces, often one floor shy of the full height at the back
-      const floors = 3 + Math.floor(rnd() * (4 + k * 6 + c * 6));
+      const floors = cyber ? 8 + Math.floor(rnd() * (10 + k * 12)) : 3 + Math.floor(rnd() * (4 + k * 6 + c * 6));
       const h = floors * 2.9 + 0.6;
       const fc = pick(FLAT);
       part(cx, cz, w, d, 0, h, 7, fc);
@@ -184,11 +187,11 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       } else roof(cx, cz, w, d, h, false);
     } else {
       // a shop or office building: ribbon windows, a bright ground floor, signs
-      const floors = 3 + Math.floor(rnd() * (3 + k * 5 + c * 8));
+      const floors = cyber ? 4 + Math.floor(rnd() * (6 + k * 8)) : 3 + Math.floor(rnd() * (3 + k * 5 + c * 8));
       const h = floors * 3.4 + 0.6;
       part(cx, cz, w, d, 0, h, 1, pick(MID));
       roof(cx, cz, w, d, h, rnd() < 0.25);
-      if (rnd() < 0.5) blade(cx, cz, w, d, h, face);
+      if (rnd() < (cyber ? 0.9 : 0.5)) blade(cx, cz, w, d, h, face);
     }
   };
 
@@ -214,7 +217,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
       if (out < RING - 0.01) continue;
       const k = Math.min(1, out / 220);
       const ne = cluster((bx0 + bx1) / 2, (bz0 + bz1) / 2);
-      if (rnd() < 0.06 && out > 20 && parks.length < 64 && !inGap(bx0, bz0, bx1, bz1)) {
+      if (rnd() < (cyber ? 0.015 : 0.06) && out > 20 && parks.length < 64 && !inGap(bx0, bz0, bx1, bz1)) {
         // a park: trees on grass (the ground shader greens the block)
         for (let i = 0; i < 9; i++) {
           const s = 3 + rnd() * 3.5, tx = bx0 + 3 + rnd() * (bx1 - bx0 - 6), tz = bz0 + 3 + rnd() * (bz1 - bz0 - 6);

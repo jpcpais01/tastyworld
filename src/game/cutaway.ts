@@ -141,6 +141,8 @@ export class Cutaway {
    * band (core) only voxels inside its footprint count: what hangs off a facade beside you (awnings, lanterns,
    * signs) only lowers its building when it covers you yourself, so a shop you stand in front of stays up.
    */
+  private edge = new THREE.Vector3();
+
   private march(sc: Scene, o: THREE.Vector3, dx: number, dy: number, dz: number, core: boolean): void {
     const { g, f, own } = sc;
     const step = 0.1;
@@ -226,6 +228,23 @@ export class Cutaway {
         const o = this.occ[i], [x0, z0, x1, z1] = o.rect;
         if (i < sc.from || i >= sc.to || !enterable(o) || block[i]) continue;
         if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1) { block[i] = 1; hits.push(i); }
+      }
+      if (floor > 0) {
+        // upstairs the whole floor should open, not just the column the player stands in: rays from all round the
+        // edge of the building that holds the player find what stands between that floor and the camera (on a
+        // narrow lot among towers the neighbours across the street would otherwise hide all but a sliver)
+        const holders = hits.filter((i) => enterable(this.occ[i]));
+        const o = this.edge;
+        for (const i of holders) {
+          const [x0, z0, x1, z1] = this.occ[i].rect;
+          const nx = Math.max(1, Math.round((x1 - x0) / 1.5)), nz = Math.max(1, Math.round((z1 - z0) / 1.5));
+          for (let a = 0; a <= nx; a++) for (let b = 0; b <= nz; b++) {
+            if (a > 0 && a < nx && b > 0 && b < nz) continue;
+            o.set(x0 + ((x1 - x0) * a) / nx, p.y + 1.2, z0 + ((z1 - z0) * b) / nz);
+            const dl = Math.hypot(fwd.x, fwd.y, fwd.z) || 1;
+            this.march(sc, o, -fwd.x / dl, -fwd.y / dl, -fwd.z / dl, false);
+          }
+        }
       }
       for (const i of hits) {
         if (this.occ[i].group !== undefined) groups.add(this.occ[i].group!);

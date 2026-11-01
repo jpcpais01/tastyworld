@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.13',
+    date: '2026-11-01',
+    title: 'Upstairs views open up',
+    items: [
+      'On an upper floor, every building standing between that floor and the camera now steps aside, not just the ones right in front of you. Orbit Mall\'s floors in 2040 were hidden behind the towers across the street; now the whole floor shows. Hotel rooms upstairs in every city benefit too.',
+    ],
+  },
+  {
     version: '0.20.12',
     date: '2026-11-01',
     title: '2040: the ripperdoc\'s chair',

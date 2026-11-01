@@ -21,7 +21,7 @@
 .veil.warm::before, .veil.warm *, .veil.warm *::before, .veil.warm *::after { transition: none !important; }
 .veil.warm .gl, .veil.warm .ms { opacity: 1 !important; }
 /* every moving piece keeps its own layer from the warm-up on, so nothing is rastered for the first time mid-move */
-.fl, .ms, .puff, .nr, .nr-rod, .lt, .bh, .tl, .gl, .vp i { will-change: transform, opacity; }
+.fl, .ms, .puff, .nr, .nr-rod, .lt, .bh, .tl, .gl, .md, .md-st, .md-run, .md-gl, .vp i { will-change: transform, opacity; }
 
 /* how far the city has got, only while a long wait is on (a reload into another city) */
 .vp { position: absolute; left: 0; right: 0; bottom: max(22px, calc(env(safe-area-inset-bottom) + 14px)); width: min(240px, 46vw); height: 4px; margin: 0 auto;
@@ -127,3 +127,44 @@
 @keyframes glFlap { from { transform: scaleY(1); } to { transform: scaleY(0.42); } }
 .veil.out .gl { animation: glFly 1.4s cubic-bezier(0.35, 0, 0.75, 0.7) var(--d) both; }
 @keyframes glFly { from { opacity: 0; transform: translate(0, 0) scale(0.35); } 18% { opacity: 1; } 80% { opacity: 1; } to { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(var(--ts)); } }
+
+/* ---------------------------------------------------------------- Madeira: the island rises out of the Atlantic, then you dive into Funchal */
+.arr-madeira, [data-land~="madeira"] #loading { --wash: linear-gradient(180deg, #74b6e6 0%, #a9d5f0 40%, #f8e6c8 100%); --thread: #d8452e; }
+.arr-madeira.night, [data-land~="madeira"][data-land~="night"] #loading { --wash: linear-gradient(180deg, #0c1531 0%, #1c2752 55%, #3a3866 100%); --thread: #ffc964; }
+.arr-madeira::before { transition: opacity 0.45s ease; }
+.arr-madeira.out::before { transition: opacity 0.55s ease 0.05s; }
+/* the sun, or the stars, in the sky the island rises into */
+.md-st { position: absolute; inset: 0; opacity: 0; transition: opacity 0.6s ease 0.2s;
+  background: radial-gradient(circle at 76% 17%, rgba(255, 250, 230, 0.95) 0 2.6vmin, rgba(255, 238, 196, 0.5) 4.5vmin, rgba(255, 238, 196, 0) 20vmin); }
+.night .md-st { background: var(--img) 50% 0 / cover no-repeat; }
+.veil.on .md-st { opacity: 1; }
+.night.on .md-st { animation: mdTwinkle 2.6s ease-in-out infinite alternate; }
+@keyframes mdTwinkle { from { scale: 1; } to { scale: 1.01; } }
+.veil.out .md-st { opacity: 0; transition: opacity 0.45s ease; }
+/* each strip of the island climbs out of the sea in turn, far to near */
+.md { position: absolute; left: 0; right: 0; bottom: 0; height: var(--h); background: var(--img) 50% 100% / cover no-repeat;
+  transform: translateY(102%); transition: transform 1s cubic-bezier(0.2, 0.85, 0.25, 1) var(--d); }
+.veil.on .md { transform: none; }
+/* the cloud sea drifts on the mountainside while the city loads */
+.md-cl { left: -5vw; right: -5vw; }
+.veil.on .md-cb { animation: mdDrift 9s ease-in-out -2s infinite alternate; }
+.veil.on .md-cf { animation: mdDrift 6.5s ease-in-out -5s infinite alternate-reverse; }
+@keyframes mdDrift { from { translate: -3vw 0; } to { translate: 3vw 0; } }
+/* the dive: every strip zooms past at its own depth, the peaks and the sky first, the bay last */
+.veil.out .md { opacity: 0; transform: scale(var(--z));
+  transition: transform 1.45s cubic-bezier(0.55, 0, 0.8, 0.45) var(--dz), opacity 0.5s ease calc(var(--dz) * 2.4 + 0.3s); }
+.veil.out .md-cl { transition: transform 1.2s cubic-bezier(0.5, 0, 0.8, 0.45) var(--dz), opacity 0.4s ease calc(var(--dz) + 0.35s); }
+/* the teleférico: the cabin rides its wire up to Monte while you wait (with the load, after a reload) */
+.md-wire { position: absolute; height: max(1px, 0.18vmin); background: rgba(30, 30, 36, 0.75); transform-origin: 0 50%; rotate: calc(-1 * var(--ang)); }
+.md-run { position: absolute; left: 0; top: 0; width: 100%; height: 0; translate: 8% 0; }
+.veil.on .md-run { animation: mdRide 14s ease-in-out 0.8s infinite alternate; }
+@keyframes mdRide { from { translate: 8% 0; } to { translate: 88% 0; } }
+.veil.busy .md-run { animation: none; translate: calc((8 + var(--f, 0) * 80) * 1%) 0; transition: translate 0.6s ease; }
+.md-cab { position: absolute; left: 0; top: 0; width: 3.4vmin; height: 5.1vmin; margin-left: -1.7vmin; background: var(--img) center / contain no-repeat;
+  rotate: var(--ang); transform-origin: 50% 0; animation: mdSwing 2.8s ease-in-out infinite alternate; }
+@keyframes mdSwing { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+.night .md-cab { filter: brightness(0.75); }
+/* glints on the bay */
+.md-gl { position: absolute; inset: 0; background: var(--img) 50% 100% / cover no-repeat; opacity: 0.35; }
+.veil.on .md-gl { animation: mdGlint 1.7s steps(4) infinite alternate; }
+@keyframes mdGlint { from { opacity: 0.25; } to { opacity: 0.95; } }

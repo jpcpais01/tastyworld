@@ -51,6 +51,7 @@ import { NeoLifeSys } from './neo/life';
 import { Rain } from './neo/rain';
 import { SkyTraffic } from './neo/skytraffic';
 import { Umbrellas } from './neo/umbrellas';
+import { Hologram, HALO_SONG } from './neo/hologram';
 import { neoShop } from './neo/roles';
 import { defaultLife } from './neo/state';
 import { nightAt, dropLanding, endLanding } from './ui/arrival';
@@ -583,7 +584,7 @@ class Game {
     this.blobs = new Blobs(this.r.scene, 160);
     if (a.koiArea) this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, a.petals);
-    if (NEO) { this.rain = new Rain(this.r); this.skyCars = new SkyTraffic(this.worldGroup as unknown as THREE.Scene, this.r); this.umbrellas = new Umbrellas(this.worldGroup, this.r); }
+    if (NEO) { this.rain = new Rain(this.r); this.skyCars = new SkyTraffic(this.worldGroup as unknown as THREE.Scene, this.r); this.umbrellas = new Umbrellas(this.worldGroup, this.r); this.holo = new Hologram(this.r); }
     this.beams = new SkylightBeams(this.r, a.shafts ?? []);
     (a.warm ?? []).slice(0, 3).forEach(([x0, z0, x1, z1, top], i) => { this.r.shared.uWarm.value[i].set(x0, z0, x1, z1); this.r.shared.uWarmTop.value.setComponent(i, top); });
     this.beacon = new Beacon(this.r.scene);
@@ -1509,6 +1510,9 @@ class Game {
   /** Flying cars along the sky lanes. */
   private skyCars: SkyTraffic | null = null;
   private umbrellas: Umbrellas | null = null;
+  private holo: Hologram | null = null;
+  private songT = 0;
+  private songLine = 0;
   /** 2040's life sim (built on first use, once the world's anchors exist). */
   private get lifeSys(): NeoLifeSys {
     return (this.lifeSysV ??= new NeoLifeSys({
@@ -3134,6 +3138,19 @@ class Game {
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi?.update(sh.uTime.value);
     this.skyCars?.update(dt, sh.uTime.value);
+    if (this.holo) {
+      // the Halo sings from midnight until its song is done (about half a minute); within earshot, the lyrics float over the square
+      const out = !this.inside && !this.upstairs && !this.roomHere, sing = this.tod.hour < 0.8;
+      this.holo.update(dt, sing, out);
+      const pq = this.player.position, near = out && Math.hypot(pq.x, pq.z) < 45;
+      if (sing && near && this.started) {
+        if ((this.songT -= dt) <= 0) {
+          this.songT = 3.6;
+          this.ui.bubble('halo-song', HALO_SONG[this.songLine++ % HALO_SONG.length], [0, 14, 0], 3.9);
+          this.lifeSys.discover('midnight', 'The Halo sings', 'DJ Nyx was right. Nobody is going to believe you either.');
+        }
+      } else if (!sing) { this.songLine = 0; this.songT = 0; }
+    }
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);

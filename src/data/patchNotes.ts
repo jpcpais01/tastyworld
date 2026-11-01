@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.6',
+    date: '2026-11-01',
+    title: '2040: the Halo hologram',
+    items: [
+      'Two koi of light now swim circles inside the Halo above the crossing, bodies rippling, scanlines crawling, glitching now and then like any good hologram.',
+      'DJ Nyx keeps saying the Halo sings at midnight. Be there and find out. A new secret.',
+    ],
+  },
+  {
     version: '0.20.5',
     date: '2026-11-01',
     title: '2040: First Harvest',

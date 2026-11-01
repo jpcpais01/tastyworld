@@ -706,6 +706,8 @@ class Game {
         painter: 'browse', limonaio: 'browse', pescatore: 'browse', lifeguard: 'exercise', priest: 'pray',
         // Istanbul: the imam prays, the carpet man and the auntie size up the street, the angler watches his line
         imam: 'pray', halici: 'browse', teyze: 'browse', olta: 'browse', kaptan: 'phone',
+        // Halcyon: the kid on her handheld, the busker playing to the crowd, Old Mei watching her line
+        kid: 'phone', busker: 'talk', fisher: 'browse', cop: 'idle', ripper: 'phone', gran: 'browse',
       } as Record<string, Anim>)[id.id] ?? 'idle';
       const entry = { actor: act, id: id.id, home: id.pos, baseFacing: face, talk: 0, waved: false, habit, habitT: 3 + Math.random() * 8 };
       this.idlers.push(entry);

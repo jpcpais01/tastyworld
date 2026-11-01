@@ -20,19 +20,17 @@ const S = 0.125;
 function umbrella(pal: Palette, canopy: number, glow: number): Prop {
   // the canopy is translucent fabric lit from its own shaft: a dim wash of the glow colour over the dark cloth
   const tint = new THREE.Color(canopy).lerp(new THREE.Color(glow), 0.4).getHex();
-  const C = pal.add(tint, { vary: 0.04, emit: 0.22 }), L = pal.add(glow, { emit: 1.0 }), D = pal.add(glow, { emit: 0.55, vary: 0.05 });
+  const C = pal.add(tint, { vary: 0.04, emit: 0.12 }), L = pal.add(glow, { emit: 0.55 }), D = pal.add(glow, { emit: 0.35, vary: 0.05 });
   const H = pal.add(0x101014);
-  // 13 x 11 x 13 at 1/8 m: the shaft rises from the grip (y 0) to a shallow dome 1.2 m up
+  // 13 x 11 x 13 at 1/8 m: the shaft rises from the grip (y 0) to a shallow dome about 1.1 m across, 1.2 m up
   const p = new Prop(13, 11, 13, S);
   p.box(6, 0, 6, 6, 1, 6, H);
   p.box(6, 2, 6, 6, 10, 6, L);
   for (let x = 0; x < 13; x++) for (let z = 0; z < 13; z++) {
     const r = Math.hypot(x - 6, z - 6);
-    if (r <= 6.4 && r > 5.3) p.set(x, 8, z, D); // the lit rim
-    else if (r <= 5.3) p.set(x, 9, z, C);
-    if (r <= 3.4) p.set(x, 10, z, C);
-    // ribs: thin glowing spokes on the underside, every 45 degrees
-    if (r > 1 && r <= 5.3 && (Math.abs(x - 6) < 0.5 || Math.abs(z - 6) < 0.5 || Math.abs(Math.abs(x - 6) - Math.abs(z - 6)) < 0.5)) p.set(x, 8, z, D);
+    if (r <= 4.6 && r > 3.8) p.set(x, 8, z, D); // the lit rim
+    else if (r <= 3.8) p.set(x, 9, z, C);
+    if (r <= 2.4) p.set(x, 10, z, C);
   }
   return p;
 }

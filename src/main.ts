@@ -3066,9 +3066,10 @@ class Game {
         all.push(a);
       }
       if (this.umbrellas) {
-        // the player puts one up too, unless sheltered, riding the cable car or carrying food
+        // the player puts one up too, unless sheltered, riding the cable car or carrying food; never in first
+        // person, where the camera sits inside the canopy
         const pl0 = this.player, self = this;
-        const me = { actor: pl0, key: 0, always: true, onFoot: !this.upstairs && !this.roomHere && pl0.hold === 'none' && (pl0.anim === 'walk' || pl0.anim === 'idle' || pl0.anim === 'run') };
+        const me = { actor: pl0, key: 0, always: true, onFoot: !this.cam.fp && !this.upstairs && !this.roomHere && pl0.hold === 'none' && (pl0.anim === 'walk' || pl0.anim === 'idle' || pl0.anim === 'run') };
         this.crowd.rain = this.rain?.amount ?? 0;
         if (!this.crowd.remark) this.crowd.remark = () => this.neoRemark();
         this.umbrellas.update((function* () { yield me; yield* self.crowd.holders(); })(), this.crowd.rain);

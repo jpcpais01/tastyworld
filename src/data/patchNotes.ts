@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.38',
+    date: '2026-11-01',
+    title: '2040: gentler umbrellas',
+    items: [
+      'Umbrellas in Halcyon are a realistic size now and glow softly instead of blazing.',
+      'In first person you no longer see the inside of your own umbrella filling the screen.',
+    ],
+  },
+  {
     version: '0.20.37',
     date: '2026-11-01',
     title: '2040 has its own icon',

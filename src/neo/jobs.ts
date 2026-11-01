@@ -17,6 +17,8 @@ export interface Stop {
   task?: 'cook' | 'tune';
   /** The stall whose recipe a kitchen shift cooks. */
   stall?: string;
+  /** A story stop: who speaks the arrival line, in a dialogue rather than a toast. */
+  who?: string;
 }
 
 export interface Gig {

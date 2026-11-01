@@ -434,7 +434,7 @@ export class CityMap {
       const done = dishes.filter((d) => s.tasted[d.id]).length;
       const seen = s.seen.includes(st.id) || done > 0;
       if (st.hidden && !s.hiddenFound) continue;
-      const [x, z] = st.hidden || !a ? this.world.hiddenDoor : [a.vendor[0], a.vendor[2]];
+      const [x, z] = st.hidden || !a ? this.world.hiddenDoor : [a.vendor[0], a.vendor[1]];
       const kind: Marker['kind'] = !seen ? 'unknown' : st.hidden ? 'hidden' : st.restaurant ? 'resto' : 'stall';
       out.push({ id: st.id, kind, st, x, z, sx: 0, sy: 0, target: targets.has(st.id), done, total: dishes.length });
       const icon = dishes[0] && this.icons[dishes[0].id];

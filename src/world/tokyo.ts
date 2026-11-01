@@ -36,7 +36,7 @@ export interface PlacedProp {
 export interface StallAnchor {
   id: string;
   stand: [number, number]; // where the player stands to order (metres)
-  vendor: [number, number, number]; // vendor feet + facing angle
+  vendor: [number, number, number]; // vendor feet x, z (metres) + facing angle
   label: [number, number, number];
 }
 

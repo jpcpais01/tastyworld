@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.11',
+    date: '2026-11-01',
+    title: 'Stall and restaurant pins in the right place',
+    items: [
+      'In Amalfi, Istanbul and Funchal, stall and restaurant pins on the pocket map were all bunched in one line across the middle of town, so many places seemed missing. Every pin now sits on its own counter or restaurant door.',
+      'Walking past a stall or restaurant now discovers it on the map in every city, wherever it is in town.',
+    ],
+  },
+  {
     version: '0.18.10',
     date: '2026-11-01',
     title: 'Window glass you can feel',

@@ -999,6 +999,24 @@ class Game {
       if (!info.street) info.street = zoneAt(ha.entrance[0], ha.entrance[1])?.name ?? TEXT.name;
       const stairs = byStairs(info);
       const icon = stairs ? 'stairs' : 'lift';
+      if (info.venue) {
+        // a venue's lift goes to every floor it will open for you, and its floors are its own (neo/life.ts)
+        this.interactables.push({ key: `lift-${ha.id}`, x: lift.pick[0], z: lift.pick[2], stand: lift.stand, pick: lift.pick, r: 1.5, inside: false,
+          prompt: () => ['lift', 'Lift', 'Choose a floor'], act: () => this.lifeSys.lift(ha) });
+        for (const rm of ha.rooms) {
+          const near = (st: [number, number], pick: V3) => Math.hypot(st[0] - pick[0], st[1] - pick[2]) + 0.6;
+          const it = (key: string, stand: [number, number], pick: V3, prompt: () => [string, string, string], act: () => void, r = near(stand, pick)) =>
+            this.interactables.push({ key: `${key}-${rm.id}`, x: pick[0], z: pick[2], stand, pick, r, inside: false, room: rm.id, prompt, act });
+          const office = info.venue === 'office';
+          const main = office ? ['Open workstation', 'Security console', 'Dr. Vey\'s desk', 'Terminal Seven'][rm.floor - 1] : ['Checkout kiosk', 'Food counters', 'Neon Racer'][rm.floor - 1];
+          const second = office ? (rm.floor === 4 ? 'Fuse panel' : 'Coffee machine') : ['Mirror', 'Boba bar', 'Claw machine'][rm.floor - 1];
+          it('hdoor', rm.door.stand, rm.door.pick, () => ['lift', 'Lift', 'Choose a floor'], () => this.lifeSys.lift(ha), 1.4);
+          it('bed', rm.bed.stand, rm.bed.pick, () => [office ? 'signal' : rm.floor === 2 ? 'ramen' : rm.floor === 3 ? 'trophy' : 'coat', main ?? 'Counter', office ? 'Look' : 'Use'], () => { this.player.targetFacing = rm.bed.facing; this.lifeSys.spot(ha, rm, 'main'); });
+          it('tea', rm.tea.stand, rm.tea.pick, () => [office ? (rm.floor === 4 ? 'lock' : 'coffee') : rm.floor === 2 ? 'drop' : rm.floor === 3 ? 'cat' : 'coat', second, 'Use'], () => { this.player.targetFacing = rm.tea.facing; this.lifeSys.spot(ha, rm, 'second'); });
+          it('win', rm.window.stand, rm.window.pick, () => ['skyline', 'The window', 'Look out'], () => this.lookOut(rm));
+        }
+        continue;
+      }
       this.interactables.push({
         key: `lift-${ha.id}`, x: lift.pick[0], z: lift.pick[2], stand: lift.stand, pick: lift.pick, r: 1.5, inside: false,
         prompt: () => {
@@ -1049,6 +1067,7 @@ class Game {
     if (!info || !ha) return;
     const line = info.lines[entry.talk++ % info.lines.length];
     if (NEO && info.residence) { this.lifeSys.lettings(ha, line); return; }
+    if (NEO && info.venue) { this.lifeSys.desk(ha, line); return; }
     const b = this.s.hotel;
     this.ui.hotel(info, line, ha.rooms.map((r) => ({ id: r.id, floor: r.floor, type: r.type, price: r.price })),
       b?.id === id ? b.room : null, b && b.id !== id ? HOTEL[b.id]?.name ?? null : null, (rid) => this.checkIn(ha, rid));
@@ -1081,6 +1100,7 @@ class Game {
     fade.classList.add('on');
     await sleep(650);
     this.upstairs = { room: rm, hotel: ha, nav, lm: hb.lightmap };
+    if (NEO) { const L = this.lifeSys.life, key = `${ha.id}:${rm.floor}`; if (!L.floors.includes(key)) L.floors.push(key); }
     this.roomGlass.set(rm.panes);
     this.nav = nav;
     this.path = [];
@@ -1097,7 +1117,9 @@ class Game {
     const info = HOTEL[ha.id];
     if (!this.roomsSeen.has(rm.id)) {
       this.roomsSeen.add(rm.id);
-      setTimeout(() => this.ui.toast(ROOM_TYPE[rm.type].icon, `Room ${roomNo(rm.floor)} · ${info.name}`, 'Your room for the night. Try the window, put the kettle on, and the bed is yours whenever you are tired.'), 500);
+      if (info.venue) { /* a venue floor speaks for itself (neo/life.ts) */ }
+      else if (info.residence) setTimeout(() => this.ui.toast('home', `Home · ${info.name}`, 'Your own place. The bed is yours whenever you are tired, and the kitchen is by the window.'), 500);
+      else setTimeout(() => this.ui.toast(ROOM_TYPE[rm.type].icon, `Room ${roomNo(rm.floor)} · ${info.name}`, 'Your room for the night. Try the window, put the kettle on, and the bed is yours whenever you are tired.'), 500);
     }
   }
 
@@ -1484,7 +1506,19 @@ class Game {
       vitals: () => this.vitals,
       hour: () => this.tod.hour,
       flash: () => { this.player.flash = 1; },
+      goFloor: (ha, rm) => void this.goFloor(ha, rm),
+      upstairs: () => this.upstairs?.room ?? null,
+      dialogue: (name, lines, done) => this.ui.dialogue(name, lines, done),
+      shake: () => { this.cam.shake = 0.2; },
     }));
+  }
+
+  /** 2040's lifts: ride between the floors of a venue (rm null: down to the lobby). */
+  private async goFloor(ha: HotelAnchor, rm: HotelRoomAnchor | null): Promise<void> {
+    if (this.upstairs) await this.goDownstairs();
+    if (rm) {
+      await this.goUpstairs(ha, rm);
+    }
   }
   private closeCreator: (() => void) | null = null;
 
@@ -1818,6 +1852,7 @@ class Game {
     const line = info.lines[e.talk % info.lines.length];
     e.talk++;
     if (e.id === 'obaachan') this.s.flags.metFumiko = true;
+    if (NEO && e.id === 'netrunner' && this.lifeSys.wren(info.name)) { e.actor.anim = 'idle'; return; }
     this.ui.dialogue(info.name, [line], () => { e.actor.anim = 'idle'; });
   }
 
@@ -3116,7 +3151,7 @@ class Game {
       const rs = rm?.stall ? STALL[rm.stall] : undefined;
       const rn = rs ? [rs.name, rs.jp] : rm ? roomName(rm.kind, rm.nth, rm.hotel) : null;
       const up = this.upstairs, hi = up && HOTEL[up.hotel.id];
-      const z = this.inside ? { name: TEXT.hidden.name, jp: TEXT.hidden.local } : up && hi ? { name: `${hi.name} · ${roomNo(up.room.floor)}`, jp: hi.jp } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: TEXT.name, jp: TEXT.local };
+      const z = this.inside ? { name: TEXT.hidden.name, jp: TEXT.hidden.local } : up && hi ? { name: `${hi.name} · ${hi.venue ? `${up.room.floor + 1}F` : roomNo(up.room.floor)}`, jp: hi.jp } : rn ? { name: rn[0], jp: rn[1] } : zoneAt(pl.x, pl.z) ?? { name: TEXT.name, jp: TEXT.local };
       this.hotelGoal();
       this.ui.location(z.name, z.jp, this.tod.label());
       this.placeName = z.name;

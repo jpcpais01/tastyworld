@@ -93,6 +93,8 @@ function themeLook(b: Builder, t: HotelTheme): Look {
     case 'park': return { floor: carpet(ic.carpetRed, ic.carpetRedB), wain: ic.wain, rail: ic.brass, wall: ic.wpWarm, ceil: c.plaster, duvet: ic.linen, runner: ic.runnerRed, head: ic.wainDark, curtain: ic.velvetDark, rug: ic.duvetGold, rugEdge: ic.carpetRedB, chair: ic.velvet, chairBack: ic.velvetDark, wood: ic.wainDark, top: c.hinoki, door: ic.wainDark, lamp: WARM };
     case 'sky': return { floor: carpet(ic.carpetSand, ic.carpetSandB), wain: ic.wpStone, rail: ic.wpStone, wall: ic.wpStone, ceil: c.trim, duvet: ic.linen, runner: ic.duvetGold, head: ic.headTan, curtain: ic.carpetSandB, rug: ic.marbleG, rugEdge: ic.marbleG, chair: ic.headGrey, chairBack: ic.headGrey, wood: ic.plankDark, top: ic.marbleW, door: ic.plankDark, lamp: [1.0, 0.86, 0.68] };
     case 'ryokan': return { floor: () => c.tatami, wain: c.plaster, rail: c.woodDark, wall: c.plaster, ceil: c.woodMid, duvet: ic.quilt, runner: ic.quiltB, head: c.woodDark, curtain: c.shoji, rug: c.tatami, rugEdge: c.tatami, chair: c.hinoki, chairBack: c.woodMid, wood: c.woodDark, top: c.hinoki, door: ic.paperWall, lamp: WARM };
+    case 'office': return { floor: carpet(ic.carpetBlue, ic.carpetBlueB), wain: ic.wpStone, rail: ic.steelDark, wall: ic.wpStone, ceil: c.trim, duvet: ic.linen, runner: ic.runnerNavy, head: ic.headGrey, curtain: ic.duvetGrey, rug: ic.carpetBlueB, rugEdge: ic.carpetBlueB, chair: ic.headGrey, chairBack: ic.steelDark, wood: ic.steelDark, top: ic.marbleW, door: ic.steelDark, lamp: [0.85, 0.95, 1.0] };
+    case 'mall': return { floor: (u, v) => (((u >> 2) + (v >> 2)) % 2 ? ic.marbleW : ic.marbleG), wain: ic.marbleW, rail: c.neonPink, wall: ic.wpStone, ceil: c.trim, duvet: ic.linen, runner: ic.runnerNavy, head: ic.headGrey, curtain: ic.velvetDark, rug: ic.carpetPlumB, rugEdge: ic.duvetGold, chair: ic.velvet, chairBack: ic.velvetDark, wood: ic.plankDark, top: ic.marbleW, door: ic.steelDark, lamp: [1.0, 0.9, 0.95] };
     default: return { floor: planks(ic.plankB, ic.plank, ic.plankLight), wain: ic.wain, rail: c.woodDark, wall: ic.wpCream, ceil: c.plaster, duvet: ic.quilt, runner: ic.runnerRed, head: ic.headTan, curtain: ic.paperWall, rug: ic.duvetRed, rugEdge: ic.duvetGold, chair: ic.velvet, chairBack: ic.velvetDark, wood: c.woodMid, top: c.hinoki, door: c.woodMid, lamp: WARM };
   }
 }
@@ -130,6 +132,7 @@ export function hotelFloors(lot: Lot, info: HotelInfo, lobby: RoomAnchor, style:
     const set = (u: number, y: number, v: number, col: number) => lot.set(A(u), base + y, D0 + v, col);
     const lamp = (u: number, v: number, y: number, col: [number, number, number], r: number, k: number) => { const [x, z] = M(u, v); b.lamp(x, F + y, z, col, r, k); };
     const ryokan = spec.type === 'tatami';
+    const venue = info.theme === 'office' || info.theme === 'mall';
 
     // ---- shell: hollow the floor, lay the floor, the ceiling with its light, the walls
     box(0, 0, 0, Wr - 1, 9, Dr - 1, 0);
@@ -167,7 +170,7 @@ export function hotelFloors(lot: Lot, info: HotelInfo, lobby: RoomAnchor, style:
     const spawnAt = M(ud + 2.5, Dr - 1.4);
     const doorPick = M(ud + 2.5, Dr);
     // a wardrobe (an oshiire with sliding paper doors in the ryokan) beside it
-    box(Wr - 2, 0, Dr - 6, Wr - 1, 8, Dr - 1, (_u, y, v) => (y === 0 || y === 8 || v === Dr - 6 || v === Dr - 1 ? t.wood : ryokan ? (y % 3 === 0 ? c.woodDark : ic.paperWall) : v === Dr - 4 && y === 4 ? ic.brass : t.door));
+    if (!venue) box(Wr - 2, 0, Dr - 6, Wr - 1, 8, Dr - 1, (_u, y, v) => (y === 0 || y === 8 || v === Dr - 6 || v === Dr - 1 ? t.wood : ryokan ? (y % 3 === 0 ? c.woodDark : ic.paperWall) : v === Dr - 4 && y === 4 ? ic.brass : t.door));
 
     // ---- where you sleep
     let bedStand: P2, bedPick: P3, bedFace: number;
@@ -178,7 +181,90 @@ export function hotelFloors(lot: Lot, info: HotelInfo, lobby: RoomAnchor, style:
       set(0, 3, v, ic.shade);
       lamp(0.5, v + 0.5, 0.95, t.lamp, 2.6, 0.55);
     };
-    if (ryokan) {
+    if (venue) {
+      // 2040: office floors (Helix Dynamics) and mall levels (Orbit Mall) instead of guest rooms; the bed's spot
+      // is the floor's main thing (a console, a counter, a cabinet), the kettle's a second one
+      const fl = spec.floor;
+      const neon = [c.neonCyan, c.neonPink, c.neonViolet, c.neonYellow, c.neonGreen, c.neonOrange];
+      const desk = (u: number, v: number, screen = true) => {
+        box(u, 0, v, u, 1, v + 1, ic.steelDark); box(u + 4, 0, v, u + 4, 1, v + 1, ic.steelDark);
+        box(u, 2, v, u + 4, 2, v + 1, t.top);
+        if (screen) { box(u + 1, 3, v, u + 3, 4, v, (uu, y) => (y === 3 && uu === u + 2 ? ic.tvFrame : ic.screen)); set(u + 2, 3, v + 1, c.steelDark); }
+        set(u + 2, 1, v + 3, t.chair); box(u + 2, 0, v + 4, u + 2, 3, v + 4, (_u, y) => (y <= 1 ? t.chair : t.chairBack));
+        lamp(u + 2.5, v + 0.5, 1.1, [0.45, 0.85, 1], 1.6, 0.35);
+      };
+      const second = (stand: P2, pick: P2, y: number) => ({ stand, pick: [...pick, F + y] as P3, facing: ang(stand, pick) });
+      if (info.theme === 'office') {
+        // the coffee machine by the window (a fuse panel on the vault floor)
+        box(Wr - 2, 0, 1, Wr - 1, 4, 2, (_u, y) => (y === 4 ? c.steelDark : y === 3 ? (fl === 4 ? c.neonOrange : ic.cup) : ic.steel));
+        tea = second(M(Wr - 3.6, 1.6), M(Wr - 1.5, 1.6), 0.9);
+        if (fl === 4) {
+          // Terminal Seven: a lit column in the middle, server racks blinking down both sides, a red line round it
+          box(cu - 2, 0, cv - 2, cu + 1, 7, cv + 1, (u, y, v) => (y === 7 ? c.neonPink : (u === cu - 2 || u === cu + 1) && (v === cv - 2 || v === cv + 1) ? ic.steelDark : y >= 2 && y <= 5 ? ic.screen : ic.tvFrame));
+          box(cu - 4, -1, cv - 4, cu + 3, -1, cv + 3, (u, _y, v) => (u === cu - 4 || u === cu + 3 || v === cv - 4 || v === cv + 3 ? c.neonPink : t.floor(u, v)));
+          for (const ru of [0, 1]) box(ru, 0, 3, ru, 8, Dr - 8, (_u, y, v) => (y === 8 || v % 4 === 3 ? ic.steelDark : (y * 3 + v) % 7 === 0 ? neon[(y + v) % 6] : ic.tvFrame));
+          box(Wr - 2, 0, 5, Wr - 1, 8, Dr - 9, (_u, y, v) => (y === 8 || v % 4 === 0 ? ic.steelDark : (y * 5 + v) % 7 === 1 ? neon[(y + 2 * v) % 6] : ic.tvFrame));
+          lamp(cu, cv, 2.2, [1, 0.35, 0.6], 6, 1.0);
+          lamp(1, Dr / 2, 1.2, [0.4, 0.9, 1], 4, 0.5);
+          bedStand = M(cu, cv + 5); bedPick = [...M(cu, cv), F + 1.2] as P3; bedFace = ang(bedStand, M(cu, cv));
+        } else if (fl === 3) {
+          // the executive office: one long desk, a leather chair, a sofa and a plant by the glass
+          box(6, 0, 6, 17, 0, 8, ic.steelDark); box(6, 2, 6, 17, 2, 8, ic.marbleW); box(6, 1, 6, 6, 1, 8, ic.steelDark); box(17, 1, 6, 17, 1, 8, ic.steelDark);
+          box(9, 3, 6, 13, 5, 6, (u, y) => (y === 3 && u === 11 ? ic.tvFrame : ic.screen));
+          box(10, 0, 3, 12, 1, 4, ic.velvet); box(10, 2, 2, 12, 5, 2, ic.velvetDark);
+          box(1, 0, 12, 2, 1, 17, ic.velvetDark); box(0, 2, 12, 0, 3, 17, ic.velvet);
+          set(Wr - 2, 0, 9, c.steelDark); box(Wr - 2, 1, 9, Wr - 2, 4, 9, ic.duvetGreen);
+          lamp(11.5, 7, 1.4, [1, 0.85, 0.6], 3, 0.6);
+          bedStand = M(11.5, 11.2); bedPick = [...M(11.5, 7.5), F + 0.8] as P3; bedFace = ang(bedStand, M(11.5, 7.5));
+        } else if (fl === 2) {
+          // security: a wall of camera feeds over a long console
+          box(-1, 3, 3, -1, 8, 14, (_u, y, v) => (y === 3 || y === 8 || v === 3 || v === 14 || v % 4 === 2 ? ic.tvFrame : ic.screen));
+          box(0, 0, 3, 2, 1, 14, ic.steelDark); box(0, 2, 3, 2, 2, 14, t.top);
+          for (let v = 4; v <= 12; v += 4) set(1, 3, v, c.neonCyan);
+          desk(10, 3); desk(10, 11, false);
+          lamp(1.5, 8.5, 1.4, [0.4, 0.8, 1], 4, 0.7);
+          bedStand = M(4.6, 8.5); bedPick = [...M(1.5, 8.5), F + 0.8] as P3; bedFace = ang(bedStand, M(1.5, 8.5));
+        } else {
+          // open plan: two rows of desks with screens and chairs
+          desk(3, 3); desk(10, 3); desk(3, 10); desk(10, 10);
+          box(Wr - 3, 0, 9, Wr - 3, 0, 9, c.steelDark); box(Wr - 3, 1, 9, Wr - 3, 4, 9, ic.duvetGreen);
+          bedStand = M(12.5, 8.6); bedPick = [...M(12.5, 3.5), F + 0.9] as P3; bedFace = ang(bedStand, M(12.5, 3.5));
+        }
+      } else {
+        // Orbit Mall: fashion, the food court, the arcade
+        if (fl === 1) {
+          for (const v of [4, 10]) {
+            box(2, 0, v, 2, 5, v, ic.steel); box(Wr - 6, 0, v, Wr - 6, 5, v, ic.steel); box(2, 5, v, Wr - 6, 5, v, ic.steel);
+            for (let u = 3; u < Wr - 6; u++) box(u, 2, v, u, 4, v, [ic.duvetPlum, ic.duvetBlue, ic.duvetGold, ic.duvetRed, ic.duvetGreen, ic.linen, c.steelDark][(u * 3 + v) % 7]);
+          }
+          box(1, 0, Dr - 7, 6, 2, Dr - 6, (_u, y) => (y === 2 ? ic.marbleW : t.wood));
+          set(2, 3, Dr - 7, ic.screen);
+          box(Wr - 1, 1, 13, Wr - 1, 8, 16, ic.case);
+          tea = second(M(Wr - 3, 14.5), M(Wr - 1, 14.5), 1.3);
+          bedStand = M(3.5, Dr - 3.4); bedPick = [...M(3.5, Dr - 6.5), F + 0.8] as P3; bedFace = ang(bedStand, M(3.5, Dr - 6.5));
+        } else if (fl === 2) {
+          box(0, 0, 2, 2, 2, 14, (_u, y, v) => (y === 2 ? ic.marbleW : v % 4 === 0 ? c.steelDark : t.wood));
+          box(-1, 5, 2, -1, 7, 14, (_u, y, v) => (y === 6 && v % 4 !== 0 ? neon[Math.floor(v / 4) % 6] : ic.tvFrame));
+          for (const [u, v] of [[9, 4], [15, 4], [9, 10], [15, 10]]) {
+            box(u, 0, v, u + 1, 0, v + 1, ic.steelDark); box(u, 1, v, u + 1, 1, v + 1, ic.marbleW);
+            set(u - 1, 0, v, t.chair); set(u + 2, 0, v + 1, t.chair);
+          }
+          box(Wr - 2, 0, 1, Wr - 1, 3, 2, (_u, y) => (y === 3 ? c.neonPink : ic.case));
+          tea = second(M(Wr - 3.6, 1.6), M(Wr - 1.5, 1.6), 0.9);
+          lamp(1.5, 8, 1.6, [1, 0.7, 0.5], 5, 0.8);
+          bedStand = M(4.4, 8.5); bedPick = [...M(1.5, 8.5), F + 0.8] as P3; bedFace = ang(bedStand, M(1.5, 8.5));
+        } else {
+          for (let v = 2; v <= 14; v += 3) {
+            box(0, 0, v, 1, 6, v + 1, (u, y) => (y === 6 ? neon[(v + 1) % 6] : u === 1 && (y === 3 || y === 4) ? ic.screen : y === 2 && u === 1 ? neon[(v + 3) % 6] : c.steelDark));
+            lamp(1.5, v + 1, 1.0, [0.6, 0.5, 1], 1.4, 0.35);
+          }
+          box(Wr - 3, 0, 3, Wr - 1, 1, 6, c.steelDark); box(Wr - 3, 2, 3, Wr - 1, 6, 6, (u, y, v) => (y === 6 ? c.neonYellow : u === Wr - 3 || v === 3 || v === 6 ? ic.case : y === 2 ? [ic.duvetPlum, ic.duvetGold, ic.duvetGreen][(u + v) % 3] : 0));
+          box(6, -1, 6, 16, -1, 14, (u, _y, v) => ((u + v) % 2 ? neon[(u + 2 * v) % 6] : ic.tvFrame));
+          tea = second(M(Wr - 5, 4.5), M(Wr - 2, 4.5), 1.1);
+          bedStand = M(3.6, 9); bedPick = [...M(1, 9), F + 0.9] as P3; bedFace = ang(bedStand, M(1, 9));
+        }
+      }
+    } else if (ryokan) {
       // two futons on the tatami, a low table with cushions, an alcove with a scroll and a branch in a vase
       const futon = (v0: number) => box(1, 0, v0, 8, 0, v0 + 3, (u, _y, v) => (u <= 2 ? ic.pillow : (v + u) % 4 === 0 ? ic.quiltB : ic.quilt));
       futon(6); futon(12);

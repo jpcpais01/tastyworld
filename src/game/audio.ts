@@ -177,6 +177,38 @@ export class Audio {
     this.bed.gain.setTargetAtTime(inside ? 0.01 : 0.03 * (1 - night * 0.4), t, 1.5);
   }
 
+  private rainBus: GainNode | null = null;
+  private rainTone: BiquadFilterNode | null = null;
+
+  /**
+   * Rain (2040's showers): a hiss of fine drops and a patter of fat ones on awnings and puddles, built the first
+   * time it rains. Under a roof it drops to a muffled drum on the ceiling.
+   */
+  rain(amount: number, sheltered: boolean): void {
+    if (!this.ctx) return;
+    if (!this.rainBus) {
+      if (amount < 0.02) return;
+      this.rainBus = this.gain(0, this.amb);
+      this.rainTone = this.filter('lowpass', 9000, 0.4, this.rainBus);
+      const hiss = this.render(3, SR, () => { const f = new SVF(SR, 0.7); return () => f.run(noise(), 5200) * 0.9; }, true);
+      this.loop(hiss, 1, this.gain(0.55, this.rainTone));
+      // the patter: little decaying ticks at random, each its own pitch, a slow swell in how many fall
+      const patter = this.render(4, SR, () => {
+        const f = new SVF(SR, 0.25);
+        let env = 0, fc = 2000;
+        return (t) => {
+          if (Math.random() < 0.0035 * (0.7 + 0.3 * Math.sin(t * 1.6))) { env = 0.4 + Math.random() * 0.6; fc = 1200 + Math.random() * 3200; }
+          env *= 0.9965;
+          return f.run(noise() * env, fc) * 1.6;
+        };
+      }, true);
+      this.loop(patter, 1, this.gain(0.5, this.rainTone));
+    }
+    const t = this.ctx.currentTime;
+    this.rainBus.gain.setTargetAtTime(Math.min(1, amount * 1.2) * (sheltered ? 0.06 : 0.16), t, 0.8);
+    this.rainTone!.frequency.setTargetAtTime(sheltered ? 700 : 9000, t, 0.4);
+  }
+
   /** Where the listener is. Call a few times a second. */
   scene(x: number, z: number): void {
     if (!this.ctx) return;

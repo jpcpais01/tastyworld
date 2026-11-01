@@ -1446,6 +1446,7 @@ class Game {
     if (old) {
       this.player.position.copy(old.position);
       this.player.facing = this.player.targetFacing = old.facing;
+      this.player.studio = old.studio;
       old.root.removeFromParent();
       old.dispose();
       this.player.flash = 1;
@@ -1575,7 +1576,9 @@ class Game {
     // the mirror wants light: hold the sky at the last of the sunset, neon already on, until you step out
     this.nightIn = 0;
     this.tod.hour = 18.2; this.tod.frozen = true;
-    const night = () => { this.tod.frozen = false; this.tod.hour = 20.6; };
+    // and a soft mirror light on the body itself, so every colour picked reads true
+    this.player.studio = new THREE.Vector3(0.95, 0.88, 1.0);
+    const night = () => { this.tod.frozen = false; this.tod.hour = 20.6; this.player.studio = null; };
     this.closeCreator = openCreator(document.getElementById('app')!, { name: life.name, look: life.look }, {
       preview: (look) => { life.look = look; this.rebuildPlayer(); this.player.flash = 0.6; },
       done: (name, look) => {
@@ -3029,7 +3032,8 @@ class Game {
    * game/cutaway.ts). Only chunks that touch a lowered occluder use the more expensive material.
    */
   private updateCutaway(dt: number): void {
-    const on = this.started && !this.cam.fp;
+    // (the 2040 creator's mirror too: nothing may stand between the camera and the body being made)
+    const on = (this.started || !!this.closeCreator) && !this.cam.fp;
     const sh = this.r.shared;
     sh.uCutOn.value = on ? 1 : 0;
     sh.uCamFwd.value.copy(this.cam.fwd);
@@ -3165,6 +3169,7 @@ class Game {
       }
     } else this.lookUpT = 0;
     this.particles.update(this.cam.right, this.cam.up, this.tod.particleLight);
+    if (this.rain) this.audio.rain(this.rain.amount, !!(this.inside || this.upstairs || this.roomHere));
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);
     this.perf.lap('effects');

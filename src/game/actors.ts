@@ -108,6 +108,8 @@ export class Actor {
   speed = 0;
   facing = 0;
   targetFacing = 0;
+  /** Extra lamp light on this body alone (the 2040 character creator's mirror light). */
+  studio: THREE.Vector3 | null = null;
   headYaw = 0;
   headYawTarget = 0;
   animT = Math.random() * 10;
@@ -293,6 +295,7 @@ export class Actor {
     this.sun = tmpL[0];
     this.uCharLight.value.set(tmpL[0], Math.max(0.35, tmpL[1]), 0);
     this.uCharLamp.value.set(tmpL[2], tmpL[3], tmpL[4]);
+    if (this.studio) this.uCharLamp.value.add(this.studio);
     this.writeLight();
   }
 

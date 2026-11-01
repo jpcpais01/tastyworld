@@ -212,7 +212,7 @@ export class Dining {
       prompt: () => {
         if (this.seated || (crowd >= 0 && !this.h.crowd.seatFree(crowd))) return null;
         if (place) return ['terrace', place.name, crowd >= 0 ? 'Sit at a table outside' : 'Take a seat'];
-        return ['seat', spot.table ? 'A free table' : 'A seat', this.bag.length ? 'Sit down for a bite from your bag' : 'Sit down a while'];
+        return ['seat', spot.table ? 'A free table' : 'A seat', this.bag.length ? 'Sit down for a bite from your paper bag' : 'Sit down a while'];
       },
       act: () => this.sit(seat),
     };
@@ -292,7 +292,7 @@ export class Dining {
     const v = this.visit;
     if (this.canCall()) return ['waiter', `“${DINING.call}”`, 'Call the waiter over'];
     if (v && v.state === 'kitchen') return ['waiter', 'Your order is coming', 'Sit back and watch the street'];
-    if (this.bag.length && !this.h.meal()) return ['bag', 'Your bag', `${this.bag.length} ${this.bag.length === 1 ? 'thing' : 'things'} to eat here`];
+    if (this.bag.length && !this.h.meal()) return ['bag', 'Your paper bag', `${this.bag.length} ${this.bag.length === 1 ? 'thing' : 'things'} to eat here`];
     return ['walk', 'Stand up', v && v.state !== 'done' && v.eatenItems.length ? 'Pay for what you ate and go' : 'Carry on exploring'];
   }
 
@@ -445,7 +445,7 @@ export class Dining {
         h.s.yen = Math.max(0, h.s.yen - total);
         const [now, ...later] = list;
         for (const it of later) this.bag.push({ id: it.id, name: it.name, dish: it.dish, icon: it.icon, city: TEXT.name });
-        if (later.length) h.ui.toast('bag', `${later.length} in your bag`, 'For later. Tap the bag, or sit down somewhere nice.');
+        if (later.length) h.ui.toast('bag', `${later.length} in your paper bag`, 'For later. Tap the paper bag (B), or sit down somewhere nice.');
         this.refreshBag();
         h.afterChange();
         setTimeout(() => this.eatNow(now, server), 150);

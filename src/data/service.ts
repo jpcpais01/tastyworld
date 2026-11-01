@@ -20,7 +20,9 @@ export type Service = 'stall' | 'table' | 'counter';
 export const COUNTER_ROOMS: ReadonlySet<RoomKind> = new Set<RoomKind>(['bakery', 'konbini', 'firin', 'borek', 'lokum']);
 
 /** Restaurants (StallInfo with a room) that sell over a display case instead of serving at the tables. */
-const COUNTER_STALLS: Record<string, Service> = { ruocco: 'counter', dolceria: 'counter', duomo: 'counter', pastelaria: 'counter', gelataria: 'counter' };
+const COUNTER_STALLS: Record<string, Service> = Object.fromEntries(
+  ['ruocco', 'dolceria', 'duomo', 'pansa', 'gelato', 'pastelaria', 'gelataria', 'confeitaria', 'boloarroz', 'baklavaci', 'pan'].map((id) => [id, 'counter' as Service]),
+);
 
 /** How a stall or restaurant serves: its own `service`, else a restaurant serves at the tables and a stall over the counter. */
 export function serviceOf(st: { id: string; restaurant?: boolean; service?: Service }): Service {

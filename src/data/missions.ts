@@ -7,7 +7,9 @@ import { HOTEL, HOTELS } from './hotels';
 import { perCity } from '../world/cityId';
 import { eur, lira } from './money';
 import { MADEIRA_ITEMS } from './madeira';
+import { CITY_SOUVENIRS } from './souvenirs';
 import { ISTANBUL_MORE_STALLS } from './istanbulMenu';
+import { TOKYO_MORE_STALLS } from './tokyoMenu';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -21,7 +23,7 @@ export interface Mission {
 
 const tasted = (s: SaveState) => Object.keys(s.tasted);
 const AMALFI_COUNT = DISHES.length;
-const AMALFI_STALL_IDS = ['pansa', 'cuoppo', 'portafoglio', 'gelato', 'limonaia', 'duomo', 'gemma', 'saraceno', 'forno', 'cantina', 'ruocco', 'andrea', 'dolceria', 'colatura', 'masseria', 'chiostro', 'terrazza'];
+const AMALFI_STALL_IDS = ['pansa', 'cuoppo', 'portafoglio', 'gelato', 'limonaia', 'duomo', 'gemma', 'saraceno', 'forno', 'cantina', 'ruocco', 'andrea', 'dolceria', 'colatura', 'masseria', 'chiostro', 'terrazza', 'salumeria', 'marinella', 'osteria', 'graffe', 'chiosco', 'scogliera', 'titina', 'caseificio'];
 /** Amalfi's sit-down restaurants (the hidden grotta has its own mission). */
 const AMALFI_TABLES = STALLS.filter((st) => st.restaurant && !st.hidden).map((st) => st.id);
 const dinedAt = (s: SaveState) => AMALFI_TABLES.filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st));
@@ -43,6 +45,8 @@ const TOKYO_MISSIONS: Mission[] = [
   { id: 'stars', name: 'Three Stars', desc: 'Earn three stars on any cooking challenge.', progress: (s) => [Math.max(0, ...Object.values(s.cooked)) >= 3 ? 1 : 0, 1], reward: { yen: 2000 } },
   { id: 'browse', name: 'Window Shopper', desc: 'Step inside ten different shops, cafés and bars.', progress: (s) => [Math.min(10, s.rooms.length), 10], reward: { yen: 2500 } },
   { id: 'tables', name: 'Table for One', desc: 'Sit down to eat at Kissa Komorebi and Soba-dokoro Kikyō.', progress: (s) => [['komorebi', 'kikyo'].filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st)).length, 2], reward: { yen: 3000, item: 'noren' } },
+  { id: 'noren', name: 'Under the Noren', desc: 'Eat at six of the district\'s restaurants: oden, katsu, unagi, yōshoku, sukiyaki, robata, udon and more.', progress: (s) => [Math.min(6, TOKYO_MORE_STALLS.filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st.id)).length), 6], reward: { yen: 6000 } },
+  { id: 'kanmi', name: 'Afternoon Sweets', desc: 'Have anmitsu or kakigōri, warabi mochi with matcha, and a kurīmu pan.', progress: (s) => [[['anmitsu', 'kakigori'], ['warabimochi', 'matcha'], ['kurimupan', 'fruitsando']].filter((g) => g.some((d) => s.tasted[d])).length, 3], reward: { yen: 3000 } },
   { id: 'gacha', name: 'Capsule Collector', desc: 'Collect six different gachapon capsule charms.', progress: (s) => [Math.min(6, s.capsules.length), 6], reward: { yen: 3500 } },
   { id: 'gacha-all', name: 'Gachapon Master', desc: `Complete the set of ${CAPSULES.length} capsule charms, golden shrimp included.`, progress: (s) => [s.capsules.length, CAPSULES.length], reward: { yen: 7500, title: 'Capsule Royalty' } },
   { id: 'shelf', name: 'Between the Pages', desc: 'An old bookshop on Kaminari Lane is hiding a room.', progress: (s) => [s.flags.shelfOpen ? 1 : 0, 1], reward: { yen: 3000 } },
@@ -97,7 +101,7 @@ const ISTANBUL_MISSIONS: Mission[] = [
   { id: 'i-master', name: 'Master of Istanbul', desc: `Collect all ${AMALFI_COUNT} Istanbul passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: lira(2500), title: 'Istanbul Gourmet', item: 'goldtulip' } },
 ];
 
-const MADEIRA_STALL_IDS = ['caco', 'poncha', 'frutas', 'malasadas', 'espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
+const MADEIRA_STALL_IDS = ['caco', 'poncha', 'frutas', 'malasadas', 'espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack', 'pasto', 'bacalhoeiro', 'ilheu', 'confeitaria', 'castanha', 'teatro'];
 const MADEIRA_MISSIONS: Mission[] = [
   { id: 'm-first-bite', name: 'Bom Apetite', desc: 'Taste your first dish in Funchal.', progress: (s) => [Math.min(1, AMALFI_TASTED(s)), 1], reward: { yen: eur(20) } },
   { id: 'm-trio', name: 'Três Sabores', desc: 'Discover three foods of the island.', progress: (s) => [Math.min(3, AMALFI_TASTED(s)), 3], reward: { yen: eur(30), item: 'carapuca' } },
@@ -117,7 +121,22 @@ const MADEIRA_MISSIONS: Mission[] = [
 ];
 const MADEIRA_TABLES = ['espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
 
-export const MISSIONS: Mission[] = perCity({ tokyo: TOKYO_MISSIONS, amalfi: AMALFI_MISSIONS, istanbul: ISTANBUL_MISSIONS, madeira: MADEIRA_MISSIONS });
+/** Every city's souvenir shops: a first piece to take home, a shelf of eight, and a piece the city has only one of. */
+function shopMissions(p: string, city: string, first: number, eight: number): Mission[] {
+  const mine = (s: SaveState) => CITY_SOUVENIRS.filter((it) => s.souvenirs?.[it.id] !== undefined);
+  return [
+    { id: `${p}souvenir`, name: 'Something to Remember', desc: `Buy your first souvenir in ${city}.`, progress: (s) => [Math.min(1, mine(s).length), 1], reward: { yen: first } },
+    { id: `${p}collector`, name: 'Souvenir Collector', desc: `Take home eight different souvenirs from the shops of ${city}.`, progress: (s) => [Math.min(8, mine(s).length), 8], reward: { yen: eight } },
+    { id: `${p}treasure`, name: 'One of a Kind', desc: `Find a piece nobody else in ${city} sells, and make it yours. Shopkeepers know who has what.`, progress: (s) => [mine(s).some((it) => it.tier === 'treasure') ? 1 : 0, 1], reward: { title: 'Treasure Hunter' } },
+  ];
+}
+
+export const MISSIONS: Mission[] = perCity({
+  tokyo: [...TOKYO_MISSIONS, ...shopMissions('', 'Tokyo', 2000, 6000)],
+  amalfi: [...AMALFI_MISSIONS, ...shopMissions('a-', 'Amalfi', eur(15), eur(40))],
+  istanbul: [...ISTANBUL_MISSIONS, ...shopMissions('i-', 'Istanbul', lira(500), lira(1500))],
+  madeira: [...MADEIRA_MISSIONS, ...shopMissions('m-', 'Madeira', eur(15), eur(40))],
+});
 /** The mission for the hidden restaurant, which stays secret until its door is found. */
 export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret', madeira: 'm-secret' });
 

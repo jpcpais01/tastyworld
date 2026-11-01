@@ -524,7 +524,7 @@ export function bazaarShop(ctx: Ctx, f: Frame, lt: LotPlan, use: Use | undefined
   b.indoor.push([Math.min(vx0, vx1), base, Math.min(vz0, vz1), Math.max(vx0, vx1), base + 10, Math.max(vz0, vz1)]);
   if (use?.room) { foodRoom(ctx, f, lt, use.room, true, use.restaurant, true); return; }
   const kinds = grand ? GRAND_KINDS : SPICE_KINDS;
-  const kind = kinds[Math.floor(hash3(seed, 5, 9) * kinds.length)];
+  const kind = bazaarTrade(lt);
   // a shop on a corner opens onto the cross hall too, under its own sign
   const hallCell = (a: number, d: number) => { const [x, z] = f.xz(a, d); return inMap(x, z) && ctx.plan.kind[col(x, z)] === K.Covered; };
   const onHall = (a: number) => [2, D >> 1, D - 3].every((d) => hallCell(a, d));
@@ -546,6 +546,17 @@ export function bazaarShop(ctx: Ctx, f: Frame, lt: LotPlan, use: Use | undefined
 /** Where a bazaar shop's keeper stands (metres): beside the goods, in the light of the opening. */
 export function bazaarKeeper(f: Frame): [number, number] {
   return f.m(2.5, 3);
+}
+
+/** Where a shopper stands to talk to the keeper (metres): out in the hall, just off the threshold. */
+export function bazaarStand(f: Frame): [number, number] {
+  return f.m(4.5, -3);
+}
+
+/** The trade a bazaar shop keeps (pure: from its lot alone, the same in every worker). */
+export function bazaarTrade(lt: LotPlan): Kind {
+  const kinds = lt.x0 * V < -100 ? GRAND_KINDS : SPICE_KINDS;
+  return kinds[Math.floor(hash3(lt.seed, 5, 9) * kinds.length)];
 }
 
 /** A trade's shop dressed: floor, walls, shelves, what hangs from the ceiling, and what stands out front. */

@@ -1,4 +1,5 @@
 import { G, V, VX0, VZ0, SX, SZ } from './layout';
+import { takeOverHouses, type TakenPlace } from './laterPlaces';
 import { hash3, rng } from './grid';
 import { regradePaths, gardenFlights } from './regrade';
 
@@ -214,6 +215,22 @@ export const FOOD_PLACES: { id: string; near: [number, number]; w: number; dep: 
   { id: 'colatura', near: [26, 50], w: 7, dep: 7 },
   { id: 'masseria', near: [-83.5, -3.5], w: 6.5, dep: 6 },
   { id: 'terrazza', near: [5, -40], w: 8, dep: 7 },
+];
+
+/**
+ * Places added later (v0.19.2): built last of all, after every house, and seeded by name, so the rest of the town keeps
+ * its layout; each slides along its path (`along` the x or z axis) until it finds room, or takes over a house.
+ */
+export const MORE_FOOD_PLACES: ({ id: string; near: [number, number]; w: number; dep: number; along: 'x' | 'z' } | TakenPlace)[] = [
+  { id: 'graffe', near: [10.2, -16.7], w: 6.5, dep: 6, along: 'x' },
+  { id: 'salumeria', near: [-7.5, -43.3], w: 6.5, dep: 6, along: 'x' },
+  { id: 'chiosco', near: [-8.0, 69.3], w: 6.5, dep: 6, along: 'x' },
+  { id: 'marinella', near: [-56.8, 40.4], w: 6.5, dep: 6, along: 'x' },
+  // no room for a new house on these streets: the place takes over one already there
+  { id: 'scogliera', near: [13, 50.6], takeOver: true },
+  { id: 'osteria', near: [-45.9, -21.3], takeOver: true },
+  { id: 'titina', near: [-79.3, 23.6], takeOver: true },
+  { id: 'caseificio', near: [13.1, -41.3], takeOver: true },
 ];
 
 /**
@@ -576,27 +593,29 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
     // the harbour front: the quay's margin beside the road is paved up to the road's level in front of the door
     { a: [ROAD_X0 + 1.25, 36], b: [ROAD_X0 + 1.25, 80], half: 1.25, k: K.Walk, y: ROAD_Y },
   ];
-  for (const fp of [...FOOD_PLACES, ...HOTEL_PLACES.map((h) => ({ ...h, hotel: true }))] as ((typeof FOOD_PLACES)[number] & { hotel?: boolean; rooms?: number })[]) {
+  type Place = { id: string; near: [number, number]; w: number; dep: number; hotel?: boolean; rooms?: number };
+  /** Stand one house on the path nearest `near`; returns why it could not, or ''. */
+  const place = (fp: Place, near: [number, number], seed?: number): string => {
     let best = edges[0], bd = 1e9, bt = 0;
     for (const e of edges) {
       const dx = e.b[0] - e.a[0], dz = e.b[1] - e.a[1], l2 = dx * dx + dz * dz;
-      const t = Math.max(0, Math.min(1, ((fp.near[0] - e.a[0]) * dx + (fp.near[1] - e.a[1]) * dz) / l2));
-      const d = Math.hypot(fp.near[0] - e.a[0] - dx * t, fp.near[1] - e.a[1] - dz * t) - e.half;
+      const t = Math.max(0, Math.min(1, ((near[0] - e.a[0]) * dx + (near[1] - e.a[1]) * dz) / l2));
+      const d = Math.hypot(near[0] - e.a[0] - dx * t, near[1] - e.a[1] - dz * t) - e.half;
       if (d < bd) { bd = d; best = e; bt = t; }
     }
     const e = best, cx = e.a[0] + (e.b[0] - e.a[0]) * bt, cz = e.a[1] + (e.b[1] - e.a[1]) * bt;
     const alongX = Math.abs(e.b[0] - e.a[0]) >= Math.abs(e.b[1] - e.a[1]);
     // the path's own level in front of the door (a square's edge: its own height)
-    const pc = col(Math.floor((alongX ? fp.near[0] : cx) / V), Math.floor((alongX ? cz : fp.near[1]) / V));
+    const pc = col(Math.floor((alongX ? near[0] : cx) / V), Math.floor((alongX ? cz : near[1]) / V));
     const pathLayer = e.y !== null ? layerOf(e.y) : walk[pc];
-    const off = e.half + 0.5, sgn = alongX ? Math.sign(fp.near[1] - cz) : Math.sign(fp.near[0] - cx);
+    const off = e.half + 0.5, sgn = alongX ? Math.sign(near[1] - cz) : Math.sign(near[0] - cx);
     // where a street runs at a slant the front stands clear of it along the whole frontage
     const across = (u: number) => {
       const du = alongX ? e.b[0] - e.a[0] : e.b[1] - e.a[1];
       const t = Math.max(0, Math.min(1, (u - (alongX ? e.a[0] : e.a[1])) / (du || 1)));
       return alongX ? e.a[1] + (e.b[1] - e.a[1]) * t : e.a[0] + (e.b[0] - e.a[0]) * t;
     };
-    const u0 = (alongX ? fp.near[0] : fp.near[1]) - fp.w / 2, u1 = u0 + fp.w;
+    const u0 = (alongX ? near[0] : near[1]) - fp.w / 2, u1 = u0 + fp.w;
     const reach = sgn > 0 ? Math.max(across(u0), across(u1), alongX ? cz : cx) : Math.min(across(u0), across(u1), alongX ? cz : cx);
     let x0: number, z0: number, x1: number, z1: number, side: LotPlan['side'];
     if (alongX) {
@@ -618,16 +637,18 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
     }
     let why = '';
     for (let z = vz0 - 1; z <= vz1 + 1 && !why; z++) for (let x = vx0 - 1; x <= vx1 + 1; x++) { const c = col(x, z); if (lot[c] || (kind[c] !== K.Rock && !ap.includes(c))) { why = `${fp.id}: kind ${kind[c]} at ${(x * V).toFixed(1)},${(z * V).toFixed(1)}`; break; } }
-    if (why) { FOOD_MISSED.push(why); continue; }
+    if (why) return why;
     for (const c of ap) if (kind[c] === K.Rock || kind[c] === K.Quay || kind[c] === K.Shingle) { kind[c] = e.k; walk[c] = pathLayer; }
     let hi = 0;
     for (let z = vz0; z <= vz1; z++) for (let x = vx0; x <= vx1; x++) hi = Math.max(hi, walk[col(x, z)]);
     const base = pathLayer - 1;
     const id = lots.length + 1;
     const top = Math.min(214, Math.max(hi + 10, base + 4 + (1 + (fp.rooms ?? 2)) * 12));
-    lots.push({ id, x0: vx0, z0: vz0, x1: vx1, z1: vz1, base, top, side, door: pathLayer, seed: Math.floor(r() * 1e6), shop: true, ...(fp.hotel ? { hotel: fp.id, guestFloors: fp.rooms } : { food: fp.id }) });
+    lots.push({ id, x0: vx0, z0: vz0, x1: vx1, z1: vz1, base, top, side, door: pathLayer, seed: seed ?? Math.floor(r() * 1e6), shop: true, ...(fp.hotel ? { hotel: fp.id, guestFloors: fp.rooms } : { food: fp.id }) });
     for (let z = vz0; z <= vz1; z++) for (let x = vx0; x <= vx1; x++) { const c = col(x, z); lot[c] = id; kind[c] = K.Lot; walk[c] = base; }
-  }
+    return '';
+  };
+  for (const fp of [...FOOD_PLACES, ...HOTEL_PLACES.map((h) => ({ ...h, hotel: true }))] as Place[]) { const why = place(fp, fp.near); if (why) FOOD_MISSED.push(why); }
   for (const s of segs) if (s.kind === K.Lane || s.kind === K.Street || s.kind === K.Stair) front(s.a[0], s.a[2], s.b[0], s.b[2], s.w / 2, s.kind, s.a[1], s.b[1]);
   // round the piazza and Piazza dei Dogi
   front(-3, -6, BELV_X1 - 1, -6, 0, K.Piazza, PIAZZA_Y, PIAZZA_Y);
@@ -646,5 +667,17 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
       const w = 16 + Math.floor(r() * 16), d = 16 + Math.floor(r() * 14);
       tryLot(gx, gz, gx + w - 1, gz + d - 1, null, 0, false);
     }
+  // the later places last of all, seeded by name, so every house before them keeps its dice
+  for (const fp of MORE_FOOD_PLACES) {
+    if ('takeOver' in fp) continue;
+    let why = '';
+    for (const sh of [0, 1.5, -1.5, 3, -3, 4.5, -4.5, 6, -6, 8, -8, 10, -10]) {
+      const near: [number, number] = fp.along === 'x' ? [fp.near[0] + sh, fp.near[1]] : [fp.near[0], fp.near[1] + sh];
+      why = place(fp, near, [...fp.id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 1e6, 7));
+      if (!why) break;
+    }
+    if (why) FOOD_MISSED.push(why);
+  }
+  FOOD_MISSED.push(...takeOverHouses(lots, walk, kind, col, V, K.Rock, K.Lane, MORE_FOOD_PLACES.filter((fp): fp is TakenPlace => 'takeOver' in fp)));
   return lots;
 }

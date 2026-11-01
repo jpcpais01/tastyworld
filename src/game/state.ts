@@ -49,6 +49,8 @@ export interface SaveState {
   darumas: number[];
   /** Gachapon capsule ids collected. */
   capsules: string[];
+  /** Souvenirs bought (data/souvenirs.ts): what was paid for each, in yen. They travel home with you. */
+  souvenirs: Record<string, number>;
   /** Ids of the shops and restaurants the player has stepped into. */
   rooms: string[];
   /** Ids of the stalls and restaurants the player has come across (they show on the city map). */
@@ -98,7 +100,7 @@ const KEY = 'tastyworld.save.v1';
 
 export function defaultState(): SaveState {
   return {
-    v: 1, yen: START_PURSE, econ: ECONOMY, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], rooms: [], seen: [], stays: [], hotel: null,
+    v: 1, yen: START_PURSE, econ: ECONOMY, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], souvenirs: {}, rooms: [], seen: [], stays: [], hotel: null,
     settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, veryFar: false, fov: 72, perf: false }, profile: { name: '', color: 0xe9573f }, playTime: 0, photos: 0,
   };
 }

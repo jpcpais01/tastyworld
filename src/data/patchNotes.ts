@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.19.0',
+    version: '0.19.3',
     date: '2026-11-01',
     title: 'Eating out: terraces, waiters and bakeries',
     items: [
@@ -17,9 +17,60 @@ export const PATCH_NOTES: PatchNote[] = [
       'The bill comes at the end on a little paper slip, paid the way each city does it. Amalfi adds the coperto and you can round up or leave a couple of euros. In Madeira the bolo do caco couvert comes to the table on its own, and you can send it back. Istanbul takes five or ten per cent for the waiter. In Japan nobody tips, the ocha is free and keeps coming, and an izakaya seat comes with an otōshi starter. If you get up early, you pay for what you ate on the way out.',
       'Every table-service place also pours the house drinks: acqua minerale, a glass of the house white and draught beer in Amalfi; Madeira wine, maracujá juice and a bica in Funchal; çay, Turkish coffee and şalgam in Istanbul; draught beer, iced oolong and ramune in Tokyo. They come in new glasses, mugs and tea cups that you hold and drink from.',
       'At a restaurant\'s counter, the cook now offers "Find me a table" and walks you to a free one. You can still taste or cook standing at the counter.',
-      'Bakeries, pastry shops, the gelateria, konbini, fırın, börek and lokum counters now sell from a glass display case. Pick as many as you like: the first is wrapped to eat right away and the rest go in your bag.',
-      'Your bag (B, or the new bag button) holds up to eight things for later. Eat them anywhere, best sitting on a bench with a view or at a café table. Dishes from the bag still count for your passport.',
+      'Bakeries, pastry shops, the gelateria, konbini, fırın, börek and lokum counters now sell from a glass display case. Pick as many as you like: the first is wrapped to eat right away and the rest go in a paper bag.',
+      'The paper bag (B, or the new button by the camera) holds up to eight snacks for later. Eat them anywhere, best sitting on a bench with a view or at a café table. Dishes from the paper bag still count for your passport.',
       'Terraces in Amalfi\'s piazza, along Funchal\'s largo and on Tokyo\'s canal promenade now have proper café tables with cloths and real chairs at table height.',
+    ],
+  },
+  {
+    version: '0.19.2',
+    date: '2026-11-01',
+    title: 'Amalfi and Funchal: fourteen new places to eat',
+    items: [
+      'Amalfi now has 26 places to eat, up from 18, and 52 passport dishes. Funchal has 25, up from 19, and 50 dishes.',
+      'In Amalfi: hot graffe and honeyed struffoli by the Duomo; a salumeria with a shared board and panini sliced to order; frittura di paranza and peppered mussels at a trattoria up the stairs; ziti alla genovese and pasta e fagioli at the osteria; lemon sorbet served in the lemon at a kiosk high above the harbour; spaghetti allo scoglio and stuffed squid by the sea; pasta e patate and a spaghetti frittata at Titina\'s; and buffalo mozzarella and provola grilled on a lemon leaf at the caseificio.',
+      'In Funchal: açorda and the island\'s own cuscuz at a casa de pasto; bacalhau à Gomes de Sá and cod fritters in the old town; seafood rice and sea snails at a marisqueira; sonhos with sugarcane honey and fennel candies at a confeitaria by the Sé; chestnut soup and chestnut liqueur up the hill; and a galão with a bolo de arroz at a café with a view of the whole bay.',
+      'Every new place has its own cook, its own colours, a cooking challenge and a pin on the map. The rest of both towns is exactly as it was.',
+    ],
+  },
+  {
+    version: '0.19.1',
+    date: '2026-11-01',
+    title: 'Lo-fi for every city',
+    items: [
+      'All the music is new: each city now has its own lo-fi, one tune for the day and a slower, darker one for the night, played by a small band through warm tape and an old record, with dusty drums, a gentle tape wobble and soft vinyl crackle.',
+      'Tokyo: a Rhodes piano and a koto by day with a shamisen and a shakuhachi in the break; at night a shakuhachi in the old miyako-bushi scale, a wind chime on the breeze and the clack of the night watch\'s wooden clappers.',
+      'Amalfi: a fingerpicked nylon guitar in a lazy bossa groove, a soft flute and the faint musette of an accordion, with a mandolin picking a few notes in the break; at night a slow ballad by the harbour.',
+      'Istanbul: an oud and a ney over a darbuka in the Hicaz mode, a qanun rippling through the break and the odd ring of finger cymbals; at night the Uşşak mode, its second note sung a little flat the Turkish way.',
+      'Funchal: a guitarra portuguesa and a viola de fado, with Madeira\'s own little braguinha strumming in the chorus; at night a fado in B minor.',
+      'The tune starts quietly, as if heard through a wall, and opens up; at dusk and dawn the band changes over between songs.',
+    ],
+  },
+  {
+    version: '0.19.0',
+    date: '2026-11-01',
+    title: 'Souvenir shops open in every city',
+    items: [
+      'The shops finally work. Walk up to a shopkeeper and browse their shelf: about 190 local pieces across four cities, from a ₺50 nazar keyring to a Hereke silk rug, each drawn as its own little voxel model with the story behind it.',
+      'Istanbul: 58 bazaar and street shops sell carpets, mosaic lamps, İznik tiles, copper, silk, jewellery, leather, slippers, spices, tea, lokum, hamam goods, nazar beads, coffee and old books.',
+      'Haggle in the bazaar. The price on the tag is where the talking starts: make an offer, watch the keeper\'s patience, and if you turn to walk away, the price may follow you out of the door.',
+      'Tokyo\'s shops each have a trade now: zakka, pottery, Kappabashi knives, toys and crafts, washi paper, second-hand books and florists. Amalfi sells Vietri ceramics, limoncello, Amalfi paper, linen and sandals, and deli goods along Via Lorenzo and in the Ruga. Funchal sells embroidery, Madeira wine, crafts and flowers.',
+      'Everyday, fine, rare and one-of-a-kind pieces. Rare pieces are spread between the shops of a trade, and each one-of-a-kind piece is in a single shop. Ask around: keepers will tell you who has it.',
+      'A souvenir shelf in your passport\'s Bag keeps everything you bring home, city by city, with what you paid.',
+      'Three new missions in every city: a first souvenir, a collection of eight, and a one-of-a-kind find.',
+    ],
+  },
+  {
+    version: '0.18.17',
+    date: '2026-11-01',
+    title: 'Tokyo: 22 new dishes',
+    items: [
+      'Tokyo\'s passport now holds 38 dishes, up from 16. Eleven of the district\'s own restaurants, cafés and shops have cooks who now serve them, each with two dishes and a cooking challenge.',
+      'In the Hikari Ginza arcade: oden simmered all day with grilled rice balls, a thick tonkatsu set and katsu sando, and charcoal-grilled eel in a lacquer box with an eel omelette.',
+      'Around Center-gai: a yōshoku house with omurice and sizzling hambāgu, and an old sukiyaki house with beef cooked at the table and chawanmushi.',
+      'By the canal and on Kaminari Lane: cream anmitsu and a tower of matcha kakigōri at a sweets café, and a bakery with fruit sandwiches and kurīmu pan. In Yanaka, a tea house serves whisked matcha with a seasonal sweet and warabi mochi.',
+      'On Lantern Alley, an izakaya with a sashimi platter and agedashi tofu; under the tracks, a robata grill with salt-grilled mackerel and nikujaga; on Hikari-dori, kitsune udon and curry udon (bib included).',
+      'Every one has a pin on the map. New missions: Under the Noren and Afternoon Sweets.',
     ],
   },
   {

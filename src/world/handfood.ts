@@ -174,6 +174,29 @@ export function mealKit(id: string): MealKit {
     case 'batido': return kit('sip', { held: glass(c.custard, c, true), drink: true, bites: 3 });
     case 'cachorro': return kit('bite', { held: sando(c, c.sausage), biteR: 4.4, crunch: true, steam: 0.4, hot: true, scale: 0.7 });
     case 'laranjada': return kit('sip', { held: bottle(c.orange, c.paper, c), drink: true, bites: 2 });
+    // Tokyo's second menu
+    case 'oden': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.choko, c.terracottaDark]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, steam: 0.9, hot: true, scale: 0.6 });
+    case 'yakionigiri': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.plateBlue]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, crunch: true, steam: 0.5, hot: true, scale: 0.62 });
+    case 'tonkatsu': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.board, c.ceramicWhite, c.choko, c.bowl]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, crunch: true, steam: 0.6, hot: true, scale: 0.5 });
+    case 'katsusando': return kit('bite', { held: sando(c, c.porkCut), biteR: 4.4, crunch: true, scale: 0.72 });
+    case 'unadon': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.lacquer, c.bowl]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, steam: 0.7, hot: true, scale: 0.52 });
+    case 'umaki': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), held: chopsticks(c), bitesPer: 2, biteR: 3, scale: 0.6 });
+    case 'omurice': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate]), held: spoon(c), steam: 0.7, hot: true, scale: 0.54 });
+    case 'hambagu': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.board, c.steel]), held: fork(c), steam: 1, hot: true, scale: 0.5 });
+    case 'sukiyaki': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.steel, c.ceramicWhite]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, steam: 1, hot: true, scale: 0.52 });
+    case 'chawanmushi': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.board, c.ceramicBlue]), held: spoon(c), steam: 0.7, hot: true, scale: 0.72 });
+    case 'anmitsu': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate, c.glass]), held: spoon(c), scale: 0.7 });
+    case 'kakigori': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate, c.glass]), held: spoon(c), scale: 0.62 });
+    case 'fruitsando': return kit('bite', { held: sando(c, c.cream), biteR: 4.4, scale: 0.72 });
+    case 'kurimupan': return kit('bite', { held: bun(c.pastryDark, c.pastry, c.custard), biteR: 4.2, scale: 0.72 });
+    case 'matcha': return kit('sip', { held: cup(c.raku, c.matchaFoam, c), drink: true, bites: 3, steam: 0.5, hot: true, scale: 0.8 });
+    case 'warabimochi': return kit('pick', { vessel: plated(pal, id as FoodId, [c.plateBlue, c.ceramicWhite]), held: stick(c, c.skewer, 16), bites: 3, bitesPer: 1, biteR: 2.8, scale: 0.68 });
+    case 'sashimi': return kit('sushi', { vessel: plated(pal, id as FoodId, [c.geta, c.ice]), scale: 0.56 });
+    case 'agedashi': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.choko]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, steam: 0.8, hot: true, scale: 0.66 });
+    case 'sabashio': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, steam: 0.6, hot: true, scale: 0.52 });
+    case 'nikujaga': return kit('chopsticks', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: chopsticks(c), bitesPer: 2, biteR: 3.4, steam: 0.8, hot: true, scale: 0.62 });
+    case 'kitsune': return kit('slurp', { vessel: plated(pal, id as FoodId, [c.choko]), held: chopsticks(c), noodle: [c.udon, c.udon], bites: 3, steam: 1, hot: true, scale: 0.6 });
+    case 'curryudon': return kit('slurp', { vessel: plated(pal, id as FoodId, [c.choko]), held: chopsticks(c), noodle: [c.udon, c.curry], bites: 3, steam: 1, hot: true, scale: 0.6 });
     // Istanbul's second menu
     case 'iskender': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.iznik, c.iznikRed]), held: fork(c), steam: 0.8, hot: true, scale: 0.56 });
     case 'sutlac': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate, c.terracotta, c.terracottaDark]), held: spoon(c), scale: 0.7 });
@@ -201,6 +224,36 @@ export function mealKit(id: string): MealKit {
     case 'boza': return kit('sip', { held: glass(c.boza, c, false), drink: true, bites: 3 });
     case 'gozleme': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.board]), held: fork(c), steam: 0.6, hot: true, crunch: true, scale: 0.52 });
     case 'cay': return kit('sip', { held: glass(c.tea, c, false), drink: true, bites: 2, steam: 0.6, hot: true, scale: 0.72 });
+    // Amalfi's second menu
+    case 'tagliere': return kit('pop', { vessel: plated(pal, id as FoodId, [c.board, c.boardDark]), scale: 0.5 });
+    case 'panino': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.paper]), held: fork(c), crunch: true, scale: 0.56 });
+    case 'paranza': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.5, hot: true, crunch: true, scale: 0.56 });
+    case 'impepata': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: fork(c), steam: 0.8, hot: true, scale: 0.58 });
+    case 'genovese': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.7, hot: true, scale: 0.58 });
+    case 'pastafagioli': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: spoon(c), steam: 0.9, hot: true, scale: 0.58 });
+    case 'graffa': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.paper]), held: fork(c), scale: 0.62 });
+    case 'struffoli': return kit('pop', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), scale: 0.58 });
+    case 'sorbetto': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicYellow]), held: spoon(c), scale: 0.7 });
+    case 'spremuta': return kit('sip', { held: glass(c.orange, c, false), drink: true, bites: 2 });
+    case 'scoglio': return kit('twirl', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), pasta: [c.spaghetti, c.tomato], steam: 0.8, hot: true, scale: 0.55 });
+    case 'calamari': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.6, hot: true, scale: 0.58 });
+    case 'pastapatate': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicYellow]), held: spoon(c), steam: 0.9, hot: true, scale: 0.58 });
+    case 'frittatapasta': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), steam: 0.5, hot: true, crunch: true, scale: 0.58 });
+    case 'bufala': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue, c.ceramicYellow]), held: fork(c), scale: 0.58 });
+    case 'provola': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: fork(c), steam: 0.6, hot: true, scale: 0.58 });
+    // Funchal's second menu
+    case 'acorda': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: spoon(c), steam: 0.9, hot: true, scale: 0.6 });
+    case 'cuscuz': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: fork(c), steam: 0.6, hot: true, scale: 0.58 });
+    case 'bacalhau': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: fork(c), steam: 0.7, hot: true, scale: 0.55 });
+    case 'pastelbacalhau': return kit('pop', { vessel: plated(pal, id as FoodId, [c.paper]), crunch: true, steam: 0.4, hot: true, scale: 0.6 });
+    case 'arroz': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: spoon(c), steam: 1, hot: true, scale: 0.6 });
+    case 'caramujos': return kit('pop', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), scale: 0.62 });
+    case 'sonhos': return kit('pop', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), scale: 0.62 });
+    case 'funcho': return kit('pop', { vessel: plated(pal, id as FoodId, [c.paper, c.paperRed]), crunch: true, scale: 0.66 });
+    case 'sopacastanha': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.terracotta, c.terracottaDark]), held: spoon(c), steam: 0.9, hot: true, scale: 0.6 });
+    case 'licorcastanha': return kit('sip', { held: glass(c.walnut, c, false), drink: true, bites: 2, scale: 0.6 });
+    case 'galao': return kit('sip', { held: glass(c.milkCoffee, c, false), drink: true, bites: 3, steam: 0.6, hot: true });
+    case 'boloarroz': return kit('bite', { held: bun(c.pastryLight, c.paper, c.pastry), biteR: 4, scale: 0.68 });
   }
   return snackKit(id, kit, pal, c);
 }

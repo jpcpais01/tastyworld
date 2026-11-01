@@ -55,7 +55,8 @@ import type { RoomAnchor } from './world/interiors';
 import type { HotelAnchor, HotelRoomAnchor } from './world/hotels';
 import { HOTEL, HOTELS, HOTEL_GUEST_LINES, ROOM_TYPE, roomNo, byStairs } from './data/hotels';
 import { UI, GameHooks } from './ui/ui';
-import { renderDishIcons } from './ui/icons';
+import { renderDishIcons, renderSouvenirIcons } from './ui/icons';
+import { tradeOf, stockFor, shopIdentity, roomTrade, type Trade, type Souvenir } from './data/souvenirs';
 import { PhotoUI, capture } from './ui/photo';
 import { album, ALBUM_MAX } from './game/album';
 import { Travel } from './ui/travel';
@@ -86,6 +87,14 @@ interface Interactable {
   room?: string;
   prompt(): [string, string, string] | null;
   act(): void;
+}
+
+/** A souvenir shop's counter (data/souvenirs.ts): filled in by finishShops() once every shop in town is known. */
+interface Shop {
+  trade: Trade; seed: number; actor: Actor; anim: Anim; at: [number, number]; facing: number; talk: number;
+  /** Set for a walk-in room, whose name and keeper the room already has. */
+  fixed?: { name: string; local: string; keeper: string };
+  name: string; local: string; keeper: string; place: string; stock: Souvenir[];
 }
 
 interface Cat { actor: Actor; home: V3; target: [number, number] | null; timer: number; it: Interactable | null; }
@@ -186,6 +195,8 @@ class Game {
   private shelfOpen = new THREE.Group();
   /** Keepers and regulars inside the shops; only simulated when the player is close. */
   private extras: Actor[] = [];
+  /** Every souvenir shop in town: its keeper, its trade, and (once all are known) its name and what it stocks. */
+  private shops: Shop[] = [];
   /** The faithful and the visitors inside the cathedral and the mosques. */
   private hallPeople: { actor: Actor; pose: HallPose; alt?: HallPose; t: number }[] = [];
   private shafts!: Shafts;
@@ -384,6 +395,11 @@ class Game {
     await sleep(16);
     // this city's menu, plus whatever was stamped elsewhere (the passport shows those too)
     this.ui.icons = renderDishIcons(this.r.gl, ALL_DISHES.filter((d) => DISHES.includes(d) || this.s.tasted[d.id]).map((d) => d.id));
+    // souvenirs are drawn the first time a shelf or the bag shows them
+    this.ui.souvenirIcons = (items) => {
+      const todo = items.filter((it) => !this.ui.icons[it.id]);
+      if (todo.length) Object.assign(this.ui.icons, renderSouvenirIcons(this.r.gl, todo));
+    };
     this.ui.loading(1, TEXT.loading[2]);
     // warm up shaders with one frame
     this.tod.apply(this.r);
@@ -670,14 +686,18 @@ class Game {
 
     // people who keep to one spot: the anglers along the Galata Bridge, a phone out now and then
     (a.extras ?? []).forEach((ex, i) => {
-      const act = new Actor(buildPerson(randomLook(ex.seed)), this.chars, false, true);
+      const trade = ex.shop ? tradeOf(CITY, ex.shop) : undefined;
+      const act = new Actor(buildPerson(trade ? { ...randomLook(ex.seed), backpack: undefined, ...trade.keeperLook } as Look : randomLook(ex.seed)), this.chars, false, true);
       act.position.set(ex.pos[0], ex.indoor ? ex.pos[1] : this.navWorld.heightAt(ex.pos[0], ex.pos[2]), ex.pos[2]);
       act.facing = act.targetFacing = ex.face;
-      act.anim = i % 6 === 2 ? 'phone' : 'idle';
+      act.anim = !trade && i % 6 === 2 ? 'phone' : 'idle';
       act.root.visible = false;
       this.worldGroup.add(act.root);
       this.extras.push(act);
+      // (a keeper whose spot in front of the counter cannot be stood on just keeps shop)
+      if (trade && ex.stand && this.navWorld.walkable(ex.stand[0], ex.stand[1])) this.addShop(`shop-${i}`, trade, ex.seed, act, [ex.pos[0], ex.pos[2]], ex.stand, ex.face, 'idle');
     });
+    this.finishShops();
 
     // in the cathedral and the mosques: the faithful in the pews and on the carpet, visitors looking round
     for (const h of a.halls ?? []) for (const hp of h.people) {
@@ -891,6 +911,9 @@ class Game {
             this.frontDesk(hid, entry);
           },
         });
+      } else if (keeper && buy && roomTrade(rm.kind, rm.nth) && tradeOf(CITY, roomTrade(rm.kind, rm.nth)!)) {
+        // a souvenir shop: the keeper's counter opens the shelf
+        this.addShop(`room-${rm.id}`, tradeOf(CITY, roomTrade(rm.kind, rm.nth)!)!, n.seed, act, [n.pos[0], n.pos[2]], buy.stand, n.facing, anim, { name, local: jp, keeper: info.name }, [buy.pos[0], buy.pos[2]]);
       } else if (keeper && buy) {
         // the keeper serves from the counter: one stop to chat and buy
         this.interactables.push({
@@ -1160,6 +1183,66 @@ class Game {
     const want = Math.atan2(p.x - q.x, p.z - q.z);
     if (sitting) act.headYawTarget = THREE.MathUtils.clamp(Math.atan2(Math.sin(want - act.facing), Math.cos(want - act.facing)), -1, 1);
     else act.targetFacing = want;
+  }
+
+  /** A souvenir shop's keeper and the spot to browse from (its name and stock come in finishShops). */
+  private addShop(key: string, trade: Trade, seed: number, act: Actor, at: [number, number], stand: [number, number], facing: number, anim: Anim, fixed?: Shop['fixed'], near?: [number, number]): void {
+    const sh: Shop = { trade, seed, actor: act, anim, at, facing, talk: 0, fixed, name: '', local: '', keeper: '', place: '', stock: [] };
+    this.shops.push(sh);
+    const [px, pz] = near ?? stand;
+    this.interactables.push({
+      key, x: px, z: pz, stand, pick: [at[0], 1.6, at[1]], r: 1.7, inside: false,
+      prompt: () => ['bag', sh.name, `Browse · ${sh.keeper}`],
+      act: () => this.openShop(sh),
+    });
+  }
+
+  /** Names, keepers and stock for every shop, now that all of them are known: rare pieces spread between the
+   *  shops of a trade, each one-of-a-kind piece in a single one. */
+  private finishShops(): void {
+    const byTrade = new Map<Trade, Shop[]>();
+    for (const sh of this.shops) byTrade.set(sh.trade, [...(byTrade.get(sh.trade) ?? []), sh]);
+    for (const [trade, list] of byTrade) {
+      const stock = stockFor(trade, list.map((sh) => sh.seed));
+      list.forEach((sh, k) => {
+        const id = sh.fixed ?? shopIdentity(trade, k, sh.seed);
+        sh.name = id.name; sh.local = id.local; sh.keeper = id.keeper;
+        sh.place = zoneAt(sh.at[0], sh.at[1])?.name ?? TEXT.name;
+        sh.stock = trade.items.filter((it) => stock[k].includes(it.id));
+      });
+    }
+  }
+
+  private openShop(sh: Shop): void {
+    const act = sh.actor;
+    this.faceEachOther(act, false);
+    act.anim = 'bow';
+    setTimeout(() => { if (act.anim === 'bow') act.anim = sh.anim; }, 1200);
+    this.audio.play('pop');
+    // now and then the keeper sends you to a cousin who has the piece this shop does not
+    const elsewhere = this.shops.find((o) => o !== sh && o.trade === sh.trade && o.stock.some((it) => it.tier === 'treasure' && !sh.stock.includes(it) && this.s.souvenirs[it.id] === undefined));
+    const treasure = elsewhere?.stock.find((it) => it.tier === 'treasure' && !sh.stock.includes(it));
+    const lines = sh.trade.lines;
+    const line = elsewhere && treasure && sh.talk % 3 === 1
+      ? `Looking for something really special? Go and see ${elsewhere.keeper} at ${elsewhere.name}, in ${elsewhere.place}. There is a ${treasure.name.toLowerCase()} there you will not find anywhere else.`
+      : lines[(sh.seed + sh.talk) % lines.length];
+    sh.talk++;
+    const mood = (m: 'deal' | 'no' | 'think') => {
+      act.anim = m === 'deal' ? 'bow' : m === 'no' ? 'talk' : 'listen';
+      setTimeout(() => { if (act.anim !== sh.anim) act.anim = sh.anim; }, m === 'deal' ? 1300 : 1800);
+    };
+    this.ui.souvenirShop({
+      trade: sh.trade, name: sh.name, local: sh.local, keeper: sh.keeper, place: sh.place, line, stock: sh.stock, seed: sh.seed,
+      pay: (it, price) => {
+        if (this.s.yen < price) return false;
+        this.s.yen -= price;
+        this.s.souvenirs[it.id] = price;
+        if (it.tier === 'rare' || it.tier === 'treasure') this.player.flash = 1;
+        this.afterChange();
+        return true;
+      },
+      react: mood,
+    });
   }
 
   private buyThing(it: Buyable): boolean {

@@ -1,7 +1,7 @@
 import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
-import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, StallAnchor } from './tokyo';
+import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, StallAnchor, type Extra } from './tokyo';
 import { Prop, rotateProp, bench, scooter, stool, bush, grassTuft, terraceTable, terraceChair, TERRACE_TOP } from './props';
 import { buildFood, type FoodId } from './food';
 import type { RoomAnchor, RoomNpc } from './interiors';
@@ -538,13 +538,14 @@ export function buildAmalfi(win?: Window): BuildResult {
   gate(b, c);
   molo(b, c);
   carvePassages(b, c, plan);
-  passages(b, c, plan);
+  const extras: Extra[] = [];
+  passages(b, c, plan, extras);
   piazza(b, c);
   shore(b, c, plan);
   gardens(b, c, plan, inWin);
   lanes(b, c, plan);
   laneDress(b, c, plan);
-  shopfronts(b, c, plan);
+  shopfronts(b, c, plan, extras);
   washingLines(b, c, plan);
   const stalls = foodStalls(b, c, plan);
   const eats = eateryAnchors(plan);
@@ -577,6 +578,7 @@ export function buildAmalfi(win?: Window): BuildResult {
     benches: b.benches,
     stools: b.stools, cafeTables: b.cafeTables,
     // people sit along both sides of the cathedral steps, looking down over the piazza, the middle left to climb
+    extras,
     stepSeats: [-7, -9.5, -12, -14.5, -17].flatMap((x) => [9.9, 10.7, 17.3, 18.1].map((z) => [x + (z % 2) * 0.4, z, Math.PI / 2] as [number, number, number])),
     cats: [[1.5, 0, -4], [-21, 0, 3.5], [38, 0, 44], [-60, 0, -2], [17, 0, 28.5]],
     emitters: b.emitters,
@@ -1673,6 +1675,9 @@ function passageWarmth(plan: Plan): [number, number, number, number, number][] {
   return [ruga.slice(0, -1).reduce(join), ruga[ruga.length - 1], ...other].slice(0, 3);
 }
 
+/** The souvenir trade (data/souvenirs.ts) of each kind of shop in the Ruga's wall (see shopWare). */
+const RUGA_TRADES = ['ceramica', 'limoncello', 'carta', 'lino', 'bottega'];
+
 /** What a little shop in the Ruga's wall sells: wares on its counter (dy over the counter) and on its back wall. */
 function shopWare(c: AC, kind: number, a: number, dy: number, back: boolean, seed: number): number {
   const n = hash3(a, dy, seed);
@@ -1701,7 +1706,7 @@ function shopWare(c: AC, kind: number, a: number, dy: number, back: boolean, see
  * plaque over it. Along the Ruga dei Mercanti little shops are let into both walls between the arches, lit from
  * within, their wares on the counters. Decided from the plan alone, so every worker builds the same passages.
  */
-function passages(b: Builder, c: AC, plan: Plan): void {
+function passages(b: Builder, c: AC, plan: Plan, out: Extra[]): void {
   const g = b.grid;
   let shopNo = 0;
   for (const s of plan.segs) {
@@ -1736,7 +1741,13 @@ function passages(b: Builder, c: AC, plan: Plan): void {
           if (!ok) deep = false;
         }
         const seed = shopNo++;
-        shops.push({ u, side, deep, kind: Math.floor(hash3(seed, 5, 77) * 5), seed });
+        const kind = Math.floor(hash3(seed, 5, 77) * 5);
+        shops.push({ u, side, deep, kind, seed });
+        // the keeper behind the counter of a shop deep enough to stand in; you browse from the passage
+        if (deep) out.push({
+          pos: [ax + ux * u + nx * side * (r + 0.85), (f - G) * V, az + uz * u + nz * side * (r + 0.85)], face: Math.atan2(-nx * side, -nz * side),
+          seed: 7300 + seed * 11, indoor: true, shop: RUGA_TRADES[kind], stand: [ax + ux * u + nx * side * (r - 0.75), az + uz * u + nz * side * (r - 0.75)],
+        });
         b.lamp(ax + ux * u + nx * side * (r + 0.4), (f - G) * V + 1.9, az + uz * u + nz * side * (r + 0.4), WARM, 2.6, 0.5);
         if (deep) {
           const qx = ax + ux * u + nx * side * (r + 0.7), qz = az + uz * u + nz * side * (r + 0.7);
@@ -2298,7 +2309,7 @@ function awning(c: AC, col: number): Prop {
  * Via Lorenzo d'Amalfi and the streets off the piazza: the shops spill out of their doors, ceramics on racks,
  * limoncello on shelves, linen on rails and crates of lemons, under striped awnings.
  */
-function shopfronts(b: Builder, c: AC, plan: Plan): void {
+function shopfronts(b: Builder, c: AC, plan: Plan, out: Extra[]): void {
   const r = rng(5150);
   const awnings = [c.umbrellaC, c.umbrellaA, c.umbrellaE, c.majolicaYellow, c.hullRed];
   for (const s of plan.segs) {
@@ -2329,6 +2340,21 @@ function shopfronts(b: Builder, c: AC, plan: Plan): void {
         b.place(prop, x, fl, z, turn);
         b.block(x - 0.6, z - 0.6, x + 0.6, z + 0.6);
         if (front && r() < 0.6) b.place(awning(c, awnings[Math.floor(r() * awnings.length)]), ex + nx * side * (d - 0.5625), fl + 2.5, ez + nz * side * (d - 0.5625), turn); // its back against the wall
+        // the shopkeeper out on the step beside the goods, where the street is wide enough to stand in
+        // (decided by hash, so the street's own random draws stay as they were)
+        if (s.w >= 3 && hash3(Math.round(x * 4), Math.round(z * 4), 61) < 0.8) {
+          const ux = (bx - ax) / len, uz = (bz - az) / len;
+          // beside the goods, on whichever side there is pavement to stand on
+          for (const along of [0.95, -0.95, 0.95 * 1.6, -0.95 * 1.6]) {
+            const kx = x + ux * along, kz = z + uz * along, kc = col(Math.floor(kx / V), Math.floor(kz / V));
+            const ox = kx - nx * side * 0.25, oz = kz - nz * side * 0.25, oc = col(Math.floor(ox / V), Math.floor(oz / V));
+            if (plan.lot[kc] || plan.lot[oc] || Math.abs((plan.walk[kc] - G) * V - fl) >= 0.3) continue;
+            const sa = along > 0 ? 0.45 : -0.45;
+            out.push({ pos: [kx, fl, kz], face: Math.atan2(-nx * side, -nz * side), seed: 9100 + out.length * 7, shop: pick < 0.3 ? 'ceramica' : pick < 0.55 ? 'limoncello' : pick < 0.8 ? 'lino' : 'bottega', stand: [x - nx * side * 1.1 + ux * sa, z - nz * side * 1.1 + uz * sa] });
+            b.block(kx - 0.3, kz - 0.3, kx + 0.3, kz + 0.3);
+            break;
+          }
+        }
       }
     }
   }
@@ -2702,6 +2728,20 @@ const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank
   masseria: { floor: 'cotto', wall: 'plasterOld', wain: 'shutterBrown', cloth: ['hullGreen', 'cream'], front: 'shutterBrown', awning: ['hullGreen', 'cream'] },
   chiostro: { floor: 'marble', wall: 'whiteWarm', wain: 'stripeTufa', cloth: ['marble', 'marbleGrey'], front: 'shutterDeep', awning: ['majolicaGreen', 'majolicaYellow'] },
   terrazza: { floor: 'marble', wall: 'white', wain: 'sky', cloth: ['white', 'white'], front: 'shutterBlue', awning: ['sky', 'white'] },
+  salumeria: { floor: 'plank', wall: 'cream', wain: 'shutterBrown', cloth: ['stripeDark', 'cream'], front: 'shutterBrown', awning: ['hullRed', 'cream'] },
+  marinella: { floor: 'tile', wall: 'white', wain: 'hullBlue', cloth: ['hullBlue', 'white'], front: 'shutterBlue', awning: ['hullBlue', 'white'] },
+  osteria: { floor: 'cotto', wall: 'plasterOld', wain: 'ochre', cloth: ['hullGreen', 'white'], front: 'doorGreen', awning: ['ochre', 'cream'] },
+  graffe: { floor: 'check', wall: 'cream', wain: 'majolicaYellow', cloth: ['majolicaYellow', 'white'], front: 'shutterGreen', awning: ['majolicaYellow', 'white'] },
+  chiosco: { floor: 'majolica', wall: 'whiteWarm', wain: 'majolicaGreen', cloth: ['lemonWall', 'white'], front: 'shutterGreen', awning: ['lemonWall', 'white'] },
+  scogliera: { floor: 'majolica', wall: 'white', wain: 'shutterBlue', cloth: ['white', 'umbrellaC'], front: 'shutterDeep', awning: ['shutterBlue', 'white'] },
+  titina: { floor: 'cotto', wall: 'whiteWarm', wain: 'rose', cloth: ['rose', 'white'], front: 'door', awning: ['rose', 'cream'] },
+  caseificio: { floor: 'tile', wall: 'white', wain: 'hullGreen', cloth: ['white', 'hullGreen'], front: 'hullGreen', awning: ['hullGreen', 'white'] },
+};
+
+/** The later places borrow the counter specials and dining kit of an older one (their own colours stay theirs). */
+const EAT_LOOK: Record<string, string> = {
+  salumeria: 'cantina', marinella: 'colatura', osteria: 'gemma', graffe: 'dolceria',
+  chiosco: 'duomo', scogliera: 'saraceno', titina: 'masseria', caseificio: 'ruocco',
 };
 
 /**
@@ -2714,8 +2754,9 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
   const g = b.grid;
   const L = eateryLayout(lt);
   const { W, D, mid, ca0, ca1, cd0, cd1 } = L;
-  const id = lt.food!;
-  const th = EAT_THEME[id];
+  const own = lt.food!;
+  const id = EAT_LOOK[own] ?? own;
+  const th = EAT_THEME[own];
   const ic = b.ic;
   const F = lt.base;
   const at = (a: number, d: number): [number, number] => {
@@ -2792,7 +2833,7 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
   const counterTop = id === 'cantina' || id === 'masseria' || id === 'colatura' ? c.door : c.marble;
   box(ca0, 1, cd0, ca1, 3, cd1, (a, y) => (y === 1 ? c.plinth : id === 'dolceria' || id === 'andrea' || id === 'duomo' ? (y === 3 ? c.sill : ic.case) : (a % 3 === 0 ? c.sill : front)));
   box(ca0, 4, cd0, ca1, 4, cd1, counterTop);
-  const dishes = STALL[id]?.dishes as FoodId[] | undefined;
+  const dishes = STALL[own]?.dishes as FoodId[] | undefined;
   if (dishes) dishes.forEach((f, i) => { const [x, z] = L.P(ca0 + 2.5 + i * 3.5, cd0 + 1); b.place(buildFood(f, b.pal), x, L.floorY + 1.0, z, faceTurn(L.out[0], L.out[1])); });
   // shelves on the back wall
   for (const y of [5, 7, 9]) box(2, y, D - 2, W - 3, y, D - 2, c.door);
@@ -2935,7 +2976,7 @@ const EAT_DRESS: Record<string, { goods: Goods[]; pics?: PictureKind[]; plates?:
  * a mat inside the door and a moulding under the ceiling.
  */
 function eateryDress(b: Builder, c: AC, lt: LotPlan, L: ReturnType<typeof eateryLayout>, get: Dine['get'], set: Dine['set']): void {
-  const id = lt.food!;
+  const id = EAT_LOOK[lt.food!] ?? lt.food!;
   const dr = EAT_DRESS[id];
   if (!dr) return;
   const { W, D, mid, ca0, ca1, cd0 } = L;

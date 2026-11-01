@@ -2,7 +2,10 @@ import type { FoodId } from '../world/food';
 import { CITY, perCity } from '../world/cityId';
 import { eur, lira } from './money';
 import { MADEIRA_DISHES } from './madeira';
+import { AMALFI_MORE_DISHES } from './amalfiMenu';
+import { MADEIRA_MORE_DISHES } from './madeiraMenu';
 import { ISTANBUL_MORE_DISHES } from './istanbulMenu';
+import { TOKYO_MORE_DISHES } from './tokyoMenu';
 
 export interface Dish {
   id: FoodId;
@@ -717,15 +720,15 @@ const ISTANBUL_DISHES: Dish[] = [
 ];
 
 /** The menu of the city on this trip. */
-export const DISHES: Dish[] = perCity({ tokyo: TOKYO_DISHES, amalfi: AMALFI_DISHES, istanbul: [...ISTANBUL_DISHES, ...ISTANBUL_MORE_DISHES], madeira: MADEIRA_DISHES });
+export const DISHES: Dish[] = perCity({ tokyo: [...TOKYO_DISHES, ...TOKYO_MORE_DISHES], amalfi: [...AMALFI_DISHES, ...AMALFI_MORE_DISHES], istanbul: [...ISTANBUL_DISHES, ...ISTANBUL_MORE_DISHES], madeira: [...MADEIRA_DISHES, ...MADEIRA_MORE_DISHES] });
 /** Every dish of every city, for stamps collected elsewhere. */
-export const ALL_DISHES: Dish[] = [...TOKYO_DISHES, ...AMALFI_DISHES, ...ISTANBUL_DISHES, ...ISTANBUL_MORE_DISHES, ...MADEIRA_DISHES];
+export const ALL_DISHES: Dish[] = [...TOKYO_DISHES, ...TOKYO_MORE_DISHES, ...AMALFI_DISHES, ...AMALFI_MORE_DISHES, ...ISTANBUL_DISHES, ...ISTANBUL_MORE_DISHES, ...MADEIRA_DISHES, ...MADEIRA_MORE_DISHES];
 /** The menus of the other cities, for the passport's "stamped elsewhere" pages. */
 const MENUS = [
-  { city: 'tokyo', name: 'Tokyo', flag: '', dishes: TOKYO_DISHES },
-  { city: 'amalfi', name: 'Amalfi', flag: 'it', dishes: AMALFI_DISHES },
+  { city: 'tokyo', name: 'Tokyo', flag: '', dishes: [...TOKYO_DISHES, ...TOKYO_MORE_DISHES] },
+  { city: 'amalfi', name: 'Amalfi', flag: 'it', dishes: [...AMALFI_DISHES, ...AMALFI_MORE_DISHES] },
   { city: 'istanbul', name: 'Istanbul', flag: 'tr', dishes: [...ISTANBUL_DISHES, ...ISTANBUL_MORE_DISHES] },
-  { city: 'madeira', name: 'Madeira', flag: 'pt', dishes: MADEIRA_DISHES },
+  { city: 'madeira', name: 'Madeira', flag: 'pt', dishes: [...MADEIRA_DISHES, ...MADEIRA_MORE_DISHES] },
 ];
 export const OTHER_MENUS: { name: string; flag: string; dishes: Dish[] }[] = MENUS
   .filter((m) => m.city !== CITY)

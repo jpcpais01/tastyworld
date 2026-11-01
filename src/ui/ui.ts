@@ -16,6 +16,8 @@ import { icon, IconName } from './emblems';
 import { album, sharePhoto, canShareFiles, ALBUM_MAX, type Photo } from '../game/album';
 import { landing } from './arrival';
 import type { DineKit } from './dining';
+import { ShopView, souvenirPages, type ShopHost, type ShopVisit } from './shop';
+import type { Souvenir } from '../data/souvenirs';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -50,7 +52,7 @@ function tasteNotes(f: { sweet: number; savory: number; umami: number; crunch: n
 
 const MISSION_ICONS: Record<string, IconName> = {
   'first-bite': 'chopsticks', trio: 'dango', sweet: 'honey', apprentice: 'chef', alley: 'lantern', night: 'moon', cats: 'cat', secret: 'door', stars: 'star', master: 'trophy',
-  browse: 'bag', tables: 'bowl', gacha: 'capsule', 'gacha-all': 'crown', shelf: 'book', daruma: 'daruma', hotel: 'bed', hotels: 'suitcase', ryokan: 'yukata', photos: 'camera',
+  browse: 'bag', tables: 'bowl', souvenir: 'bag', collector: 'bag', treasure: 'crown', 'a-souvenir': 'bag', 'a-collector': 'bag', 'a-treasure': 'crown', 'i-souvenir': 'bag', 'i-collector': 'bag', 'i-treasure': 'crown', 'm-souvenir': 'bag', 'm-collector': 'bag', 'm-treasure': 'crown', gacha: 'capsule', 'gacha-all': 'crown', shelf: 'book', daruma: 'daruma', hotel: 'bed', hotels: 'suitcase', ryokan: 'yukata', photos: 'camera',
 };
 /** Items that can be worn by the traveller. */
 export const WEARABLE = ['headband', 'happi', 'charm', 'chefhat', 'yukata'];
@@ -208,13 +210,13 @@ export class UI {
       <div class="hud-bl">
         <div class="controls" id="h-keys">
           <button class="glass kb" id="h-kb" title="Controls" aria-label="Show controls">${G.keyboard}</button>
-          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> pace</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span><span><kbd>B</kbd> bag</span></div>
+          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> pace</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span><span><kbd>B</kbd> snacks</span></div>
         </div>
       </div>
       <div class="hud-br">
         <div class="glass bar">
           <button id="h-stand" class="hidden" title="Stand up" aria-label="Stand up">${G.walk}</button>
-          <button id="h-bag" class="hidden" title="Your bag (B)" aria-label="Your bag">${G.bag}<span class="count" id="h-bagn"></span></button>
+          <button id="h-bag" class="hidden" title="Your paper bag of snacks (B)" aria-label="Your paper bag of snacks">${G.bag}<span class="count" id="h-bagn"></span></button>
           <button id="h-wave" class="hidden" title="Wave (G)" aria-label="Wave to your friends">${G.wave}</button>
           <button id="h-pace" title="Walking pace: normal (Shift)" aria-label="Walking pace: normal">${G.pace2}</button>
           <button id="h-photo" title="Photo mode (C)" aria-label="Photo mode">${G.camera}</button>
@@ -571,6 +573,29 @@ export class UI {
     p.appendChild(body);
   }
 
+  /** Renders souvenir icons on demand (set by the game, which owns the WebGL context). */
+  souvenirIcons: (items: Souvenir[]) => void = () => {};
+
+  private shopHost(): ShopHost {
+    return {
+      s: this.s, audio: this.audio,
+      open: (name, local, sub) => {
+        const p = this.panel();
+        p.appendChild(noren(local));
+        this.head(p, esc(name), '', sub);
+        return p;
+      },
+      close: () => this.close(),
+      toast: (i, t, x, g) => this.toast(i, t, x, g),
+      icons: (items) => { this.souvenirIcons(items); return this.icons; },
+    };
+  }
+
+  /** A souvenir shop's counter: the shelf, a close look at each piece, haggling in the bazaar, the hand-over. */
+  souvenirShop(v: ShopVisit): void {
+    new ShopView(this.shopHost(), v).show();
+  }
+
   /** Counter of a shop, café or bar: a few small things to buy. */
   shop(name: string, jp: string, sub: string, keeper: string, line: string, items: Buyable[], buy: (it: Buyable) => boolean): void {
     const p = this.panel();
@@ -856,8 +881,11 @@ export class UI {
     // little finds first: daruma and gachapon capsules
     // only where they are hidden and sold, or once a few capsules have travelled with you
     if (TEXT.finds || this.s.capsules.length) this.ppFinds(page);
+    // then everything bought in the shops, city by city
+    souvenirPages(this.shopHost(), page, () => { page.innerHTML = ''; this.ppItems(page); });
     if (!this.s.items.length) {
-      page.appendChild(h('div', 'empty', `<div class="ei">${G.bag}</div>Your bag is empty.<br>Complete missions to earn souvenirs for your traveller.`));
+      if (Object.keys(this.s.souvenirs).length) return;
+      page.appendChild(h('div', 'empty', `<div class="ei">${G.bag}</div>Your bag is empty.<br>Browse the shops for things to take home, or complete missions to earn gear for your traveller.`));
       return;
     }
     const items = h('div', 'items');

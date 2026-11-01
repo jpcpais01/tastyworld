@@ -193,7 +193,7 @@ export function vitrine(k: DineKit, o: CaseOpts): void {
   const max = o.room + 1;
   const paint = () => {
     const c = n();
-    sum.innerHTML = c ? `<b>${c} in the bag</b><span>${money(total())} · the first one is for now</span>` : `<b>Point at what you want</b><span>${max > 1 ? `up to ${max}, the rest wait in your bag` : 'your bag is full: one to eat now'}</span>`;
+    sum.innerHTML = c ? `<b>${c} chosen</b><span>${money(total())} · the first one is for now</span>` : `<b>Point at what you want</b><span>${max > 1 ? `up to ${max}, the rest wait in your paper bag` : 'your paper bag is full: one to eat now'}</span>`;
     go.innerHTML = `${icon('purse')}Pay`;
     go.toggleAttribute('disabled', !c);
   };
@@ -203,13 +203,13 @@ export function vitrine(k: DineKit, o: CaseOpts): void {
       <div class="ct-step"><button class="minus" aria-label="One less">−</button><span class="ct-n">0</span><button class="plus" aria-label="One more">+</button></div>`);
     const nEl = tile.querySelector('.ct-n')!;
     const set = (v: number) => { counts.set(it, v); if (!v) counts.delete(it); nEl.textContent = String(v); tile.classList.toggle('on', v > 0); paint(); };
-    tile.querySelector<HTMLButtonElement>('.plus')!.onclick = (e) => { e.stopPropagation(); if (n() >= max) { k.play('fail'); k.toast('bag', 'The bag is full', 'Eat something from it first.'); return; } k.play('click'); set((counts.get(it) ?? 0) + 1); };
+    tile.querySelector<HTMLButtonElement>('.plus')!.onclick = (e) => { e.stopPropagation(); if (n() >= max) { k.play('fail'); k.toast('bag', 'The paper bag is full', 'Eat something from it first.'); return; } k.play('click'); set((counts.get(it) ?? 0) + 1); };
     tile.querySelector<HTMLButtonElement>('.minus')!.onclick = (e) => { e.stopPropagation(); const v = counts.get(it) ?? 0; if (v) { k.play('click'); set(v - 1); } };
     tile.onclick = () => (tile.querySelector('.plus') as HTMLButtonElement).click();
     glass.appendChild(tile);
   }
   body.appendChild(glass);
-  body.appendChild(h('p', 'mc-note', 'The first one is wrapped in a paper napkin to eat right away; the rest go in your bag for later. Find a bench with a view.'));
+  body.appendChild(h('p', 'mc-note', 'The first one is wrapped in a paper napkin to eat right away; the rest go in your paper bag for later. Find a bench with a view.'));
   p.appendChild(body);
   p.appendChild(foot);
   go.onclick = () => {
@@ -234,7 +234,7 @@ export interface BagOpts {
 /** What is in the bag: eat one of them now (sitting down makes it a picnic). */
 export function bagSheet(k: DineKit, o: BagOpts): void {
   const p = k.panel('panel dine');
-  k.head(p, 'Your bag', '', o.seated ? 'A good spot for a bite' : 'Bought to eat later', G.bag);
+  k.head(p, 'Your paper bag', '', o.seated ? 'A good spot for a bite' : 'Bought to eat later', G.bag);
   const body = h('div', 'panel-body');
   if (!o.items.length) body.appendChild(h('p', 'mc-note', 'Empty. Bakeries, pastry shops and gelaterias put what you buy in a paper bag: the first one is for right away, the rest come here.'));
   const list = h('div', 'bag-list');

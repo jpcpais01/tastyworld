@@ -400,6 +400,16 @@ function halo(b: Builder, n: NC) {
     b.block(x - 1.1, z - 1.1, x + 1.1, z + 1.1);
     b.lamp(x, 0.4, z, [0.35, 0.9, 1], 3, 0.5);
   }
+  // the rings of light set in the paving glow up onto whoever stands on them, and the pink ring overhead tints the square
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    b.lamp(Math.cos(a) * 15, 0.7, Math.sin(a) * 15, [0.45, 0.95, 1], 6, 0.5);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3;
+    b.lamp(Math.cos(a) * 6.2, 0.7, Math.sin(a) * 6.2, [0.45, 0.95, 1], 4.5, 0.5);
+  }
+  b.lamp(0, 9, 0, [1, 0.4, 0.75], 24, 0.45);
 }
 
 /** Footbridge decks and railings over the canal; the bay's piers. */

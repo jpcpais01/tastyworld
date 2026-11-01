@@ -258,6 +258,10 @@ export class Crowd {
   private sayT = 4;
   /** A line a passer-by might say about the player right now (their arm, the rain, how tired they look), or null. */
   remark: (() => string | null) | null = null;
+  /** Something worth stopping for (2040's Halo singing): people on foot within `r` stop and film it, once each. */
+  spectacle: { x: number; z: number; r: number; id: number } | null = null;
+  private filmed = new Map<Walker, number>();
+  private specT = 0;
   private remarkT = 12;
   private nodes: V2[];
   private zones: string[];
@@ -676,6 +680,7 @@ export class Crowd {
     }
     this.meetings(dt);
     this.remarkT -= dt;
+    if (this.spectacle && (this.specT -= dt) <= 0) this.watch();
     this.overhear(dt, pl);
     this.boats?.update(dt, hour);
     this.exercise?.update(dt, hour);
@@ -1617,6 +1622,21 @@ export class Crowd {
   private say(key: string, text: string, p: { x: number; y: number; z: number }, secs: number, pl: CrowdPlayer): void {
     if (this.hooks.quiet() || Math.hypot(pl.x - p.x, pl.z - p.z) > 9) return;
     this.hooks.bubble(key, text, [p.x, p.y + 2.1, p.z], secs);
+  }
+
+  /** Everyone near the spectacle on foot and free stops, turns to it and holds a phone up for a while. */
+  private watch(): void {
+    this.specT = 0.5;
+    const sp = this.spectacle!;
+    for (const w of this.walkers) {
+      if (w.hidden || w.lead || w.ride || w.pet || w.ring >= 0 || w.run || this.filmed.get(w) === sp.id) continue;
+      if (w.doing && !(w.doing.k === 'wait' && w.doing.anim === 'idle')) continue;
+      const p = w.actor.position, dx = sp.x - p.x, dz = sp.z - p.z;
+      if (dx * dx + dz * dz > sp.r * sp.r || Math.random() < 0.3) continue;
+      this.filmed.set(w, sp.id);
+      w.doing = { k: 'wait', t: rnd(6, 14), anim: Math.random() < 0.75 ? 'photo' : 'idle', face: Math.atan2(dx, dz) };
+      w.actor.hold = 'none';
+    }
   }
 
   /** Now and then a line from a nearby conversation drifts over. */

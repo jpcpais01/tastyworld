@@ -3190,6 +3190,8 @@ class Game {
       // the Halo sings from midnight until its song is done (about half a minute); within earshot, the lyrics float over the square
       const out = !this.inside && !this.upstairs && !this.roomHere, sing = this.tod.hour < 0.8;
       this.holo.update(dt, sing, out);
+      // while the Halo sings, the crowd round the crossing stops to film it (each night's song is its own event)
+      if (this.crowd) this.crowd.spectacle = sing ? { x: 0, z: 0, r: 36, id: this.s.life?.day ?? 1 } : null;
       const pq = this.player.position, near = out && Math.hypot(pq.x, pq.z) < 45;
       if (sing && near && this.started) {
         if ((this.songT -= dt) <= 0) {

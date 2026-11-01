@@ -58,6 +58,12 @@ export interface Look {
   implant?: number;
   /** 2040 cyberware: a chrome left arm with a glowing elbow joint. */
   chrome?: boolean;
+  /** 2040: a lit visor band across the eyes, in this colour. */
+  visor?: number;
+  /** 2040: a respirator over mouth and nose, filters glowing in the neon trim colour. */
+  mask?: boolean;
+  /** 2040: a circuit tattoo that glows faintly from the left cheek up to the brow, in this colour. */
+  tattoo?: number;
 }
 
 const SKINS = [0xf6d2b4, 0xeec39f, 0xe0ac86, 0xc98f6a, 0xa8714f, 0xf9dcc4];
@@ -94,6 +100,9 @@ export function randomLook(seed: number): Look {
     // cyberware: a lit implant on one face in eight, a chrome arm on one in fourteen
     if (r() < 0.125) look.implant = pick(NEO_ACCENTS);
     if (r() < 0.07) look.chrome = true;
+    if (r() < 0.06) look.visor = pick(NEO_ACCENTS);
+    else if (r() < 0.06) look.mask = true;
+    if (r() < 0.08) look.tattoo = pick(NEO_ACCENTS);
     if (look.hat !== 'none') look.hatColor = pick([...NEO_TOPS, ...NEO_ACCENTS]);
   }
   return look;
@@ -231,6 +240,24 @@ function coarsePerson(look: Look): { model: CharModel; ink: Ink } {
     const glow = pal.add(look.implant, { emit: 0.95 });
     set(7, 17, 6, glow, PART.head); set(7, 18, 6, glow, PART.head);
     for (let z = 3; z <= 6; z++) set(8, 19, z, glow, PART.head);
+  }
+  if (look.tattoo !== undefined) {
+    // a circuit trace up the left cheek to the brow
+    const ink2 = pal.add(look.tattoo, { emit: 0.5 });
+    set(2, 19, 6, ink2, PART.head); set(2, 20, 6, ink2, PART.head); set(3, 20, 6, ink2, PART.head);
+  }
+  if (look.visor !== undefined) {
+    // one lit band across both eyes, wrapping back over the ears
+    const vis = pal.add(look.visor, { emit: 0.9 }), rim = pal.add(0x16161c, { vary: 0.02 });
+    box(2, 18, 6, 7, 19, 6, vis, PART.head);
+    box(1, 18, 4, 1, 19, 6, rim, PART.head); box(8, 18, 4, 8, 19, 6, rim, PART.head);
+  }
+  if (look.mask) {
+    // a respirator: a dark plate over mouth and nose, a filter either side lit in the trim colour
+    const plate = pal.add(0x22252c, { vary: 0.03 }), filt = pal.add(look.accent, { emit: 0.8 });
+    box(2, 15, 6, 7, 17, 6, plate, PART.head);
+    box(3, 15, 7, 6, 16, 7, plate, PART.head);
+    set(2, 15, 7, filt, PART.head); set(7, 15, 7, filt, PART.head);
   }
   if (look.chrome) {
     // the left arm replaced from the shoulder: brushed steel, a lit ring at the elbow, a dark wrist

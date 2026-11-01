@@ -188,6 +188,15 @@ export class NeoLifeSys {
       if (id === 'chrome') {
         L.chrome = true;
         this.h.ui.toast('key', 'Chrome arm fitted', 'It hums a little when you make a fist. You will get used to it.', true);
+      } else if (id === 'tattoo') {
+        L.tattoo = L.accent;
+        this.h.ui.toast('signal', 'Inked', 'A thin line of light from your cheek to your brow. It stings for a day.', true);
+      } else if (id === 'visor') {
+        L.visor = L.accent;
+        this.h.ui.toast('signal', 'Visor on', 'The city goes a little sharper and a little more your colour.', true);
+      } else if (id === 'mask') {
+        L.mask = true;
+        this.h.ui.toast('drop', 'Respirator on', 'Your breath sounds like someone else\'s now. The smog cannot touch you.', true);
       } else {
         const GLOW = [0x2ad8ff, 0xff5fb4, 0xa47bff, 0xffdc5a, 0x7dffa8, 0xff9a4a, 0xf2efe7];
         L.implant = L.implant === undefined ? L.accent : GLOW[(GLOW.indexOf(L.implant) + 1) % GLOW.length];

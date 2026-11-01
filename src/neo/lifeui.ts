@@ -46,6 +46,9 @@ const CLINIC = [
   { id: 'stim', name: 'Wake stim', icon: 'vitamin', price: 22, text: 'A shot of something bright. Holds off sleep for a few hours. Do not make it a habit.' },
   { id: 'implant', name: 'Face implant', icon: 'signal', price: 380, text: 'A lit seam fitted under the skin, cheek to temple, matched to your neon trim. Ten minutes in the chair.' },
   { id: 'chrome', name: 'Chrome arm', icon: 'key', price: 1600, text: 'The left arm, replaced from the shoulder: brushed steel, a lit elbow joint, a grip that never gets tired.' },
+  { id: 'tattoo', name: 'Circuit tattoo', icon: 'signal', price: 220, text: 'Conductive ink traced from the left cheek to the brow. It glows faintly when you are warm.' },
+  { id: 'visor', name: 'Optic visor', icon: 'signal', price: 540, text: 'A lit band across both eyes. The street reads clearer through it, and nobody sees where you are looking.' },
+  { id: 'mask', name: 'Respirator', icon: 'drop', price: 160, text: 'For the smog days: a plate over mouth and nose, the filters lit in your neon trim.' },
 ] as const;
 /** Changing the implant's colour once it is in. */
 const RECOLOUR = 60;
@@ -107,7 +110,7 @@ export class LifeUI {
     const look = this.d.life().look;
     for (const it of CLINIC) {
       // the ripperdoc's chair: a chrome arm is for life; an implant already in can be recoloured
-      if (it.id === 'chrome' && look?.chrome) continue;
+      if ((it.id === 'chrome' && look?.chrome) || (it.id === 'mask' && look?.mask) || (it.id === 'visor' && look?.visor !== undefined) || (it.id === 'tattoo' && look?.tattoo !== undefined)) continue;
       const again = it.id === 'implant' && look?.implant !== undefined;
       const price = again ? RECOLOUR : it.price;
       const title = again ? 'Implant recolour' : it.name, text = again ? 'Same seam, a new glow: the next colour along the neon.' : it.text;

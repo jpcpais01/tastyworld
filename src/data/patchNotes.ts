@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.16',
+    date: '2026-11-01',
+    title: 'Every place to eat counts',
+    items: [
+      'The pocket map\'s food places counter now includes every café, izakaya, bakery, kissaten, soba shop, lokanta, kahve, börek and pide shop, sweet shop and spice stall you can walk into, not only the passport stalls and restaurants. A food room counts as found the first time you step inside.',
+      'Tokyo now has 142 places to find, Istanbul 31 and Amalfi 18.',
+    ],
+  },
+  {
     version: '0.17.15',
     date: '2026-11-01',
     title: 'Food places found',

@@ -4,6 +4,7 @@ import { Palette } from '../world/palette';
 import { meshGrid } from '../world/mesher';
 import { geometryFrom } from '../game/actors';
 import { voxelMaterial, type Renderer } from '../engine/renderer';
+import { SKY_LANES } from '../world/neoPlan';
 
 /**
  * Halcyon's sky lanes: flying cars running in both directions along the avenues and the rings, high over the
@@ -14,15 +15,7 @@ import { voxelMaterial, type Renderer } from '../engine/renderer';
 interface Lane { ew: boolean; c: number; y: number; a0: number; a1: number }
 interface Car { lane: Lane; dir: 1 | -1; off: number; t: number; speed: number; bob: number; mesh: number; slot: number }
 
-const LANES: Lane[] = [
-  { ew: true, c: 0, y: 21, a0: -300, a1: 300 },
-  { ew: false, c: 0, y: 25, a0: -260, a1: 260 },
-  { ew: true, c: -164, y: 27, a0: -300, a1: 300 },
-  { ew: true, c: 164, y: 23, a0: -300, a1: 300 },
-  { ew: false, c: 124, y: 14, a0: -260, a1: 260 },
-  { ew: false, c: -110, y: 29, a0: -260, a1: 260 },
-  { ew: true, c: 84, y: 31, a0: -300, a1: 300 },
-];
+const LANES: Lane[] = SKY_LANES;
 
 const LIVERIES: [number, number][] = [[0x1a1c24, 0x2ad8ff], [0xe8e4da, 0xff5fb4], [0xf2c74a, 0x16161c]];
 const PER = 14;

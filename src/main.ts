@@ -2,6 +2,7 @@ import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
 import { Renderer, voxelMaterial, Quality } from './engine/renderer';
+import { autoTier, lower, rememberTier } from './engine/gpu';
 import { farCity } from './engine/farcity';
 import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
@@ -43,7 +44,7 @@ import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
 import { TIP_PER_STAR } from './data/money';
-import { AMALFI, ISTANBUL, MADEIRA, NEO, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
+import { AMALFI, ISTANBUL, MADEIRA, NEO, HILLSIDE, TERRAIN, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
 import { neoTitle } from './neo/title';
 import { openCreator } from './neo/creator';
 import { Vitals } from './neo/vitals';
@@ -52,6 +53,7 @@ import { Rain } from './neo/rain';
 import { SkyTraffic } from './neo/skytraffic';
 import { Drones } from './neo/drones';
 import { NEO_REMARKS, STRAY_NAMES } from './data/neo';
+import { farLift } from './world/neoPlan';
 import { Umbrellas } from './neo/umbrellas';
 import { Hologram, HALO_SONG } from './neo/hologram';
 import { neoShop } from './neo/roles';
@@ -292,9 +294,8 @@ class Game {
   private photo!: PhotoUI;
   /** Photo mode is up: the HUD steps aside, the traveller stands still and the camera is free. */
   private photoOn = false;
-  /** Frames left until the shutter reads the canvas (0 = no photo waiting), and the render scale to go back to. */
+  /** Frames left until the shutter reads the canvas (0 = no photo waiting). */
   private shot = 0;
-  private shotScale = 1;
   private photoPtr: { id: number; x: number; y: number; pan: boolean } | null = null;
   private placeName = TEXT.name;
   private last = performance.now();
@@ -307,8 +308,16 @@ class Game {
     this.s = loadState();
     const canvas = document.getElementById('gl') as HTMLCanvasElement;
     const mobile = matchMedia('(pointer: coarse)').matches;
-    const q: Quality = this.s.settings.quality === 'auto' ? (mobile ? 'medium' : 'high') : this.s.settings.quality;
+    const q: Quality = this.s.settings.quality === 'auto' ? autoTier(mobile) : this.s.settings.quality;
     this.r = new Renderer(canvas, q);
+    // auto quality that can't hold the frame rate even at its lowest render scale steps a tier down, for good on this GPU
+    this.r.onSlow = () => {
+      if (this.s.settings.quality !== 'auto') return;
+      const t = lower(this.r.quality);
+      rememberTier(t);
+      this.r.setQuality(t);
+      this.applySettings();
+    };
     this.perf = new Perf(this.r.gl, () => this.r.shadows.redraws, () => {
       this.s.settings.perf = !this.s.settings.perf;
       this.applySettings();
@@ -500,7 +509,7 @@ class Game {
       this.r.camera.updateProjectionMatrix();
     } else if (NEO) {
       // Halcyon's sprawl to the horizon on three sides, open water to the east past the docks
-      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [], 360, undefined, { open: [[WX1 - 13, -1e4, 1e4, 1e4]], green: [] });
+      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [], 360, undefined, { open: [[WX1 - 13, -1e4, 1e4, 1e4]], green: [] }, farLift);
       this.worldGroup.add(far.ground, far.city);
       this.r.camera.far = 1400;
       this.r.camera.updateProjectionMatrix();
@@ -626,7 +635,7 @@ class Game {
       const st = STALL[sa.id];
       if (!st) continue;
       const act = new Actor(buildPerson(st.vendorLook), this.chars);
-      act.position.set(sa.vendor[0], HILLSIDE ? this.ground(sa.stand[0], sa.stand[1]) : this.navWorld.heightAt(sa.vendor[0], sa.vendor[1]), sa.vendor[1]);
+      act.position.set(sa.vendor[0], TERRAIN ? this.ground(sa.stand[0], sa.stand[1]) : this.navWorld.heightAt(sa.vendor[0], sa.vendor[1]), sa.vendor[1]);
       act.facing = act.targetFacing = sa.vendor[2];
       act.anim = 'cook';
       this.worldGroup.add(act.root);
@@ -780,7 +789,8 @@ class Game {
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
     for (const ex of a.extras ?? []) if (!ex.indoor) this.crowd.addObstacle(ex.pos[0], ex.pos[2]);
     for (const h of a.halls ?? []) for (const hp of h.people) if (hp.pose !== 'sit') this.crowd.addObstacle(hp.pos[0], hp.pos[2]);
-    const m = this.r.isMobile;
+    // phones and low quality get the lighter crowd (fewer bodies to animate, step and draw)
+    const m = this.r.isMobile || this.r.quality === 'low';
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
     // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
     this.crowd.populate(perCity({
@@ -918,7 +928,7 @@ class Game {
     });
 
     // on a hillside every label in the street sits above the ground under its stand, not above sea level
-    if (HILLSIDE) for (const it of this.interactables) if (!it.inside && !it.room && !it.key.startsWith('lift-')) it.pick = [it.pick[0], it.pick[1] + this.ground(it.stand[0], it.stand[1]), it.pick[2]];
+    if (TERRAIN) for (const it of this.interactables) if (!it.inside && !it.room && !it.key.startsWith('lift-')) it.pick = [it.pick[0], it.pick[1] + this.ground(it.stand[0], it.stand[1]), it.pick[2]];
 
     // every seat in town, the waiters, the terraces and the bag
     const game = this;
@@ -1442,7 +1452,7 @@ class Game {
     let far: number;
     if (this.cam.fp) far = CHAR_FINE * h / (2 * Math.tan(this.r.persp.fov * Math.PI / 360) * FINE_PX);
     else far = CHAR_FINE * h / this.cam.zoom >= FINE_PX ? Infinity : 0;
-    const max = this.r.quality === 'low' ? 24 : this.r.quality === 'medium' ? 56 : 96;
+    const max = this.r.quality === 'low' ? 12 : this.r.quality === 'medium' ? 56 : 96;
     const ds = this.fineD2;
     let n = 0;
     for (const a of all) {
@@ -1464,7 +1474,7 @@ class Game {
 
   /** Height of the walkable ground (m) under a spot in the street: 0 in flat Tokyo. */
   private ground(x: number, z: number): number {
-    if (!HILLSIDE) return 0;
+    if (!TERRAIN) return 0;
     const n = this.navWorld;
     if (n.walkable(x, z)) return n.heightAt(x, z);
     // on a counter, a plinth or in a doorway: the nearest floor round it
@@ -1556,7 +1566,6 @@ class Game {
   private openingYaw = 0;
   private scanned = false;
   private wet = 0.3;
-  private wetY: number | null = null;
   private umbrellas: Umbrellas | null = null;
   private holo: Hologram | null = null;
   private songT = 0;
@@ -1810,7 +1819,7 @@ class Game {
   applySettings(): void {
     const st = this.s.settings;
     const mobile = matchMedia('(pointer: coarse)').matches;
-    if (st.quality === 'auto') { this.r.autoQuality = true; this.r.setQuality(mobile ? 'medium' : 'high'); }
+    if (st.quality === 'auto') { this.r.autoQuality = true; this.r.setQuality(autoTier(mobile)); }
     else { this.r.autoQuality = false; this.r.renderScale = 1; this.r.setQuality(st.quality); this.r.resize(); }
     this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
     if (st.perf || !new URLSearchParams(location.search).has('perf')) this.perf.toggle(st.perf);
@@ -1818,7 +1827,7 @@ class Game {
     this.tod.dayLength = st.dayLength;
     this.tod.setTarget(st.timeOfDay);
     // view distance: how far first person draws (the haze thickens to meet it) and how far out the iso view zooms
-    const tier: Quality = st.quality === 'auto' ? (mobile ? 'medium' : 'high') : st.quality;
+    const tier: Quality = st.quality === 'auto' ? autoTier(mobile) : st.quality;
     const dist = viewSetting(st, tier);
     this.viewDist = dist;
     if (this.streamer) this.streamer.dist = dist;
@@ -2064,8 +2073,7 @@ class Game {
     if (!this.photoOn || this.shot) return;
     this.audio.play('shutter');
     this.photo.flash();
-    this.shotScale = this.r.renderScale;
-    if (this.r.renderScale < 1) { this.r.renderScale = 1; this.r.resize(); }
+    if (this.r.scaled) { this.r.fullRes = true; this.r.resize(); }
     this.shot = 1;
   }
 
@@ -2074,7 +2082,7 @@ class Game {
     const stamp = this.photo.opts.stamp ? { place: this.placeName, clock: this.tod.label() } : null;
     const meta = { t: Date.now(), place: this.placeName, clock: this.tod.label() };
     const shot = capture(this.r.gl.domElement, stamp);
-    if (this.shotScale < 1) { this.r.renderScale = this.shotScale; this.r.resize(); }
+    if (this.r.fullRes) { this.r.fullRes = false; this.r.resize(); }
     void shot.then(async (img) => {
       if (await album.count() >= ALBUM_MAX) {
         this.ui.toast('camera', 'Your album is full', `It holds ${ALBUM_MAX} photos. Delete a few in the passport's Album to make room.`);
@@ -2729,7 +2737,7 @@ class Game {
       return;
     }
     const py0 = this.player.position.y;
-    const hit = HILLSIDE && !this.inside && !this.upstairs
+    const hit = TERRAIN && !this.inside && !this.upstairs
       ? this.cam.pick(x, y, this.nav, undefined, Math.min(50, py0 + 24), Math.max(-3, py0 - 24))
       : this.cam.pick(x, y, this.nav, undefined, this.upstairs ? this.upstairs.room.y + 3 : 12);
     if (!hit) return;
@@ -3242,7 +3250,7 @@ class Game {
       if (k >= 1 || this.cam.fp) this.openingT = -1;
     }
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
-    if (HILLSIDE) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
+    if (TERRAIN) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
   }
 
   private frame(now: number): void {
@@ -3353,7 +3361,8 @@ class Game {
       this.wet += (tgt - this.wet) * Math.min(1, dt * k);
       const cu = this.r.composite.uniforms, out = !this.inside && !this.upstairs && !this.roomHere;
       cu.uWet.value = out ? this.wet : 0;
-      cu.uWetY.value = this.wetY ??= this.navWorld.heightAt(this.w.anchors.spawn[0], this.w.anchors.spawn[2]);
+      // the city climbs its hills: the wet sheen follows the terrace or street the player stands on
+      if (out) cu.uWetY.value = this.player.position.y;
     }
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);

@@ -9,11 +9,12 @@ export const G = 12; // voxel layer of street level (world y = 0 at the top of l
  * the original district keeps 0..72 x 0..56 m and the city grows around it, so the world's first voxel
  * column is at (VX0, VZ0) = (-72 m, -56 m).
  */
-/** Halcyon City (2040) is twice Tokyo's side: 432 x 336 m, centred on the Halo crossing. */
-export const VX0 = NEO ? -864 : AMALFI || MADEIRA ? -448 : ISTANBUL ? -640 : -288, VZ0 = NEO ? -672 : AMALFI ? -320 : MADEIRA ? -352 : ISTANBUL ? -448 : -224;
+/** Halcyon City (2040): 320 x 256 m round the Halo crossing, built up the hills and into the sky. */
+export const VX0 = NEO ? -704 : AMALFI || MADEIRA ? -448 : ISTANBUL ? -640 : -288, VZ0 = NEO ? -512 : AMALFI ? -320 : MADEIRA ? -352 : ISTANBUL ? -448 : -224;
 /** Amalfi climbs from the sea up its cliffs, so its world is taller: 56 m of voxels against Tokyo's 40. */
 /** Istanbul rolls over its hills more gently: 48 m of voxels, room for the minarets on the hilltop. */
-export const SX = NEO ? 1728 : AMALFI || MADEIRA ? 768 : ISTANBUL ? 832 : 864, SY = AMALFI || MADEIRA ? 224 : ISTANBUL || NEO ? 192 : 160, SZ = NEO ? 1344 : AMALFI ? 640 : MADEIRA ? 704 : ISTANBUL ? 704 : 672;
+/** Halcyon's towers stand on ridges up to 24 m high and rise past 100 m: 128 m of voxels, nearly all of it open air. */
+export const SX = NEO ? 1280 : AMALFI || MADEIRA ? 768 : ISTANBUL ? 832 : 864, SY = NEO ? 512 : AMALFI || MADEIRA ? 224 : ISTANBUL ? 192 : 160, SZ = NEO ? 1024 : AMALFI ? 640 : MADEIRA ? 704 : ISTANBUL ? 704 : 672;
 export const WX0 = VX0 * V, WZ0 = VZ0 * V;
 export const WX1 = (VX0 + SX) * V, WZ1 = (VZ0 + SZ) * V;
 export const WORLD_W = SX * V, WORLD_D = SZ * V;
@@ -61,15 +62,14 @@ const TOKYO_ZONES: StreetZone[] = [
 
 /** Halcyon City's districts (see world/neo.ts); `jp` holds the street-sign name. */
 const NEO_ZONES: StreetZone[] = [
-  { id: 'halo', name: 'Halo Crossing', jp: 'HALO ✕', rect: [-20, -20, 20, 20] },
-  { id: 'meridian', name: 'Meridian Boulevard', jp: 'MERIDIAN BLVD', rect: [-216, -8, 216, 8] },
-  { id: 'spindle', name: 'Spindle Avenue', jp: 'SPINDLE AVE', rect: [-8, -168, 8, 168] },
-  { id: 'lantern', name: 'Lantern Market', jp: '燈市 LANTERN MKT', rect: [-216, -168, -8, -8] },
-  { id: 'spire', name: 'The Spire District', jp: 'SPIRE DISTRICT', rect: [8, -168, 116, -8] },
-  { id: 'stacks', name: 'The Stacks', jp: 'STACKS 層', rect: [-216, 8, -8, 168] },
-  { id: 'neonmile', name: 'Neon Mile', jp: 'NEON MILE', rect: [8, 8, 116, 168] },
-  { id: 'canal', name: 'Black Canal', jp: '黒運河', rect: [116, -168, 132, 168] },
-  { id: 'docks', name: 'Rust Docks', jp: 'RUST DOCKS', rect: [132, -168, 216, 168] },
+  { id: 'halo', name: 'Halo Crossing', jp: 'HALO ✕', rect: [-24, -24, 24, 24] },
+  { id: 'undercliff', name: 'Undercliff', jp: '崖下 UNDERCLIFF', rect: [-14, -40, 62, 0] },
+  { id: 'lantern', name: 'Lantern Market', jp: '燈市 LANTERN MKT', rect: [-176, -128, -14, 0] },
+  { id: 'spire', name: 'The Spire District', jp: 'SPIRE DISTRICT', rect: [-20, -128, 62, -40] },
+  { id: 'stacks', name: 'The Stacks', jp: 'STACKS 層', rect: [-176, 0, -14, 128] },
+  { id: 'neonmile', name: 'Neon Mile', jp: 'NEON MILE', rect: [-14, 0, 62, 128] },
+  { id: 'sump', name: 'The Sump · Black Canal', jp: '黒運河 THE SUMP', rect: [62, -128, 78, 128] },
+  { id: 'docks', name: 'Rust Docks', jp: 'RUST DOCKS', rect: [78, -128, 144, 128] },
   { id: 'greenhouse', name: 'The Greenhouse · Hidden Table', jp: 'greenhouse', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
 ];
 

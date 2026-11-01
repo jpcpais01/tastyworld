@@ -41,6 +41,7 @@ import { TEXT } from './data/cityText';
 import { TIP_PER_STAR } from './data/money';
 import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
 import { nightAt, dropLanding } from './ui/arrival';
+import { FarTown } from './engine/fartown';
 import { farCoast } from './engine/farcoast';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
@@ -217,6 +218,8 @@ class Game {
   private lastToll = -1;
   /** Moves whatever lives beyond the map (Istanbul's ferries), once a frame. */
   private farTick: ((dt: number) => void) | null = null;
+  /** Amalfi's villages on the slopes past the map (engine/fartown.ts). */
+  private farTown: FarTown | null = null;
   /** Which of the day's calls to prayer last sounded (-2 until the first frame, so loading mid-call stays quiet). */
   private lastEzan = -2;
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
@@ -357,7 +360,7 @@ class Game {
     this.ui.loading(0.86, TEXT.loading[1]);
     if (boarding) this.boardView(); else this.titleView();
     this.updateCamera(0.016);
-    const done = this.streamer.ready();
+    const done = Promise.all([this.streamer.ready(), this.farTown?.ready()]);
     const tick = setInterval(() => this.streamer.update(0.05, this.streamView()), 50);
     await done;
     clearInterval(tick);
@@ -421,6 +424,9 @@ class Game {
       // the coast beyond the map: the Lattari mountains, Atrani and Ravello, and the open sea to the horizon
       const far = farCoast(sh, [WX0, WZ0, WX1, WZ1]);
       this.worldGroup.add(far.ground, far.houses);
+      // its villages, house by house with the town's own voxels, baked by a worker of their own
+      this.farTown = new FarTown(this.r.gl, sh, [WX0, WZ0, WX1, WZ1], far.lots, `city:${CITY}`);
+      this.worldGroup.add(this.farTown.group);
       this.r.composite.uniforms.uWaterBounds.value.set(-4000, -4000, 4000, 4000);
       this.r.composite.uniforms.uSea.value = 1;
       // the iso camera sits 120 m back: let it see the ridges a kilometre and more behind the town
@@ -2603,7 +2609,9 @@ class Game {
     this.updateNear();
     this.updateCamera(dt);
     this.perf.lap('camera');
-    this.streamer.update(dt, this.streamView(), !this.inside);
+    const sv = this.streamView();
+    this.streamer.update(dt, sv, !this.inside);
+    if (!this.inside) this.farTown?.update(dt, sv.cam, sv.fp, sv.focus, this.streamer.dist);
     this.perf.lap('streaming');
     this.updateCutaway(dt);
     this.perf.lap('cutaway');

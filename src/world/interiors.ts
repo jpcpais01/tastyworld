@@ -3,9 +3,10 @@ import type { Builder, Lot } from './tokyo';
 import { Palette } from './palette';
 import { rng, hash3 } from './grid';
 import { G, V } from './layout';
-import { Prop, PropKit, stool, plantPot, cafeTable, crateStack, lantern, noren, flowerStand, breadShelf, bookCart, fishDisplay, boardSign, aFrame } from './props';
+import { Prop, PropKit, stool, plantPot, crateStack, lantern, noren, flowerStand, breadShelf, bookCart, fishDisplay, boardSign, aFrame } from './props';
 import { buildFood, FoodId } from './food';
 import type { HotelInfo } from '../data/hotels';
+import { dineColors, bistroTable, dressWalls, tableTop, pendants, counterPiece, cornerPlant, kitchenLine, hangRail, shelfProp, onWall, walls, bare, put as dput, box as dbox, air as dair, paint as dpaint, blockCells as dblock, sideOf, lamp as dlamp, F16, type Dine, type Dir, type Goods } from './dining';
 
 /**
  * Walkable ground floors. Street-front buildings are hollowed into a room behind the facade (walls two
@@ -192,6 +193,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
   const w = lot.width, dep = lot.depth;
   const r = rng(o.seed * 7 + 3);
   const kind = o.kind;
+  const dc = dineColors(b.pal);
   const sw = w >= 15 ? 2 : 1;
   const A0 = sw, A1 = w - 1 - sw;
   const D0 = 2;
@@ -475,6 +477,9 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
   };
   const midA = Math.floor((A0 + A1) / 2);
   const IN = 2, OUT = 0, PA = 1, NA = 3;
+  /** Tables laid out above, for the dining kit to lay and light: centre, top height, top size (fine voxels), seats along a or d. */
+  type Table = { a: number; d: number; y: number; w: number; dd: number; along: 'a' | 'd'; lamp: boolean };
+  const tables: Table[] = [];
 
   // keeper behind a counter that runs across the room in front of the partition (left of the back doorway)
   const backCounter = (body: number, top: number, extra?: (a0: number, a1: number) => void) => {
@@ -551,12 +556,14 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
             lot.box(a0, 0, d + 4, a1b, 4, d + 4, ic.velvetDark); lot.box(a0, 0, d + 3, a1b, 1, d + 3, ic.velvet);
             lot.box(wallA, 0, d + 1, wallA, 2, d + 2, ic.wainDark);
             lot.box(a0, 3, d + 1, a1b, 3, d + 2, c.hinoki);
+            tables.push({ a: (a0 + a1b + 1) / 2, d: d + 2, y: 1.0, w: 12, dd: 8, along: 'd', lamp: false });
             if (i === 0 || r() < 0.7) npc('guest', (a0 + a1b + 1) / 2, d + 0.5, IN, true);
             if (r() < 0.5) npc('guest', (a0 + a1b + 1) / 2, d + 3.5, OUT, true);
             put(pendant(k, k.c.lanternAmber), (a0 + a1b + 1) / 2, d + 2, 2.15, OUT);
           } else {
             // stools far enough out that a sitter's chest clears the round top and the knees tuck under it
-            put(cafeTable(k, [k.c.fabricWhite, k.c.fabricRed, k.c.fabricGreen][(i + side) % 3]), ta + 0.5, d + 1.5, 0, OUT, 0.32);
+            put(bistroTable(dc, [dc.white, ic.marbleW, c.hinoki][(i + side) % 3]), ta + 0.5, d + 1.5, 0, OUT, 0.32);
+            tables.push({ a: ta + 0.5, d: d + 1.5, y: 0.75, w: 7, dd: 7, along: 'd', lamp: true });
             put(stool(k, k.c.woodLight), ta + 0.5, d - 0.3, 0, OUT);
             put(stool(k, k.c.woodLight), ta + 0.5, d + 3.3, 0, OUT);
             if ((i + side) % 2 === 0) npc('guest', ta + 0.5, d - 0.3, IN, true);
@@ -755,7 +762,6 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       for (let d = zd0 + 2; d + 2 <= zd1; d += 5) {
         lot.box(A0 + 1, 1, d, A0 + 2, 3, d + 1, c.woodDark);
         lot.set(A0 + 3, 1, d, ic.zabuton); lot.set(A0 + 3, 1, d + 1, ic.zabuton);
-        lot.set(A0 + 1, 4, d, ic.cup);
         npc('guest', A0 + 3.6, d + 1, NA, true);
       }
       // counter on the right with the open kitchen behind it
@@ -793,8 +799,14 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
     }
   }
 
-  // back room: storage, with a spot for something small to hide
-  if (back && !o.secret) {
+  // back room: a kitchen, a bakehouse, a tatami room or a second dining room for the places that feed people; storage
+  // for the rest, and in every one a spot for something small to hide
+  const kitchenKinds: RoomKind[] = ['izakaya', 'soba', 'bakery', 'cafe', 'kissa'];
+  if (back && !o.secret && kitchenKinds.includes(kind)) {
+    backRoom({ lot, b, kind, seed: o.seed, A0, A1, BD0, BD1, npc, r });
+    darumaAt(A1 - 0.5, BD1 - 0.5, 0);
+    lampAt(bda + 1.5, (BD0 + BD1 + 1) / 2, 2.2, WHITE, 4.5, 0.7);
+  } else if (back && !o.secret) {
     const s1 = BD1;
     put(crateStack(k, o.seed + 11), A0 + 2, s1 - 1, 0, OUT, 0.5); // in the corner, clear of both walls
     lot.box(A0 + 4, 0, s1, Math.min(bda - 2, A0 + 6), 6, s1, (a, y) => (y % 3 === 0 ? c.woodMid : goods[(a + y) % goods.length]));
@@ -836,6 +848,9 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       if (bare) hangIn(b, picture(paintColors(b), art === 1 ? 'fuji' : 'wave', 6, 6, o.seed + art), (a, d) => lot.m(a, d), sideA < A0 ? A0 : A1 + 1, D0 + 7.5, sideA < A0 ? 1 : -1, 0, 6 * V);
     }
   }
+
+  // ---- the finish from the dining kit: walls dressed, tables laid and lit, counters set out
+  if (kitchenKinds.includes(kind)) dressFront({ lot, b, kind, seed: o.seed, A0, A1, D0, D1, back, bda, tables, lanterns: o.lanterns });
 
   void G;
   b.rooms.push(room);
@@ -900,4 +915,230 @@ export function closedRoom(lot: Lot, kind: 'storage' | 'home', seed: number, tri
 
 function pt(p: [number, number]): [number, number, number] {
   return [p[0], 0, p[1]];
+}
+
+// ---------------------------------------------------------------------------------------------- the dining kit, Tokyo
+
+type TokyoTable = { a: number; d: number; y: number; w: number; dd: number; along: 'a' | 'd'; lamp: boolean };
+
+/** The dining kit's frame on a Tokyo ground floor (lot coordinates, the floor at street level). */
+function tokyoDine(lot: Lot, b: Builder, seed: number, A0: number, A1: number, D0: number, D1: number): Dine {
+  return { b, A0, A1, D0, D1, top: 11, floorY: 0, seed, get: (a, y, d) => lot.get(a, y, d), set: (a, y, d, v) => lot.set(a, y, d, v), m: (a, d) => lot.m(a, d) };
+}
+
+/**
+ * A Tokyo restaurant's front room finished: the free walls dressed (a shelf of bottles high up, prints of Fuji and the
+ * wave, a clock, wall lamps, a menu board), every table laid and lit, the counter's guests given their glass and
+ * plate, the counter's ends set out, paper lanterns or pendants overhead and a big plant where a corner is free.
+ */
+function dressFront(o: { lot: Lot; b: Builder; kind: RoomKind; seed: number; A0: number; A1: number; D0: number; D1: number; back: boolean; bda: number; tables: TokyoTable[]; lanterns?: number }): void {
+  const { lot, b, kind, seed, A0, A1, D0, D1 } = o;
+  const c = b.c, ic = b.ic, k = dineColors(b.pal);
+  const R = tokyoDine(lot, b, seed, A0, A1, D0, D1);
+  const jp = kind === 'izakaya' || kind === 'soba';
+  const goods: Goods[] = kind === 'izakaya' ? ['sake', 'sake', 'glasses'] : kind === 'soba' ? ['sake', 'plates', 'cups'] : kind === 'bakery' ? ['bread', 'jars', 'tins'] : kind === 'kissa' ? ['cups', 'books', 'bottles'] : ['cups', 'jars', 'bottles'];
+  const shade = jp ? k.paperL : kind === 'kissa' ? k.shadeA : k.shadeW;
+  dressWalls(R, k, {
+    goods, board: jp ? c.cedar : kind === 'kissa' ? ic.wainDark : k.wood,
+    pictures: jp ? ['fuji', 'wave', 'plum'] : ['wave', 'fuji', 'plum'],
+    plates: kind === 'soba' ? [[k.plateRim, k.plateRim]] : undefined,
+    shade, menu: kind === 'cafe' || kind === 'bakery', clock: kind === 'kissa', mirror: kind === 'kissa',
+    only: kind === 'izakaya' ? ['R'] : kind === 'soba' ? ['L'] : ['L', 'R'], picY: kind === 'soba' ? 5 : 4,
+  });
+  // the tables: what is on them, and a light over each
+  for (const t of o.tables) {
+    const kk: Dir = 2;
+    const seats = t.along === 'd' ? [sideOf(R, kk, 0), sideOf(R, kk, 2)] : [sideOf(R, kk, 1), sideOf(R, kk, 3)];
+    const turned = t.along === 'd' && (seats[0] === 'e' || seats[0] === 'w');
+    dput(R, tableTop(k, jp ? 'jp' : 'cafe', turned ? t.dd : t.w, turned ? t.w : t.dd, seats, seed + Math.round(t.a * 13 + t.d * 7)), t.a, t.d, t.y, kk);
+  }
+  const lit = o.tables.filter((t) => t.lamp).map((t): [number, number] => [t.a, t.d]);
+  if (lit.length) pendants(R, k, lit, kind === 'kissa' ? 'bell' : 'cone', shade, 2.25);
+  switch (kind) {
+    case 'izakaya': {
+      // the counter: a place laid at every stool, paper lanterns along it, beer crates stacked by the wall
+      const cd0 = D0 + 2, cd1 = D1;
+      for (let d = cd0 + 1; d <= cd1; d += 3) dput(R, tableTop(k, 'jp', 6, 6, [sideOf(R, 2, 1)], seed + d), A0 + 3.5, d + 0.5, 1.0, 2);
+      const spots: [number, number][] = [];
+      for (let d = cd0 + 2; d <= cd1 - 1; d += 5) spots.push([A0 + 4.5, d + 0.5]);
+      pendants(R, k, spots, 'paper', o.lanterns === b.k.c.lanternWhite ? k.paperL : k.paperR, 2.15);
+      if (!R.get(A0, 0, D0) && !R.get(A0 + 1, 0, D0)) {
+        dbox(R, A0, 0, D0, A0 + 1, 3, D0 + 1, (_a, y) => (y % 2 ? k.crateY : k.crateR));
+        dbox(R, A0, 4, D0, A0 + 1, 4, D0 + 1, (a, _y, d) => ((a + d) % 2 ? k.bottleB : k.crateY));
+      }
+      // the kamidana: a little shrine shelf high in the corner over the keeper
+      const W = walls(R);
+      if (bare(R, W.L, D0, D0 + 3, 9, 10)) {
+        const p = new Prop(12, 6, 4, F16);
+        p.box(0, 0, 0, 11, 0, 3, c.hinoki);
+        p.box(3, 1, 0, 8, 3, 2, c.hinoki); p.box(2, 4, 0, 9, 4, 3, c.cedar); p.box(5, 1, 3, 6, 2, 3, c.lacquer);
+        p.box(1, 1, 2, 1, 2, 2, k.leaf); p.box(10, 1, 2, 10, 2, 2, k.leaf); p.box(0, 5, 0, 11, 5, 0, k.paper);
+        onWall(R, W.L, p, D0 + 2, 2.35);
+      }
+      break;
+    }
+    case 'cafe': case 'kissa': {
+      // the counter's ends: a cake under glass, jars of beans or the coffee machine, a cup at every stool
+      const a1 = o.back ? o.bda - 2 : A1 - 1;
+      dput(R, counterPiece(k, 'cake', seed), A0 + 0.9, D1 - 1.6, 1.0, 0);
+      if (a1 - A0 > 7) dput(R, counterPiece(k, kind === 'kissa' ? 'jars' : 'machine', seed), a1 - 0.2, D1 - 1.6, 1.0, 0);
+      for (let a = A0 + 1; a <= a1 - 1; a += 3) if ((a * 7 + seed) % 3 !== 0) dput(R, tableTop(k, 'cafe', 5, 5, [sideOf(R, 2, 0)], seed + a), a + 0.5, D1 - 2.7, 1.0, 2);
+      pendants(R, k, [[A0 + 2, D1 - 2.5], [Math.max(A0 + 3, a1 - 2), D1 - 2.5]], kind === 'kissa' ? 'bell' : 'cage', shade, 2.3);
+      break;
+    }
+    case 'soba': {
+      // the low tables on the tatami laid, a lantern over each; a place at every counter stool
+      const ca = A1 - 3;
+      const spots: [number, number][] = [];
+      for (let d = D0 + 6; d + 2 <= D1 - 1; d += 5) {
+        dput(R, tableTop(k, 'jp', 8, 8, [sideOf(R, 2, 1)], seed + d), A0 + 2, d + 1, 1.0, 2);
+        spots.push([A0 + 2, d + 1]);
+      }
+      pendants(R, k, spots, 'paper', k.paperL, 2.2);
+      for (let d = D0 + 6; d <= D1 - 1; d += 3) dput(R, tableTop(k, 'jp', 6, 6, [sideOf(R, 2, 3)], seed + d * 3), ca + 1, d + 0.5, 1.0, 2);
+      break;
+    }
+    case 'bakery': {
+      pendants(R, k, [[(A0 + A1 + 1) / 2, D0 + 5.5]], 'bell', k.shadeW, 2.2);
+      const a1 = o.back ? o.bda - 2 : A1 - 1;
+      if (a1 - A0 > 5) dput(R, counterPiece(k, 'bread', seed), a1 - 0.2, D1 - 1.6, 1.0, 0);
+      break;
+    }
+  }
+  // a big plant in a free front corner
+  if (kind !== 'izakaya') cornerPlant(R, k, A1 - 1, D0, kind === 'kissa' ? 'monstera' : kind === 'soba' ? 'palm' : 'fig', kind === 'soba' ? k.potBlue : k.potWhite);
+  void ic;
+}
+
+/**
+ * The back room of a place that feeds people, in place of a storeroom: an izakaya's tatami room (zashiki) with low
+ * tables and cushions, a soba shop's or a café's kitchen, a bakery's bakehouse, a kissa's or café's second room of
+ * tables. Keeps the right-hand side clear (the doorway from the front room) and the far corner (a daruma hides there).
+ */
+function backRoom(o: { lot: Lot; b: Builder; kind: RoomKind; seed: number; A0: number; A1: number; BD0: number; BD1: number; npc: (role: RoomNpc['role'], a: number, d: number, dir: number, sit?: boolean, y?: number) => void; r: () => number }): void {
+  const { lot, b, kind, seed, A0, A1, BD0, BD1 } = o;
+  const c = b.c, ic = b.ic, k = dineColors(b.pal);
+  const R = tokyoDine(lot, b, seed + 101, A0, A1, BD0, BD1);
+  const depth = BD1 - BD0 + 1, width = A1 - A0 + 1;
+  const W = walls(R);
+  const big = depth >= 10 && width >= 12;
+  if (kind === 'izakaya' && big) {
+    // the zashiki: a raised floor of tatami, low tables, cushions, guests with their shoes left on the step
+    const zA1 = A1 - 3, zD0 = BD0 + 2, zD1 = BD1;
+    dbox(R, A0, 0, zD0, zA1, 0, zD1, (a, _y, d) => (a === zA1 || d === zD0 ? c.hinoki : (a - A0) % 6 === 5 || (d - zD0) % 8 === 0 ? c.tatamiEdge : c.tatami));
+    // shoji panels on the back wall and a scroll in the alcove on the left
+    dpaint(R, A0, 1, BD1 + 1, zA1, 9, BD1 + 1, (a, y) => (y === 1 || y === 9 || (a - A0) % 3 === 0 || y === 5 ? c.woodDark : c.shoji));
+    if (bare(R, W.L, zD1 - 4, zD1 - 1, 3, 8)) hangIn(b, picture(paintColors(b), 'plum', 6, 12, seed, true), (a, d) => lot.m(a, d), A0, zD1 - 2.5, 1, 0, 0.9);
+    dput(R, counterPiece(k, 'vase', seed), A0 + 0.6, zD1 - 2.5, 0.25, 1);
+    const spots: [number, number][] = [];
+    let guests = 0;
+    for (let d = zD0 + 3; d + 4 <= zD1; d += 6) {
+      const ta0 = A0 + 2, ta1 = Math.max(ta0 + 3, zA1 - 2);
+      if (ta1 > zA1 - 1) break;
+      dbox(R, ta0, 1, d, ta1, 1, d + 1, c.woodDark);
+      dbox(R, ta0, 2, d, ta1, 2, d + 1, c.lacquerDark);
+      dblock(R, ta0, d, ta1, d + 1);
+      dput(R, tableTop(k, 'jp', (ta1 - ta0 + 1) * 4, 8, [sideOf(R, 2, 0), sideOf(R, 2, 2)], seed + d), (ta0 + ta1 + 1) / 2, d + 1, 0.75, 2);
+      for (let a = ta0; a + 1 <= ta1; a += 3) for (const [dd, dir] of [[d - 1, 2], [d + 2, 0]] as const) {
+        dbox(R, a, 1, dd, a + 1, 1, dd, (a + dd) % 2 ? k.cushion : k.cushionB);
+        if (guests < 3 && hash3(a, dd, seed) < 0.45) { o.npc('guest', a + 1, dd + 0.5, dir, true, 0.5); guests++; }
+      }
+      spots.push([(ta0 + ta1 + 1) / 2, d + 1]);
+    }
+    pendants(R, k, spots, 'paper', k.paperL, 2.1);
+    // shoes in pairs on the stone by the step
+    for (let a = A0 + 1; a < zA1 - 1; a += 3) if (hash3(a, seed, 4) < 0.6) {
+      const p = new Prop(4, 2, 3, F16);
+      const col = [k.black, k.woodD, k.plateRim, k.white][Math.floor(hash3(a, 2, seed) * 4)];
+      p.box(0, 0, 0, 0, 1, 2, col); p.box(2, 0, 0, 2, 1, 2, col);
+      dput(R, p, a + 0.5, zD0 - 0.5, 0, 0);
+    }
+    dlamp(R, (A0 + zA1) / 2, (zD0 + zD1) / 2, 2.1, [1.0, 0.75, 0.48], 6, 1.0);
+    return;
+  }
+  if (kind === 'bakery') {
+    // the bakehouse: the deck oven along the back wall, racks of trays, the bench with dough, sacks of flour
+    const oa1 = A1 - 3;
+    if (oa1 - A0 >= 4) {
+      dair(R, A0, 0, BD1 - 1, oa1, 7, BD1, (a, y, d) => (y === 7 ? ic.steelDark : d === BD1 - 1 && (y === 2 || y === 5) && a > A0 && a < oa1 ? ic.oven : y === 3 || y === 6 ? ic.steelDark : ic.steel));
+      dblock(R, A0, BD1 - 1, oa1, BD1);
+      const [ex, ez] = lot.m((A0 + oa1) / 2, BD1 - 1.5);
+      b.lamp(ex, 0.9, ez, [1.0, 0.55, 0.25], 4, 1.0);
+    }
+    if (depth >= 7) {
+      // a rack trolley of trays, bread on them
+      const rack = new Prop(6, 26, 8, F16);
+      for (const [x, z] of [[0, 0], [5, 0], [0, 7], [5, 7]]) rack.box(x, 0, z, x, 25, z, k.steel);
+      for (let y = 3; y < 25; y += 4) { rack.box(0, y, 0, 5, y, 7, k.steelMid); rack.box(1, y + 1, 1, 4, y + 1, 6, (x, _y, z) => (hash3(x >> 1, y, z >> 1) < 0.5 ? k.bread : k.breadD)); }
+      if (!R.get(A0, 0, BD0 + 1)) { dput(R, rack, A0 + 0.9, BD0 + 2, 0, 1); dblock(R, A0, BD0 + 1, A0 + 1, BD0 + 3); }
+      // the bench: a wooden top dusted with flour, dough on it
+      if (width >= 10 && depth >= 9) {
+        const ta0 = A0 + 3, ta1 = Math.min(A1 - 5, ta0 + 5), td = BD0 + 4;
+        if (ta1 - ta0 >= 2) {
+          dbox(R, ta0, 0, td, ta1, 2, td + 1, c.woodMid);
+          dbox(R, ta0, 3, td, ta1, 3, td + 1, (a, _y, d) => ((a + d) % 3 ? ic.board : ic.flour));
+          dblock(R, ta0, td, ta1, td + 1);
+          const p = new Prop((ta1 - ta0 + 1) * 4, 2, 8, F16);
+          for (let x = 1; x < p.sx - 2; x += 4) p.box(x, 0, 2, x + 2, 1, 5, k.flour);
+          dput(R, p, (ta0 + ta1 + 1) / 2, td + 1, 1.0, 2);
+        }
+      }
+    }
+    // sacks of flour along the left wall, by the door
+    if (!R.get(A0, 0, BD0)) dair(R, A0, 0, BD0, A0, 2, BD0, (_a, y) => (y === 2 ? k.sackD : k.sack));
+    return;
+  }
+  if ((kind === 'cafe' || kind === 'kissa') && big) {
+    const kissa = kind === 'kissa';
+    // a second room of tables: the floor of the front room carried through, tables in rows from the left wall, the
+    // right-hand side left clear as the way in from the doorway
+    dpaint(R, A0, -1, BD0, A1, -1, BD1, kissa ? (a, _y, d) => ((a + d) % 2 ? ic.checkB : ic.checkW) : (a, _y, d) => ((a + ((d >> 2) % 2) * 2) % 4 === 0 ? ic.plankB : (a % 2 ? ic.plank : ic.plankLight)));
+    const spots: [number, number][] = [];
+    let guests = 0;
+    for (let ta = A0 + 1; ta + 1 <= A1 - 5; ta += 5) for (let d = BD0 + 2; d + 4 <= BD1 - 2; d += 5) {
+      dput(R, bistroTable(k, kissa ? ic.wainDark : [k.white, ic.marbleW, c.hinoki][(ta + d) % 3]), ta + 0.5, d + 1.5, 0, 0);
+      dblock(R, ta - 0.3, d + 1.2, ta + 1.3, d + 1.8);
+      dput(R, stool(b.k, kissa ? b.k.c.lacquer : b.k.c.woodLight), ta + 0.5, d - 0.3, 0, 0);
+      dput(R, stool(b.k, kissa ? b.k.c.lacquer : b.k.c.woodLight), ta + 0.5, d + 3.3, 0, 0);
+      dput(R, tableTop(k, 'cafe', 7, 7, [sideOf(R, 2, 0), sideOf(R, 2, 2)], seed + d + ta * 5), ta + 0.5, d + 1.5, 0.75, 2);
+      spots.push([ta + 0.5, d + 1.5]);
+      if (guests < 3 && hash3(d, ta, seed) < 0.5) { o.npc('guest', ta + 0.5, hash3(ta, d, 3) < 0.5 ? d - 0.3 : d + 3.3, hash3(ta, d, 3) < 0.5 ? 2 : 0, true); guests++; }
+    }
+    // a bookcase along the back wall, short of the daruma's corner
+    const ba1 = A1 - 3;
+    if (ba1 - A0 >= 3) {
+      dair(R, A0, 0, BD1, ba1, 9, BD1, (a, y) => (y % 3 === 0 ? (kissa ? ic.wainDark : c.woodMid) : hash3(a, y, seed) < 0.85 ? [ic.bookA, ic.bookB, ic.bookC, ic.bookD, ic.bookE, ic.bookF, ic.record][Math.floor(hash3(a * 3, y, seed) * 7)] : 0));
+      dblock(R, A0, BD1, ba1, BD1);
+    }
+    pendants(R, k, spots, kissa ? 'bell' : 'cone', kissa ? k.shadeA : k.shadeW, 2.25);
+    dressWalls(R, k, { goods: kissa ? ['cups', 'books'] : ['cups', 'jars', 'bottles'], board: kissa ? ic.wainDark : k.wood, pictures: ['wave', 'fuji', 'plum'], shade: kissa ? k.shadeA : k.shadeW, clock: true, mirror: kissa, only: ['L', 'R'] });
+    cornerPlant(R, k, A1 - 1, BD0, kissa ? 'monstera' : 'fig', k.potWhite);
+    dlamp(R, A0 + 2, (BD0 + BD1) / 2, 2.3, [1.0, 0.72, 0.42], 6, 0.9);
+    return;
+  }
+  // a kitchen: the line of cabinets, hob and hood along the back, a fridge by the door, sacks, a prep table
+  const la1 = A1 - 2;
+  kitchenLine(R, k, A0, la1, { d: BD1 });
+  if (!R.get(A0, 0, BD0)) {
+    dair(R, A0, 0, BD0, A0 + 1, 8, BD0, (_a, y) => (y === 4 ? ic.steelDark : y === 8 ? ic.steelDark : ic.steel));
+    dblock(R, A0, BD0, A0 + 1, BD0);
+  }
+  if (depth >= 9 && width >= 10) {
+    const ta0 = A0 + 2, ta1 = Math.min(A1 - 5, ta0 + 5), td = BD0 + Math.floor(depth / 2) - 1;
+    if (ta1 - ta0 >= 2 && td + 1 < BD1 - 2) {
+      dbox(R, ta0, 0, td, ta1, 2, td + 1, ic.steelDark);
+      dbox(R, ta0, 3, td, ta1, 3, td + 1, ic.steel);
+      dblock(R, ta0, td, ta1, td + 1);
+      // trays of what is being got ready: noodles in nests, skewers, vegetables
+      const p = new Prop((ta1 - ta0 + 1) * 4, 2, 8, F16);
+      for (let x = 1; x < p.sx - 3; x += 5) {
+        const col = kind === 'soba' ? ic.soba : [k.food3, k.food1, k.food4, k.chili][Math.floor(hash3(x, seed, 2) * 4)];
+        p.box(x, 0, 1, x + 3, 0, 6, k.steelMid); p.box(x, 1, 2, x + 3, 1, 5, (xx, _y, z) => (hash3(xx, z, seed) < 0.7 ? col : 0));
+      }
+      dput(R, p, (ta0 + ta1 + 1) / 2, td + 1, 1.0, 2);
+    }
+  }
+  if (depth >= 6 && !R.get(A0, 0, BD0 + 2)) dair(R, A0, 0, BD0 + 2, A0, 2, BD0 + 3, (_a, y, d) => (y === 2 ? k.sackD : (d + y) % 2 ? k.sack : k.crateB));
+  if (bare(R, W.L, BD0 + 4, BD0 + 8, 6, 8)) onWall(R, W.L, shelfProp(k, 16, ['jars', 'tins', 'bottles'], seed, k.steelMid, 2), BD0 + 6, 1.4);
+  if (bare(R, W.L, BD0 + 1, BD0 + 3, 9, 10)) onWall(R, W.L, hangRail(k, 12, kind === 'soba' ? 'herbs' : 'garland', seed), BD0 + 2, 2.1);
 }

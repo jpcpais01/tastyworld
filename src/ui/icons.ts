@@ -4,12 +4,25 @@ import { buildFood, FoodId } from '../world/food';
 import { Palette } from '../world/palette';
 import { meshGrid } from '../world/mesher';
 import { geometryFrom } from '../game/actors';
+import type { Prop } from '../world/props';
+import { buildSouvenir } from '../world/souvenirModels';
+import type { Souvenir } from '../data/souvenirs';
 
 /**
  * Renders every dish as a little voxel diorama into a data URL, using the same voxel shader as the world
  * (ICON define = tonemapped, gamma corrected, transparent background). Runs once after loading.
  */
 export function renderDishIcons(gl: THREE.WebGLRenderer, ids: FoodId[], size = 160): Record<string, string> {
+  return renderPropIcons(gl, ids.map((id) => [id, (pal: Palette) => buildFood(id, pal)]), size);
+}
+
+/** Souvenirs as little voxel models on a transparent background (rendered when a shop or the bag first shows them). */
+export function renderSouvenirIcons(gl: THREE.WebGLRenderer, items: Souvenir[], size = 160): Record<string, string> {
+  return renderPropIcons(gl, items.map((it) => [it.id, (pal: Palette) => buildSouvenir(it.shape, it.cols, pal)]), size);
+}
+
+/** Render each voxel prop into a data URL, framed to fit, lit like a sunny afternoon. */
+export function renderPropIcons(gl: THREE.WebGLRenderer, list: [string, (pal: Palette) => Prop][], size = 160): Record<string, string> {
   const out: Record<string, string> = {};
   const big = size * 2;
   const rt = new THREE.WebGLRenderTarget(big, big, { depthBuffer: true, type: THREE.UnsignedByteType });
@@ -38,9 +51,9 @@ export function renderDishIcons(gl: THREE.WebGLRenderer, ids: FoodId[], size = 1
   gl.getClearColor(prevClear);
   const prevAlpha = gl.getClearAlpha();
 
-  for (const id of ids) {
+  for (const [id, build] of list) {
     const pal = new Palette();
-    const prop = buildFood(id, pal);
+    const prop = build(pal);
     const md = meshGrid({ grid: prop.grid, pal, scale: prop.scale, origin: [0, 0, 0], greedy: true });
     if (!md.vertexCount) continue;
     const geo = geometryFrom(md);

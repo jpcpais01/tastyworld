@@ -1518,6 +1518,9 @@ class Game {
   private skyCars: SkyTraffic | null = null;
   private drones: Drones | null = null;
   private droneNight = 0;
+  /** Seconds into 2040's opening pull-back after the creator (-1: not running), and the yaw it settles on. */
+  private openingT = -1;
+  private openingYaw = 0;
   private scanned = false;
   private wet = 0.3;
   private wetY: number | null = null;
@@ -1598,6 +1601,12 @@ class Game {
         this.closeCreator?.(); this.closeCreator = null;
         night();
         this.start(DEST.neo, null);
+        // the opening shot: from the mirror close-up, the camera pulls back and swings round over the crossing
+        this.openingT = 0;
+        this.openingYaw = this.cam.yaw;
+        this.cam.zoom = this.r.isMobile ? 4.2 : 3.4;
+        this.cam.yaw = this.openingYaw - 0.9;
+        this.cam.snap();
       },
       back: () => {
         life.look = restore; this.rebuildPlayer();
@@ -1621,6 +1630,9 @@ class Game {
     if (L.sleep < 25) opts.push(R.tired, R.tired);
     if (L.look?.chrome) opts.push(R.chrome);
     if (L.look?.implant !== undefined) opts.push(R.implant);
+    if (L.look?.visor !== undefined) opts.push(R.visor);
+    if (L.look?.mask) opts.push(R.mask);
+    if (L.look?.tattoo !== undefined) opts.push(R.tattoo);
     if ((this.rain?.amount ?? 0) > 0.3) opts.push(R.rain);
     if (h >= 23 || h < 4) opts.push(R.late);
     if (L.secrets.length >= 4) opts.push(R.famous);
@@ -3118,6 +3130,14 @@ class Game {
     }
     this.wasInside = this.inside;
     this.farTick?.(dt);
+    if (this.openingT >= 0) {
+      this.openingT += dt;
+      const k = Math.min(1, this.openingT / 5), e = k * k * (3 - 2 * k);
+      const far = this.r.isMobile ? 22 : 27, near = this.r.isMobile ? 4.2 : 3.4;
+      this.cam.zoom = near * Math.pow(far / near, e);
+      this.cam.yaw = this.openingYaw - 0.9 * (1 - e);
+      if (k >= 1 || this.cam.fp) this.openingT = -1;
+    }
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
     if (HILLSIDE) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
   }

@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.8',
+    date: '2026-11-01',
+    title: '2040: the dock warehouses open up',
+    items: [
+      'The warehouses on Rust Docks are no longer just walls: each one now has a door between its roller shutters and a working floor inside, a trader, an outfitter or a dock job hub.',
+      'Their saw-tooth roofs now have proper glazing on the steep side of each tooth, lit from the floor below, instead of glowing strips on top.',
+    ],
+  },
+  {
     version: '0.20.7',
     date: '2026-11-01',
     title: '2040: rumours worth chasing',

@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.10',
+    date: '2026-11-01',
+    title: '2040: a better first look',
+    items: [
+      'A new life in Halcyon now starts under the Halo, with the koi circling overhead in the first shot, a little wider than before.',
+      'Your first evening in the city always brings a shower, so you meet Halcyon the way it is meant to be seen: wet, neon, umbrellas up.',
+    ],
+  },
+  {
     version: '0.20.9',
     date: '2026-11-01',
     title: '2040: the mirror and the rain',

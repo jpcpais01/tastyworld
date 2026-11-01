@@ -1471,7 +1471,8 @@ class Game {
   private boardView(): void {
     this.cam.setOrbit(0);
     this.cam.yaw = Math.round((this.cam.yaw - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
-    this.cam.zoom = this.r.isMobile ? 15 : 17;
+    // Halcyon opens wider, so the Halo and its koi are in the first shot
+    this.cam.zoom = NEO ? (this.r.isMobile ? 22 : 27) : this.r.isMobile ? 15 : 17;
     this.cam.target.copy(this.player.position).add(this.v3.set(0, 0.6, 0));
     this.cam.snap();
   }

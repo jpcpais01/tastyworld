@@ -139,10 +139,10 @@ const vA = new THREE.Vector3();
 const vS = new THREE.Vector3();
 
 /** Zones and the birds found there: [species, weight]. */
-const SQUARES = new Set(['plaza', 'ekimae', 'midori', 'park', 'inari', 'station', 'piazza', 'dogi', 'scalinata', 'meydan', 'yeni', 'teras', 'suleymaniye']);
-const GREEN = new Set(['midori', 'park', 'inari', 'yanaka', 'limoni', 'limoni2', 'chiostro', 'teras']);
-const WATERSIDE = new Set(['canal', 'farbank', 'marina', 'molo', 'lungomare', 'halic', 'bogaz', 'kopru', 'kadikoy', 'uskudar', 'halicpier', 'kucukpazar']);
-const AVENUES = new Set(['hikari', 'neon', 'minami', 'nishi', 'center']);
+const SQUARES = new Set(['plaza', 'ekimae', 'midori', 'park', 'inari', 'station', 'piazza', 'dogi', 'scalinata', 'meydan', 'yeni', 'teras', 'suleymaniye', 'largo', 'lavradores', 'se']);
+const GREEN = new Set(['midori', 'park', 'inari', 'yanaka', 'limoni', 'limoni2', 'chiostro', 'teras', 'jardim', 'socalcos']);
+const WATERSIDE = new Set(['canal', 'farbank', 'marina', 'molo', 'lungomare', 'halic', 'bogaz', 'kopru', 'kadikoy', 'uskudar', 'halicpier', 'kucukpazar', 'promenade', 'ribeira', 'forte']);
+const AVENUES = new Set(['hikari', 'neon', 'minami', 'nishi', 'center', 'avenida', 'arriaga']);
 
 export class Birds {
   /** Every flock in town (most of them away from the player, so empty). */
@@ -313,7 +313,7 @@ export class Birds {
       for (let cx = 0; cx < sx; cx += step) {
         const x = ox + (cx + r() * step) * V, z = oz + (cz + r() * step) * V;
         const zone = zoneAt(x, z)?.id ?? '';
-        if (zone === 'kakurega' || zone === 'grotta' || zone === 'gizli' || zone === 'kapali' || zone === 'misir') continue;
+        if (zone === 'kakurega' || zone === 'grotta' || zone === 'gizli' || zone === 'kapali' || zone === 'misir' || zone === 'segredo') continue;
         const sq = SQUARES.has(zone), green = GREEN.has(zone), water = WATERSIDE.has(zone), ave = AVENUES.has(zone);
         // the pigeons of Eminönü, fed by the seed sellers in front of the New Mosque, are a flock all of their own
         const density = zone === 'meydan' || zone === 'yeni' ? 0.85 : sq ? 0.4 : water ? 0.3 : ave ? 0.07 : 0.14;

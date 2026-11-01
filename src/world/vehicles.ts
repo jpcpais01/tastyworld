@@ -133,3 +133,27 @@ export function cabinModel(seed: number): CharModel {
   for (let x = Math.round(cx) - 3; x <= Math.round(cx) + 3; x++) for (let y = 52; y < H; y++) g.set(x, y, Math.round(cz), y > 53 ? dark : steel);
   return rigidModel(g, pal, 0.075);
 }
+
+/**
+ * A Monte toboggan: a wicker two-seater on a pair of greased wooden runners, the way the carreiros have driven
+ * visitors down the steep streets from Monte since the 1850s. Its front (the runners' curl) is at +z.
+ */
+export function tobogganModel(seed: number): CharModel {
+  const pal = new Palette();
+  const r = rng(seed);
+  const wicker = pal.add(0xc9a46a, { vary: 0.06 }), wickerD = pal.add(0xa8844e, { vary: 0.05 });
+  const wood = pal.add(0x6a4a30, { vary: 0.04 }), cushion = pal.add(r() < 0.5 ? 0xd83a2a : 0x2f5a8a, { vary: 0.03 });
+  const W = 14, H = 14, D = 26;
+  const g = new Grid(W, H, D);
+  // the runners, curling up at the front
+  for (const x of [2, 11]) { for (let z = 1; z < 24; z++) g.set(x, 0, z, wood); g.set(x, 1, 24, wood); g.set(x, 2, 25, wood); }
+  for (const z of [4, 12, 20]) for (let x = 2; x <= 11; x++) g.set(x, 1, z, wood);
+  // the basket seat: a low wicker box with a high back and arms, a cushion on the seat
+  for (let y = 2; y < 13; y++) for (let z = 2; z < 22; z++) for (let x = 1; x < 13; x++) {
+    const back = z < 5, side = x === 1 || x === 12, front = z === 21;
+    if (y <= 3) { g.set(x, y, z, (x + z) % 2 ? wicker : wickerD); continue; }
+    if (back && y < 13 || side && y < 8 || front && y < 6) g.set(x, y, z, (x + y + z) % 2 ? wicker : wickerD);
+    else if (y === 4 && z < 20) g.set(x, y, z, cushion);
+  }
+  return rigidModel(g, pal, 0.075);
+}

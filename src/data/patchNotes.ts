@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.3',
+    date: '2026-11-01',
+    title: 'Funchal: Monte\'s toboggans and the painted doors',
+    items: [
+      'The Monte toboggans are running: wicker sleds slide down the steep lanes from below Monte\'s church towards Livramento, each steered by two carreiros in white cotton and straw boaters running behind. One waits by the cable car station in town, its two drivers chatting beside it.',
+      'Every door on Rua de Santa Maria is now a real painting: a woman among flowers, the sea with a fishing boat, a bird-of-paradise, azulejo diamonds, hydrangeas or a big silver fish. The hidden tasca\'s door now hides among them properly.',
+      'The Sé\'s front has King Manuel I\'s arms over the portal between two armillary spheres, a basalt string course and weathered plaster.',
+      'Gulls, pigeons and sparrows now gather on the Largo da Sé, along the promenade, by the ribeira and in the gardens.',
+    ],
+  },
+  {
     version: '0.18.2',
     date: '2026-11-01',
     title: 'New skies, and Mount Fuji',

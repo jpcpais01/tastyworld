@@ -334,6 +334,51 @@ function grottaDoor(c: AC, open: boolean): Prop {
   return p;
 }
 
+/**
+ * One of Rua de Santa Maria's painted doors (the Arte de Portas Abertas), as a painting laid on the door itself at
+ * sixteen to the metre: a woman among flowers, the sea with a boat, a bird-of-paradise, azulejo diamonds,
+ * hydrangeas, or a fish. Faces -z, 0.75 m by 2 m.
+ */
+function paintedDoor(c: AC, seed: number): Prop {
+  const p = new Prop(12, 32, 1, 0.0625);
+  const motif = seed % 6, h = (x: number, y: number, k: number) => hash3(x, y, seed * 7 + k);
+  const bg = [c.majolicaBlue, c.majolicaYellow, c.white, c.azulejoW, c.hullGreen, c.ferryBlue][motif];
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 12; x++) {
+    const u = x - 5.5;
+    let v = bg;
+    if (motif === 0) {
+      const face = Math.hypot(u, (y - 20) * 0.9) < 2.4, hair = Math.hypot(u, y - 21.5) < 3.4 && y > 19;
+      const body = Math.abs(u) < 3 - (y - 4) * 0.05 && y < 17 && y > 2;
+      v = face ? c.peach : hair ? c.door : body ? c.hullRed : h(x, y, 1) < 0.2 ? (x < 6 ? c.strelitzia : c.hydrangea) : bg;
+    } else if (motif === 1) {
+      const wave = y < 10 + Math.round(Math.sin(x * 1.3) * 1.2);
+      const hull = y >= 11 && y <= 13 && Math.abs(u) < 4 - (13 - y), sail = x >= 5 && x <= 8 && y > 13 && y < 22 && x - 5 < (22 - y) * 0.5;
+      const sun = Math.hypot(x - 8.5, y - 26) < 2.4;
+      v = sun ? c.white : hull ? c.hullRed : sail ? c.white : wave ? (y % 3 === 0 ? c.white : c.majolicaBlue) : bg;
+    } else if (motif === 2) {
+      const stem = Math.abs(x - (2 + y * 0.18)) < 0.8 && y < 20;
+      const crest = y >= 18 && y <= 24 && x > 3 + (y - 18) * 0.4 && x < 10 && (y - 18) > (x - 9) * -1.2;
+      const blue = y >= 21 && y <= 25 && x >= 3 && x <= 5;
+      const leaf = Math.abs(u + 2 - y * 0.12) < 1.4 && y < 12 && x > 5;
+      v = crest ? c.strelitzia : blue ? c.majolicaBlue : stem ? c.strelLeaf : leaf ? c.strelLeaf : bg;
+    } else if (motif === 3) {
+      const cx = ((x + 1) % 6) - 3, cy = ((y + 2) % 8) - 4;
+      v = Math.abs(cx) + Math.abs(cy) * 0.75 < 2.2 ? c.azulejo : (x + y) % 6 === 0 ? c.majolicaYellow : bg;
+    } else if (motif === 4) {
+      const cl = [[3, 8], [8, 13], [4, 19], [8, 25]].some(([a, b]) => Math.hypot(x - a, y - b) < 2.6);
+      v = cl ? (h(x, y, 2) < 0.5 ? c.hydrangea : c.jacaranda) : h(x, y, 3) < 0.08 ? c.white : bg;
+    } else {
+      const fish = Math.hypot(u * 0.9, (y - 16) * 0.42) < 3.6 || (Math.abs(u) < (y - 25) * 0.6 + 0.5 && y > 23 && y < 29);
+      const eye = x === 6 && y === 12;
+      v = eye ? c.door : fish ? ((x + y) % 3 === 0 ? c.cantaria : c.white) : h(x, y, 4) < 0.05 ? c.white : bg;
+    }
+    if (x === 0 || x === 11 || y === 31) v = c.door; // the leaf's own edge
+    p.set(x, y, 0, v);
+  }
+  p.set(9, 15, 0, c.brass);
+  return p;
+}
+
 function wallLantern(c: AC, allDay = false): Prop {
   const p = new Prop(3, 6, 4);
   p.box(1, 3, 0, 1, 3, 2, c.iron);
@@ -992,6 +1037,11 @@ export function house(b: Builder, c: AC, plan: Plan | null, lt: LotPlan, ground?
       : painted ? (hash3(x + z, y, lt.seed) < 0.3 ? art[Math.floor(hash3(x, y, z + lt.seed) * art.length)] : base0)
       : y === dl + 3 || y === dl + 6 ? c.keel : doorC));
     { const [kx, kz] = f.at(da + 1); g.set(kx, dl + 5, kz, c.brass); }
+    if (painted) {
+      // the painting itself, laid on the outside of the leaves
+      const [ax, az] = f.at(da + 1), [bx, bz] = f.out(da + 1), ox = bx - ax, oz = bz - az;
+      b.place(paintedDoor(c, Math.floor(H(41) * 600)), (ax + 0.5 + ox * 0.5) * V + ox * 0.032, (dl - G) * V, (az + 0.5 + oz * 0.5) * V + oz * 0.032, faceTurn(-ox, -oz));
+    }
     const stone = (x: number, y: number, z: number) => { const v = g.get(x, y, z); if (v === wall || v === c.plinth || v === trim || v === dirt || v === damp) g.set(x, y, z, c.piperno); };
     for (const u of [da - 1, da + 3]) { const [px, pz] = f.at(u); for (let y = dl; y <= dl + 9; y++) stone(px, y, pz); }
     for (let u = da; u <= da + 2; u++) { const [px, pz] = f.at(u); stone(px, dl + 9, pz); }
@@ -1290,7 +1340,19 @@ function se(b: Builder, c: AC): void {
     }
     // the front: a white gable between basalt corner piers, a basalt cornice along the eaves line
     const FW0 = Z0 - 2, FW1 = Z1 + 2;
-    g.box(FX, Y, FW0, FX + 3, Y + H + 6, FW1, (_x, y, z) => (z - FW0 < 4 || FW1 - z < 4 ? c.cantaria : y < Y + 3 ? c.cantaria : c.white));
+    g.box(FX, Y, FW0, FX + 3, Y + H + 6, FW1, (x, y, z) => (z - FW0 < 4 || FW1 - z < 4 ? c.cantaria : y < Y + 3 || y === Y + 44 || y === Y + 45 ? c.cantaria : hash3(x, y >> 1, z >> 1) < 0.05 ? c.plasterOld : c.white));
+    // over the portal, the arms of King Manuel I in a basalt frame: the shield with its five blue escutcheons, the
+    // armillary sphere either side
+    for (let y = Y + 30; y <= Y + 40; y++) for (let z = zc - 5; z <= zc + 4; z++) {
+      const edge = y === Y + 30 || y === Y + 40 || z === zc - 5 || z === zc + 4;
+      const shield = Math.abs(z + 0.5 - zc) < 3 - Math.max(0, Y + 33 - y) * 0.6 && y < Y + 39;
+      const dot = shield && ((y - Y) % 3 === 0) && Math.abs(z + 0.5 - zc) < 1.5 + ((y - Y) === 36 ? 1.2 : 0);
+      g.set(FX + 4, y, z, edge ? c.cantaria : dot ? c.majolicaBlue : shield ? c.white : c.cantariaB);
+    }
+    for (const z0 of [zc - 10, zc + 9]) for (let y = Y + 32; y <= Y + 38; y++) for (let z = z0 - 2; z <= z0 + 2; z++) {
+      const r = Math.hypot(z - z0, y - (Y + 35));
+      if (r < 2.9 && (r > 1.9 || Math.abs(y - (Y + 35)) < 0.6)) g.set(FX + 4, y, z, c.brass);
+    }
     const gable = Y + H + 6;
     for (let i = 0; i <= 38; i++) g.box(FX, gable + i, FW0 + i, FX + 3, gable + i, FW1 - i, (_x, _y, z) => (z - (FW0 + i) < 2 || (FW1 - i) - z < 2 ? c.cantaria : c.white));
     g.box(FX + 3, gable - 1, FW0, FX + 4, gable, FW1, c.cantaria);

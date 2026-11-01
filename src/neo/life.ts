@@ -59,6 +59,7 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'star', name: 'Look up', text: 'Brother Anselm says the towers forgot the sky, and asks you to look up once a day.', found: (_s, L) => L.secrets.includes('star') },
   { id: 'tape', name: 'The unmarked package', text: 'Zip the courier has a package nobody will admit is theirs.', found: (_s, L) => L.secrets.includes('tape') },
   { id: 'scan', name: 'Your record', text: 'Officer Ruiz says the patrol drones know everything about everyone. Stand in one\'s light after dark.', found: (_s, L) => L.secrets.includes('scan') },
+  { id: 'jackpot', name: 'Glitch in the machine', text: 'Pixel swears one vending can in every dozen comes free, if the machine is in the mood.', found: (_s, L) => L.secrets.includes('jackpot') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 

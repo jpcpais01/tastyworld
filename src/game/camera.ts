@@ -64,7 +64,7 @@ export class IsoCamera {
     return this.fp ? this.persp : this.cam;
   }
 
-  /** Switch views. Entering looks the way the player faces; leaving picks the iso angle closest to the look direction. */
+  /** Switch views. Entering looks the way the player faces; leaving returns to the iso angle and zoom the player had before. */
   setFirstPerson(on: boolean, facing: number): void {
     if (on === this.fp) return;
     this.fp = on;
@@ -73,10 +73,7 @@ export class IsoCamera {
     if (on) {
       this.fpYaw = facing;
       this.fpPitch = -0.12;
-    } else {
-      this.yaw = Math.round((this.fpYaw + Math.PI - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
-      this.yawCur = this.yaw;
-    }
+    } else this.yawCur = this.yaw; // the iso view never moved while away: no swing back into place
   }
 
   /** Mouse or drag look, in radians. */

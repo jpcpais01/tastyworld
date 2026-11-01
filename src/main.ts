@@ -1966,7 +1966,7 @@ class Game {
     const p = this.player.position;
     for (const st of this.w.anchors.stalls) {
       if (this.s.seen.includes(st.id) || STALL[st.id]?.hidden) continue;
-      if (Math.hypot(st.vendor[0] - p.x, st.vendor[2] - p.z) > 12) continue;
+      if (Math.hypot(st.vendor[0] - p.x, st.vendor[1] - p.z) > 12) continue;
       this.s.seen.push(st.id);
       this.save();
     }

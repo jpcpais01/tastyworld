@@ -18,7 +18,12 @@ for (const st of STALLS) {
   if (!has) { bad++; console.log('STALL WITHOUT ANCHOR', st.id, st.name); }
   if (!dishes) console.log('stall with no dishes', st.id);
 }
-for (const s of a.stalls) if (!STALLS.some((x) => x.id === s.id)) { bad++; console.log('ANCHOR WITHOUT STALL', s.id); }
+for (const s of a.stalls) {
+  if (!STALLS.some((x) => x.id === s.id)) { bad++; console.log('ANCHOR WITHOUT STALL', s.id); }
+  // vendor is [x, z, facing]: the map pin and walk-past discovery use its x, z, so it must stand by the counter
+  const d = Math.hypot(s.vendor[0] - s.stand[0], s.vendor[1] - s.stand[1]);
+  if (d > 4 || s.vendor[0] < WX0 || s.vendor[0] > WX1 || s.vendor[1] < WZ0 || s.vendor[1] > WZ1) { bad++; console.log('VENDOR FAR FROM ITS STAND', s.id, s.vendor, s.stand); }
+}
 const kinds: Record<string, number> = {};
 let food = 0;
 for (const r of a.rooms) {

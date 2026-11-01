@@ -70,7 +70,7 @@ export function openCreator(root: HTMLElement, start: { name: string; look: Look
       ? `<h4>Skin tone</h4>${swatches('skin', SKIN_TONES, look.skin)}
          <h4>Hair</h4>${chips('hairStyle', HAIR_STYLES, look.hairStyle)}
          <h4>Hair colour</h4>${swatches('hair', HAIR_NATURAL, look.hair)}${swatches('hair', HAIR_DYED, look.hair)}
-         <h4>Face</h4><div class="cc-chips"><button data-k="glasses" class="${look.glasses ? 'on' : ''}">Shades</button><button data-k="moustache" class="${look.moustache ? 'on' : ''}">Moustache</button></div>`
+         <h4>Face</h4><div class="cc-chips"><button data-k="glasses" class="${look.glasses ? 'on' : ''}">Shades</button><button data-k="moustache" class="${look.moustache ? 'on' : ''}">Moustache</button><button data-k="beard" class="${look.beard ? 'on' : ''}">Beard</button></div>`
       : tab === 'wear'
         ? `<h4>Top</h4>${chips('topStyle', TOPS, look.topStyle)}${swatches('top', CLOTH, look.top)}
            <h4>Neon trim</h4>${swatches('accent', NEON, look.accent)}
@@ -115,7 +115,7 @@ export function openCreator(root: HTMLElement, start: { name: string; look: Look
         skin: r(SKIN_TONES), hair: Math.random() < 0.35 ? r(HAIR_DYED) : r(HAIR_NATURAL), hairStyle: HAIR_STYLES[Math.floor(Math.random() * HAIR_STYLES.length)].value,
         top: r(CLOTH), topStyle: TOPS[Math.floor(Math.random() * 5)].value, accent: r(NEON), bottom: r(CLOTH.slice(0, 10)), shoes: r([0x16161c, 0xf2efe7, 0xd8282e, 0x2ad8ff]),
         skirt: Math.random() < 0.2, shorts: Math.random() < 0.1, hat: HATS[Math.floor(Math.random() * HATS.length)].value, hatColor: r(CLOTH),
-        glasses: Math.random() < 0.35, moustache: Math.random() < 0.15, backpack: Math.random() < 0.3 ? r(NEON) : undefined,
+        glasses: Math.random() < 0.35, moustache: Math.random() < 0.15, beard: Math.random() < 0.15, backpack: Math.random() < 0.3 ? r(NEON) : undefined,
         implant: Math.random() < 0.3 ? r(NEON.slice(0, 7)) : undefined, chrome: Math.random() < 0.15,
         visor: Math.random() < 0.15 ? r(NEON.slice(0, 7)) : undefined, mask: Math.random() < 0.12, tattoo: Math.random() < 0.2 ? r(NEON.slice(0, 7)) : undefined,
       };
@@ -130,6 +130,7 @@ export function openCreator(root: HTMLElement, start: { name: string; look: Look
     const L = look as unknown as Record<string, unknown>;
     if (k === 'glasses') look.glasses = !look.glasses;
     else if (k === 'moustache') look.moustache = !look.moustache;
+    else if (k === 'beard') look.beard = !look.beard;
     else if (k === 'chrome') look.chrome = !look.chrome;
     else if (k === 'mask') look.mask = !look.mask;
     else if ((k === 'visor' || k === 'tattoo') && v === undefined) L[k] = L[k] === undefined ? NEON[k === 'visor' ? 1 : 0] : undefined;

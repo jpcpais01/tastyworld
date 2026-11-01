@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.18',
+    date: '2026-11-01',
+    title: '2040: people notice you',
+    items: [
+      'Halcyon\'s crowd now notices you. Passers-by comment on your chrome arm or your face implant, tell you to go eat when you look starved or go to bed when you are dead on your feet, chat about the rain and the midnight Halo, and once you have found enough of the city\'s secrets, they start to recognise you.',
+    ],
+  },
+  {
     version: '0.20.17',
     date: '2026-11-01',
     title: '2040: splashes in the rain',

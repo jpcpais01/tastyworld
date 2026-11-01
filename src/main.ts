@@ -51,6 +51,7 @@ import { NeoLifeSys } from './neo/life';
 import { Rain } from './neo/rain';
 import { SkyTraffic } from './neo/skytraffic';
 import { Drones } from './neo/drones';
+import { NEO_REMARKS } from './data/neo';
 import { Umbrellas } from './neo/umbrellas';
 import { Hologram, HALO_SONG } from './neo/hologram';
 import { neoShop } from './neo/roles';
@@ -1606,6 +1607,23 @@ class Game {
     });
   }
 
+  /** Something a passer-by might say about you right now, picked from what stands out the most. */
+  private neoRemark(): string | null {
+    const L = this.s.life;
+    if (!L || this.meal) return null;
+    const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
+    const R = NEO_REMARKS, h = this.tod.hour, opts: string[][] = [];
+    if (L.health < 45) opts.push(R.hurt, R.hurt);
+    if (L.hunger < 30) opts.push(R.hungry, R.hungry);
+    if (L.sleep < 25) opts.push(R.tired, R.tired);
+    if (L.look?.chrome) opts.push(R.chrome);
+    if (L.look?.implant !== undefined) opts.push(R.implant);
+    if ((this.rain?.amount ?? 0) > 0.3) opts.push(R.rain);
+    if (h >= 23 || h < 4) opts.push(R.late);
+    if (L.secrets.length >= 4) opts.push(R.famous);
+    return opts.length ? pick(opts[Math.floor(Math.random() * opts.length)]) : null;
+  }
+
   /** You pass out: the screen goes dark, and you come to at the clinic on Spindle Avenue, lighter in the pocket. */
   private async faint(): Promise<void> {
     const life = this.s.life!;
@@ -2935,6 +2953,7 @@ class Game {
         const pl0 = this.player, self = this;
         const me = { actor: pl0, key: 0, always: true, onFoot: !this.upstairs && !this.roomHere && pl0.hold === 'none' && (pl0.anim === 'walk' || pl0.anim === 'idle' || pl0.anim === 'run') };
         this.crowd.rain = this.rain?.amount ?? 0;
+        if (!this.crowd.remark) this.crowd.remark = () => this.neoRemark();
         this.umbrellas.update((function* () { yield me; yield* self.crowd.holders(); })(), this.crowd.rain);
       }
       // cats only near enough to be seen: Istanbul has thirty of them spread over the whole map

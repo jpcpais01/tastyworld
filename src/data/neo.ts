@@ -489,3 +489,15 @@ export const NEO_ITEMS: Record<string, { name: string; icon: IconName; desc: str
   neochef: { name: 'Ines\'s blessing', icon: 'knife', desc: 'Dr. Mora let you pick tomatoes from her beds. Real ones.' },
   neogold: { name: 'Golden chopsticks', icon: 'medal', desc: 'Every stall and kitchen in Halcyon knows your face. Your food log is complete.' },
 };
+
+/** What people passing say about you: your chrome, your glow, how you look tonight. */
+export const NEO_REMARKS = {
+  chrome: ['Nice arm. Clinic on Spindle?', 'Is that real chrome? It is. Wow.', 'Careful with that arm in the rain, it squeaks.', 'My cousin has an arm like that. Opens jars all day.'],
+  implant: ['Love the glow. Very thirty-eight.', 'Your face is blinking, did you know?', 'That implant colour suits you.', 'Ooh, who did your cheek?'],
+  hungry: ['You look like you need a bowl of something.', 'Go eat. The noodle bar on the corner is open.', 'Was that your stomach or a tram?'],
+  tired: ['You are asleep on your feet, friend.', 'Go home, get some sleep. The city will still be here.', 'Long shift? You look it.'],
+  hurt: ['Hey, are you all right? The clinic is on Spindle.', 'You do not look so good. Sit down a minute.'],
+  rain: ['Nice umbrella. Mine glows the wrong colour.', 'Rain never stops for long here. Ten minutes, tops.', 'The street shines when it rains. Look down sometimes.'],
+  late: ['Night owl too, hm?', 'The Halo sings at midnight. Did you hear it yet?', 'Nothing good opens after three. Except everything.'],
+  famous: ['Wait, are you the one who keeps finding things?', 'People talk about you on the Mile, you know.', 'You. You are the one asking about the Halo.'],
+};

@@ -256,6 +256,9 @@ export class Crowd {
   private popT = 0;
   private chatT = 0;
   private sayT = 4;
+  /** A line a passer-by might say about the player right now (their arm, the rain, how tired they look), or null. */
+  remark: (() => string | null) | null = null;
+  private remarkT = 12;
   private nodes: V2[];
   private zones: string[];
   private rideOk: boolean[];
@@ -672,6 +675,7 @@ export class Crowd {
       if (w.ride) this.seatRider(w);
     }
     this.meetings(dt);
+    this.remarkT -= dt;
     this.overhear(dt, pl);
     this.boats?.update(dt, hour);
     this.exercise?.update(dt, hour);
@@ -1593,7 +1597,19 @@ export class Crowd {
       if (Math.random() < 0.5) {
         w.doing = { k: 'wait', t: 1.6, anim: Math.random() < 0.5 ? 'bow' : 'wave', face: Math.atan2(dx, dz) };
         const tod = hour < 10.5 && hour >= 4 ? 'morning' : hour < 17.5 ? 'day' : 'evening';
-        this.say(`greet-${this.walkers.indexOf(w)}`, pick(pl.eating ? CROWD_ENVY : CROWD_GREET[tod]), p, 2.2, pl);
+        const own = !pl.eating && Math.random() < 0.5 ? this.remark?.() : null;
+        this.say(`greet-${this.walkers.indexOf(w)}`, own ?? pick(pl.eating ? CROWD_ENVY : CROWD_GREET[tod]), p, 2.2, pl);
+      }
+      return;
+    }
+    // someone brushing past on the pavement may say something about you, without stopping
+    if (this.remark && this.remarkT <= 0 && d < 1.5 && d > 0.6 && Math.abs(rel) < 1.2 && w.greetCool <= 0) {
+      const line = this.remark();
+      if (line) {
+        this.remarkT = rnd(14, 26);
+        w.greetCool = rnd(50, 90);
+        a.headYawTarget = Math.max(-0.9, Math.min(0.9, rel));
+        this.say(`remark-${this.walkers.indexOf(w)}`, line, p, 2.4, pl);
       }
     }
   }

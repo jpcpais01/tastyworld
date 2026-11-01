@@ -166,7 +166,20 @@ export class NeoLifeSys {
     const v = this.h.vitals();
     if (id === 'patch') { v?.healed(100); this.h.ui.toast('plaster', 'All patched up', 'Health back to full. Try not to need us again too soon.'); }
     else if (id === 'gel') { v?.ate(28, 4); this.h.ui.toast('drop', 'Nutri-gel', 'Tastes of nothing. Fills you up anyway.'); }
-    else { v?.rested(30); this.h.ui.toast('vitamin', 'Wake stim', 'Your eyes open very wide. That should hold for a while.'); }
+    else if (id === 'stim') { v?.rested(30); this.h.ui.toast('vitamin', 'Wake stim', 'Your eyes open very wide. That should hold for a while.'); }
+    else if (this.life.look) {
+      const L = this.life.look;
+      if (id === 'chrome') {
+        L.chrome = true;
+        this.h.ui.toast('key', 'Chrome arm fitted', 'It hums a little when you make a fist. You will get used to it.', true);
+      } else {
+        const GLOW = [0x2ad8ff, 0xff5fb4, 0xa47bff, 0xffdc5a, 0x7dffa8, 0xff9a4a, 0xf2efe7];
+        L.implant = L.implant === undefined ? L.accent : GLOW[(GLOW.indexOf(L.implant) + 1) % GLOW.length];
+        this.h.ui.toast('signal', 'Implant in', 'A faint line of light from your cheek to your temple. Strangers look twice.', true);
+      }
+      this.h.flash();
+      this.h.dressed();
+    }
     this.h.changed();
   }
 

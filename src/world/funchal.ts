@@ -9,7 +9,7 @@ import { STALL } from '../data/stalls';
 import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
-import { madeiraPlan, K, col, layerOf, isPath, wildRock, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, PROM_X1, ribZ, RIB_HALF, bedY, SE, SE_TOWER, MERCADO, JARDIM, TELE, FORT_C, fortR, MAR_CX, MAR_CZ, MAR_A0, MAR_A1, moleRadii, waterX, type Plan } from './madeiraPlan';
+import { madeiraPlan, K, col, layerOf, isPath, wildRock, LotPlan, PIAZZA_Y, SEA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, PROM_X1, ribZ, RIB_HALF, bedY, SE, SE_TOWER, MERCADO, JARDIM, TELE, FORT_C, fortR, MAR_CX, MAR_CZ, MAR_A0, MAR_A1, moleRadii, waterX, type Plan } from './madeiraPlan';
 import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
 import { paintColors, picture, hangIn, type PaintColors, type PictureKind } from './paintings';
 import { dineColors, dressWalls, kitchenLine, tableTop, pendants, counterPiece, cornerPlant, rug, cornice, hangRail, windowBench, hiddenKitchenDress, onWall, bare, walls, put, type Dine, type Goods, type TableStyle, type WallLook } from './dining';
@@ -480,6 +480,8 @@ export function buildMadeira(win?: Window): BuildResult {
   for (const lt of plan.lots) house(b, c, plan, lt);
   se(b, c);
   mercado(b, c);
+  // the flower sellers' buckets along the tiles beside the market gate (the sellers themselves come with the people)
+  for (const [x, z, i] of [[-3.35, 29.55, 0], [-3.35, 30.45, 1], [-3.35, 28.65, 2], [-2.6, 28.4, 3]]) { b.place(flowerBucket(c, 31 + i * 7), x, PIAZZA_Y, z); b.block(x - 0.35, z - 0.35, x + 0.35, z + 0.35); }
   fort(b, c);
   teleferico(b, c);
   largo(b, c, plan);
@@ -490,7 +492,9 @@ export function buildMadeira(win?: Window): BuildResult {
   levada(b, c, plan);
   lanes(b, c, plan);
   laneDress(b, c, plan);
-  shopfronts(b, c, plan);
+  const extras: Extra[] = [...marketFolk()];
+  shopfronts(b, c, plan, extras);
+  anglers(b, c, plan, extras);
   washingLines(b, c, plan);
   const stalls = foodStalls(b, c, plan);
   const eats = eateryAnchors(plan);
@@ -523,6 +527,7 @@ export function buildMadeira(win?: Window): BuildResult {
     benches: b.benches,
     stools: b.stools,
     stepSeats: [],
+    extras,
     cats: [[-2, 0, -20], [6.5, 0, 72], [38, 0, -30], [-14, 0, 28], [20, 0, -4]],
     emitters: b.emitters,
     // fireflies are rare on the island; a few over the vine pergolas on warm nights
@@ -1607,6 +1612,20 @@ function strelitzia(c: AC, seed: number, pot = false): Prop {
   return p;
 }
 
+/** A zinc bucket of cut flowers for the market gate: strelitzias, anthuriums, proteas. */
+function flowerBucket(c: AC, seed: number): Prop {
+  const p = new Prop(6, 9, 6);
+  p.box(1, 0, 1, 4, 2, 4, c.iron);
+  const cols = [c.strelitzia, c.hullRed, c.bougain, c.white, c.strelitziaBlue];
+  for (let z = 1; z <= 4; z++) for (let x = 1; x <= 4; x++) {
+    const h = 4 + Math.floor(hash3(x, seed, z) * 4);
+    p.box(x, 3, z, x, h - 1, z, c.leafDark);
+    p.set(x, h, z, cols[Math.floor(hash3(x, z, seed + 3) * cols.length)]);
+    if (hash3(z, x, seed) < 0.3) p.set(x + (x < 3 ? -1 : 1), h - 1, z, c.strelLeaf);
+  }
+  return p;
+}
+
 /** The Largo da Sé and Avenida Arriaga: café tables, benches, iron lamps, jacarandas and strelitzia beds. */
 function largo(b: Builder, c: AC, plan: Plan): void {
   const Yp = PIAZZA_Y;
@@ -1889,7 +1908,79 @@ function awning(c: AC, col: number): Prop {
  * Via Lorenzo d'Amalfi and the streets off the piazza: the shops spill out of their doors, ceramics on racks,
  * limoncello on shelves, linen on rails and crates of lemons, under striped awnings.
  */
-function shopfronts(b: Builder, c: AC, plan: Plan): void {
+type Extra = { pos: [number, number, number]; face: number; seed: number; indoor?: boolean };
+
+/**
+ * The Mercado dos Lavradores at work: a seller behind every fruit trestle in the courtyard, shoppers picking over
+ * the fruit in front of them and along the fish and flower counters round the covered walk.
+ */
+function marketFolk(): Extra[] {
+  const X0 = Math.round(MERCADO[0] / V), Z0 = Math.round(MERCADO[1] / V), X1 = Math.round(MERCADO[2] / V) - 1, Z1 = Math.round(MERCADO[3] / V) - 1, IN = 16;
+  const out: Extra[] = [], y = PIAZZA_Y;
+  let n = 0;
+  for (let row = 0; row < 3; row++) {
+    const z = Z0 + IN + 8 + row * 18;
+    for (let x = X0 + IN + 6; x < X1 - IN - 18; x += 14) {
+      out.push({ pos: [(x + 4.5) * V, y, (z + 6.5) * V], face: Math.PI, seed: 8200 + n++ * 11 });
+      if ((row + x) % 2) out.push({ pos: [(x + 2.5 + (n % 3) * 2) * V, y, (z - 2.5) * V], face: 0, seed: 8200 + n++ * 11 });
+    }
+  }
+  // along the counters on the walk: fish on the west side, fruit and flowers elsewhere
+  for (const zz of [Z0 + 30, Z0 + 52, Z1 - 30]) out.push({ pos: [(X0 + 7.5) * V, y, (zz + 0.5) * V], face: -Math.PI / 2, seed: 8200 + n++ * 11 });
+  for (const xx of [X0 + 34, X1 - 30]) {
+    out.push({ pos: [(xx + 0.5) * V, y, (Z0 + 7.5) * V], face: Math.PI, seed: 8200 + n++ * 11 });
+    out.push({ pos: [(xx + 6.5) * V, y, (Z1 - 6.5) * V], face: 0, seed: 8200 + n++ * 11 });
+  }
+  return out;
+}
+
+/** A fishing rod held out over the water, its line down to the surface. Faces +z; `diag` leans it out along +x+z. */
+function fishingRod(c: AC, rise: number, diag: boolean): Prop {
+  const L = 30, top = rise + 22, p = new Prop(diag ? L + 2 : 1, top + 2, L + 2, 0.0625);
+  for (let i = 0; i <= L; i++) {
+    const y = rise + Math.round(i * 22 / L), x = diag ? i : 0;
+    p.set(x, y, i, i < 6 ? c.door : c.iron);
+    if (diag && i < L) p.set(x + 1, y, i, c.iron);
+  }
+  for (let y = 0; y < top; y++) p.set(diag ? L : 0, y, L + 1, c.white);
+  return p;
+}
+
+/** A cool box beside an angler. */
+function coolBox(c: AC): Prop {
+  const p = new Prop(6, 5, 4, 0.0625);
+  p.box(0, 0, 0, 5, 3, 3, c.ferryBlue);
+  p.box(0, 4, 0, 5, 4, 3, c.white);
+  return p;
+}
+
+/**
+ * Anglers along the promenade where it meets the basin, and out at the end of the breakwater, as there always are
+ * of an evening in Funchal: a rod out over the water, a cool box at their feet.
+ */
+function anglers(b: Builder, c: AC, plan: Plan, out: Extra[]): void {
+  const spots: [number, number, number][] = [];
+  for (const z of [-56.5, -51.5, -46.5]) spots.push([PROM_X1 - 0.55, z, Math.PI / 2]);
+  for (const a of [0.42, 0.58, 0.74]) {
+    const r = moleRadii(a)[0] + 0.95;
+    spots.push([MAR_CX + Math.cos(a) * r, MAR_CZ + Math.sin(a) * r, Math.atan2(-Math.cos(a), -Math.sin(a))]);
+  }
+  spots.forEach(([x, z, face], i) => {
+    const fl = floorAt(plan, x, z);
+    const deg = face * 180 / Math.PI;
+    const straight = i < 3;
+    const turn = straight ? (((Math.round(deg / 90)) % 4) + 4) % 4 : (((Math.round((deg - 45) / 90)) % 4) + 4) % 4;
+    const th = straight ? turn * Math.PI / 2 : Math.PI / 4 + turn * Math.PI / 2;
+    const dx = Math.sin(th), dz = Math.cos(th);
+    const base = SEA_Y + 0.1, rise = Math.round((fl + 0.8 - base) / 0.0625);
+    const half = 31 * 0.0625 / 2;
+    b.place(fishingRod(c, rise, !straight), x + dx * (0.3 + half), base, z + dz * (0.3 + half), turn);
+    b.place(coolBox(c), x - dz * 0.5, fl, z + dx * 0.5, turn);
+    out.push({ pos: [x, fl, z], face: th, seed: 8600 + i * 13 });
+  });
+}
+
+function shopfronts(b: Builder, c: AC, plan: Plan, out: Extra[]): void {
   const r = rng(5150);
   const awnings = [c.umbrellaC, c.umbrellaA, c.umbrellaE, c.majolicaYellow, c.hullRed];
   for (const s of plan.segs) {
@@ -1920,6 +2011,12 @@ function shopfronts(b: Builder, c: AC, plan: Plan): void {
         b.place(prop, x, fl, z, turn);
         b.block(x - 0.6, z - 0.6, x + 0.6, z + 0.6);
         if (front && r() < 0.6) b.place(awning(c, awnings[Math.floor(r() * awnings.length)]), ex + nx * side * (d - 0.5625), fl + 2.5, ez + nz * side * (d - 0.5625), turn); // its back against the wall
+        // the shopkeeper out on the step beside the goods, where the street is wide enough to stand in
+        if (front && s.w >= 3.5 && r() < 0.45) {
+          const ux = (bx - ax) / len, uz = (bz - az) / len, kx = x + ux * 0.95, kz = z + uz * 0.95;
+          const kc = col(Math.floor(kx / V), Math.floor(kz / V));
+          if (!plan.lot[kc] && Math.abs((plan.walk[kc] - G) * V - fl) < 0.3) { out.push({ pos: [kx, fl, kz], face: Math.atan2(-nx * side, -nz * side), seed: 9000 + out.length * 7 }); b.block(kx - 0.3, kz - 0.3, kx + 0.3, kz + 0.3); }
+        }
       }
     }
   }

@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.4',
+    date: '2026-11-01',
+    title: 'Funchal: the market at work, and anglers on the harbour',
+    items: [
+      'The Mercado dos Lavradores is busy now: a seller stands behind every fruit trestle in the courtyard, and shoppers pick over the fruit and wait at the fish and flower counters round the covered walk. At the gate two flower sellers in island dress, red waistcoats, red skirts and little black carapuças, stand by their buckets of strelitzias and proteas.',
+      'Anglers line the promenade where it meets the marina and the far end of the breakwater, rods out over the water and a cool box at their feet.',
+      'Shopkeepers stand out on the step beside their wares along the wider streets of the old town.',
+      'Up on the ridge, Nossa Senhora do Monte now has its white nave between the two towers, framed in black basalt with a gabled front to the sea, and its long basalt stair falling away down the slope.',
+    ],
+  },
+  {
     version: '0.18.3',
     date: '2026-11-01',
     title: 'Funchal: Monte\'s toboggans and the painted doors',

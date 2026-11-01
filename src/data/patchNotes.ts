@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.2',
+    date: '2026-11-01',
+    title: 'New skies, and Mount Fuji',
+    items: [
+      'The sky is now lit like real air: a deep blue overhead that pales toward the horizon, sunrises and sunsets that redden as the sun sinks, the Earth\'s shadow and a blue hour after dusk, then a dark sky full of stars.',
+      'Voxel clouds drift across every city on the wind, built from cubes with flat bases like real fair-weather clouds. They catch gold and pink at dawn and dusk, glow with the city\'s lights at night, and cast moving shadows on the streets below.',
+      'The white mist on the horizon is gone. Far buildings now fade into the colour of the sky behind them, blue at noon and warm toward a low sun, so the city reads as distant instead of fogged.',
+      'A blocky sun and moon cross the sky, and the stars wheel slowly through the night. Tokyo and Istanbul glow with city light, while Amalfi and Funchal show far more stars, and the Milky Way.',
+      'Tokyo: Mount Fuji now stands far to the west, snow-capped above the Tanzawa range, with Hakone and the Okutama ridges on either side, all in voxels. It turns red at dawn and dusk and shows in the canal\'s reflection. Look west down the canal, or from any high place.',
+    ],
+  },
+  {
     version: '0.18.1',
     date: '2026-11-01',
     title: 'Funchal: the cable car to Monte, and six more places to eat',

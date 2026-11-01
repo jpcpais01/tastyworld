@@ -7,8 +7,6 @@ interface Key {
   h: number;
   sun: number; sunCol: number;
   sky: number; ground: number; ambient: number;
-  skyTop: number; skyHorizon: number;
-  fog: number;
   lamp: number; night: number;
   exposure: number; bloom: number;
   scatter: number; deep: number;
@@ -18,15 +16,15 @@ interface Key {
 }
 
 const K: Key[] = [
-  { h: 0, sun: 0.16, sunCol: 0x7d9cff, sky: 0x2b3f78, ground: 0x1a1830, ambient: 0.75, skyTop: 0x0b1030, skyHorizon: 0x2a2858, fog: 0x1d2142, lamp: 1, night: 1, exposure: 1.25, bloom: 0.9, scatter: 0x0a2a3a, deep: 0x020812, gradeS: 0xb8c4ff, gradeH: 0xffe6c8, cloud: 0, particle: 0x8090c0 },
-  { h: 4.5, sun: 0.16, sunCol: 0x7d9cff, sky: 0x2b3f78, ground: 0x1a1830, ambient: 0.75, skyTop: 0x0b1030, skyHorizon: 0x2a2858, fog: 0x1d2142, lamp: 1, night: 1, exposure: 1.25, bloom: 0.9, scatter: 0x0a2a3a, deep: 0x020812, gradeS: 0xb8c4ff, gradeH: 0xffe6c8, cloud: 0, particle: 0x8090c0 },
-  { h: 6, sun: 0.75, sunCol: 0xff9a6a, sky: 0x8a8ec8, ground: 0x4a3a40, ambient: 0.8, skyTop: 0x6a78c0, skyHorizon: 0xf3b0a0, fog: 0xcaa6b4, lamp: 0.35, night: 0.3, exposure: 1.1, bloom: 0.7, scatter: 0x2a4a5a, deep: 0x0a1420, gradeS: 0xd8c8ff, gradeH: 0xfff0e0, cloud: 0.1, particle: 0xd8c0c8 },
-  { h: 8, sun: 1.25, sunCol: 0xfff0d8, sky: 0x9fc0ec, ground: 0x6a5a4c, ambient: 0.85, skyTop: 0x76a8e8, skyHorizon: 0xd8e8f4, fog: 0xc8d8e8, lamp: 0, night: 0, exposure: 1.0, bloom: 0.5, scatter: 0x1f6f72, deep: 0x06262c, gradeS: 0xf0f4ff, gradeH: 0xfff8ec, cloud: 0.28, particle: 0xffffff },
-  { h: 14.5, sun: 1.3, sunCol: 0xfff3e0, sky: 0xa6c6ee, ground: 0x6e5e50, ambient: 0.85, skyTop: 0x6ea4e8, skyHorizon: 0xdcecf6, fog: 0xcadaea, lamp: 0, night: 0, exposure: 1.0, bloom: 0.5, scatter: 0x1f6f72, deep: 0x06262c, gradeS: 0xf0f4ff, gradeH: 0xfff8ec, cloud: 0.3, particle: 0xffffff },
-  { h: 17, sun: 1.15, sunCol: 0xffc68a, sky: 0xb0b6d8, ground: 0x6e5040, ambient: 0.8, skyTop: 0x7a90d0, skyHorizon: 0xffd2a0, fog: 0xe8c8b0, lamp: 0.15, night: 0.1, exposure: 1.02, bloom: 0.6, scatter: 0x2e6260, deep: 0x082028, gradeS: 0xe0d8ff, gradeH: 0xffe8cc, cloud: 0.2, particle: 0xffe8d0 },
-  { h: 18.3, sun: 0.65, sunCol: 0xff7a48, sky: 0x9a80b8, ground: 0x4a3038, ambient: 0.78, skyTop: 0x4a4c9a, skyHorizon: 0xff9a78, fog: 0xc88a98, lamp: 0.75, night: 0.6, exposure: 1.1, bloom: 0.85, scatter: 0x2a3a58, deep: 0x0a1020, gradeS: 0xc8b8ff, gradeH: 0xffd8b8, cloud: 0.1, particle: 0xffc8b8 },
-  { h: 19.6, sun: 0.22, sunCol: 0x8a8cff, sky: 0x40508e, ground: 0x221e38, ambient: 0.78, skyTop: 0x141a48, skyHorizon: 0x4a3a7a, fog: 0x2a2a56, lamp: 1, night: 1, exposure: 1.22, bloom: 0.95, scatter: 0x0e2a40, deep: 0x030a16, gradeS: 0xb8c0ff, gradeH: 0xffe2c4, cloud: 0, particle: 0x9098c8 },
-  { h: 24, sun: 0.16, sunCol: 0x7d9cff, sky: 0x2b3f78, ground: 0x1a1830, ambient: 0.75, skyTop: 0x0b1030, skyHorizon: 0x2a2858, fog: 0x1d2142, lamp: 1, night: 1, exposure: 1.25, bloom: 0.9, scatter: 0x0a2a3a, deep: 0x020812, gradeS: 0xb8c4ff, gradeH: 0xffe6c8, cloud: 0, particle: 0x8090c0 },
+  { h: 0, sun: 0.16, sunCol: 0x7d9cff, sky: 0x2b3f78, ground: 0x1a1830, ambient: 0.75, lamp: 1, night: 1, exposure: 1.25, bloom: 0.9, scatter: 0x0a2a3a, deep: 0x020812, gradeS: 0xb8c4ff, gradeH: 0xffe6c8, cloud: 0, particle: 0x8090c0 },
+  { h: 4.5, sun: 0.16, sunCol: 0x7d9cff, sky: 0x2b3f78, ground: 0x1a1830, ambient: 0.75, lamp: 1, night: 1, exposure: 1.25, bloom: 0.9, scatter: 0x0a2a3a, deep: 0x020812, gradeS: 0xb8c4ff, gradeH: 0xffe6c8, cloud: 0, particle: 0x8090c0 },
+  { h: 6, sun: 0.75, sunCol: 0xff9a6a, sky: 0x8a8ec8, ground: 0x4a3a40, ambient: 0.8, lamp: 0.35, night: 0.3, exposure: 1.1, bloom: 0.7, scatter: 0x2a4a5a, deep: 0x0a1420, gradeS: 0xd8c8ff, gradeH: 0xfff0e0, cloud: 0.1, particle: 0xd8c0c8 },
+  { h: 8, sun: 1.25, sunCol: 0xfff0d8, sky: 0x9fc0ec, ground: 0x6a5a4c, ambient: 0.85, lamp: 0, night: 0, exposure: 1.0, bloom: 0.5, scatter: 0x1f6f72, deep: 0x06262c, gradeS: 0xf0f4ff, gradeH: 0xfff8ec, cloud: 0.28, particle: 0xffffff },
+  { h: 14.5, sun: 1.3, sunCol: 0xfff3e0, sky: 0xa6c6ee, ground: 0x6e5e50, ambient: 0.85, lamp: 0, night: 0, exposure: 1.0, bloom: 0.5, scatter: 0x1f6f72, deep: 0x06262c, gradeS: 0xf0f4ff, gradeH: 0xfff8ec, cloud: 0.3, particle: 0xffffff },
+  { h: 17, sun: 1.15, sunCol: 0xffc68a, sky: 0xb0b6d8, ground: 0x6e5040, ambient: 0.8, lamp: 0.15, night: 0.1, exposure: 1.02, bloom: 0.6, scatter: 0x2e6260, deep: 0x082028, gradeS: 0xe0d8ff, gradeH: 0xffe8cc, cloud: 0.2, particle: 0xffe8d0 },
+  { h: 18.3, sun: 0.65, sunCol: 0xff7a48, sky: 0x9a80b8, ground: 0x4a3038, ambient: 0.78, lamp: 0.75, night: 0.6, exposure: 1.1, bloom: 0.85, scatter: 0x2a3a58, deep: 0x0a1020, gradeS: 0xc8b8ff, gradeH: 0xffd8b8, cloud: 0.1, particle: 0xffc8b8 },
+  { h: 19.6, sun: 0.22, sunCol: 0x8a8cff, sky: 0x40508e, ground: 0x221e38, ambient: 0.78, lamp: 1, night: 1, exposure: 1.22, bloom: 0.95, scatter: 0x0e2a40, deep: 0x030a16, gradeS: 0xb8c0ff, gradeH: 0xffe2c4, cloud: 0, particle: 0x9098c8 },
+  { h: 24, sun: 0.16, sunCol: 0x7d9cff, sky: 0x2b3f78, ground: 0x1a1830, ambient: 0.75, lamp: 1, night: 1, exposure: 1.25, bloom: 0.9, scatter: 0x0a2a3a, deep: 0x020812, gradeS: 0xb8c4ff, gradeH: 0xffe6c8, cloud: 0, particle: 0x8090c0 },
 ];
 
 // Amalfi's nights: no neon to colour them, so the moonlight is greyer and the lamps carry the warmth
@@ -44,7 +42,6 @@ if (HILLSIDE) {
     key.sky = soften(key.sky, 0.45 * n, 0.15);
     key.sunCol = soften(key.sunCol, 0.55 * n, 0.1);
     key.ground = soften(key.ground, 0.35 * n, 0.3);
-    key.fog = soften(key.fog, 0.3 * n, 0.1);
     key.gradeS = soften(key.gradeS, 0.4 * n, 0.1);
     key.lamp *= 1 + 0.45 * n;
   }
@@ -115,9 +112,8 @@ export class TimeOfDay {
     lerpCol(s.uSunColor.value, a.sunCol, b.sunCol, t, mix(a.sun, b.sun));
     lerpCol(s.uSkyColor.value, a.sky, b.sky, t, mix(a.ambient, b.ambient));
     lerpCol(s.uGroundColor.value, a.ground, b.ground, t, mix(a.ambient, b.ambient));
-    lerpCol(s.uFogColor.value, a.fog, b.fog, t);
-    lerpCol(u.uSkyTop.value, a.skyTop, b.skyTop, t);
-    lerpCol(u.uSkyHorizon.value, a.skyHorizon, b.skyHorizon, t);
+    // the sky, its haze colour and the horizon and zenith the water mirrors come from the atmosphere (sky.ts)
+    r.sky.hour = this.hour;
     lerpCol(u.uWaterScatter.value, a.scatter, b.scatter, t);
     lerpCol(u.uWaterDeep.value, a.deep, b.deep, t);
     grade(u.uGradeShadow.value, a.gradeS, b.gradeS, t);

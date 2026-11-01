@@ -58,6 +58,7 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'floor13', name: 'Floor 13', text: 'Zip the courier says never to take the stairs in Kowa Flats after midnight.', found: (_s, L) => L.secrets.includes('floor13') },
   { id: 'star', name: 'Look up', text: 'Brother Anselm says the towers forgot the sky, and asks you to look up once a day.', found: (_s, L) => L.secrets.includes('star') },
   { id: 'tape', name: 'The unmarked package', text: 'Zip the courier has a package nobody will admit is theirs.', found: (_s, L) => L.secrets.includes('tape') },
+  { id: 'scan', name: 'Your record', text: 'Officer Ruiz says the patrol drones know everything about everyone. Stand in one\'s light after dark.', found: (_s, L) => L.secrets.includes('scan') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 
@@ -107,6 +108,20 @@ export class NeoLifeSys {
     this.h.play('chime');
     this.h.ui.toast('signal', title, text, true);
     this.h.changed();
+  }
+
+  /** A patrol drone held its light on you long enough to read your record out loud. */
+  scanned(): void {
+    const L = this.life;
+    const gigs = Object.values(L.shifts).reduce((a, b) => a + b, 0);
+    const odd = L.secrets.length;
+    this.h.dialogue('Patrol drone', [
+      `HOLD STILL. SCANNING. Citizen identified: ${L.name || 'unregistered'}. Days in Halcyon: ${L.day}.`,
+      gigs ? `Employment: ${gigs} gig${gigs === 1 ? '' : 's'} on record, ${L.earned} credits earned. Tax status: pending review.` : 'Employment: none on record. The gig boards are hiring, citizen.',
+      L.faints ? `Medical: collapsed in public ${L.faints} time${L.faints === 1 ? '' : 's'}. Eat. Sleep. This is a recommendation.` : 'Medical: no collapses on record. Keep it that way.',
+      L.home ? `Residence: ${L.home.owned ? 'owner' : 'tenant'}, record clean.` : 'Residence: none registered. Loitering after midnight is discouraged.',
+      odd >= 3 ? `Unexplained incidents: ${odd}. You are flagged as a person of interest. Have a pleasant evening.` : 'No incidents. Move along, citizen.',
+    ], () => this.discover('scan', 'Your record', 'A patrol drone read you your whole life. Officer Ruiz was not joking.'));
   }
 
   /** Climbing the stairs of Kowa Flats between midnight and four: a landing the building does not have. */

@@ -41,7 +41,7 @@ function bar(pal: Palette, col: number): Prop {
   return p;
 }
 
-interface Drone { seg: number; t: number; dir: 1 | -1; speed: number; y: number; off: number; bob: number; patrol: boolean; slot: number; pause: number }
+interface Drone { seg: number; t: number; dir: 1 | -1; speed: number; y: number; off: number; bob: number; patrol: boolean; slot: number; pause: number; locked: number; passed: boolean }
 
 const BEAM_VERT = /* glsl */ `
 uniform float uLen;
@@ -93,6 +93,10 @@ export class Drones {
   private v = new THREE.Vector3();
   private up = new THREE.Vector3(0, 1, 0);
   private t = 0;
+  private down = new THREE.Vector3(0, -1, 0);
+  private aim = new THREE.Vector3();
+  /** Seconds the player has stood in a patrol drone's searchlight (it locks on and reads them). */
+  scanT = 0;
   private segs = SEGS.filter((s) => s.kind !== 'quay' && s.a1 - s.a0 > 60);
 
   constructor(scene: THREE.Object3D, r: Renderer) {
@@ -131,15 +135,17 @@ export class Drones {
       const patrol = i >= COURIERS;
       this.drones.push({
         seg: Math.floor(rnd() * this.segs.length), t: rnd(), dir: rnd() < 0.5 ? 1 : -1, speed: patrol ? 3 : 7 + rnd() * 4,
-        y: patrol ? 11 + rnd() * 2 : 8 + rnd() * 3, off: (rnd() - 0.5) * 4, bob: rnd() * 6.28, patrol, slot: patrol ? i - COURIERS : i, pause: 0,
+        y: patrol ? 11 + rnd() * 2 : 8 + rnd() * 3, off: (rnd() - 0.5) * 4, bob: rnd() * 6.28, patrol, slot: patrol ? i - COURIERS : i, pause: 0, locked: 0, passed: false,
       });
     }
   }
 
-  update(dt: number, night: number, visible: boolean): void {
+  /** `player`: where the player stands, if out on foot (a patrol may stop and light them up after dark). */
+  update(dt: number, night: number, visible: boolean, player: THREE.Vector3 | null = null): void {
     for (const m of [this.courier, this.patrol, this.red, this.blue]) m.visible = visible;
     for (const b of this.beams) b.visible = visible && night > 0.05;
-    if (!visible) return;
+    let lit = false;
+    if (!visible) { this.scanT = 0; return; }
     this.t += dt;
     const flip = Math.floor(this.t * 2.5) % 2 === 0;
     this.red.visible = flip; this.blue.visible = !flip;
@@ -184,9 +190,22 @@ export class Drones {
         // the beam leans forward and sweeps side to side
         const b = this.beams[d.slot];
         b.position.copy(this.v);
-        b.rotation.set(0.25 + Math.sin(this.t * 0.9 + d.bob) * 0.12, yaw, Math.sin(this.t * 0.6 + d.bob * 2) * 0.3, 'YXZ');
+        // after dark, a patrol passing close may stop over the player and hold its light on them
+        const near = player && night > 0.5 ? Math.hypot(player.x - this.v.x, player.z - this.v.z) : 1e9;
+        if (near < 6 && !d.passed && d.locked <= 0) { d.passed = true; if (Math.random() < 0.35) { d.locked = 7; d.pause = 7; } }
+        if (near > 14) d.passed = false;
+        if (d.locked > 0 && player && near < 9) {
+          d.locked -= dt;
+          this.aim.set(player.x, player.y + 0.4, player.z).sub(this.v).normalize();
+          b.quaternion.setFromUnitVectors(this.down, this.aim);
+          lit = true;
+        } else {
+          d.locked = 0;
+          b.rotation.set(0.25 + Math.sin(this.t * 0.9 + d.bob) * 0.12, yaw, Math.sin(this.t * 0.6 + d.bob * 2) * 0.3, 'YXZ');
+        }
       } else this.courier.setMatrixAt(d.slot, this.m);
     }
     for (const m of [this.courier, this.patrol, this.red, this.blue]) m.instanceMatrix.needsUpdate = true;
+    this.scanT = lit ? this.scanT + dt : 0;
   }
 }

@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.21',
+    date: '2026-11-01',
+    title: '2040: your record',
+    items: [
+      'After dark a patrol drone passing overhead may stop and hold its searchlight on you. Stand still in the light and it reads out your whole record: your gigs, what you earned, your collapses, where you live, and how many strange incidents you have been mixed up in. Officer Ruiz has a hint, and it counts as a new secret in your life panel.',
+    ],
+  },
+  {
     version: '0.20.20',
     date: '2026-11-01',
     title: '2040: the docks after dark',

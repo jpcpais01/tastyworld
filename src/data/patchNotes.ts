@@ -8,6 +8,33 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.19.1',
+    date: '2026-11-01',
+    title: 'Lo-fi for every city',
+    items: [
+      'All the music is new: each city now has its own lo-fi, one tune for the day and a slower, darker one for the night, played by a small band through warm tape and an old record, with dusty drums, a gentle tape wobble and soft vinyl crackle.',
+      'Tokyo: a Rhodes piano and a koto by day with a shamisen and a shakuhachi in the break; at night a shakuhachi in the old miyako-bushi scale, a wind chime on the breeze and the clack of the night watch\'s wooden clappers.',
+      'Amalfi: a fingerpicked nylon guitar in a lazy bossa groove, a soft flute and the faint musette of an accordion, with a mandolin picking a few notes in the break; at night a slow ballad by the harbour.',
+      'Istanbul: an oud and a ney over a darbuka in the Hicaz mode, a qanun rippling through the break and the odd ring of finger cymbals; at night the Uşşak mode, its second note sung a little flat the Turkish way.',
+      'Funchal: a guitarra portuguesa and a viola de fado, with Madeira\'s own little braguinha strumming in the chorus; at night a fado in B minor.',
+      'The tune starts quietly, as if heard through a wall, and opens up; at dusk and dawn the band changes over between songs.',
+    ],
+  },
+  {
+    version: '0.19.0',
+    date: '2026-11-01',
+    title: 'Souvenir shops open in every city',
+    items: [
+      'The shops finally work. Walk up to a shopkeeper and browse their shelf: about 190 local pieces across four cities, from a ₺50 nazar keyring to a Hereke silk rug, each drawn as its own little voxel model with the story behind it.',
+      'Istanbul: 58 bazaar and street shops sell carpets, mosaic lamps, İznik tiles, copper, silk, jewellery, leather, slippers, spices, tea, lokum, hamam goods, nazar beads, coffee and old books.',
+      'Haggle in the bazaar. The price on the tag is where the talking starts: make an offer, watch the keeper\'s patience, and if you turn to walk away, the price may follow you out of the door.',
+      'Tokyo\'s shops each have a trade now: zakka, pottery, Kappabashi knives, toys and crafts, washi paper, second-hand books and florists. Amalfi sells Vietri ceramics, limoncello, Amalfi paper, linen and sandals, and deli goods along Via Lorenzo and in the Ruga. Funchal sells embroidery, Madeira wine, crafts and flowers.',
+      'Everyday, fine, rare and one-of-a-kind pieces. Rare pieces are spread between the shops of a trade, and each one-of-a-kind piece is in a single shop. Ask around: keepers will tell you who has it.',
+      'A souvenir shelf in your passport\'s Bag keeps everything you bring home, city by city, with what you paid.',
+      'Three new missions in every city: a first souvenir, a collection of eight, and a one-of-a-kind find.',
+    ],
+  },
+  {
     version: '0.18.17',
     date: '2026-11-01',
     title: 'Tokyo: 22 new dishes',

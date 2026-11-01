@@ -11,7 +11,8 @@ import { mosqueInterior, mosqueWalls, HALL_ROOM } from './sacred';
 import type { RoomAnchor, RoomKind } from './interiors';
 import { paneOf, type HotelAnchor, type HotelRoomAnchor } from './hotels';
 import { ISTANBUL_HOTELS } from '../data/hotels';
-import { halls, bazaarShop, bazaarKeeper, bazaarShoppers, hallFloor, WARM_ZONES } from './bazaars';
+import { halls, bazaarShop, bazaarKeeper, bazaarStand, bazaarTrade, bazaarShoppers, hallFloor, WARM_ZONES } from './bazaars';
+import { istanbulTrade } from '../data/souvenirs';
 import {
   istanbulPlan, K, col, layerOf, inMap, hillY, isPath, shoreDist, type LotPlan, type Plan, type PathSeg,
   QUAY_Y, HORN_Z, BOS_X, YENI, YENI_Y, SULEY, HILLTOP_Y, STATION, GRAND, beyond, BRIDGE_GATE_Z,
@@ -836,7 +837,7 @@ function catHouse(c: IC2): Prop {
 
 // ------------------------------------------------------------------------------------------- build
 
-type Extra = { pos: [number, number, number]; face: number; seed: number; indoor?: boolean };
+type Extra = import('./tokyo').Extra;
 export type Ctx = { b: Builder; c: IC2; plan: Plan; inWin: (x: number, z: number) => boolean; keepers: Extra[] };
 
 export function buildIstanbul(win?: Window): BuildResult {
@@ -1491,7 +1492,7 @@ function building(ctx: Ctx, lt: LotPlan, use: Use | undefined): void {
   }
   if (bazaar) {
     // the bazaar shop's keeper stands just inside the open front, among the goods
-    if (!use?.room) { const [kx, kz] = bazaarKeeper(f); ctx.keepers.push({ pos: [kx, (base - G) * V, kz], face: f.faceOut, seed: lt.seed * 13 + 5, indoor: true }); }
+    if (!use?.room) { const [kx, kz] = bazaarKeeper(f); ctx.keepers.push({ pos: [kx, (base - G) * V, kz], face: f.faceOut, seed: lt.seed * 13 + 5, indoor: true, shop: istanbulTrade(bazaarTrade(lt), lt.seed), stand: bazaarStand(f) }); }
     return;
   }
   if (use?.hotel !== undefined) hotel(ctx, f, lt, use.hotel, touched);
@@ -1857,7 +1858,7 @@ function homeRoom(ctx: Ctx, f: Frame, lt: LotPlan): void {
 }
 
 type ShopKind = 'bakkal' | 'lokum' | 'kuruyemis' | 'textile' | 'ceramics' | 'lamps' | 'copper' | 'kahve' | 'books' | 'shoes';
-const SHOP_KINDS: ShopKind[] = ['bakkal', 'lokum', 'kuruyemis', 'textile', 'ceramics', 'lamps', 'copper', 'kahve', 'bakkal', 'books', 'shoes', 'kuruyemis'];
+const SHOP_KINDS: ShopKind[] = ['bakkal', 'lokum', 'kuruyemis', 'textile', 'ceramics', 'lamps', 'copper', 'kahve', 'books', 'books', 'shoes', 'kuruyemis'];
 
 /**
  * A shop behind its glass front, open for the day: three metres of room behind the window with shelves of its
@@ -1935,7 +1936,8 @@ function shopInterior(ctx: Ctx, f: Frame, lt: LotPlan, touched: boolean): void {
   // nobody walks in: the doorway is for looking
   { const [p0x, p0z] = f.m(da - 0.5, 0), [p1x, p1z] = f.m(da + 2.5, 0.6); b.block(Math.min(p0x, p1x), Math.min(p0z, p1z), Math.max(p0x, p1x), Math.max(p0z, p1z)); }
   const [kx, kz] = f.m(W - 3, SD / 2 + 0.5);
-  ctx.keepers.push({ pos: [kx, y, kz], face: f.faceOut, seed: lt.seed * 13 + 3, indoor: true });
+  // the keeper serves through the open door: you browse from the pavement in front of it
+  ctx.keepers.push({ pos: [kx, y, kz], face: f.faceOut, seed: lt.seed * 13 + 3, indoor: true, shop: istanbulTrade(kind, lt.seed), stand: f.m(da + 1.5, -3.5) });
 }
 
 // ------------------------------------------------------------------------------------------- food rooms

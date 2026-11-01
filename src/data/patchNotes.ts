@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.37',
+    date: '2026-11-01',
+    title: '2040 has its own icon',
+    items: [
+      '2040 has its own app icon: neon towers under the Halo on a rainy night. It shows in the browser tab and when you add the game to your home screen.',
+    ],
+  },
+  {
     version: '0.20.36',
     date: '2026-11-01',
     title: '2040 gets a home of its own',

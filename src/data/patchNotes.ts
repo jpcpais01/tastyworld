@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.9',
+    date: '2026-11-01',
+    title: 'Funchal: a new Portuguese Sé',
+    items: [
+      'The cathedral of Funchal has been rebuilt from the ground up as a true Portuguese Sé, a little smaller than before: whitewashed walls framed in dark basalt, a stepped gable with twisted Manueline pinnacles, a roped stone portal under the arms of King Manuel, and a lower tower with a tiled spire.',
+      'Inside, the nave is roofed in carved cedar with a star pattern picked out in gold, the walls wear a dado of blue and yellow azulejos, and the chancel glows with a gilded talha retable of twisted columns and painted panels under a ribbed Manueline vault. Silver lamps hang on chains over the pews, with side altars, a gilt pulpit and holy water stoups by the doors.',
+    ],
+  },
+  {
     version: '0.18.8',
     date: '2026-11-01',
     title: 'Funchal: dolphins in the bay',

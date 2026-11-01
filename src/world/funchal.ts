@@ -10,7 +10,7 @@ import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { madeiraPlan, K, col, layerOf, isPath, wildRock, LotPlan, PIAZZA_Y, SEA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, PROM_X1, ribZ, RIB_HALF, bedY, SE, SE_TOWER, MERCADO, JARDIM, TELE, FORT_C, fortR, MAR_CX, MAR_CZ, MAR_A0, MAR_A1, moleRadii, waterX, type Plan } from './madeiraPlan';
-import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
+import { seInterior, seGeom, type SeFrame, HALL_ROOM } from './sacred';
 import { paintColors, picture, hangIn, type PaintColors, type PictureKind } from './paintings';
 import { dineColors, dressWalls, kitchenLine, tableTop, pendants, counterPiece, cornerPlant, rug, cornice, hangRail, windowBench, hiddenKitchenDress, onWall, bare, walls, put, type Dine, type Goods, type TableStyle, type WallLook } from './dining';
 
@@ -1387,93 +1387,157 @@ function marina(b: Builder, c: AC, plan: Plan): void {
   b.place(lifebuoy(c), MAR_CX + 0.5, 2.0, MAR_CZ - moleRadii(MAR_A0)[0] - 0.6);
 }
 
-/** The Sé: whitewashed walls framed in black basalt, the pointed portal and the rose window, the tiled spire. */
+/**
+ * The Sé (1514), smaller and plainer than the cathedrals of the south: white walls framed in black basalt, a nave
+ * standing over two lower aisles under Portuguese tile roofs with their rows of tile-ends at the eaves, buttresses
+ * along the side, the square chancel at the back behind its Manueline parapet of merlons and twisted pinnacles. The
+ * front: one gable between basalt pilasters, the Manueline portal of roped archivolts in its rectangular frame, King
+ * Manuel's arms between two armillary spheres, the round óculo, the cross. The tower with its tiled spire beside it.
+ */
 function se(b: Builder, c: AC): void {
   const g = b.grid;
   const Y = layerOf(DUOMO_Y);
-  const X0 = SE[0] / V, X1 = SE[2] / V - 1, Z0 = SE[1] / V, Z1 = SE[3] / V - 1;
-  const H = Math.round(15 / V), FX = X1 + 1, zc = (Z0 + Z1) >> 1;
-  b.occlude(X0, Z0, X1 + 4, Z1, DUOMO_Y + 24, DUOMO_Y + 0.95, 'landmark');
+  const X0 = Math.round((SE[0] + 3) / V), X1 = SE[2] / V - 1, Z0 = Math.round((SE[1] + 4) / V), Z1 = SE[3] / V - 1;
+  const XN = X0 + 21, FX = X1 + 1, AH = 30, NH = 46, CHH = 36;
+  const F: SeFrame = { X0, X1, Z0, Z1, XN, Y, FX, AH, NH, CHH };
+  const S = seGeom(F);
+  const { NZ0, NZ1, cz, cols, wins, occuli } = S;
+  b.occlude(X0, Z0, X1 + 4, Z1, DUOMO_Y + 17, DUOMO_Y + 0.95, 'landmark');
   const hallOcc = b.occluders.length - 1;
-  Object.assign(b.occluders[hallOcc], { floor: DUOMO_Y, room: HALL_ROOM, walls: DUOMO_WALLS, shell: 3, claim: [(X1 + 1) * V, (Z0 - 2) * V, (X1 + 5) * V, (Z1 + 3) * V] });
+  Object.assign(b.occluders[hallOcc], { floor: DUOMO_Y, room: HALL_ROOM, walls: (AH - 3) * V, shell: 3, claim: [(X1 + 1) * V, (Z0 - 2) * V, (X1 + 5) * V, (Z1 + 3) * V] });
   if (g.touches(X0 - 4, Z0 - 4, X1 + 8, Z1 + 4)) {
-    const quoin = (u: number, y: number) => (((y - Y) >> 1) % 2 ? u < 3 : u < 5);
-    g.box(X0, Y, Z0, X1, Y + H, Z1, (x, y, z) => {
-      if (y < Y + 3 || y > Y + H - 2) return c.cantaria;
-      const u = Math.min(x - X0, X1 - x, z - Z0, Z1 - z);
-      return quoin(Math.min(Math.abs(x - X0), Math.abs(X1 - x)) + Math.min(Math.abs(z - Z0), Math.abs(Z1 - z)) - u, y) && u < 1 ? c.cantaria : c.white;
+    const plaster = (x: number, y: number, z: number) => (hash3(x, y >> 1, z >> 1) < 0.04 ? c.plasterOld : c.white);
+    // ---- the aisles and the nave: white walls on a basalt plinth, basalt pilasters at every column, a basalt
+    // cornice under the eaves, quoins at the corners
+    g.box(XN + 1, Y, Z0, X1, Y + AH, Z1, (x, y, z) => {
+      if (y < Y + 3 || y === Y + AH) return c.cantaria;
+      const side = z === Z0 || z === Z1, end = x === XN + 1;
+      const corner = (x - XN - 1 < 3) && (z - Z0 < 3 || Z1 - z < 3);
+      if (corner && ((y - Y) >> 1) % 2 === 0) return c.cantaria;
+      if (side && cols.some((cc) => x >= cc && x <= cc + 1)) return c.cantaria;
+      if (end && (z === NZ0 - 3 || z === NZ1 + 3)) return c.cantaria;
+      return plaster(x, y, z);
     });
-    // pitched roof of terracotta along the nave
-    for (let i = 0; i < 24; i++) g.box(X0, Y + H + 1 + i, Z0 + i, X1 - 2, Y + H + 1 + i, Z1 - i, (x) => (x % 2 ? c.roofTile : c.roofTileB));
-    // aisle windows, framed in basalt
-    for (let x = X0 + 6; x < X1 - 6; x += 12) for (const z of [Z0, Z1]) {
-      g.box(x - 1, Y + 25, z, x + 4, Y + 41, z, c.cantaria);
-      g.box(x, Y + 26, z, x + 3, Y + 40, z, (_x, y) => (y > Y + 37 ? c.cantariaB : c.glassLit));
+    // the clerestory: the nave's walls standing over the aisle roofs, their round windows
+    g.box(XN + 1, Y + AH + 1, NZ0 - 2, X1, Y + NH, NZ1 + 2, (x, y, z) => (y === Y + NH ? c.cantaria : (z === NZ0 - 2 || z === NZ1 + 2) && cols.some((cc) => x >= cc && x <= cc + 1) ? c.cantaria : plaster(x, y, z)));
+    for (const x of occuli) for (const z of [NZ0 - 2, NZ1 + 2]) for (let y = Y + NH - 8; y <= Y + NH - 3; y++) for (let xx = x - 1; xx <= x + 3; xx++) {
+      const r = Math.hypot(xx - x - 1, y - (Y + NH - 5.5));
+      if (r < 1.9) g.set(xx, y, z, c.glass); else if (r < 2.8) g.set(xx, y, z, c.cantaria);
     }
-    // the front: a white gable between basalt corner piers, a basalt cornice along the eaves line
-    const FW0 = Z0 - 2, FW1 = Z1 + 2;
-    g.box(FX, Y, FW0, FX + 3, Y + H + 6, FW1, (x, y, z) => (z - FW0 < 4 || FW1 - z < 4 ? c.cantaria : y < Y + 3 || y === Y + 44 || y === Y + 45 ? c.cantaria : hash3(x, y >> 1, z >> 1) < 0.05 ? c.plasterOld : c.white));
-    // over the portal, the arms of King Manuel I in a basalt frame: the shield with its five blue escutcheons, the
-    // armillary sphere either side
-    for (let y = Y + 30; y <= Y + 40; y++) for (let z = zc - 5; z <= zc + 4; z++) {
-      const edge = y === Y + 30 || y === Y + 40 || z === zc - 5 || z === zc + 4;
-      const shield = Math.abs(z + 0.5 - zc) < 3 - Math.max(0, Y + 33 - y) * 0.6 && y < Y + 39;
-      const dot = shield && ((y - Y) % 3 === 0) && Math.abs(z + 0.5 - zc) < 1.5 + ((y - Y) === 36 ? 1.2 : 0);
+    // lean-to roofs over the aisles, rising to the clerestory, the Portuguese eaves of tile-ends under them
+    for (const [za, zb, dir] of [[Z0 - 1, NZ0 - 3, 1], [Z1 + 1, NZ1 + 3, -1]] as const) {
+      for (let z = za; dir > 0 ? z <= zb : z >= zb; z += dir) {
+        const yr = Y + AH + 1 + Math.floor(Math.abs(z - za) / 2);
+        g.box(XN + 1, Y + AH + 1, z, X1, yr, z, (x, y) => (y === yr ? (x % 2 ? c.roofTile : c.roofTileB) : z === za ? 0 : c.white));
+      }
+      g.box(XN + 1, Y + AH, za, X1, Y + AH, za, (x) => (x % 2 ? c.roofTileB : c.white));
+      g.box(XN + 1, Y + AH - 1, za, X1, Y + AH - 1, za, (x) => (x % 2 ? 0 : c.roofTileB));
+    }
+    // the nave's roof: a gable of tiles over the clerestory, a ridge of capping tiles
+    for (let i = 0; NZ0 - 3 + i <= NZ1 + 3 - i; i++) g.box(XN + 1, Y + NH + 1 + i, NZ0 - 3 + i, X1, Y + NH + 1 + i, NZ1 + 3 - i, (x, _y, z) => (z === NZ0 - 3 + i || z === NZ1 + 3 - i ? (x % 2 ? c.roofTile : c.roofTileB) : c.white));
+    const ridge = Y + NH + 1 + Math.floor((NZ1 - NZ0 + 6) / 2);
+    g.box(XN + 1, ridge + 1, Math.floor(cz) - 1, X1, ridge + 1, Math.ceil(cz), c.roofTileB);
+    // the aisle windows: tall lancets in basalt frames between the pilasters
+    for (const x of wins) for (const z of [Z0, Z1]) {
+      g.box(x - 1, S.WIN_Y0 - 1, z, x + 4, S.WIN_Y1 + 2, z, c.cantaria);
+      g.box(x, S.WIN_Y0, z, x + 3, S.WIN_Y1, z, (xx, y) => (y === S.WIN_Y1 && (xx === x || xx === x + 3) ? c.cantaria : c.glass));
+      g.box(x + 1, S.WIN_Y1 + 1, z, x + 2, S.WIN_Y1 + 1, z, c.glass);
+    }
+    // buttresses along the open side, stepped back as they rise
+    for (const cc of cols) g.box(cc, Y, Z0 - 2, cc + 1, Y + AH - 6, Z0 - 1, (_x, y, z) => (y > Y + AH - 14 && z === Z0 - 2 ? 0 : c.cantaria));
+    // a side door on the open side: a pointed arch of basalt, the doors in it
+    {
+      const dx = cols[cols.length - 2] + 7;
+      for (let y = Y; y <= Y + 17; y++) for (let x = dx - 6; x <= dx + 6; x++) {
+        const u = Math.abs(x + 0.5 - dx), v = y - Y, half = v < 11 ? 6 : Math.sqrt(Math.max(0, 36 - ((v - 11) * 1.05) ** 2));
+        if (u > half) continue;
+        g.set(x, y, Z0 - 1, half - u < 1.6 ? c.cantaria : 0);
+        if (half - u >= 1.6) g.set(x, y, Z0, c.door);
+      }
+    }
+    // ---- the chancel: a square block with a Manueline parapet, twisted pinnacles at its corners, a tall lancet
+    // either side
+    const CZ0 = NZ0 - 3, CZ1 = NZ1 + 3;
+    g.box(X0, Y, CZ0, XN, Y + CHH, CZ1, (x, y, z) => (y < Y + 3 || y === Y + CHH ? c.cantaria : (x - X0 < 2 || XN - x < 0) && (z - CZ0 < 2 || CZ1 - z < 2) ? c.cantaria : plaster(x, y, z)));
+    for (let z = CZ0; z <= CZ1; z++) for (let x = X0; x <= XN; x++) {
+      const edge = x === X0 || z === CZ0 || z === CZ1;
+      if (!edge) { g.set(x, Y + CHH + 1, z, (x + z) % 2 ? c.roofTile : c.roofTileB); continue; }
+      const a = x === X0 ? z : x;
+      g.set(x, Y + CHH + 1, z, c.white);
+      if (pm2(a, 4) < 2) { g.box(x, Y + CHH + 2, z, x, Y + CHH + 3, z, c.white); if (pm2(a, 8) === 0) g.set(x, Y + CHH + 4, z, c.cantaria); }
+    }
+    for (const [px, pz] of [[X0, CZ0], [X0, CZ1 - 2], [XN - 2, CZ0], [XN - 2, CZ1 - 2]] as const)
+      g.box(px, Y + 3, pz, px + 2, Y + CHH + 9, pz + 2, (x, y, z) => (y > Y + CHH + 7 ? (x === px + 1 && z === pz + 1 ? c.cantaria : 0) : pm2(y + (x - px) + (z - pz) * 2, 4) < 2 ? c.cantaria : c.white));
+    {
+      const lx = Math.round((S.CX0 + S.CX1) / 2) - 1;
+      for (const z of [CZ0, CZ1]) {
+        g.box(lx - 1, Y + 11, z, lx + 3, Y + 28, z, c.cantaria);
+        g.box(lx, Y + 12, z, lx + 2, Y + 26, z, c.glass);
+        g.set(lx + 1, Y + 27, z, c.glass);
+      }
+    }
+    // ---- the front: one gable over the nave between basalt pilasters, shoulders over the aisles
+    const SH = Y + AH + 4;
+    g.box(FX, Y, Z0, FX + 3, SH, Z1, (x, y, z) => (z - Z0 < 4 || Z1 - z < 4 || y < Y + 3 || y >= SH - 1 ? c.cantaria : plaster(x, y, z)));
+    g.box(FX, SH + 1, NZ0 - 3, FX + 3, Y + NH + 1, NZ1 + 3, (x, y, z) => (z - (NZ0 - 3) < 3 || (NZ1 + 3) - z < 3 ? c.cantaria : plaster(x, y, z)));
+    for (let i = 0; NZ0 - 3 + i <= NZ1 + 3 - i; i++) g.box(FX, Y + NH + 2 + i, NZ0 - 3 + i, FX + 3, Y + NH + 2 + i, NZ1 + 3 - i, (x, y, z) => (z - (NZ0 - 3 + i) < 2 || (NZ1 + 3 - i) - z < 2 ? c.cantaria : plaster(x, y, z)));
+    const apex = Y + NH + 2 + Math.floor((NZ1 - NZ0 + 6) / 2);
+    g.box(FX + 1, apex + 1, Math.floor(cz), FX + 2, apex + 8, Math.floor(cz), c.cantaria);
+    g.box(FX + 1, apex + 6, Math.floor(cz) - 2, FX + 2, apex + 6, Math.floor(cz) + 2, c.cantaria);
+    // twisted pinnacles on the front's corners and where the gable rises
+    for (const z of [Z0, Z1 - 2, NZ0 - 3, NZ1 + 1]) {
+      const base = z === Z0 || z === Z1 - 2 ? SH + 1 : Y + NH + 2;
+      g.box(FX, base, z, FX + 2, base + 7, z + 2, (x, y, zz) => (pm2(y + (x - FX) + (zz - z) * 2, 4) < 2 ? c.cantaria : c.white));
+      g.box(FX + 1, base + 8, z + 1, FX + 1, base + 9, z + 1, c.cantaria);
+    }
+    // the Manueline portal: three roped archivolts of basalt round a pointed arch, in a rectangular frame (the
+    // alfiz) with a twisted rope moulding
+    for (let y = Y; y <= Y + 26; y++) for (let z = Math.floor(cz) - 10; z <= Math.ceil(cz) + 9; z++) {
+      const u = Math.abs(z + 0.5 - cz), v = y - Y;
+      const half = v < 14 ? 7 : Math.sqrt(Math.max(0, 49 - ((v - 14) * 0.78) ** 2));
+      const alfiz = u > 8.4 || y > Y + 24;
+      if (alfiz) { if (u <= 10 && y <= Y + 26 && (u > 9 || y > Y + 25)) g.set(FX + 4, y, z, (y + z) % 2 ? c.cantaria : c.cantariaB); continue; }
+      if (u > half + 2.6) { g.set(FX + 4, y, z, c.white); continue; }
+      if (u > half) g.set(FX + 4, y, z, (y + Math.floor(u * 2)) % 2 ? c.cantaria : c.cantariaB);
+      else if (v < 16) g.set(FX + 3, y, z, Math.abs(z + 0.5 - cz) < 0.6 ? c.iron : c.door);
+    }
+    b.lamp(FX * V + 2, DUOMO_Y + 3.5, cz * V, WHITEWARM, 8, 0.9);
+    // over it, the arms of King Manuel I in a basalt frame between two armillary spheres
+    const zc = Math.floor(cz);
+    for (let y = Y + 28; y <= Y + 37; y++) for (let z = zc - 4; z <= zc + 5; z++) {
+      const edge = y === Y + 28 || y === Y + 37 || z === zc - 4 || z === zc + 5;
+      const shield = Math.abs(z + 0.5 - cz) < 3 - Math.max(0, Y + 31 - y) * 0.6 && y < Y + 36;
+      const dot = shield && ((y - Y) % 3 === 0) && Math.abs(z + 0.5 - cz) < 1.5 + ((y - Y) === 33 ? 1.2 : 0);
       g.set(FX + 4, y, z, edge ? c.cantaria : dot ? c.majolicaBlue : shield ? c.white : c.cantariaB);
     }
-    for (const z0 of [zc - 10, zc + 9]) for (let y = Y + 32; y <= Y + 38; y++) for (let z = z0 - 2; z <= z0 + 2; z++) {
-      const r = Math.hypot(z - z0, y - (Y + 35));
-      if (r < 2.9 && (r > 1.9 || Math.abs(y - (Y + 35)) < 0.6)) g.set(FX + 4, y, z, c.brass);
+    for (const z0 of [zc - 8, zc + 9]) for (let y = Y + 29; y <= Y + 35; y++) for (let z = z0 - 2; z <= z0 + 2; z++) {
+      const r = Math.hypot(z - z0, y - (Y + 32));
+      if (r < 2.9 && (r > 1.9 || Math.abs(y - (Y + 32)) < 0.6)) g.set(FX + 4, y, z, c.brass);
     }
-    const gable = Y + H + 6;
-    for (let i = 0; i <= 38; i++) g.box(FX, gable + i, FW0 + i, FX + 3, gable + i, FW1 - i, (_x, _y, z) => (z - (FW0 + i) < 2 || (FW1 - i) - z < 2 ? c.cantaria : c.white));
-    g.box(FX + 3, gable - 1, FW0, FX + 4, gable, FW1, c.cantaria);
-    // the Gothic portal: a pointed arch of three basalt archivolts round the doors
-    for (let y = Y; y <= Y + 26; y++) for (let z = zc - 9; z <= zc + 8; z++) {
-      const u = Math.abs(z + 0.5 - zc - 0.5), v = y - Y;
-      const half = v < 15 ? 9 : Math.sqrt(Math.max(0, 81 - ((v - 15) * 0.85) ** 2));
-      if (u > half) continue;
-      const ring = half - u;
-      if (ring < 3) g.set(FX + 4, y, z, ring < 1 ? c.cantaria : ring < 2 ? c.cantariaB : c.cantaria);
-      if (ring >= 3 && v < 20) g.set(FX + 3, y, z, v < 16 ? (z === zc || z === zc - 1 ? c.iron : c.door) : c.cantariaB);
+    // the óculo: a round window in a basalt ring, spokes of stone
+    const oy = Y + NH - 9;
+    for (let y = oy - 7; y <= oy + 7; y++) for (let z = zc - 7; z <= zc + 8; z++) {
+      const r = Math.hypot(z + 0.5 - cz, y + 0.5 - oy);
+      if (r > 6.6) continue;
+      if (r >= 4.6) { g.set(FX + 4, y, z, c.cantaria); continue; }
+      g.set(FX + 3, y, z, r < 1.4 ? c.glassLit : c.glassLit);
     }
-    b.lamp(FX * V + 2, DUOMO_Y + 3.5, zc * V, WHITEWARM, 8, 0.9);
-    // the rose window over the portal, in a basalt wheel
-    const ry = Y + 57;
-    for (let y = ry - 9; y <= ry + 9; y++) for (let z = zc - 9; z <= zc + 9; z++) {
-      const r = Math.hypot(z + 0.5 - zc, y + 0.5 - ry);
-      if (r > 9) continue;
-      if (r > 7.2) { g.set(FX + 4, y, z, c.cantaria); continue; }
-      const spoke = Math.abs(Math.sin(Math.atan2(y + 0.5 - ry, z + 0.5 - zc) * 6)) < 0.3;
-      g.set(FX + 3, y, z, r < 1.6 || (r > 3.2 && r < 4) || spoke ? c.cantaria : c.glassLit);
-    }
-    // two small lancets either side, the cross on the apex and Manueline pinnacles of basalt at the corners
-    for (const z0 of [zc - 19, zc + 17]) {
-      for (let y = Y + 48; y <= Y + 60; y++) { g.box(FX + 3, y, z0, FX + 3, y, z0 + 2, c.glassLit); g.set(FX + 4, y, z0 - 1, c.cantaria); g.set(FX + 4, y, z0 + 3, c.cantaria); }
-      g.set(FX + 3, Y + 61, z0 + 1, c.glassLit); g.box(FX + 4, Y + 61, z0, FX + 4, Y + 62, z0 + 2, c.cantaria);
-    }
-    g.box(FX + 1, gable + 39, zc, FX + 2, gable + 46, zc, c.cantaria);
-    g.box(FX + 1, gable + 43, zc - 2, FX + 2, gable + 43, zc + 2, c.cantaria);
-    for (const z of [FW0, FW1 - 3]) {
-      g.box(FX, gable + 1, z, FX + 3, gable + 8, z + 3, c.cantaria);
-      g.box(FX + 1, gable + 9, z + 1, FX + 2, gable + 12, z + 2, c.cantariaB);
-    }
-    b.lamp(FX * V + 6, DUOMO_Y + 1, zc * V - 4, [1, 0.88, 0.7], 8, 0.7);
-    b.lamp(FX * V + 6, DUOMO_Y + 1, zc * V + 4, [1, 0.88, 0.7], 8, 0.7);
+    b.lamp(FX * V + 6, DUOMO_Y + 1, cz * V - 4, [1, 0.88, 0.7], 8, 0.7);
+    b.lamp(FX * V + 6, DUOMO_Y + 1, cz * V + 4, [1, 0.88, 0.7], 8, 0.7);
   }
-  // inside: the nave and the apse (registers its anchors in every worker)
-  duomoInterior(b, { X0, X1, Z0, Z1, Y, H, FX, zc, roof: [c.roofTile, c.roofTileB] });
+  // inside: the nave, the aisles and the chancel (registers its anchors in every worker)
+  seInterior(b, F);
   b.occluders[hallOcc].air = b.halls[b.halls.length - 1].rect;
   // the tower, its spire sheathed in glazed tiles in a chequer of white, blue and green
   const TX0 = Math.round(SE_TOWER[0] / V), TZ0 = Math.round(SE_TOWER[1] / V), TS = Math.round((SE_TOWER[2] - SE_TOWER[0]) / V);
-  b.occlude(TX0, TZ0, TX0 + TS - 1, TZ0 + TS - 1, DUOMO_Y + 30, DUOMO_Y + 0.95, 'landmark');
+  b.occlude(TX0, TZ0, TX0 + TS - 1, TZ0 + TS - 1, DUOMO_Y + 26, DUOMO_Y + 0.95, 'landmark');
   Object.assign(b.occluders[b.occluders.length - 1], { floor: DUOMO_Y, follow: hallOcc });
   if (g.touches(TX0 - 2, TZ0 - 2, TX0 + TS + 2, TZ0 + TS + 2)) {
-    const TH = 84;
+    const TH = 72;
     g.box(TX0, Y, TZ0, TX0 + TS - 1, Y + TH, TZ0 + TS - 1, (x, y, z) => {
       const edge = x === TX0 || x === TX0 + TS - 1 || z === TZ0 || z === TZ0 + TS - 1;
       const corner = (x - TX0 < 2 || TX0 + TS - 1 - x < 2) && (z - TZ0 < 2 || TZ0 + TS - 1 - z < 2);
-      return y < Y + 3 || (y - Y) % 28 === 0 || (corner && edge) ? c.cantaria : c.white;
+      return y < Y + 3 || (y - Y) % 24 === 0 || (corner && edge) ? c.cantaria : c.white;
     });
     // the belfry: an arch on each face, a bell in it
     const yb = Y + TH - 18;
@@ -1490,6 +1554,7 @@ function se(b: Builder, c: AC): void {
     g.box(cx - 2, top + 4, TZ0 + (TS >> 1), cx + 2, top + 4, TZ0 + (TS >> 1), c.iron);
   }
 }
+const pm2 = (v: number, m: number) => ((v % m) + m) % m;
 
 /**
  * The Mercado dos Lavradores (1940): an art deco square of white and ochre round an open courtyard, the azulejo

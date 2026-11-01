@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.9',
+    date: '2026-11-01',
+    title: 'Every place to eat on the map',
+    items: [
+      'The pocket map now pins every walk-in place to eat, not just the street stalls and restaurants: Tokyo\'s cafés, izakaya, bakeries, kissaten, soba shops and fishmongers, and Istanbul\'s lokantas, kebap and pide houses, börek shops, tea and coffee houses and sweet shops.',
+      'Places you have not been into yet show as a dashed question mark; once you step inside they turn into an amber badge showing what they serve, with the name on the card. Tap one to guide yourself there or walk to its door.',
+      'The "food places found" counter now matches what you can see on the map.',
+    ],
+  },
+  {
     version: '0.18.8',
     date: '2026-11-01',
     title: 'Funchal: dolphins in the bay',

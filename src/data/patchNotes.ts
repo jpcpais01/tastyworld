@@ -21,6 +21,16 @@ export const PATCH_NOTES: PatchNote[] = [
     ],
   },
   {
+    version: '0.20.39',
+    date: '2026-11-01',
+    title: 'Smooth on laptops without a graphics card',
+    items: [
+      'Low quality is rebuilt for laptops with built-in graphics: it draws at three quarters resolution, uses simpler water without reflections, skips the real-time sun shadows (the soft baked light stays) and fills the streets with a lighter crowd.',
+      'Auto now recognises built-in and weaker graphics chips and starts on Low or Medium there instead of High.',
+      'If Auto still can\'t keep up after lowering the resolution, it steps down a quality level by itself and remembers it for next time.',
+    ],
+  },
+  {
     version: '0.20.38',
     date: '2026-11-01',
     title: '2040: gentler umbrellas',

@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.19.0',
+    date: '2026-11-01',
+    title: 'Lo-fi for every city',
+    items: [
+      'All the music is new: each city now has its own lo-fi, one tune for the day and a slower, darker one for the night, played by a small band through warm tape and an old record, with dusty drums, a gentle tape wobble and soft vinyl crackle.',
+      'Tokyo: a Rhodes piano and a koto by day with a shamisen and a shakuhachi in the break; at night a shakuhachi in the old miyako-bushi scale, a wind chime on the breeze and the clack of the night watch\'s wooden clappers.',
+      'Amalfi: a fingerpicked nylon guitar in a lazy bossa groove, a soft flute and the faint musette of an accordion, with a mandolin picking a few notes in the break; at night a slow ballad by the harbour.',
+      'Istanbul: an oud and a ney over a darbuka in the Hicaz mode, a qanun rippling through the break and the odd ring of finger cymbals; at night the Uşşak mode, its second note sung a little flat the Turkish way.',
+      'Funchal: a guitarra portuguesa and a viola de fado, with Madeira\'s own little braguinha strumming in the chorus; at night a fado in B minor.',
+      'The tune starts quietly, as if heard through a wall, and opens up; at dusk and dawn the band changes over between songs.',
+    ],
+  },
+  {
     version: '0.18.14',
     date: '2026-11-01',
     title: 'Calm cherry petals from above',

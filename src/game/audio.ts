@@ -1,16 +1,17 @@
 /**
- * Procedural audio, no assets. A cozy lo-fi street-food loop (koto melody, electric piano, upright bass, brushed kit)
- * over the J-pop "royal road" progression, a deliberately quiet street (a soft city hush, the canal lapping, the odd
- * sparrow by day and bell cricket by night, a faint grill crackle) and soft, rounded UI sounds. Amalfi keeps the
- * same unhurried feel but plays it on the coast: a fingerpicked nylon guitar and a soft flute over upright bass and
- * brushes, the sea breaking on the beach below the town, the odd distant gull and the cathedral bell.
- * Music, ambience and effects each have their own volume.
+ * Procedural audio, no assets. Each city's music is its own lo-fi (music/: a day and a night tune played by a small
+ * dusty band through tape and vinyl), under a deliberately quiet street (a soft city hush, water lapping, the odd
+ * bird by day and cricket by night, a faint grill crackle, the sea and gulls on the coast, bells and the call to
+ * prayer) and soft, rounded UI sounds. Music, ambience and effects each have their own volume.
  * Every note and sound is synthesised once into a small mono buffer and then replayed, so at runtime a note costs a
  * buffer source and a gain node. Rendering is spread over frames by a warm-up queue.
  */
 
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
 import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, perCity } from '../world/cityId';
+import { Lofi } from './music/lofi';
+import { LOFI } from './music/tunes';
+import { SVF, TAU, impulse, mtof, noise, pick, rand, render } from './synth';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh' | 'jet'
   | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
@@ -21,246 +22,8 @@ export interface AudioHall { rect: [number, number, number, number]; kind: 'chur
 
 const SR = 32000; // render rate for bright one-shots
 const LSR = 22050; // render rate for mellow notes and footsteps (Safari needs >= 22050)
-const TAU = Math.PI * 2;
-const mtof = (m: number) => 440 * 2 ** ((m - 69) / 12);
-const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
-const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
-const noise = () => Math.random() * 2 - 1;
 
-/** Chamberlin state-variable filter, used inside renders. */
-class SVF {
-  low = 0; band = 0;
-  constructor(private sr: number, private q = 0.5) {}
-  run(x: number, fc: number): number {
-    const f = 2 * Math.sin(Math.PI * Math.min(fc, this.sr / 6) / this.sr);
-    this.low += f * this.band;
-    const high = x - this.low - this.q * this.band;
-    this.band += f * high;
-    return this.band;
-  }
-}
-
-// ---- songs (MIDI notes) ----
-
-/** Per bar: [step (8ths), note, length in steps] */
-type Phrase = [number, number, number][][];
-interface Section { prog: number[]; mel?: Phrase; arp?: boolean; bass: boolean; drums: 0 | 1 | 2; lead?: Inst }
-interface Song {
-  /** [bass root, 4-voice voicing] */
-  chords: number[][];
-  bpm: number;
-  swing: number;
-  sections: Section[];
-  loopFrom: number;
-  /** How it is played: Tokyo's lo-fi band, or Amalfi's guitar and flute. */
-  style?: 'lofi' | 'riviera';
-}
-type Inst = 'koto' | 'bell' | 'ep' | 'bass' | 'mando' | 'nylon' | 'flute';
-interface Out { lead: AudioNode; ep: AudioNode; bass: AudioNode; drums: AudioNode }
-interface Seq { song: Song; t: number; sec: number; bar: number; step: number; out: Out; bpm: number }
-
-/** The background tune, in C: an intro, then verse / chorus / koto break / verse / chorus / a quiet breather. */
-const BGM: Song = (() => {
-  const A = [0, 1, 2, 3, 4, 1, 5, 5], B = [0, 1, 6, 3, 0, 1, 5, 5];
-  const m1: Phrase = [
-    [[2, 72, 1], [3, 74, 1], [4, 76, 4]],
-    [[0, 74, 2], [2, 67, 2], [4, 74, 1], [5, 76, 1], [6, 74, 2]],
-    [[0, 71, 3], [4, 67, 2], [6, 76, 2]],
-    [[0, 76, 2], [2, 74, 1], [3, 72, 1], [4, 69, 4]],
-    [[2, 69, 1], [3, 72, 1], [4, 74, 2], [6, 77, 2]],
-    [[0, 76, 2], [2, 74, 2], [4, 71, 4]],
-    [[0, 72, 3], [3, 74, 1], [4, 76, 2], [6, 79, 2]],
-    [[0, 76, 6]],
-  ];
-  const m2: Phrase = [
-    [[0, 81, 2], [2, 79, 1], [3, 76, 1], [4, 79, 4]],
-    [[0, 76, 2], [2, 74, 1], [3, 76, 1], [4, 74, 3], [7, 71, 1]],
-    [[0, 71, 3], [3, 74, 1], [4, 76, 2], [6, 74, 1], [7, 71, 1]],
-    [[0, 72, 4], [4, 69, 2], [6, 76, 2]],
-    [[0, 84, 2], [2, 81, 2], [4, 79, 2], [6, 76, 2]],
-    [[0, 74, 3], [3, 76, 1], [4, 77, 2], [6, 74, 2]],
-    [[0, 76, 2], [2, 74, 1], [3, 72, 1], [4, 74, 2], [6, 67, 2]],
-    [[0, 72, 6]],
-  ];
-  return {
-    chords: [
-      [41, 53, 57, 60, 64], // Fmaj7
-      [43, 53, 57, 59, 64], // G13
-      [40, 52, 55, 59, 62], // Em7
-      [45, 55, 59, 60, 64], // Am9
-      [38, 53, 57, 60, 64], // Dm9
-      [36, 52, 55, 59, 62], // Cmaj9
-      [40, 52, 56, 59, 62], // E7
-    ],
-    bpm: 84, swing: 0.58, loopFrom: 1,
-    sections: [
-      { prog: A, bass: false, drums: 1 },
-      { prog: A, mel: m1, bass: true, drums: 2 },
-      { prog: B, mel: m2, bass: true, drums: 2 },
-      { prog: A, arp: true, bass: true, drums: 2 },
-      { prog: A, mel: m1, bass: true, drums: 2 },
-      { prog: B, mel: m2, bass: true, drums: 2 },
-      { prog: B, arp: true, bass: true, drums: 0 },
-    ],
-  };
-})();
-
-/**
- * Amalfi's tune, in the same easy lo-fi spirit as Tokyo's but by the sea: D major with a Neapolitan turn to G minor
- * in the chorus. A nylon guitar fingerpicks the chords and sings the verse, a soft flute takes the chorus, a mandolin
- * drops in a few plucked notes in the break (no tremolo), upright bass and brushes keep it all slow and swaying.
- */
-const RIVIERA: Song = (() => {
-  const A = [0, 1, 2, 3, 0, 1, 4, 8], B = [4, 5, 6, 7, 2, 3, 0, 8];
-  const m1: Phrase = [
-    [[0, 69, 2], [2, 74, 2], [4, 76, 3], [7, 78, 1]],
-    [[0, 78, 3], [3, 76, 1], [4, 74, 4]],
-    [[2, 71, 1], [3, 74, 1], [4, 79, 2], [6, 78, 2]],
-    [[0, 76, 6]],
-    [[0, 69, 2], [2, 74, 2], [4, 76, 3], [7, 78, 1]],
-    [[0, 81, 3], [3, 78, 1], [4, 76, 2], [6, 74, 2]],
-    [[0, 71, 2], [2, 74, 2], [4, 78, 2], [6, 76, 2]],
-    [[0, 74, 6]],
-  ];
-  const m2: Phrase = [
-    [[0, 78, 4], [4, 79, 2], [6, 81, 2]],
-    [[0, 82, 4], [4, 81, 2], [6, 79, 2]],
-    [[0, 81, 6], [6, 76, 2]],
-    [[0, 78, 3], [3, 75, 1], [4, 78, 4]],
-    [[0, 79, 4], [4, 78, 2], [6, 76, 2]],
-    [[0, 73, 2], [2, 76, 2], [4, 78, 2], [6, 79, 2]],
-    [[0, 78, 6]],
-    [[2, 76, 2], [4, 74, 4]],
-  ];
-  return {
-    chords: [
-      [38, 54, 57, 61, 64], // Dmaj9
-      [35, 57, 61, 62, 66], // Bm9
-      [40, 55, 59, 62, 66], // Em9
-      [45, 55, 59, 61, 66], // A13
-      [43, 54, 57, 59, 62], // Gmaj9
-      [43, 52, 55, 58, 62], // Gm6
-      [42, 52, 57, 61, 64], // F#m7
-      [47, 51, 57, 59, 66], // B7
-      [45, 55, 59, 62, 64], // A7sus4
-    ],
-    bpm: 78, swing: 0.56, loopFrom: 1, style: 'riviera',
-    sections: [
-      { prog: A, bass: false, drums: 0 },
-      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 1 },
-      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
-      { prog: A, arp: true, lead: 'mando', bass: true, drums: 2 },
-      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 2 },
-      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
-      { prog: B, arp: true, lead: 'nylon', bass: true, drums: 0 },
-    ],
-  };
-})();
-
-/**
- * Funchal's tune: A minor with a turn to the major in the chorus, the mood of a fado sung at a café table rather than in
- * a dark tavern. A nylon guitar (the viola) fingerpicks and sings the verse, the bright plucked string of the guitarra
- * portuguesa takes the chorus and the break, upright bass and brushes keep it slow.
- */
-const ATLANTICO: Song = (() => {
-  const A = [0, 1, 2, 3, 0, 1, 4, 3], B = [5, 6, 2, 3, 5, 6, 7, 0];
-  const m1: Phrase = [
-    [[0, 76, 2], [2, 77, 1], [3, 76, 1], [4, 72, 4]],
-    [[0, 74, 3], [3, 72, 1], [4, 71, 4]],
-    [[0, 69, 2], [2, 72, 2], [4, 76, 3], [7, 74, 1]],
-    [[0, 71, 6]],
-    [[0, 76, 2], [2, 77, 1], [3, 79, 1], [4, 81, 4]],
-    [[0, 79, 3], [3, 77, 1], [4, 76, 2], [6, 74, 2]],
-    [[0, 72, 2], [2, 71, 2], [4, 69, 2], [6, 71, 2]],
-    [[0, 69, 6]],
-  ];
-  const m2: Phrase = [
-    [[0, 81, 4], [4, 79, 2], [6, 77, 2]],
-    [[0, 76, 3], [3, 77, 1], [4, 79, 4]],
-    [[0, 77, 2], [2, 76, 2], [4, 74, 2], [6, 72, 2]],
-    [[0, 71, 4], [4, 72, 2], [6, 74, 2]],
-    [[0, 81, 3], [3, 83, 1], [4, 84, 4]],
-    [[0, 83, 2], [2, 81, 2], [4, 79, 2], [6, 77, 2]],
-    [[0, 76, 2], [2, 74, 2], [4, 72, 2], [6, 71, 2]],
-    [[0, 69, 6]],
-  ];
-  return {
-    chords: [
-      [45, 57, 60, 64, 67], // Am7
-      [38, 53, 57, 60, 65], // Dm7
-      [43, 53, 55, 59, 62], // G7
-      [40, 52, 56, 59, 62], // E7
-      [41, 53, 57, 60, 64], // Fmaj7
-      [36, 52, 55, 59, 64], // Cmaj7
-      [41, 53, 57, 60, 65], // F6
-      [40, 52, 55, 59, 64], // Em7
-    ],
-    bpm: 74, swing: 0.55, loopFrom: 1, style: 'riviera',
-    sections: [
-      { prog: A, bass: false, drums: 0 },
-      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 1 },
-      { prog: B, mel: m2, lead: 'mando', bass: true, drums: 2 },
-      { prog: A, arp: true, lead: 'mando', bass: true, drums: 1 },
-      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 2 },
-      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
-      { prog: B, arp: true, lead: 'nylon', bass: true, drums: 0 },
-    ],
-  };
-})();
-
-/**
- * Istanbul's tune: D Hicaz, the augmented second between E flat and F sharp that every street musician in Beyoğlu
- * leans on, over a slow 4/4 sway. A dark nylon string stands in for the oud and sings the verse, a breathy flute for
- * the ney takes the chorus, a bright plucked string for the bağlama fills the break.
- */
-const BOSPHORUS: Song = (() => {
-  const A = [0, 1, 0, 2, 3, 1, 0, 4], B = [3, 6, 2, 1, 3, 5, 7, 0];
-  const m1: Phrase = [
-    [[0, 74, 2], [2, 75, 1], [3, 78, 1], [4, 79, 2], [6, 78, 2]],
-    [[0, 75, 3], [3, 74, 1], [4, 74, 4]],
-    [[0, 81, 2], [2, 79, 1], [3, 78, 1], [4, 79, 2], [6, 81, 2]],
-    [[0, 82, 3], [3, 81, 1], [4, 79, 2], [6, 75, 2]],
-    [[0, 79, 2], [2, 82, 2], [4, 81, 2], [6, 79, 2]],
-    [[0, 78, 2], [2, 79, 1], [3, 78, 1], [4, 75, 4]],
-    [[0, 74, 2], [2, 75, 1], [3, 78, 1], [4, 75, 2], [6, 74, 2]],
-    [[0, 72, 2], [2, 75, 2], [4, 74, 4]],
-  ];
-  const m2: Phrase = [
-    [[0, 86, 4], [4, 84, 2], [6, 82, 2]],
-    [[0, 82, 3], [3, 81, 1], [4, 79, 4]],
-    [[0, 84, 2], [2, 82, 1], [3, 81, 1], [4, 79, 2], [6, 75, 2]],
-    [[0, 78, 3], [3, 79, 1], [4, 78, 2], [6, 75, 2]],
-    [[0, 79, 4], [4, 82, 2], [6, 81, 2]],
-    [[0, 79, 2], [2, 76, 2], [4, 79, 4]],
-    [[0, 81, 2], [2, 79, 2], [4, 73, 2], [6, 76, 2]],
-    [[0, 74, 6]],
-  ];
-  return {
-    chords: [
-      [38, 54, 57, 62, 66], // D
-      [39, 55, 58, 62, 67], // Ebmaj7
-      [36, 55, 60, 63, 67], // Cm
-      [43, 55, 58, 62, 67], // Gm
-      [38, 54, 57, 60, 66], // D7
-      [43, 52, 55, 58, 62], // Gm6
-      [46, 53, 58, 62, 65], // Bb
-      [45, 55, 57, 61, 64], // A7
-    ],
-    bpm: 86, swing: 0.55, loopFrom: 1, style: 'riviera',
-    sections: [
-      { prog: A, bass: false, drums: 0 },
-      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 1 },
-      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
-      { prog: A, arp: true, lead: 'mando', bass: true, drums: 2 },
-      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 2 },
-      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
-      { prog: B, arp: true, lead: 'nylon', bass: true, drums: 0 },
-    ],
-  };
-})();
-
-/** A semitone or whole tone below, staying in the scale: the koto's little lead-in. */
-const graceOf = (m: number) => m - ([0, 5].includes(m % 12) ? 1 : 2);
+type Inst = 'koto' | 'bell';
 
 const TILE_ROOMS = ['konbini', 'pharmacy', 'bakery', 'fish', 'hotel'];
 const inRect = (r: readonly number[], x: number, z: number) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
@@ -284,10 +47,10 @@ export class Audio {
   /** Far-off sounds (gulls): dulled and sent wetter to the reverb. */
   private far!: AudioNode;
   private verb!: ConvolverNode;
-  private bgmOut!: Out;
   private bufs = new Map<string, AudioBuffer>();
   private warm: string[] = [];
-  private bgm!: Seq;
+  /** This city's lo-fi, made on start. */
+  private lofi: Lofi | null = null;
   // listener
   private lx = 0;
   private lz = 0;
@@ -322,7 +85,7 @@ export class Audio {
 
     // shared room reverb
     this.verb = ctx.createConvolver();
-    this.verb.buffer = this.impulse(1.6);
+    this.verb.buffer = impulse(ctx, 1.6);
     this.verb.connect(this.gain(0.32, this.master));
 
     // music bus: instruments -> volume -> warm tone filter -> level (+ reverb send)
@@ -330,12 +93,7 @@ export class Audio {
     this.musicLevel.connect(this.gain(0.55, this.verb));
     this.musicTone = this.filter('lowpass', 9000, 0.4, this.musicLevel);
     this.music = this.gain(0, this.musicTone);
-    this.bgmOut = {
-      lead: this.pan(-0.22, this.gain(1, this.music)),
-      ep: this.pan(0.18, this.gain(1, this.music)),
-      bass: this.gain(1, this.music),
-      drums: this.pan(0.06, this.gain(1, this.music)),
-    };
+    this.lofi = new Lofi(ctx, this.music, perCity(LOFI), true);
 
     this.sfx = this.gain(0, this.master);
     this.sfx.connect(this.gain(0.25, this.verb));
@@ -364,14 +122,11 @@ export class Audio {
     this.setVolumes(this.vol.music, this.vol.amb, this.vol.sfx);
 
     const now = ctx.currentTime;
-    const song = perCity({ tokyo: BGM, amalfi: RIVIERA, istanbul: BOSPHORUS, madeira: ATLANTICO });
-    this.bgm = { song, t: now + 0.4, sec: 0, bar: 0, step: 0, out: this.bgmOut, bpm: song.bpm };
     this.timers.bird = now + rand(15, 40);
     this.timers.cricket = now + rand(5, 12);
     this.timers.horn = now + rand(25, 60);
 
-    // queue the tune's notes and footsteps so they're rendered a couple per frame before they're needed
-    this.queueSong(song);
+    // queue footsteps and eating sounds so they're rendered a couple per frame before they're needed (the music has its own queue)
     if (AMALFI || MADEIRA) this.warm.push('gull', 'toll');
     if (ISTANBUL) this.warm.push('gull', 'horn', 'ezan');
     for (const s of ['stone', 'wood', 'tile', 'gravel', 'grass']) for (let i = 0; i < 3; i++) this.warm.push(`step-${s}-${i}`);
@@ -457,7 +212,7 @@ export class Audio {
     const ctx = this.ctx!;
     if (this.hallVerb) return;
     this.hallVerb = ctx.createConvolver();
-    this.hallVerb.buffer = this.impulse(5, 0.9);
+    this.hallVerb.buffer = impulse(ctx, 5, 0.9);
     this.hallVerb.connect(this.gain(0.5, this.filter('lowpass', 3200, 0.4, this.amb)));
     this.hallSend = this.gain(0, this.hallVerb);
     this.carpet = this.filter('lowpass', 900, 0.5, this.amb);
@@ -517,7 +272,7 @@ export class Audio {
     this.night = night;
     for (let i = 0; i < 2 && this.warm.length; i++) this.buf(this.warm.shift()!);
     const now = ctx.currentTime;
-    if (this.vol.music) this.runSeq(this.bgm, now);
+    if (this.vol.music) this.lofi?.tick(now, night);
     if (this.vol.amb) this.life(now);
   }
 
@@ -599,134 +354,6 @@ export class Audio {
       if (!best || d < best.d) best = { pos: s.pos, d, r: s.r };
     }
     return best;
-  }
-
-  // ---- sequencers ----
-
-  private queueSong(s: Song): void {
-    const q = new Set<string>();
-    const add = (i: Inst, m: number) => q.add(this.instKey(i, m)[0]);
-    const riv = s.style === 'riviera';
-    for (const c of s.chords) {
-      c.slice(1).forEach((m) => add(riv ? 'nylon' : 'ep', m));
-      for (let d = 0; d <= 12; d++) add('bass', c[0] + d);
-    }
-    for (const sec of s.sections) {
-      const lead = sec.lead ?? 'koto';
-      if (sec.arp) for (const c of s.chords) c.slice(1).forEach((m) => add(lead, m + 12));
-      for (const b of sec.mel ?? []) for (const n of b) { add(lead, n[1]); add(lead, graceOf(n[1])); }
-    }
-    for (const k of ['kick', 'brush', 'shaker']) q.add(k);
-    for (const k of q) this.warm.push(k);
-  }
-
-  private runSeq(q: Seq, now: number): void {
-    if (q.t < now) q.t = now + 0.05; // after a stall, don't burst-play the backlog
-    while (q.t < now + 0.25) {
-      const e = 30 / q.bpm;
-      this.playStep(q, q.t, e);
-      q.t += (q.step % 2 === 0 ? 2 * q.song.swing : 2 - 2 * q.song.swing) * e;
-      if (++q.step < 8) continue;
-      q.step = 0;
-      q.bpm = q.song.bpm - 12 * Math.min(1, this.night); // the tune is laid back at night
-      if (++q.bar < 8) continue;
-      q.bar = 0;
-      if (++q.sec >= q.song.sections.length) q.sec = q.song.loopFrom;
-    }
-  }
-
-  private playStep(q: Seq, t: number, e: number): void {
-    if (q.song.style === 'riviera') { this.playRiviera(q, t, e); return; }
-    const song = q.song, sec = song.sections[q.sec], s = q.step, bar = q.bar, o = q.out;
-    const ch = song.chords[sec.prog[bar]];
-    const night = this.night > 0.5;
-    const h = () => t + rand(-0.006, 0.006);
-    const v = (x: number) => x * rand(0.85, 1.1);
-
-    // electric piano: a slow strum on the downbeat, a soft push on the "and" of 3 every other bar
-    if (s === 0) ch.slice(1).forEach((m, i) => this.note('ep', m, t + i * 0.022 + rand(0, 0.01), v(0.2), o.ep, e * 7.6));
-    if (s === 5 && bar % 2 === 1 && sec.drums) ch.slice(2).forEach((m, i) => this.note('ep', m, t + i * 0.015, v(0.09), o.ep, e * 2.6));
-
-    // bass: root, a pickup and a walk to the fifth or octave
-    if (sec.bass) {
-      const b = ch[0];
-      if (s === 0) this.note('bass', b, t, v(0.75), o.bass, e * 2.7);
-      if (s === 3 && !night) this.note('bass', b, h(), v(0.4), o.bass, e * 0.9);
-      if (s === 6) this.note('bass', b + (bar % 2 ? 12 : 7), h(), v(0.5), o.bass, e * 1.6);
-    }
-
-    // brushed kit; at night just the shaker and brush
-    if (sec.drums) {
-      this.fire(this.buf('shaker'), h(), v(s % 2 ? 0.2 : 0.11), o.drums);
-      if (sec.drums === 2) {
-        if (!night && (s === 0 || s === 5)) this.fire(this.buf('kick'), t, v(s ? 0.5 : 0.7), o.drums);
-        if (s === 2 || s === 6) this.fire(this.buf('brush'), h(), v(night ? 0.22 : 0.32), o.drums);
-      } else if (s === 6) this.fire(this.buf('brush'), h(), v(0.16), o.drums);
-    }
-
-    // koto lead with the odd grace-note ornament
-    if (sec.mel) {
-      for (const [at, m, len] of sec.mel[bar]) {
-        if (at !== s) continue;
-        if (len >= 2 && Math.random() < 0.18) this.note('koto', graceOf(m), t - 0.055, v(0.2), o.lead, 0.06);
-        this.note('koto', m, h(), v(night ? 0.42 : 0.5), o.lead, e * len + 0.35);
-      }
-    }
-    // koto break: loose arpeggios from the chord
-    if (sec.arp && Math.random() < (s % 2 ? 0.18 : 0.62)) {
-      this.note('koto', ch[1 + Math.floor(Math.random() * 4)] + 12, h(), v(0.3), o.lead, e * 3);
-    }
-  }
-
-  /**
-   * Amalfi: the guitar fingerpicks every chord (thumb on the low voice, fingers rolling over the rest), the bass
-   * lands on 1 with a soft walk-up, brushes on 2 and 4. The lead is the guitar, the flute or a sparse mandolin.
-   */
-  private playRiviera(q: Seq, t: number, e: number): void {
-    const song = q.song, sec = song.sections[q.sec], s = q.step, bar = q.bar, o = q.out;
-    const ch = song.chords[sec.prog[bar]];
-    const night = this.night > 0.5;
-    const h = () => t + rand(-0.007, 0.007);
-    const v = (x: number) => x * rand(0.85, 1.1);
-    const lead = sec.lead ?? 'nylon';
-
-    // fingerpicking: a pinch on the downbeat, then a gentle roll; at night only the quarter notes
-    if (s === 0) [1, 3].forEach((i, k) => this.note('nylon', ch[i], t + k * 0.018, v(0.3), o.ep, e * 7));
-    else if (!night || s % 2 === 0) {
-      const i = [0, 3, 2, 4, 2, 3, 2, 4][s];
-      this.note('nylon', ch[i], h(), v(s % 2 ? 0.15 : 0.2), o.ep, e * 3.5);
-    }
-
-    if (sec.bass) {
-      const b = ch[0];
-      if (s === 0) this.note('bass', b, t, v(0.55), o.bass, e * 3.6);
-      if (s === 4 && bar % 2 === 0) this.note('bass', b + 7, h(), v(0.36), o.bass, e * 2.6);
-      if (s === 6 && bar % 2 === 1 && !night) this.note('bass', b + 12, h(), v(0.3), o.bass, e * 1.6);
-    }
-
-    if (sec.drums) {
-      if (s % 2 === 1) this.fire(this.buf('shaker'), h(), v(sec.drums === 2 ? 0.1 : 0.06), o.drums);
-      if (sec.drums === 2) {
-        if (s === 2 || s === 6) this.fire(this.buf('brush'), h(), v(night ? 0.14 : 0.2), o.drums);
-        if (s === 0 && !night) this.fire(this.buf('kick'), t, v(0.32), o.drums);
-      }
-    }
-
-    if (sec.mel) {
-      for (const [at, m, len] of sec.mel[bar]) {
-        if (at !== s) continue;
-        if (lead === 'flute') {
-          this.note('flute', m, h(), v(night ? 0.1 : 0.13), o.lead, e * len + 0.12);
-        } else {
-          if (len >= 2 && Math.random() < 0.15) this.note(lead, graceOf(m), t - 0.055, v(0.16), o.lead, 0.06);
-          this.note(lead, m, h(), v(night ? 0.34 : 0.4), o.lead, e * len + 0.4);
-        }
-      }
-    }
-    // the break: a few plucked notes picked out of the chord, never busy
-    if (sec.arp && s % 2 === 0 && Math.random() < (s === 0 ? 0.7 : 0.32)) {
-      this.note(lead, ch[1 + Math.floor(Math.random() * 4)] + 12, h(), v(lead === 'mando' ? 0.16 : 0.26), o.lead, e * 3);
-    }
   }
 
   // ---- the street around you: kept sparse on purpose ----
@@ -892,70 +519,31 @@ export class Audio {
     return b;
   }
 
-  /** Render a mono buffer from a per-sample generator (the factory gets fresh filter state). */
   private render(dur: number, sr: number, gen: () => (t: number) => number, seamless = false): AudioBuffer {
-    const n = Math.ceil(dur * sr);
-    const xf = seamless ? Math.floor(sr * 0.25) : 0; // loops render a little extra and crossfade it into the start
-    const f = gen();
-    const y = new Float32Array(n + xf);
-    for (let i = 0; i < n + xf; i++) y[i] = f(i / sr);
-    for (let i = 0; i < xf; i++) { const u = i / xf; y[i] = y[i] * Math.sqrt(u) + y[n + i] * Math.sqrt(1 - u); }
-    let peak = 1e-6;
-    for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(y[i]));
-    const fade = seamless ? 0 : Math.min(n, Math.floor(sr * 0.02));
-    const b = this.ctx!.createBuffer(1, n, sr);
-    const d = b.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (y[i] / peak) * (i >= n - fade ? (n - 1 - i) / fade : 1);
-    return b;
+    return render(this.ctx!, dur, sr, gen, seamless);
   }
 
   private make(k: string): AudioBuffer {
     let m: RegExpMatchArray | null;
-    if ((m = k.match(/^(ep|koto|bass|bell|mando|nylon|flute)(\d+)$/))) {
-      const n = Number(m[2]);
-      switch (m[1]) {
-        case 'ep': return this.renderEp(n);
-        case 'koto': return this.renderKoto(n);
-        case 'mando': return this.renderKoto(n, 'mando');
-        case 'nylon': return this.renderKoto(n, 'nylon');
-        case 'flute': return this.renderFlute(n);
-        case 'bass': return this.renderBass(n);
-        default: return this.renderBell(n);
-      }
-    }
+    if ((m = k.match(/^(koto|bell)(\d+)$/))) return m[1] === 'koto' ? this.renderKoto(Number(m[2])) : this.renderBell(Number(m[2]));
     if ((m = k.match(/^step-(\w+)-\d$/))) return this.renderStep(m[1] as Floor);
     return this.renderSfx(k);
   }
 
-  /** Warm FM electric piano with a slight chorus. */
-  private renderEp(m: number): AudioBuffer {
-    const f = mtof(m), dec = 1.0 + f / 900;
-    return this.render(2.6, LSR, () => (t) => {
-      const env = Math.min(1, t / 0.004) * Math.exp(-t * dec);
-      const idx = 1.4 * Math.exp(-t * 7) + 0.22;
-      const a = Math.sin(TAU * f * t + idx * Math.sin(TAU * f * t));
-      const b = Math.sin(TAU * f * 1.0025 * t + idx * 0.8 * Math.sin(TAU * f * 1.0025 * t));
-      const tine = 0.12 * Math.sin(TAU * f * 7.02 * t) * Math.exp(-t * 28);
-      return (a * 0.62 + b * 0.38 + tine) * env;
-    });
-  }
-
   /**
-   * Karplus-Strong plucked string; the buffer's sample rate is picked so the delay line tunes exactly. The mandolin
-   * is picked hard near the bridge (a brighter burst), steel strings ringing shorter; the nylon guitar is plucked
-   * with the flesh of the finger (a dark, round burst) and rings long and warm.
+   * A koto string for the UI chimes (Karplus-Strong); the buffer's sample rate is picked so the delay line tunes
+   * exactly.
    */
-  private renderKoto(m: number, kind: 'koto' | 'mando' | 'nylon' = 'koto'): AudioBuffer {
-    const bright = kind === 'mando', nylon = kind === 'nylon';
+  private renderKoto(m: number): AudioBuffer {
     const f = mtof(m);
     const N = Math.max(4, Math.round(24000 / f - 0.5));
     const sr = f * (N + 0.5);
     const len = Math.ceil(sr * 2.2);
     const y = new Float32Array(len);
     let lp = 0;
-    const smooth = bright ? 0.15 : nylon ? 0.78 : 0.6;
+    const smooth = 0.6;
     for (let i = 0; i <= N && i < len; i++) { lp = smooth * lp + (1 - smooth) * noise(); y[i] = lp; }
-    const ring = bright ? Math.max(0.6, 1.6 - f / 900) : nylon ? Math.max(1.4, 3 - f / 800) : Math.max(1.2, 3.6 - f / 600);
+    const ring = Math.max(1.2, 3.6 - f / 600);
     const keep = 10 ** (-3 / (f * ring)); // per-period loss for the wanted ring time
     for (let i = N + 1; i < len; i++) y[i] = keep * 0.5 * (y[i - N] + y[i - N - 1]);
     let dc = 0, prev = 0, peak = 1e-6;
@@ -969,37 +557,6 @@ export class Audio {
     const fade = Math.floor(sr * 0.05);
     for (let i = 0; i < len; i++) d[i] = (y[i] / peak) * (i > len - fade ? (len - i) / fade : 1);
     return b;
-  }
-
-  /**
-   * A soft wooden flute: a near-sine tone with a breath of air around it, swelling in and settling into a slow,
-   * shallow vibrato only once the note has been held a moment.
-   */
-  private renderFlute(m: number): AudioBuffer {
-    const f = mtof(m);
-    return this.render(3.4, LSR, () => {
-      const air = new SVF(LSR, 0.25);
-      let ph = 0;
-      return (t) => {
-        const vib = 1 + 0.0035 * Math.min(1, Math.max(0, t - 0.35) / 0.6) * Math.sin(TAU * 4.8 * t);
-        ph += (TAU * f * vib) / LSR;
-        const env = Math.min(1, t / 0.07) ** 2 * (0.82 + 0.18 * Math.exp(-t * 3)) * Math.exp(-t * 0.25);
-        const tone = Math.sin(ph) + 0.18 * Math.sin(2 * ph) + 0.05 * Math.sin(3 * ph);
-        const breath = air.run(noise(), f * 1.02) * (0.45 + 0.9 * Math.exp(-t * 12));
-        return (tone + breath * 0.5) * env;
-      };
-    });
-  }
-
-  /** Round upright-ish bass with a soft finger thump. */
-  private renderBass(m: number): AudioBuffer {
-    const f = mtof(m);
-    return this.render(2.2, LSR, () => (t) => {
-      const env = Math.min(1, t / 0.01) * Math.exp(-t * 1.8);
-      const p = TAU * f * t;
-      const thump = Math.sin(TAU * 90 * t) * Math.exp(-t * 40) * 0.25;
-      return (Math.sin(p) + 0.5 * Math.sin(2 * p) * Math.exp(-t * 1.2) + 0.12 * Math.sin(3 * p) * Math.exp(-t * 4)) * env + thump;
-    });
   }
 
   /** Small glassy bell (furin, coins, door bell). */
@@ -1197,22 +754,5 @@ export class Audio {
         return low * 2.2 * (0.25 + sw) + wash.run(noise(), 700 + 900 * cr) * cr * 0.55 + hiss.run(noise() * (0.25 + peb), 3800) * bk * 0.22;
       };
     }, true);
-  }
-
-  /** Stereo room impulse: decaying noise that darkens over time. */
-  /** A reverb's impulse: `dur` seconds of decaying noise, `decay` the rate it dies at (lower rings longer). */
-  private impulse(dur: number, decay = 3.2): AudioBuffer {
-    const ctx = this.ctx!, sr = ctx.sampleRate, n = Math.floor(dur * sr);
-    const b = ctx.createBuffer(2, n, sr);
-    for (let c = 0; c < 2; c++) {
-      const d = b.getChannelData(c);
-      let lp = 0;
-      for (let i = 0; i < n; i++) {
-        const t = i / sr;
-        lp += (0.9 - 0.8 * t / dur) * (noise() - lp);
-        d[i] = lp * Math.exp(-t * decay) * (t < 0.012 ? t / 0.012 : 1);
-      }
-    }
-    return b;
   }
 }

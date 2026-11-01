@@ -2,6 +2,7 @@ import type { IconName } from '../ui/emblems';
 import type { FoodId } from '../world/food';
 import type { Look } from '../world/characters';
 import { perCity } from '../world/cityId';
+import { MADEIRA_STALLS } from './madeira';
 
 export type StepKind = 'pick' | 'mix' | 'heat' | 'chop' | 'order' | 'flip';
 
@@ -524,5 +525,5 @@ const ISTANBUL_STALLS: StallInfo[] = [
   },
 ];
 
-export const STALLS: StallInfo[] = perCity({ tokyo: TOKYO_STALLS, amalfi: AMALFI_STALLS, istanbul: ISTANBUL_STALLS });
+export const STALLS: StallInfo[] = perCity({ tokyo: TOKYO_STALLS, amalfi: AMALFI_STALLS, istanbul: ISTANBUL_STALLS, madeira: MADEIRA_STALLS });
 export const STALL = Object.fromEntries(STALLS.map((s) => [s.id, s])) as Record<string, StallInfo>;

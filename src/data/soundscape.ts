@@ -11,6 +11,7 @@ export const FLOORS: { rect: [number, number, number, number]; floor: Floor }[] 
   ],
   amalfi: [],
   istanbul: [],
+  madeira: [],
 });
 
 /** Point sources. water: gently lapping water within r metres (ponds; the canal is handled by the game). */

@@ -39,9 +39,10 @@ import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
 import { TIP_PER_STAR } from './data/money';
-import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
+import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
 import { nightAt, dropLanding } from './ui/arrival';
 import { farCoast } from './engine/farcoast';
+import { farMadeira } from './engine/farMadeira';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
@@ -417,6 +418,14 @@ class Game {
       this.r.composite.uniforms.uSea.value = 1;
       this.r.camera.far = 1800;
       this.r.camera.updateProjectionMatrix();
+    } else if (MADEIRA) {
+      // the island beyond the map: the city's amphitheatre, Monte, the peaks behind, and the Atlantic to the horizon
+      const far = farMadeira(sh, [WX0, WZ0, WX1, WZ1]);
+      this.worldGroup.add(far.ground, far.houses);
+      this.r.composite.uniforms.uWaterBounds.value.set(-4000, -4000, 4000, 4000);
+      this.r.composite.uniforms.uSea.value = 1;
+      this.r.camera.far = 1800;
+      this.r.camera.updateProjectionMatrix();
     } else if (AMALFI) {
       // the coast beyond the map: the Lattari mountains, Atrani and Ravello, and the open sea to the horizon
       const far = farCoast(sh, [WX0, WZ0, WX1, WZ1]);
@@ -588,7 +597,7 @@ class Game {
       });
     }
     // chef inside the hidden restaurant
-    const kak = STALL[perCity({ tokyo: 'kakurega', amalfi: 'grotta', istanbul: 'gizli' })];
+    const kak = STALL[perCity({ tokyo: 'kakurega', amalfi: 'grotta', istanbul: 'gizli', madeira: 'segredo' })];
     this.chef = new Actor(buildPerson(kak.vendorLook), this.chars);
     this.chef.position.set(a.chef[0], 0, a.chef[2]);
     this.chef.facing = this.chef.targetFacing = 0;
@@ -596,7 +605,7 @@ class Game {
     this.insideGroup.add(this.chef.root);
     this.interactables.push({
       key: 'chef', x: a.counterStand[0], z: a.counterStand[1], stand: a.counterStand, pick: [a.chef[0], 1.6, a.chef[2]], r: 1.6, inside: true,
-      prompt: () => [perCity({ tokyo: 'sushi', amalfi: 'squid', istanbul: 'pot' }), TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
+      prompt: () => [perCity({ tokyo: 'sushi', amalfi: 'squid', istanbul: 'pot', madeira: 'fish' }), TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
       act: () => this.openStall(kak, this.chef, [a.chef[0], a.chef[2]]),
     });
     this.interactables.push({
@@ -688,6 +697,7 @@ class Game {
       tokyo: m ? { walkers: 200, joggers: 5, dogs: 7, cyclists: 7, couriers: 4, boats: 2, exercise: 6 } : { walkers: 500, joggers: 10, dogs: 14, cyclists: 14, couriers: 8, boats: 3, exercise: 9 },
       amalfi: m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 },
       istanbul: m ? { walkers: 320, joggers: 3, dogs: 9, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 800, joggers: 6, dogs: 16, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
+      madeira: m ? { walkers: 260, joggers: 4, dogs: 8, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 640, joggers: 8, dogs: 14, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
     }));
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
@@ -1190,6 +1200,7 @@ class Game {
   /** The slow orbit over the old town behind the title screen. */
   private titleView(): void {
     if (AMALFI) this.cam.target.set(6, 6, 6);
+    else if (MADEIRA) this.cam.target.set(0, 4, -20);
     else if (ISTANBUL) this.cam.target.set(4, 4, 20);
     else this.cam.target.set(34, 0, 30);
     this.cam.zoom = 30;
@@ -2643,6 +2654,12 @@ class Game {
         this.ui.toast('flower', 'The lemon terraces', 'The whole town below, the sea beyond. Worth every step.', true);
         this.afterChange();
       }
+      // the levada round the hill, the whole bay below
+      if (MADEIRA && this.started && !this.inside && !this.upstairs && !this.s.flags.climbed && pl.y > 25) {
+        this.s.flags.climbed = true;
+        this.ui.toast('flower', 'The levada', 'The red roofs of Funchal below, the Sé, the marina, the whole bay. Worth every step.', true);
+        this.afterChange();
+      }
       // the terrace of the Süleymaniye, the whole Horn below
       if (ISTANBUL && this.started && !this.inside && !this.upstairs && !this.s.flags.climbed && pl.y > 12.5) {
         this.s.flags.climbed = true;
@@ -2662,13 +2679,14 @@ class Game {
         const d = Math.hypot(e.pos[0] - pl.x, e.pos[2] - pl.z);
         sizzle = Math.max(sizzle, 1 - d / 7);
       }
-      const water = this.inside ? 0 : ISTANBUL ? THREE.MathUtils.clamp(1 - Math.min(30 - pl.x, 44 - pl.z) / 18, 0, 1) : AMALFI ? THREE.MathUtils.clamp((pl.x - 22) / 22, 0, 1) : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
+      const water = this.inside ? 0 : ISTANBUL ? THREE.MathUtils.clamp(1 - Math.min(30 - pl.x, 44 - pl.z) / 18, 0, 1) : AMALFI || MADEIRA ? THREE.MathUtils.clamp((pl.x - 22) / 22, 0, 1) : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
       this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
       // Sant'Andrea strikes the hours (not through the small hours)
       const hr = Math.floor(this.tod.hour);
-      if (AMALFI && hr !== this.lastToll) {
+      if ((AMALFI || MADEIRA) && hr !== this.lastToll) {
         if (this.lastToll >= 0 && this.started && hr >= 7 && hr <= 22) {
-          const d = Math.hypot(pl.x + 23, pl.z - 14);
+          // (Sant'Andrea's campanile, or the Sé's tower in Funchal)
+          const d = MADEIRA ? Math.hypot(pl.x + 19.5, pl.z + 15.5) : Math.hypot(pl.x + 23, pl.z - 14);
           this.audio.toll(hr % 12 || 12, 0.22 * THREE.MathUtils.clamp(1 - d / 160, 0.2, 1));
         }
         this.lastToll = hr;

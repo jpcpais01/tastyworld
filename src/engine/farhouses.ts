@@ -28,13 +28,15 @@ const enum P { Body, Parapet, Vault, Dome, Slab, Rail, Pergola, Pole, Hip, Tower
 /** The town's stucco (sRGB), weighted as amalfi.ts PASTELS weights them. */
 const WALLS = [0xf2eee6, 0xf2eee6, 0xefe6d6, 0xf0e2c2, 0xf0e2c2, 0xf0d68a, 0xf2dc6a, 0xe0ae66, 0xefc4a2, 0xe8b2a6, 0xd9917f, 0xc47a58, 0xbfd2d8, 0xc9d1b4, 0xd9cbb0];
 const TRIMS = [0xf2eee6, 0xf2eee6, 0xe2dccf];
+/** Funchal's walls, weighted as funchal.ts PASTELS weights them. */
+const FUNCHAL_WALLS = [0xf2eee6, 0xf2eee6, 0xf2eee6, 0xf2eee6, 0xefe6d6, 0xefe6d6, 0xefe6d6, 0xf0e2c2, 0xf0d68a, 0xe0ae66, 0xe0ae66, 0xefc4a2, 0xe8b2a6, 0xd9cbb0];
 
 const rgb = (hex: number): [number, number, number] => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 
 /** A stone box laid on the ground (a path's tread or step): corners (m) and colour. */
 export type FarStone = [number, number, number, number, number, number, number];
 
-export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: string, HAZE: string, lots: FarLot[], towers: FarTower[], stones: FarStone[] = []): THREE.Mesh {
+export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: string, HAZE: string, lots: FarLot[], towers: FarTower[], stones: FarStone[] = [], style: 'amalfi' | 'funchal' = 'amalfi'): THREE.Mesh {
   const parts: number[] = [];
   // one box: corners (m), kind, colour, how soon it drops out (0 never, 1 near detail, 2 middle), and the house it
   // belongs to (its front ground level, which side is its front, a seed for its shutters, its own seed)
@@ -57,8 +59,10 @@ export function farHouses(uniforms: Record<string, THREE.IUniform>, SQUASH: stri
     const floors = 2 + Math.floor(rnd() * 1.8);
     const top = gy + floors * 3;
     house = [gy, lt.front, rnd(), rnd()];
-    const wall = WALLS[Math.floor(rnd() * WALLS.length)], trim = TRIMS[Math.floor(rnd() * TRIMS.length)];
-    const roof = rnd();
+    const walls = style === 'funchal' ? FUNCHAL_WALLS : WALLS;
+    const wall = walls[Math.floor(rnd() * walls.length)], trim = TRIMS[Math.floor(rnd() * TRIMS.length)];
+    // (Funchal's houses are white under tiled hip roofs, a flat terrace on one in four)
+    const roof0 = rnd(), roof = style === 'funchal' ? (roof0 < 0.75 ? 0.43 + roof0 * 0.19 : 0.6 + roof0 * 0.3) : roof0;
     const flat = roof >= 0.58;
     // (a hair wider or narrower per house, so two neighbours' walls on the same grid line never flicker)
     const e = 0.004 + house[3] * 0.012;

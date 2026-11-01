@@ -1,5 +1,5 @@
 import { TEXT, localName } from '../data/cityText';
-import { AMALFI, ISTANBUL, HILLSIDE, CITY } from '../world/cityId';
+import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, CITY } from '../world/cityId';
 import type { NavData } from '../world/bake';
 import type { Occluder, StallAnchor } from '../world/tokyo';
 import { V, G as STREET, WX0, WZ0, WX1, WZ1, WORLD_W, WORLD_D, ZONES, zoneAt } from '../world/layout';
@@ -151,7 +151,7 @@ function paintBase(w: MapWorld): { canvas: HTMLCanvasElement; step: (ms: number)
           const base = h === 255 ? C.block : C.street;
           r = base[0]; g = base[1]; b = base[2];
           if (h !== 255 && h > STREET + 1) {
-            const k = smooth(1, AMALFI ? 170 : ISTANBUL ? 60 : 26, h - STREET) * 0.85 + 0.15;
+            const k = smooth(1, AMALFI || MADEIRA ? 150 : ISTANBUL ? 60 : 26, h - STREET) * 0.85 + 0.15;
             r += (C.hill[0] - r) * k; g += (C.hill[1] - g) * k; b += (C.hill[2] - b) * k;
           }
           for (const [x0, z0, x1, z1] of parks) {
@@ -201,7 +201,7 @@ function roofsOf(w: MapWorld): { roofs: Roof[]; trees: Tree[] } {
     }
     const tall = o.top - (o.floor ?? 0) >= 13 && !HILLSIDE;
     let style: Roof['style'] = tall || AMALFI ? 'flat' : 'hip';
-    let fill = tall ? TOWERS[Math.floor(h * TOWERS.length)] : AMALFI ? PASTEL[Math.floor(h * PASTEL.length)] : ISTANBUL ? TILES[Math.floor(h * TILES.length)] : ROOFS[Math.floor(h * ROOFS.length)];
+    let fill = tall ? TOWERS[Math.floor(h * TOWERS.length)] : AMALFI ? PASTEL[Math.floor(h * PASTEL.length)] : ISTANBUL || MADEIRA ? TILES[Math.floor(h * TILES.length)] : ROOFS[Math.floor(h * ROOFS.length)];
     if (o.kind === 'landmark' && ISTANBUL) { style = 'flat'; fill = '#9aa5b1'; } // the lead domes of the mosques and the bazaars
     else if (o.kind === 'landmark') {
       if (zone === 'gado' && x1 - x0 > 40) { style = 'rail'; fill = '#d9ccb4'; }

@@ -17,10 +17,10 @@ export const lira = (t: number): number => Math.round(t * YEN_PER_LIRA);
  * What a new traveller sets off with: about a week of street food and mid-range hotels, in round local money
  * for the city the game starts in (¥150,000 ≈ €830 ≈ ₺50,000).
  */
-export const START_PURSE = perCity({ tokyo: 150_000, amalfi: eur(850), istanbul: lira(50_000) });
+export const START_PURSE = perCity({ tokyo: 150_000, amalfi: eur(850), istanbul: lira(50_000), madeira: eur(850) });
 
 /** A vendor's tip for each star of a cooking challenge: three stars pays about an hour of part-time work. */
-export const TIP_PER_STAR = perCity({ tokyo: 500, amalfi: eur(4), istanbul: lira(150) });
+export const TIP_PER_STAR = perCity({ tokyo: 500, amalfi: eur(4), istanbul: lira(150), madeira: eur(4) });
 
 /** Saves from before real prices hold pocket money (¥3,000 to start, rooms at ¥2,000): scale them up once. */
 export const ECONOMY = 2;

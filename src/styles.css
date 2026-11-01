@@ -1248,6 +1248,8 @@ body.photo-mode #hud, body.photo-mode #labels, body.photo-mode #prompt { display
 @media (max-width: 560px) { .pv-pic { margin: 0 14px; } .pv-pic img { max-height: calc(var(--vh) * 0.58); } .pv-foot { padding: 14px 14px 18px; } }
 .pp-flag.it { background: linear-gradient(90deg, #009246 0 33.3%, #fff 33.3% 66.6%, #ce2b37 66.6%); }
 .pp-flag.it i { display: none; }
+.pp-flag.pt { background: linear-gradient(90deg, #0b5aa8 0 33.3%, #ffcc00 33.3% 66.6%, #0b5aa8 66.6%); }
+.pp-flag.pt i { width: 20px; height: 20px; border-radius: 2px; background: #fff; box-shadow: inset 0 0 0 4px #d21034; clip-path: polygon(30% 0, 70% 0, 70% 30%, 100% 30%, 100% 70%, 70% 70%, 70% 100%, 30% 100%, 30% 70%, 0 70%, 0 30%, 30% 30%); }
 /* Turkey: a white crescent and star on red */
 .pp-flag.tr { background: #e30a17; position: relative; }
 .pp-flag.tr i { width: 24px; height: 24px; background: #fff; position: relative; left: -6px; }

@@ -3,8 +3,8 @@
 // over the lowest column shown. For working out what ledge-check reports.
 import { CITY } from '../src/world/cityId';
 import { V, G } from '../src/world/layout';
-const mod: any = CITY === 'amalfi' ? await import('../src/world/amalfiPlan') : await import('../src/world/istanbulPlan');
-const p = CITY === 'amalfi' ? mod.amalfiPlan() : mod.istanbulPlan();
+const mod: any = CITY === 'amalfi' ? await import('../src/world/amalfiPlan') : CITY === 'madeira' ? await import('../src/world/madeiraPlan') : await import('../src/world/istanbulPlan');
+const p = CITY === 'amalfi' ? mod.amalfiPlan() : CITY === 'madeira' ? mod.madeiraPlan() : mod.istanbulPlan();
 const [x, z, r] = process.argv.slice(2).map(Number);
 const cx = Math.floor(x / V), cz = Math.floor(z / V), R = Math.round(r / V);
 const ch = '0123456789ABCDEFGHIJ';

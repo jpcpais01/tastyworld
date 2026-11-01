@@ -3,7 +3,7 @@
 // the nav grid before using it, so a spot a later prop happens to cover is simply dropped.
 import { STREETS } from './city';
 import { V } from './layout';
-import { AMALFI, ISTANBUL } from './cityId';
+import { AMALFI, ISTANBUL, MADEIRA } from './cityId';
 import { LIDOS, lidoUmbrellas, freeBeachTowels } from './amalfiPlan';
 
 type V2 = [number, number];
@@ -16,7 +16,7 @@ const N = Math.PI, S = 0, E = Math.PI / 2, W = -Math.PI / 2;
 
 /** The kind of new-city street at (x, z), with its centre line and direction, or null in the old district. */
 export function streetAt(x: number, z: number): { kind: StreetKind; ew: boolean; centre: number; half: number } | null {
-  if (AMALFI || ISTANBUL) return null;
+  if (AMALFI || ISTANBUL || MADEIRA) return null;
   for (const s of STREETS) {
     if (x < s.x0 * V || x > (s.x1 + 1) * V || z < s.z0 * V || z > (s.z1 + 1) * V) continue;
     const a = s.ew ? s.z0 : s.x0, b = (s.ew ? s.z1 : s.x1) + 1;
@@ -134,7 +134,30 @@ function istanbulSpots(): CrowdSpots {
   };
 }
 
+/** Funchal: prayers before the Sé, a meeting point on the Largo, joggers along the promenade, the marina's boats. */
+function madeiraSpots(): CrowdSpots {
+  const pray: Spot[] = [];
+  for (let z = -30.4; z <= -25.6; z += 0.8) pray.push({ x: -8.6, z, face: W });
+  const meet: Spot[] = [];
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2, r = 2.4 + (i % 3) * 0.9;
+    meet.push({ x: 4 + Math.cos(a) * r, z: -27 + Math.sin(a) * r * 0.8, face: Math.atan2(-Math.cos(a), -Math.sin(a)) + 0.6 });
+  }
+  const jog: V2[] = [];
+  for (let z = -84; z <= 84; z += 6) jog.push([36.4, z]);
+  for (let z = 84; z >= -84; z -= 6) jog.push([38.2, z]);
+  return {
+    pray, purify: [], gates: [], meet,
+    sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
+    windows: [], jog, exercise: [],
+    boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
+    // the bay off the promenade, clear of the breakwater
+    sea: { cx: 62, cz: 30, rx: 8, rz: 18, y: -0.55 },
+  };
+}
+
 export function crowdSpots(): CrowdSpots {
+  if (MADEIRA) return madeiraSpots();
   if (AMALFI) return amalfiSpots();
   if (ISTANBUL) return istanbulSpots();
   const pray: Spot[] = [];

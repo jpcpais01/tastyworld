@@ -1,4 +1,5 @@
 import { paintColors, picture, hangIn } from './paintings';
+import { dineColors, dressWalls, tableTop, pendants, counterPiece, cornerPlant, rug, cornice, shelfProp, hiddenKitchenDress, onWall, walls, bare, stretches, put as dput, air as dair, blockCells as dblock, sideOf, F16, type Dine, type Goods } from './dining';
 import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
@@ -283,12 +284,12 @@ function tabure(c: IC2, col: number): Prop {
 }
 
 /** A tea table: small, round-ish, a tray of tulip glasses on it. */
-function teaTable(c: IC2, seed: number): Prop {
+function teaTable(c: IC2, seed: number, glasses = true): Prop {
   const p = new Prop(6, 6, 6);
   p.box(2, 0, 2, 3, 3, 3, c.iron);
   p.box(0, 4, 0, 5, 4, 5, hash3(seed, 1, 2) < 0.5 ? c.marble : c.woodBare);
   p.set(0, 4, 0, 0); p.set(5, 4, 0, 0); p.set(0, 4, 5, 0); p.set(5, 4, 5, 0);
-  p.set(1, 5, 2, c.tea); p.set(4, 5, 3, c.tea);
+  if (glasses) { p.set(1, 5, 2, c.tea); p.set(4, 5, 3, c.tea); } // (indoors the dining kit lays the table instead)
   return p;
 }
 
@@ -1871,6 +1872,21 @@ export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touche
   // the counter runs across the room two thirds of the way back; the keeper stands behind it
   const cd = Math.max(D0 + 4, D1 - 4);
   const ca0 = A0 + 1, ca1 = A1 - 2;
+  // the tables: a column by each side wall, more down the middle of a wide room, rows from the front to the counter,
+  // and always a clear way from the door to the counter
+  const spots: { side: number; td: number }[] = [];
+  if (look.tables > 0) {
+    const cols: number[] = [A0 + 2];
+    for (let s0 = A0 + 9; s0 <= A1 - 10; s0 += 7) cols.push(s0);
+    if (A1 - 3 > A0 + 6) cols.push(A1 - 3);
+    for (const side of cols) {
+      if (Math.abs(side + 1 - W / 2) < 4) continue;
+      for (let td = D0 + 3; td + 2 < cd - 2; td += 5) {
+        if (side > da - 3 && side < da + dw + 2 && td < D0 + 4) continue;
+        spots.push({ side, td });
+      }
+    }
+  }
   if (touched) {
     if (!bazaar) {
       const frameC = [c.woodDark, c.ironGreen, c.trimOx, c.woodBare, c.trimBlue, c.trimGreen][Math.floor(hash3(lt.seed, 2, 7) * 6)];
@@ -1911,11 +1927,13 @@ export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touche
     // İznik plates hung along the side walls above the dado, and coloured lanterns over the tables
     // (hung one voxel proud inside the room, never painted into the outer wall where the street would see them)
     for (const a of [A0, A1]) for (let d = D0 + 2; d + 2 < cd; d += 6) iznikPlate(ctx, f, a, base + 8, d, lt.seed + d * 3 + a);
-    if (!bazaar) for (let d = D0 + 4; d + 2 < cd; d += 7) hangingLantern(ctx, f, Math.round(W / 2) - 1 + ((d >> 1) & 1) * 2, d, base);
+    // clusters of mosaic glass lamps down the middle of the room, over the kilim
+    if (!bazaar) for (let d = D0 + 4; d + 2 < cd; d += 7) { const [mx, mz] = f.m(Math.round(W / 2) - 0.5, d); b.place(mosaicLamps(c, lt.seed + d), mx, y + 1.85, mz); }
     if (kind === 'kahve' || kind === 'cay') {
       const [sx, sz] = f.m(ca1 - 1, cd + 0.5);
       b.place(samovar(c), sx, y + 1.25, sz);
     }
+    foodRoomDress(ctx, f, lt, kind, { A0, A1, D0, D1, cd, ca0, ca1, da, dw, spots, bazaar });
     const [vx0, vz0] = f.xz(A0, D0), [vx1, vz1] = f.xz(A1, D1);
     b.indoor.push([Math.min(vx0, vx1), base, Math.min(vz0, vz1), Math.max(vx0, vx1), base + 10, Math.max(vz0, vz1)]);
     const [lx, lz] = f.m(W / 2, D / 2);
@@ -1940,26 +1958,21 @@ export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touche
     room.spots.push({ kind: 'buy', pos: [buyPos[0], y + 1.1, buyPos[1]], stand: buyStand });
   }
   b.block(...((): [number, number, number, number] => { const [p0x, p0z] = f.m(ca0 - 0.5, cd - 0.5), [p1x, p1z] = f.m(ca1 + 0.5, cd + 1.5); return [p0x, p0z, p1x, p1z]; })());
-  // tables between the door and the counter, by the windows
-  const tables = Math.min(look.tables, Math.floor((cd - D0 - 4) / 5) * 2);
+  // the tables, a stool either side, regulars at some of them
   let t = 0;
-  for (let i = 0; i < tables; i++) {
-    const side = i % 2 ? A1 - 3 : A0 + 2;
-    const td = D0 + 3 + Math.floor(i / 2) * 5;
-    if (side > da - 3 && side < da + dw + 2 && td < D0 + 4) continue;
-    if (td + 2 >= cd - 2) continue;
+  spots.forEach(({ side, td }, i) => {
     const [tx, tz] = f.m(side + 0.5, td + 0.5);
-    b.place(teaTable(c, lt.seed + i), tx, y, tz);
+    b.place(teaTable(c, lt.seed + i, false), tx, y, tz);
     b.block(tx - 0.35, tz - 0.35, tx + 0.35, tz + 0.35);
     for (const s of [-1, 1]) {
       const [sx, sz] = f.m(side + 0.5 + s * 2.4, td + 0.5);
       b.place(tabure(c, look.stoolTop), sx, y, sz);
-      if (hash3(lt.seed, i, s) < 0.55 && t < 3) {
+      if (hash3(lt.seed, i, s) < 0.5 && t < 4) {
         room.npcs.push({ role: 'guest', pos: [sx, y + 0.375, sz], facing: Math.atan2(tx - sx, tz - sz), sit: true, seed: lt.seed * 31 + i * 7 + s });
         t++;
       }
     }
-  }
+  });
   if (restaurant) {
     room.stall = restaurant.id;
     const [lx, lz] = f.m(mid, cd + 0.5);
@@ -1967,6 +1980,115 @@ export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touche
     if (touched) { const [fx, fz] = f.m(mid - 2.5, cd + 0.5); b.place(buildFood(restaurant.foods[0], b.pal), fx, y + 1.0, fz, f.turnOut); }
   }
   b.rooms.push(room);
+}
+
+/** Each kind of food room's look in the dining kit. */
+const FOOD_DRESS: Partial<Record<RoomKind, { goods: Goods[]; rail?: 'utensils' | 'pans' | 'garland' | 'herbs'; menu?: boolean; clock?: boolean; mirror?: boolean; counter: ('register' | 'tea' | 'jars' | 'bread' | 'fruit' | 'cake' | 'vase')[]; shop?: boolean }>> = {
+  kahve: { goods: ['copper', 'cups', 'jars'], clock: true, counter: ['tea', 'register'] },
+  cay: { goods: ['tea', 'glasses', 'jars'], clock: true, counter: ['tea', 'register'] },
+  lokanta: { goods: ['copper', 'plates', 'jars'], menu: true, rail: 'pans', counter: ['bread', 'register'] },
+  kebap: { goods: ['jars', 'plates', 'bottles'], menu: true, rail: 'garland', counter: ['register', 'jars'] },
+  pide: { goods: ['jars', 'plates', 'tins'], menu: true, rail: 'utensils', counter: ['register', 'bread'] },
+  borek: { goods: ['plates', 'jars', 'tea'], clock: true, counter: ['register', 'tea'] },
+  muhallebi: { goods: ['cups', 'glasses', 'plates'], mirror: true, counter: ['cake', 'register'] },
+  lokum: { goods: ['jars', 'tins', 'jars'], counter: ['register', 'vase'], shop: true },
+  baharat: { goods: ['spice', 'spice', 'jars'], rail: 'garland', counter: ['register', 'jars'], shop: true },
+  firin: { goods: ['bread', 'tins', 'jars'], counter: ['register', 'bread'] },
+  balik: { goods: ['bottles', 'plates', 'jars'], rail: 'pans', menu: true, counter: ['register', 'fruit'] },
+};
+
+/**
+ * A food room finished from the dining kit: the side walls dressed (a shelf of copper and tea glasses high up, İznik
+ * plates, a picture of the Bosphorus, a clock or a mirror, brass wall lamps), a band of İznik tiles behind the
+ * counter, every table laid with tea and something to eat under its own coloured-glass lantern (a game of tavla
+ * on some in a kahvehane), a kilim down the way to the counter, the counter's ends set out, a palm in a corner and
+ * a nazar bead over the door. Shops (lokum, spice) get shelves up their walls and sacks along one side instead.
+ */
+function foodRoomDress(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, o: { A0: number; A1: number; D0: number; D1: number; cd: number; ca0: number; ca1: number; da: number; dw: number; spots: { side: number; td: number }[]; bazaar: boolean }): void {
+  const dr = FOOD_DRESS[kind];
+  if (!dr) return;
+  const { b, c } = ctx;
+  const g = b.grid;
+  const base = lt.base;
+  const { A0, A1, D0, D1, cd, ca0, ca1 } = o;
+  const k = dineColors(b.pal);
+  const R: Dine = {
+    b, A0, A1, D0, D1, top: 10, floorY: (base - G) * V, seed: lt.seed,
+    get: (a, y, d) => { const [x, z] = f.xz(a, d); return g.get(x, base + y, z); },
+    set: (a, y, d, v) => { const [x, z] = f.xz(a, d); g.set(x, base + y, z, v); },
+    m: (a, d) => f.m(a - 0.5, d - 0.5),
+  };
+  const W = walls(R);
+  const iznik: [number, number][] = [[c.iznikBlue, c.iznikRed], [c.cobalt, c.iznikTeal], [c.iznikTeal, c.iznikRed], [c.iznikBlue, c.iznikGreen]];
+  // a shop's walls are its shelves: three tiers up each side wall, cells in front of them kept clear of walkers
+  if (dr.shop) for (const w of [W.L, W.R]) for (const [s0, s1] of stretches(R, w, 3, 9, 4)) {
+    const len = Math.min(s1 - s0 + 1, 18);
+    onWall(R, w, shelfProp(k, len * 4, dr.goods, lt.seed + s0, c.woodDark, 3), s0 + len / 2, 0.75);
+    const [a0, d0] = w.line(s0), [a1, d1] = w.line(s0 + len - 1);
+    dblock(R, a0, d0, a1, d1);
+  }
+  dressWalls(R, k, { goods: dr.goods, board: c.woodDark, pictures: dr.shop ? undefined : ['bosphorus'], plates: iznik, shade: k.shadeA, menu: dr.menu, clock: dr.clock, mirror: dr.mirror, rail: dr.rail, only: ['L', 'R'], picY: 4 });
+  // İznik tiles on the back wall between the counter and the shelf, in eighth-metre tiles: tulips and carnations
+  if (bare(R, W.B, ca0, ca1, 4, 5)) {
+    const n = (ca1 - ca0 + 1) * 2;
+    const p = new Prop(n, 4, 1, 0.125);
+    p.box(0, 0, 0, n - 1, 3, 0, (x, y) => (y === 0 || y === 3 ? c.cobalt : (x % 4 === 1 || x % 4 === 2) && (y === 1 || y === 2) ? ((x >> 2) % 2 ? c.iznikRed : c.iznikTeal) : c.iznikWhite));
+    onWall(R, W.B, p, (ca0 + ca1 + 1) / 2, 1.0);
+  }
+  // the tables laid, a lantern over each (a game of tavla left out on some in a coffee house)
+  const lit: [number, number][] = [];
+  o.spots.forEach(({ side, td }, i) => {
+    const ta = side + 1, tdd = td + 1;
+    if (kind === 'kahve' && hash3(lt.seed, i, 5) < 0.45) {
+      const p = new Prop(10, 2, 7, F16);
+      p.box(0, 0, 0, 9, 0, 6, c.woodDark); p.box(1, 1, 1, 8, 1, 5, (x, _y, z) => (x === 4 || x === 5 ? c.woodDark : (z === 1 || z === 5) && x % 2 ? (x < 4 ? c.iznikRed : c.cream) : c.woodBare));
+      p.set(2, 1, 3, c.white); p.set(6, 1, 2, c.trimDark); p.set(7, 1, 4, c.white);
+      dput(R, p, ta, tdd, 0.625, 2);
+    } else dput(R, tableTop(k, 'tr', 12, 12, [sideOf(R, 2, 1), sideOf(R, 2, 3)], lt.seed + i * 17), ta, tdd, 0.625, 2);
+    lit.push([ta, tdd]);
+  });
+  pendants(R, k, lit, 'lantern', k.shadeA, 2.0);
+  // a kilim down the way from the door to the counter
+  const mid = Math.floor((A0 + A1) / 2);
+  if (cd - 3 > D0 + 2 && !o.bazaar) rug(R, mid - 2, D0 + 1, mid + 2, cd - 3, [c.carpetRed, c.carpetBlue, c.carpetGold], 'kilim');
+  // the counter's ends
+  dr.counter.forEach((kind2, i) => dput(R, counterPiece(k, kind2, lt.seed + i), i === 0 ? ca0 + 1 : ca1 + 0.2, cd + 0.6, 1.0, 0));
+  if (kind === 'lokanta') {
+    // the steam table: trays of the day's stews, rice and beans set into the counter front
+    const n = Math.max(2, Math.min(5, Math.floor((ca1 - ca0 - 6) / 2)));
+    const p = new Prop(n * 6, 2, 6, F16);
+    for (let i = 0; i < n; i++) {
+      p.box(i * 6, 0, 0, i * 6 + 5, 0, 5, k.steel);
+      p.box(i * 6 + 1, 1, 1, i * 6 + 4, 1, 4, [c.spiceRed, c.lokumWhite, c.spiceBrown, c.apricot2, c.spiceGreen][i % 5]);
+    }
+    dput(R, p, ca0 + 2 + n * 0.75, cd + 0.75, 1.0, 0);
+  }
+  // sacks of spices or nuts along the left wall of a shop, their tops heaped
+  if (dr.shop && cd - 2 > D0 + 2) {
+    const cols = [c.spiceRed, c.spiceOrange, c.spiceYellow, c.spiceGreen, c.nut, c.pistachio, c.apricot2];
+    for (let d = D0 + 2; d + 1 <= cd - 2; d += 2) {
+      const col = kind === 'lokum' ? [c.lokumPink, c.lokumWhite, c.lokumGreen][(d >> 1) % 3] : cols[Math.floor(hash3(d, lt.seed, 2) * cols.length)];
+      dair(R, A0 + 1, 0, d, A0 + 2, 2, d + 1, (_a, y) => (y === 2 ? col : c.carpetCream));
+    }
+    dblock(R, A0 + 1, D0 + 2, A0 + 2, cd - 2);
+  }
+  // a nargile or two waiting in the corner of a coffee house, a palm in the other; a palm in a front corner elsewhere
+  if (!o.bazaar) {
+    if (kind === 'kahve' && !R.get(A0, 0, D0) && !R.get(A0 + 1, 0, D0 + 1)) {
+      for (const [na, nd] of [[A0 + 0.5, D0 + 0.5], [A0 + 1.5, D0 + 1.2]]) {
+        const p = new Prop(3, 14, 3, F16);
+        p.box(0, 0, 0, 2, 2, 2, [c.iznikBlue, c.iznikRed][Math.floor(na) & 1]); p.box(1, 3, 1, 1, 9, 1, c.brass); p.box(0, 10, 0, 2, 10, 2, c.brass); p.box(1, 11, 1, 1, 12, 1, c.ember); p.set(1, 13, 1, c.brass);
+        dput(R, p, na, nd, 0, 2);
+      }
+      dblock(R, A0, D0, A0 + 1, D0 + 1);
+    } else if (!dr.shop) cornerPlant(R, k, A0, D0, 'palm', c.copper);
+    if (!dr.shop) cornerPlant(R, k, A1 - 1, D0, kind === 'balik' ? 'monstera' : 'palm', c.copper);
+    // the nazar over the inside of the door
+    const p = new Prop(3, 6, 1, F16);
+    p.box(1, 3, 0, 1, 5, 0, c.gold); p.box(0, 0, 0, 2, 2, 0, k.nazar); p.box(1, 1, 0, 1, 1, 0, k.nazarL);
+    dput(R, p, o.da + o.dw / 2, D0 + 0.1, 2.1, 2);
+  }
+  cornice(R, c.woodDark);
 }
 
 // ------------------------------------------------------------------------------------------- hotels
@@ -3220,6 +3342,7 @@ function gizliMutfak(b: Builder, c: IC2, anchors: Anchors): BuildResult['interio
   lamp(51 * V, 1.5, 9 * V, [1, 0.55, 0.25], 6, 1.4);
   lamp(30 * V, 2.0, 8 * V, WHITEWARM, 6, 0.7);
   lamp(26 * V, 2.0, 16 * V, [1, 0.6, 0.5], 4, 0.8);
+  hiddenKitchenDress({ pal: b.pal, g, place, lamp, G, style: 'tr', wood: c.woodDark, top: c.copper, cushion: [c.carpetRed, c.carpetBlue], seed: 3298 });
   g.box(56, G, 44, 63, G + 12, 47, c.brick);
   g.box(58, G, 44, 61, G + 9, 44, c.door);
   anchors.interiorSpawn = [ox + 14.75, 0, oz + 10.0];

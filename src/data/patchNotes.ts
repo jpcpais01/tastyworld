@@ -8,7 +8,7 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.18.0',
+    version: '0.18.6',
     date: '2026-11-01',
     title: 'Traffic in Tokyo',
     items: [
@@ -17,6 +17,96 @@ export const PATCH_NOTES: PatchNote[] = [
       'The traffic lights are live. At the scramble, Hikari-dori and Neon-dori take turns, then everyone on foot crosses at once, every which way. Taxis wait in line at the rank north of the scramble and pull out one by one when they pick up a fare.',
       'The canal bridge on Neon-dori is now a car bridge, with a roadway, a pavement on each side, green railings and lamps at each end.',
       'People in town keep to the pavements along the avenues. They wait at the kerb for the walk light, cross at the crosswalks and never stop to chat in the road. Guard rails line the kerbs between crossings. Auto-walk also uses the pavements and crosswalks.',
+    ],
+  },
+  {
+    version: '0.18.5',
+    date: '2026-11-01',
+    title: 'Funchal: the Jardim Municipal in bloom, cafés under the jacarandas',
+    items: [
+      'The municipal garden by the cable car station has a lily pond on one of its terraces, with water lilies, goldfish and a two-tier fountain splashing in the middle, benches either side, and beds of blue hydrangeas and agapanthus on the terraces round it.',
+      'Café terraces now line the east side of the jacaranda boulevard: little tables with pairs of iron chairs, parasols, a light on each table at night, and people sitting out over a coffee.',
+    ],
+  },
+  {
+    version: '0.18.4',
+    date: '2026-11-01',
+    title: 'Funchal: the market at work, and anglers on the harbour',
+    items: [
+      'The Mercado dos Lavradores is busy now: a seller stands behind every fruit trestle in the courtyard, and shoppers pick over the fruit and wait at the fish and flower counters round the covered walk. At the gate two flower sellers in island dress, red waistcoats, red skirts and little black carapuças, stand by their buckets of strelitzias and proteas.',
+      'Anglers line the promenade where it meets the marina and the far end of the breakwater, rods out over the water and a cool box at their feet.',
+      'Shopkeepers stand out on the step beside their wares along the wider streets of the old town.',
+      'Up on the ridge, Nossa Senhora do Monte now has its white nave between the two towers, framed in black basalt with a gabled front to the sea, and its long basalt stair falling away down the slope.',
+    ],
+  },
+  {
+    version: '0.18.3',
+    date: '2026-11-01',
+    title: 'Funchal: Monte\'s toboggans and the painted doors',
+    items: [
+      'The Monte toboggans are running: wicker sleds slide down the steep lanes from below Monte\'s church towards Livramento, each steered by two carreiros in white cotton and straw boaters running behind. One waits by the cable car station in town, its two drivers chatting beside it.',
+      'Every door on Rua de Santa Maria is now a real painting: a woman among flowers, the sea with a fishing boat, a bird-of-paradise, azulejo diamonds, hydrangeas or a big silver fish. The hidden tasca\'s door now hides among them properly.',
+      'The Sé\'s front has King Manuel I\'s arms over the portal between two armillary spheres, a basalt string course and weathered plaster.',
+      'Gulls, pigeons and sparrows now gather on the Largo da Sé, along the promenade, by the ribeira and in the gardens.',
+    ],
+  },
+  {
+    version: '0.18.2',
+    date: '2026-11-01',
+    title: 'New skies, and Mount Fuji',
+    items: [
+      'The sky is now lit like real air: a deep blue overhead that pales toward the horizon, sunrises and sunsets that redden as the sun sinks, the Earth\'s shadow and a blue hour after dusk, then a dark sky full of stars.',
+      'Voxel clouds drift across every city on the wind, built from cubes with flat bases like real fair-weather clouds. They catch gold and pink at dawn and dusk, glow with the city\'s lights at night, and cast moving shadows on the streets below.',
+      'The white mist on the horizon is gone. Far buildings now fade into the colour of the sky behind them, blue at noon and warm toward a low sun, so the city reads as distant instead of fogged.',
+      'A blocky sun and moon cross the sky, and the stars wheel slowly through the night. Tokyo and Istanbul glow with city light, while Amalfi and Funchal show far more stars, and the Milky Way.',
+      'Tokyo: Mount Fuji now stands far to the west, snow-capped above the Tanzawa range, with Hakone and the Okutama ridges on either side, all in voxels. It turns red at dawn and dusk and shows in the canal\'s reflection. Look west down the canal, or from any high place.',
+    ],
+  },
+  {
+    version: '0.18.1',
+    date: '2026-11-01',
+    title: 'Funchal: the cable car to Monte, and six more places to eat',
+    items: [
+      'The cable car now runs from the station by the gardens up over the rooftops to Monte: red cabins glide up one rope and down the other from eight in the morning to eight at night, over steel pylons on the mountainside, to the top station by Monte\'s church.',
+      'Six new places to eat, each with a cook, a cooking challenge and two dishes: the Bar do Mercado (tremoços and an ice-cold Coral), the Churrasqueira da Sé (piri-piri chicken and fried sweet potato), the Taberna da Sardinha (grilled sardines and octopus salad), the Casa de Chá do Jardim (lemon verbena tea and almond tart), the Gelataria da Marina (passion fruit ice cream and a banana milkshake) and the Snack-Bar Avenida (the Madeiran cachorro and a Laranjada). Funchal now has 38 dishes.',
+      'Every restaurant and café in Funchal is now fully furnished: laid tables with a light over each, shelves of bottles and plates, pictures on the walls, a working kitchen, plants by the windows, and the hidden tasca laid for dinner.',
+      'The rocks along the sea are now bare black basalt instead of grass, and the cable car station has a proper roof sloping up towards the hill.',
+    ],
+  },
+  {
+    version: '0.18.0',
+    date: '2026-11-01',
+    title: 'New destination: Funchal, Madeira',
+    items: [
+      'Fly to Funchal on Madeira, in the middle of the Atlantic: a new city on the travel globe with its own arrival, passport stamp and flag.',
+      'Walk the old town and the seafront: the Sé cathedral in white plaster and black basalt (step inside under its carved ceiling), the Largo da Sé paved in black and white calçada, the Mercado dos Lavradores, the stone-walled ribeira running down to the sea under its bridges, the yellow fort, the curved breakwater and marina, and the black pebble beach.',
+      'Rua de Santa Maria in the Zona Velha has its painted doors, and the cable car station to Monte waits by the gardens.',
+      'The city climbs the hill behind you on basalt terrace walls: contour lanes and stairs, a levada with water running in its little channel, banana groves, vine pergolas, dragon trees, jacarandas in flower and bird-of-paradise flowers.',
+      'Eat your way through 26 Madeiran dishes: bolo do caco, espetada on its laurel skewer, black scabbardfish with banana, tuna steak, lapas, milho frito, picado, prego, malasadas, queijadas, broas, passion-fruit pudding, poncha, nikita and a glass of Madeira wine, from 8 restaurants, 4 street carts, cafés, and one hidden place for those who look closely.',
+      '6 hotels to stay in, prices in euros, and crowds of locals and visitors out at every hour.',
+      'Past the edge of town the whole amphitheatre of Funchal climbs to the mountains in voxels, its houses built one by one like the ones in town, with the open Atlantic to the horizon.',
+    ],
+  },
+  {
+    version: '0.17.18',
+    date: '2026-11-01',
+    title: 'Restaurants worth sitting down in',
+    items: [
+      'Every restaurant, café, izakaya, kissaten, soba shop, bakery, lokanta, kahve and sweet shop in Tokyo, Amalfi and Istanbul has been furnished from scratch to the same level: laid tables with plates, cutlery, glasses, bread, wine, tea or coffee, hanging lights over the tables, shelves of bottles and jars, menus, clocks, mirrors, pictures, plates on the walls, rugs, big potted plants and window seats.',
+      'Each kitchen behind the counter is now a working one, with hobs, sinks, hoods, pans on rails and stacks of plates, and the counters carry tills, cake stands, coffee machines, fruit and bread.',
+      'Tokyo izakayas have a tatami back room with low tables and cushions, cafés and kissatens open into a second seating room with a bookcase, and bakeries show their bakehouse with oven and bread racks.',
+      'Amalfi trattorias have majolica plates on the walls, garlands and hanging herbs; Istanbul\'s lokantas, kahves and pide shops have İznik tile bands, copper lanterns, kilims, tavla boards and nargiles; Tokyo has paper lanterns, beer crates and kamidana shrine shelves.',
+      'The three hidden places are fully laid too, with place settings at the counter, pendant lights and two small tables.',
+    ],
+  },
+  {
+    version: '0.17.17',
+    date: '2026-11-01',
+    title: 'Real houses on the hills round Amalfi',
+    items: [
+      'The 268 houses in the villages on the slopes round Amalfi (Atrani, Ravello, Pontone, Pogerola and the town\'s own outskirts) are now built exactly like the houses in town, voxel by voxel: real windows set into the wall, louvred shutters, sills, balconies with iron rails and geraniums, stone door frames, cornices, rain streaks and patches of bare tufa, barrel vaults, domes, tiled roofs and roof terraces with pergolas.',
+      'Each one stands on its own dry-stone terrace wall with a little tiled terrace and a parapet in front of its door, and lit windows glow at night like the town\'s.',
+      'Houses close to you are drawn in full detail and the ones further up the mountain in coarser voxels, so the whole coast costs less to draw than the old simplified houses did.',
     ],
   },
   {

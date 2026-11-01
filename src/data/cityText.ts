@@ -1,5 +1,6 @@
 import { perCity } from '../world/cityId';
 import { YEN_PER_EURO, YEN_PER_LIRA } from './money';
+import { MADEIRA_TEXT } from './madeira';
 
 /** The words that change from city to city: names, the diary, the hidden restaurant's riddle and the till. */
 export interface CityText {
@@ -19,7 +20,7 @@ export interface CityText {
   passport: { fact: string; streets: [string, string]; tips: string[]; words: [string, string][] };
   /** The country on the passport, in its own language, and its flag's style in the stamp book. */
   country: string;
-  flag: '' | 'it' | 'tr';
+  flag: '' | 'it' | 'tr' | 'pt';
   /** Under the district's name on the pocket map. */
   region: string;
   /** The ink of a passport stamp: the city across it and a mark for the dish. */
@@ -173,7 +174,7 @@ const ISTANBUL_TEXT: CityText = {
   currency: '₺',
 };
 
-export const TEXT: CityText = perCity({ tokyo: TOKYO, amalfi: AMALFI_TEXT, istanbul: ISTANBUL_TEXT });
+export const TEXT: CityText = perCity({ tokyo: TOKYO, amalfi: AMALFI_TEXT, istanbul: ISTANBUL_TEXT, madeira: MADEIRA_TEXT });
 
 /** A place's local name, or nothing when it only repeats the English one (Piazza dei Dogi needs no “i Dogi”). */
 export function localName(name: string, local: string): string {

@@ -6,6 +6,7 @@ import { STALLS } from './stalls';
 import { HOTEL, HOTELS } from './hotels';
 import { perCity } from '../world/cityId';
 import { eur, lira } from './money';
+import { MADEIRA_ITEMS } from './madeira';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -89,9 +90,29 @@ const ISTANBUL_MISSIONS: Mission[] = [
   { id: 'i-master', name: 'Master of Istanbul', desc: `Collect all ${AMALFI_COUNT} Istanbul passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: lira(2500), title: 'Istanbul Gourmet', item: 'goldtulip' } },
 ];
 
-export const MISSIONS: Mission[] = perCity({ tokyo: TOKYO_MISSIONS, amalfi: AMALFI_MISSIONS, istanbul: ISTANBUL_MISSIONS });
+const MADEIRA_STALL_IDS = ['caco', 'poncha', 'frutas', 'malasadas', 'espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
+const MADEIRA_MISSIONS: Mission[] = [
+  { id: 'm-first-bite', name: 'Bom Apetite', desc: 'Taste your first dish in Funchal.', progress: (s) => [Math.min(1, AMALFI_TASTED(s)), 1], reward: { yen: eur(20) } },
+  { id: 'm-trio', name: 'Três Sabores', desc: 'Discover three foods of the island.', progress: (s) => [Math.min(3, AMALFI_TASTED(s)), 3], reward: { yen: eur(30), item: 'carapuca' } },
+  { id: 'm-sweet', name: 'Doce Madeira', desc: 'Find something sweet: honey cake, malasada, nata or fruit from the market.', progress: (s) => [Math.min(1, amalfiTasted(s).filter((id) => DISH[id as keyof typeof DISH]?.dessert).length), 1], reward: { yen: eur(25) } },
+  { id: 'm-apprentice', name: 'Aprendiz', desc: 'Help a Funchal cook make a dish.', progress: (s) => [Math.min(1, MADEIRA_STALL_IDS.filter((st) => s.cooked[st]).length), 1], reward: { yen: eur(20), item: 'avental' } },
+  { id: 'm-poncha', name: 'Trinta Voltas', desc: 'Drink a poncha in the old town.', progress: (s) => [s.tasted['poncha'] ? 1 : 0, 1], reward: { yen: eur(15), item: 'caralhinho' } },
+  { id: 'm-caco', name: 'Pão Quente', desc: 'Eat a bolo do caco and a prego at the kiosk on the seafront.', progress: (s) => [['bolocaco', 'prego'].filter((d) => s.tasted[d]).length, 2], reward: { yen: eur(25) } },
+  { id: 'm-climb', name: 'Levada Walker', desc: 'Climb to the levada high on the terraces above the town.', progress: (s) => [s.flags.climbed ? 1 : 0, 1], reward: { yen: eur(30), item: 'cesto' } },
+  { id: 'm-night', name: 'Noite na Zona Velha', desc: 'Eat something after dark, when the old town fills up.', progress: (s) => [s.flags.ateAtNight ? 1 : 0, 1], reward: { yen: eur(15) } },
+  { id: 'm-tiles', name: 'Três Azulejos', desc: 'Find the three azulejo tiles hidden around Funchal.', progress: (s) => [s.manekis.length, 3], reward: { item: 'sussurro' } },
+  { id: 'm-tables', name: 'À Mesa!', desc: 'Sit down to eat in six of the town\'s restaurants.', progress: (s) => [Math.min(6, MADEIRA_TABLES.filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st)).length), 6], reward: { yen: eur(60), item: 'bordado' } },
+  { id: 'm-hotel', name: 'Boa Noite', desc: 'Check into one of Funchal\'s hotels and sleep until morning.', progress: (s) => [Math.min(1, s.stays.filter((h) => HOTEL[h]).length), 1], reward: { yen: eur(25) } },
+  { id: 'm-secret', name: 'A Porta Pintada', desc: 'Dine at the hidden tasca behind the painted door.', progress: (s) => [s.tasted['gaiado'] || s.tasted['pudim'] ? 1 : 0, 1], reward: { yen: eur(60), item: 'azulejo' } },
+  { id: 'm-stars', name: 'Muito Bem!', desc: 'Earn three stars on a Funchal cooking challenge.', progress: (s) => [MADEIRA_STALL_IDS.some((st) => (s.cooked[st] ?? 0) >= 3) ? 1 : 0, 1], reward: { yen: eur(25) } },
+  { id: 'm-photos', name: 'Postal', desc: 'Take three photos of the island in photo mode.', progress: (s) => [Math.min(3, s.flags.photosA ?? 0), 3], reward: { yen: eur(25) } },
+  { id: 'm-master', name: 'Master of Madeira', desc: `Collect all ${AMALFI_COUNT} Madeira passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: eur(120), title: 'Madeira Gourmet', item: 'goldazulejo' } },
+];
+const MADEIRA_TABLES = ['espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
+
+export const MISSIONS: Mission[] = perCity({ tokyo: TOKYO_MISSIONS, amalfi: AMALFI_MISSIONS, istanbul: ISTANBUL_MISSIONS, madeira: MADEIRA_MISSIONS });
 /** The mission for the hidden restaurant, which stays secret until its door is found. */
-export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret' });
+export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret', madeira: 'm-secret' });
 
 /** The one mission the HUD follows: a reward to claim first, otherwise the one closest to done. */
 export function trackedMission(s: SaveState): { next: Mission | null; ready: Mission[] } {
@@ -147,6 +168,7 @@ export const ITEMS: Record<string, { name: string; icon: IconName; desc: string 
   onluk: { name: 'Usta\'s apron', icon: 'coat', desc: 'A white apron from the cook\'s own hook. Eline sağlık: health to your hands.' },
   tespih: { name: 'Prayer beads', icon: 'chime', desc: 'Amber tespih beads from the terrace tea man. Old men click them for hours on every bench in the city.' },
   fisilti: { name: 'A whisper', icon: 'paw', desc: 'The three blue eyes all look up the lanes behind the Grand Bazaar, to a door with no sign...' },
+  ...MADEIRA_ITEMS,
   cezve: { name: 'Copper cezve', icon: 'coffee', desc: 'Hatice Hanım gave you her small copper coffee pot. "For your own kitchen. Boil it slowly."' },
   goldtulip: { name: 'Golden tulip', icon: 'medal', desc: 'Your Istanbul passport is complete. The ferry captains know your name.' },
   gold: { name: 'Gold stamp', icon: 'medal', desc: 'Your Japan passport is complete. Seoul is calling.' },

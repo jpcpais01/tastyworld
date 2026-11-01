@@ -1,5 +1,6 @@
 import type { Look } from '../world/characters';
 import { perCity } from '../world/cityId';
+import { MADEIRA_IDLERS, MADEIRA_CHAT, MADEIRA_GREET, MADEIRA_STARTLE, MADEIRA_ENVY, MADEIRA_CAT_LINES } from './madeira';
 
 export interface Idler { id: string; name: string; look: Look; lines: string[]; }
 
@@ -183,10 +184,11 @@ const ISTANBUL_IDLERS: Record<string, Idler> = {
   },
 };
 
-export const IDLERS: Record<string, Idler> = perCity({ tokyo: TOKYO_IDLERS, amalfi: AMALFI_IDLERS, istanbul: ISTANBUL_IDLERS });
+export const IDLERS: Record<string, Idler> = perCity({ tokyo: TOKYO_IDLERS, amalfi: AMALFI_IDLERS, istanbul: ISTANBUL_IDLERS, madeira: MADEIRA_IDLERS });
 
 export const CAT_LINES: string[] = perCity({
   tokyo: ['Nyaa~', 'The cat blinks at you slowly. That means trust.', 'Purrrr...', 'The cat stretches, then ignores you magnificently.'],
+  madeira: MADEIRA_CAT_LINES,
   amalfi: ['Miao.', 'The cat squints at the sea, unimpressed.', 'Purrrr...', 'The cat rolls over on the warm stone.'],
   istanbul: ['Miyav.', 'The cat owns this street, and it knows it.', 'Purrrr...', 'The cat accepts one head scratch. Only one.'],
 });
@@ -258,7 +260,7 @@ const ISTANBUL_GREET: Record<'morning' | 'day' | 'evening', string[]> = {
 const ISTANBUL_STARTLE = ['Aman!', 'Dikkat!', 'Yavaş, yavaş!', 'Pardon!', 'Hoppala!'];
 const ISTANBUL_ENVY = ['Afiyet olsun!', 'Where did you get that?', 'Now I want one too...'];
 
-export const CROWD_CHAT = perCity({ tokyo: TOKYO_CHAT, amalfi: AMALFI_CHAT, istanbul: ISTANBUL_CHAT });
-export const CROWD_GREET = perCity({ tokyo: TOKYO_GREET, amalfi: AMALFI_GREET, istanbul: ISTANBUL_GREET });
-export const CROWD_STARTLE = perCity({ tokyo: TOKYO_STARTLE, amalfi: AMALFI_STARTLE, istanbul: ISTANBUL_STARTLE });
-export const CROWD_ENVY = perCity({ tokyo: TOKYO_ENVY, amalfi: AMALFI_ENVY, istanbul: ISTANBUL_ENVY });
+export const CROWD_CHAT = perCity({ tokyo: TOKYO_CHAT, amalfi: AMALFI_CHAT, istanbul: ISTANBUL_CHAT, madeira: MADEIRA_CHAT });
+export const CROWD_GREET = perCity({ tokyo: TOKYO_GREET, amalfi: AMALFI_GREET, istanbul: ISTANBUL_GREET, madeira: MADEIRA_GREET });
+export const CROWD_STARTLE = perCity({ tokyo: TOKYO_STARTLE, amalfi: AMALFI_STARTLE, istanbul: ISTANBUL_STARTLE, madeira: MADEIRA_STARTLE });
+export const CROWD_ENVY = perCity({ tokyo: TOKYO_ENVY, amalfi: AMALFI_ENVY, istanbul: ISTANBUL_ENVY, madeira: MADEIRA_ENVY });

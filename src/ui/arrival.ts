@@ -254,8 +254,51 @@ const istanbul: Theme = (v) => {
   return { coverMs: 1200, partMs: 2000 };
 };
 
+// --------------------------------------------------------------------------------------------- Madeira
+/**
+ * A Portuguese azulejo in cobalt on white: a quarter of a big rosette in each corner (four tiles join into one whole
+ * flower), a passion flower in the middle, scrolls between. The tiles of the panel flip in from the middle out.
+ */
+const AZULEJO = (() => {
+  const C = '#1d4a9a', L = '#6f95cf', W = '#fbf8f1';
+  const corner = (x: number, y: number) =>
+    `<g transform='translate(${x} ${y})'><circle r='22' fill='${C}'/>${
+      Array.from({ length: 12 }, (_, k) => `<ellipse cy='-15' rx='3.6' ry='7' fill='${W}' transform='rotate(${k * 30})'/>`).join('')}<circle r='7' fill='${W}'/><circle r='3.4' fill='${C}'/></g>`;
+  const scroll = (a: number) =>
+    `<g transform='rotate(${a} 50 50)' fill='none' stroke='${C}' stroke-width='2.2' stroke-linecap='round'><path d='M50 6 C50 16 40 18 36 26 C33 32 38 36 42 34'/><path d='M50 6 C50 16 60 18 64 26 C67 32 62 36 58 34'/></g>` +
+    `<g transform='rotate(${a} 50 50)' fill='${L}'><circle cx='42' cy='34' r='2.6'/><circle cx='58' cy='34' r='2.6'/></g>`;
+  // the passion flower: ten petals, a fringe of filaments, the five-armed centre
+  const petals = Array.from({ length: 10 }, (_, k) => `<ellipse cy='-11' rx='3.2' ry='8' fill='${L}' transform='rotate(${k * 36 + 18})'/>`).join('');
+  const fringe = Array.from({ length: 24 }, (_, k) => `<path d='M0 -6 L0 -12' stroke='${C}' stroke-width='1.1' transform='rotate(${k * 15})'/>`).join('');
+  const arms = Array.from({ length: 5 }, (_, k) => `<path d='M0 0 L0 -6' stroke='${C}' stroke-width='1.8' stroke-linecap='round' transform='rotate(${k * 72})'/>`).join('');
+  return svg('0 0 100 100',
+    `<rect width='100' height='100' fill='${W}'/>` + [0, 90, 180, 270].map(scroll).join('') +
+    corner(0, 0) + corner(100, 0) + corner(0, 100) + corner(100, 100) +
+    `<g transform='translate(50 50)'>${petals}${fringe}<circle r='5' fill='${W}' stroke='${C}' stroke-width='1.2'/>${arms}<circle r='1.8' fill='${C}'/></g>`);
+})();
+
+/** A jacaranda blossom: a little purple trumpet seen from the side. */
+const JACARANDA = svg('-12 -12 24 24', `<path d='M-8 -2 C-4 -7 4 -7 8 -3 C6 0 6 3 8 6 C3 8 -4 7 -8 2 C-6 1 -6 -1 -8 -2Z' fill='#8b6bd0'/><path d='M-6 0 C-2 -3 3 -3 6 0' stroke='#c7b4ef' stroke-width='1.3' fill='none'/>`);
+/** A petal of bird-of-paradise orange. */
+const STRELITZIA = svg('-14 -6 28 12', `<path d='M-13 0 C-6 -6 6 -5 13 0 C6 5 -6 6 -13 0Z' fill='#f08a24'/><path d='M-10 0 L10 0' stroke='#ffc066' stroke-width='1.2'/>`);
+
+const madeira: Theme = (v) => {
+  v.style.setProperty('--tile', AZULEJO);
+  const W = innerWidth, H = innerHeight, s = Math.ceil(Math.max(W, H) / (W > H ? 7 : 5.5));
+  const kx = Math.ceil(W / 2 / s), ky = Math.ceil(H / 2 / s);
+  const x0 = W / 2 - kx * s, y0 = H / 2 - ky * s;
+  const far = Math.hypot(kx, ky);
+  for (let r = 0; r < 2 * ky; r++) for (let c = 0; c < 2 * kx; c++) {
+    const d = Math.hypot(c + 0.5 - kx, r + 0.5 - ky) / far;
+    v.appendChild(el('tl', `left:${f(x0 + c * s, 0)}px;top:${f(y0 + r * s, 0)}px;width:${s}px;height:${s}px;--dd:${f(d, 3)};--fl:${(c + r) % 2 ? 1 : -1}`));
+  }
+  mist(v, 1);
+  flutter(v, [JACARANDA, JACARANDA, JACARANDA, STRELITZIA], W > H ? 22 : 16, [3, 5.5], 1);
+  return { coverMs: 1200, partMs: 2000 };
+};
+
 /** Every city chooses its own arrival; destinations without a city yet get the clouds. */
-const THEMES: Record<CityId, Theme> = { tokyo, amalfi, istanbul };
+const THEMES: Record<CityId, Theme> = { tokyo, amalfi, istanbul, madeira };
 
 const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 

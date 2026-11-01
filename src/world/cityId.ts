@@ -1,6 +1,6 @@
 /** The cities a trip can land in. Each page load builds exactly one of them. */
-export type CityId = 'tokyo' | 'amalfi' | 'istanbul';
-export const CITIES: readonly CityId[] = ['tokyo', 'amalfi', 'istanbul'];
+export type CityId = 'tokyo' | 'amalfi' | 'istanbul' | 'madeira';
+export const CITIES: readonly CityId[] = ['tokyo', 'amalfi', 'istanbul', 'madeira'];
 export const CITY_KEY = 'tastyworld.city';
 
 const known = (v: unknown): CityId | null => (CITIES as readonly unknown[]).includes(v) ? v as CityId : null;
@@ -25,8 +25,11 @@ export const CITY: CityId = (() => {
 
 export const AMALFI = CITY === 'amalfi';
 export const ISTANBUL = CITY === 'istanbul';
+export const MADEIRA = CITY === 'madeira';
 /** Cities built on a heightfield (streets climb, labels and seats follow the ground), not on Tokyo's flat street level. */
-export const HILLSIDE = AMALFI || ISTANBUL;
+export const HILLSIDE = AMALFI || ISTANBUL || MADEIRA;
+/** Cities on an open sea to the east (+x), built on the coast engine Amalfi started: the shore road, the far coast. */
+export const COAST = AMALFI || MADEIRA;
 
 /**
  * Pick this city's entry. Every city must be listed, so a new CityId fails to compile until it has its own words,

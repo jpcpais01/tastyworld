@@ -146,6 +146,26 @@ const int PARENT[13] = int[13](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3, 11);
 #ifdef SWAY
 ${SWAY_FN}
 #endif
+#ifdef FAR
+// the villages on the slopes past the map (engine/fartown.ts): each vertex knows its house's middle and its tile
+in vec3 aHome;
+uniform vec4 uFarRect; // the map (x0, z0, x1, z1), where the far coast begins
+uniform vec3 uCamFwd;
+#ifdef FARBASE
+uniform int uFine[4]; // tiles drawn by a finer mesh of their own, one bit each: the base mesh leaves them out
+#endif
+// the far coast's squat (engine/farcoast.ts SQUASH): in the iso view the slopes between the camera and the map
+// sink out of the way, and a house on them isn't drawn at all
+float farSquash(vec2 xz) {
+  if (projectionMatrix[3][3] != 1.0) return 1.0;
+  vec2 dir = xz - (uFarRect.xy + uFarRect.zw) * 0.5;
+  float l = length(dir);
+  if (l < 1.0) return 1.0;
+  float camSide = -dot(dir / l, normalize(uCamFwd.xz));
+  vec2 o = max(uFarRect.xy - xz, xz - uFarRect.zw);
+  return mix(1.0, 0.03, smoothstep(-0.3, 0.25, camSide) * smoothstep(0.0, 24.0, max(0.0, max(o.x, o.y))));
+}
+#endif
 ${VOXEL_SCALES}
 // What the fragment shader needs is packed tight: a voxel face is a few pixels across, so the city is
 // millions of vertices a frame and every value passed along costs. Per face: x = aPack.x (face | scale << 3 |
@@ -182,6 +202,16 @@ void main() {
   float seam = step(127.5, aPack.x);
 #ifndef CUTAWAY
   if (seam > 0.5) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
+#endif
+#ifdef FAR
+  float squat = farSquash(aHome.xy);
+#ifdef FARBASE
+  int ti = int(aHome.z + 0.5);
+  bool finer = ((uFine[ti >> 5] >> (ti & 31)) & 1) != 0;
+#else
+  bool finer = false;
+#endif
+  if (squat < 0.6 || finer) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
 #endif
   float pk = aPack.x - seam * 128.0;
   float face = mod(pk, 8.0);
@@ -244,6 +274,9 @@ void main() {
   vNormal = normalize(mat3(modelMatrix) * n);
 #endif
   vWorld = wp.xyz;
+#ifdef FAR
+  wp.y *= squat;
+#endif
   vQuad = aQuad;
 #ifndef ATLAS
   vLight = aLight;
@@ -258,6 +291,18 @@ void main() {
     else vp.z += 0.005;
   }
   gl_Position = projectionMatrix * vp;
+}
+`;
+
+/** How the clouds drift (m/s); the sky (engine/sky.ts) and the shadows they cast share it. */
+export const CLOUD_WIND = 'vec2(3.2, 1.1)';
+/** Shadows the sky's voxel clouds cast on the town: the same cubes, sampled up along the light. */
+const CLOUD_SHADOW = /* glsl */ `
+float cloudShadow(vec3 w) {
+  vec2 q = w.xz + uSunDir.xz / max(uSunDir.y, 0.2) * (uCloudGeo.x - w.y) + uTime * ${CLOUD_WIND};
+  float n = texture(tCloud, q / (uCloudGeo.y * 512.0)).r;
+  float th = uCloudMap.x + 1.0 / uCloudMap.y;
+  return smoothstep(th - 0.02, th + 0.03, n);
 }
 `;
 
@@ -278,6 +323,10 @@ uniform float uNight;
 uniform float uEmitDay;
 uniform float uTime;
 uniform float uCloud;
+uniform highp sampler2D tCloud; // the sky's voxel cloud map (engine/sky.ts)
+uniform vec4 uCloudGeo;         // base height, cube size, layers, 1 / haze distance
+uniform vec4 uCloudMap;         // threshold, gain
+${CLOUD_SHADOW}
 uniform vec4 uWarm[3];  // covered markets (x0, z0, x1, z1 in metres): lamplit and warm all day under their roofs
 uniform vec3 uWarmTop;  // and the height each one's roof stops at
 uniform sampler2D tNoise; // value-noise lattice (see latticeNoise in renderer.ts)
@@ -288,6 +337,9 @@ float vnoiseT(vec2 p) {
   return texture(tNoise, (i + f * f * (3.0 - 2.0 * f) + 0.5) * (1.0 / 64.0)).r;
 }
 uniform vec4 uBounds; // x0, z0, x1, z1 of the playable map (fade outside)
+#ifdef FAR
+uniform vec4 uFarRect;
+#endif
 uniform vec4 uFog;    // first-person eye position and haze density (0 in the iso view)
 #ifndef ICON
 uniform highp sampler2DShadow tShadow;
@@ -557,6 +609,9 @@ void main() {
   // leafy bump into a speck of shadow
   bool lookup = ndl > 0.0 && uShadow.x > 0.0 && sun > 0.004 && abs(vColor.a * 255.0 - 128.0) > 0.5;
 #endif
+#ifdef FAR
+  lookup = false; // (far past the shadow map: the bake has the sun)
+#endif
   if (lookup) {
     float w;
     float v = sunShadow(n, w);
@@ -565,10 +620,7 @@ void main() {
 #endif
   // drifting cloud shadows
   float cloud = 1.0;
-  if (uCloud > 0.0) {
-    vec2 cp = vWorld.xz * 0.045 + vec2(uTime * 0.012, uTime * 0.006);
-    cloud = 1.0 - uCloud * smoothstep(0.45, 0.75, vnoiseT(cp) * 0.65 + vnoiseT(cp * 2.3) * 0.35);
-  }
+  if (uCloud > 0.0) cloud = 1.0 - min(0.6, uCloud * 1.9) * cloudShadow(vWorld);
   vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
   vec3 direct = uSunColor * ndl * sun * cloud * (0.6 + 0.4 * ao);
   vec3 ambient = hemi * ao * (0.25 + 0.75 * sky);
@@ -632,6 +684,19 @@ void main() {
 #ifdef CHARACTER
   col += albedo * uFlash;
 #endif
+#ifdef FAR
+  // the far coast's aerial perspective (engine/farcoast.ts HAZE), so the villages sit in the same air as their slopes
+  {
+    vec2 o = max(uFarRect.xy - vWorld.xz, vWorld.xz - uFarRect.zw);
+    float lift = mix(1.0, 0.7, smoothstep(20.0, 600.0, vWorld.y));
+    float a = (1.0 - exp(-max(0.0, max(o.x, o.y)) * 0.0016)) * lift;
+    if (uFog.w > 0.0) {
+      float fd = max(0.0, distance(vWorld, uFog.xyz) - FOG_START) * uFog.w * 0.12;
+      a = max(a, (1.0 - exp(-fd * fd)) * lift);
+    }
+    col = mix(col, uFogColor * mix(vec3(1.0), vec3(0.88, 0.95, 1.07), a), min(a, 0.92));
+  }
+#else
   // fade into the haze outside the playable map
   vec2 outside = max(uBounds.xy - vWorld.xz, vWorld.xz - uBounds.zw);
   float fo = smoothstep(0.0, 9.0, max(outside.x, outside.y));
@@ -640,6 +705,7 @@ void main() {
     float fd = max(0.0, distance(vWorld, uFog.xyz) - FOG_START) * uFog.w;
     col = mix(col, uFogColor, 1.0 - exp(-fd * fd));
   }
+#endif
 #ifdef CUTAWAY
   if (capped) {
     // section cap: warm cut stone with a darker rim where the wall ends
@@ -791,6 +857,7 @@ uniform sampler2D tShore;   // signed distance to the water's edge (see computeS
 uniform vec4 uShoreRect;    // origin x, z and 1 / extent x, z (metres)
 in vec2 vUv;
 layout(location = 0) out vec4 outColor;
+//#SKY
 
 vec3 worldAt(vec2 uv, float depth) {
   vec4 p = uInvViewProj * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
@@ -860,9 +927,13 @@ float caustic(vec2 p, float t) {
   return c;
 }
 
+// the sky seen in a reflection: the table, and the far mountains when the ray finds them
 vec3 skyColor(vec3 dir) {
-  float t = clamp(dir.y * 0.8 + 0.25, 0.0, 1.0);
-  return mix(uSkyHorizon, uSkyTop, t);
+  dir.y = max(dir.y, 0.004);
+  vec3 s = skyLut(dir);
+  float tf;
+  vec4 far = farBackdrop(dir, s, tf);
+  return mix(s, far.rgb, far.a);
 }
 
 vec3 aces(vec3 x) {
@@ -881,14 +952,13 @@ void main() {
   vec3 rd = normalize(worldAt(uv, 1.0) - near);
   if (depth >= 0.99999) {
     if (uClip.z > 0.5) {
-      // eye-level sky: haze at the horizon melting into the gradient, with a soft glow round the sun or moon
-      vec3 sky = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 0.7, rd.y));
-      col = mix(uFogColor, sky, smoothstep(-0.04, 0.22, rd.y));
-      float sd = max(dot(rd, uSunDir), 0.0);
-      col += uSunColor * (pow(sd, 900.0) * 5.0 + pow(sd, 14.0) * 0.12);
+      // eye-level sky (engine/sky.ts): the angle one pixel spans sizes the stars
+      vec3 rdx = normalize(worldAt(uv + vec2(1.0 / uRes.x, 0.0), 1.0) - worldAt(uv + vec2(1.0 / uRes.x, 0.0), 0.0));
+      col = skyView(near, rd, length(rdx - rd));
     } else {
-      // background haze gradient
-      col = mix(uSkyHorizon, uSkyTop, smoothstep(-0.2, 1.2, uv.y));
+      // the iso view looks down: the haze at the foot, the sky a little way up at the top
+      vec3 up = normalize(vec3(uCamFwd.x, 0.0, uCamFwd.z) + vec3(0.0, 0.45, 0.0));
+      col = mix(uFogColor, skyLut(up), smoothstep(0.1, 1.1, uv.y));
     }
   } else if (wpos.y < uWaterY - 0.004 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w
       && shoreDist(near.xz + rd.xz * ((uWaterY - near.y) / rd.y)) > -1.5) { // (only real water: not the floor under a chunk still streaming in)
@@ -1024,6 +1094,15 @@ void main() {
     float top = uWaterY + 0.09 + 0.045 * sin(wpos.x * 2.3 + wpos.z * 1.7 + uTime * 1.2) + 0.05 * vnoise(wpos.xz * 5.0 + uTime * 0.2);
     float wet = smoothstep(top + 0.035, top - 0.035, wpos.y) * smoothstep(-0.35, -0.04, sdw);
     col *= mix(1.0, 0.58, wet);
+  }
+
+  // aerial perspective: the town's first-person haze went to one colour (the horizon where the camera looks);
+  // give each pixel the horizon of its own direction, warm toward a low sun and cool away from it. Only what
+  // really went into the haze is retinted: far shaders haze in their own ways, so it is judged by the colour
+  if (uFog.w > 0.0 && depth < 0.99999) {
+    float fd = max(0.0, length(wpos - near) - FOG_START) * uFog.w;
+    float fa = (1.0 - exp(-fd * fd)) * (1.0 - smoothstep(0.06, 0.3, length(col - uFogColor) / max(length(uFogColor), 1e-3)));
+    if (fa > 0.01) col = max(col + (hazeAt(rd) - uFogColor) * fa, 0.0);
   }
 
   // tilt-shift miniature blur

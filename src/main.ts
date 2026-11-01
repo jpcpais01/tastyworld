@@ -13,7 +13,7 @@ import { Streamer, StreamView } from './engine/streamer';
 import { atlasTexture, useAtlas } from './engine/atlas';
 import type { MeshData } from './world/mesher';
 import { buildPerson, buildCat, buildDog, randomLook, Look, CHAR_FINE } from './world/characters';
-import { bikeModel, scooterModel, swanBoatModel, gozzoModel } from './world/vehicles';
+import { bikeModel, scooterModel, swanBoatModel, gozzoModel, cabinModel, CABIN_HANG, tobogganModel } from './world/vehicles';
 import { zoneAt, INTERIOR_ORIGIN, WX0, WZ0, WX1, WZ1 } from './world/layout';
 import { Meal } from './game/meal';
 import type { FoodId } from './world/food';
@@ -41,9 +41,11 @@ import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
 import { TIP_PER_STAR } from './data/money';
-import { AMALFI, ISTANBUL, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
+import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
 import { nightAt, dropLanding } from './ui/arrival';
+import { FarTown } from './engine/fartown';
 import { farCoast } from './engine/farcoast';
+import { farMadeira, type CableLine } from './engine/farMadeira';
 import { farIstanbul } from './engine/farIstanbul';
 import { IDLERS, CAT_LINES } from './data/dialogue';
 import { PATCH_NOTES } from './data/patchNotes';
@@ -219,11 +221,17 @@ class Game {
   private lastToll = -1;
   /** Moves whatever lives beyond the map (Istanbul's ferries), once a frame. */
   private farTick: ((dt: number) => void) | null = null;
+  /** Amalfi's villages on the slopes past the map (engine/fartown.ts). */
+  private farTown: FarTown | null = null;
   /** Which of the day's calls to prayer last sounded (-2 until the first frame, so loading mid-call stays quiet). */
   private lastEzan = -2;
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
   private cats: Cat[] = [];
+  /** Funchal's cable car to Monte: its line and the cabins running up and down it. */
+  private cable: { line: CableLine; len: number[]; total: number; t: number; cabins: Actor[] } | null = null;
+  /** Monte's toboggans sliding down to Livramento, each steered by two carreiros running behind. */
+  private sleds: { path: [number, number, number][]; runs: { t: number; sled: Actor; men: Actor[] }[]; parked?: Actor[]; sellers?: Actor[] } | null = null;
   private chef!: Actor;
   private blobs!: Blobs;
   private koi: Koi | null = null;
@@ -361,7 +369,7 @@ class Game {
     this.ui.loading(0.86, TEXT.loading[1]);
     if (boarding) this.boardView(); else this.titleView();
     this.updateCamera(0.016);
-    const done = this.streamer.ready();
+    const done = Promise.all([this.streamer.ready(), this.farTown?.ready()]);
     const tick = setInterval(() => this.streamer.update(0.05, this.streamView()), 50);
     await done;
     clearInterval(tick);
@@ -421,10 +429,27 @@ class Game {
       this.r.composite.uniforms.uSea.value = 1;
       this.r.camera.far = 1800;
       this.r.camera.updateProjectionMatrix();
+    } else if (MADEIRA) {
+      // the island beyond the map: the city's amphitheatre, Monte, the peaks behind, and the Atlantic to the horizon
+      const far = farMadeira(sh, [WX0, WZ0, WX1, WZ1]);
+      this.worldGroup.add(far.ground, far.houses);
+      const len = far.cable.pts.slice(1).map((p, i) => Math.hypot(p[0] - far.cable.pts[i][0], p[1] - far.cable.pts[i][1]));
+      this.cable = { line: far.cable, len, total: len.reduce((a, b) => a + b, 0), t: 0, cabins: [] };
+      this.sleds = { path: far.sled, runs: [] };
+      // its quintas up the amphitheatre, house by house with the town's own voxels
+      this.farTown = new FarTown(this.r.gl, sh, [WX0, WZ0, WX1, WZ1], far.lots, `city:${CITY}`);
+      this.worldGroup.add(this.farTown.group);
+      this.r.composite.uniforms.uWaterBounds.value.set(-4000, -4000, 4000, 4000);
+      this.r.composite.uniforms.uSea.value = 1;
+      this.r.camera.far = 1800;
+      this.r.camera.updateProjectionMatrix();
     } else if (AMALFI) {
       // the coast beyond the map: the Lattari mountains, Atrani and Ravello, and the open sea to the horizon
       const far = farCoast(sh, [WX0, WZ0, WX1, WZ1]);
       this.worldGroup.add(far.ground, far.houses);
+      // its villages, house by house with the town's own voxels, baked by a worker of their own
+      this.farTown = new FarTown(this.r.gl, sh, [WX0, WZ0, WX1, WZ1], far.lots, `city:${CITY}`);
+      this.worldGroup.add(this.farTown.group);
       this.r.composite.uniforms.uWaterBounds.value.set(-4000, -4000, 4000, 4000);
       this.r.composite.uniforms.uSea.value = 1;
       // the iso camera sits 120 m back: let it see the ridges a kilometre and more behind the town
@@ -594,7 +619,7 @@ class Game {
       });
     }
     // chef inside the hidden restaurant
-    const kak = STALL[perCity({ tokyo: 'kakurega', amalfi: 'grotta', istanbul: 'gizli' })];
+    const kak = STALL[perCity({ tokyo: 'kakurega', amalfi: 'grotta', istanbul: 'gizli', madeira: 'segredo' })];
     this.chef = new Actor(buildPerson(kak.vendorLook), this.chars);
     this.chef.position.set(a.chef[0], 0, a.chef[2]);
     this.chef.facing = this.chef.targetFacing = 0;
@@ -602,7 +627,7 @@ class Game {
     this.insideGroup.add(this.chef.root);
     this.interactables.push({
       key: 'chef', x: a.counterStand[0], z: a.counterStand[1], stand: a.counterStand, pick: [a.chef[0], 1.6, a.chef[2]], r: 1.6, inside: true,
-      prompt: () => [perCity({ tokyo: 'sushi', amalfi: 'squid', istanbul: 'pot' }), TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
+      prompt: () => [perCity({ tokyo: 'sushi', amalfi: 'squid', istanbul: 'pot', madeira: 'fish' }), TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
       act: () => this.openStall(kak, this.chef, [a.chef[0], a.chef[2]]),
     });
     this.interactables.push({
@@ -694,6 +719,7 @@ class Game {
       tokyo: m ? { walkers: 200, joggers: 5, dogs: 7, cyclists: 7, couriers: 4, boats: 2, exercise: 6 } : { walkers: 500, joggers: 10, dogs: 14, cyclists: 14, couriers: 8, boats: 3, exercise: 9 },
       amalfi: m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 },
       istanbul: m ? { walkers: 320, joggers: 3, dogs: 9, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 800, joggers: 6, dogs: 16, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
+      madeira: m ? { walkers: 260, joggers: 4, dogs: 8, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 640, joggers: 8, dogs: 14, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
     }));
     // Tokyo's avenues: cars up out of the underpasses, live traffic lights the crowd waits on
     if (CITY === 'tokyo') {
@@ -704,6 +730,43 @@ class Game {
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
     this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, ground: w.ground, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);
+
+    // the cable car's cabins, spaced along both ropes
+    if (this.cable) {
+      const n = Math.round((this.cable.total * 2) / 46);
+      for (let i = 0; i < n; i++) {
+        const act = new Actor(cabinModel(500 + i), this.chars, true);
+        this.worldGroup.add(act.root);
+        this.cable.cabins.push(act);
+      }
+      this.updateCable(0);
+    }
+    if (this.sleds) {
+      // the carreiros in their white cotton and straw boaters
+      const carreiro = (i: number): Look => ({ skin: [0xc98f6a, 0xb9805a, 0xd9a27a][i % 3], hair: 0x2a2220, hairStyle: 'short', top: 0xf4f1ea, topStyle: 'tee', accent: 0xf4f1ea, bottom: 0xf4f1ea, shoes: 0x2a2a2e, hat: 'straw', hatColor: 0xe8d8a8, moustache: i % 2 === 0 });
+      for (let i = 0; i < 3; i++) {
+        const sled = new Actor(tobogganModel(70 + i), this.chars, true);
+        const men = [0, 1].map((k) => new Actor(buildPerson(carreiro(i * 2 + k)), this.chars));
+        for (const a of [sled, ...men]) this.worldGroup.add(a.root);
+        this.sleds.runs.push({ t: i / 3, sled, men });
+      }
+      // and one waiting at the foot of the cable car for customers, its two carreiros chatting beside it
+      const px = 24.6, pz = 42.5, py = this.navWorld.heightAt(px, pz);
+      const parked = new Actor(tobogganModel(90), this.chars, true);
+      parked.position.set(px, py, pz); parked.facing = parked.targetFacing = Math.PI;
+      const men = [0, 1].map((k) => { const m = new Actor(buildPerson(carreiro(7 + k)), this.chars); const mx = px + (k ? 0.9 : -0.9), mz = pz + 0.6; m.position.set(mx, this.navWorld.heightAt(mx, mz), mz); m.facing = m.targetFacing = k ? -2.2 : 2.2; m.anim = 'talk'; return m; });
+      for (const a of [parked, ...men]) { this.worldGroup.add(a.root); a.update(0); a.light(this.lm); this.crowd.addObstacle(a.position.x, a.position.z); }
+      this.sleds.parked = [parked, ...men];
+      // the flower sellers at the market gate in island dress: red waistcoat, red skirt, the little black carapuça
+      const florista = (i: number): Look => ({ skin: [0xd9a27a, 0xc98f6a][i % 2], hair: 0x2a2220, hairStyle: 'bun', top: 0xf4f1ea, topStyle: 'vest', accent: 0xc0242c, bottom: 0xc0242c, skirt: true, shoes: 0x2a2a2e, hat: 'beanie', hatColor: 0x1c1c20 });
+      this.sleds.sellers = ([[-2.5, 30.1, Math.PI / 2], [-1.6, 29.0, 2.4]] as const).map(([x, z, f], k) => {
+        const w = new Actor(buildPerson(florista(k)), this.chars);
+        w.position.set(x, this.navWorld.heightAt(x, z), z); w.facing = w.targetFacing = f; w.anim = k ? 'talk' : 'idle';
+        this.worldGroup.add(w.root); w.update(0); w.light(this.lm); this.crowd.addObstacle(x, z);
+        return w;
+      });
+      this.updateSleds(0);
+    }
 
     // cats
     a.cats.forEach((c, i) => {
@@ -1202,6 +1265,7 @@ class Game {
   /** The slow orbit over the old town behind the title screen. */
   private titleView(): void {
     if (AMALFI) this.cam.target.set(6, 6, 6);
+    else if (MADEIRA) this.cam.target.set(0, 4, -20);
     else if (ISTANBUL) this.cam.target.set(4, 4, 20);
     else this.cam.target.set(34, 0, 30);
     this.cam.zoom = 30;
@@ -2340,6 +2404,59 @@ class Game {
     pl.light(this.upstairs?.lm ?? this.lm);
   }
 
+  /** The cable car runs from eight in the morning to eight at night at 4 m/s, a cabin every 46 m of rope. */
+  private updateCable(dt: number): void {
+    const cb = this.cable;
+    if (!cb) return;
+    const h = this.tod.hour, running = h > 8 && h < 20;
+    if (running) cb.t += dt * 4;
+    const L = cb.total, n = cb.cabins.length, sun = h > 7.5 && h < 18.5 ? 1 : h > 6.5 && h < 19.5 ? 0.6 : 0.22;
+    const pts = cb.line.pts;
+    cb.cabins.forEach((act, i) => {
+      // up one rope and back down the other, round the wheels at either end
+      let s = (cb.t + (i * 2 * L) / n) % (2 * L);
+      const up = s < L;
+      if (!up) s = 2 * L - s;
+      let k = 0;
+      while (k < cb.len.length - 1 && s > cb.len[k]) { s -= cb.len[k]; k++; }
+      const f = Math.min(1, s / cb.len[k]), [xa, ya] = pts[k], [xb, yb] = pts[k + 1];
+      act.position.set(xa + (xb - xa) * f, ya + (yb - ya) * f - CABIN_HANG, cb.line.z + (up ? -1 : 1) * cb.line.gap);
+      act.facing = act.targetFacing = 0; // (the grip runs along the rope, which runs along x)
+      act.update(dt);
+      act.lightOpen(sun);
+    });
+  }
+
+  /** Each run takes about forty seconds, and the next sled sets off from the top as one reaches the bottom. */
+  private updateSleds(dt: number): void {
+    const sl = this.sleds;
+    if (!sl) return;
+    const h = this.tod.hour, open = h > 9 && h < 18, P = sl.path, n = P.length - 1;
+    const sun = h > 7.5 && h < 18.5 ? 1 : h > 6.5 && h < 19.5 ? 0.6 : 0.22;
+    const at = (u: number): [number, number, number, number] => {
+      const f = Math.max(0, Math.min(n - 1e-4, u * n)), i = Math.floor(f), k = f - i, a = P[i], b = P[i + 1];
+      return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, Math.atan2(b[0] - a[0], b[2] - a[2])];
+    };
+    for (const a of sl.parked ?? []) a.update(dt);
+    for (const a of sl.sellers ?? []) { a.root.visible = h > 8 && h < 19.5 && !this.inside && !this.upstairs; if (a.root.visible) a.update(dt); }
+    for (const r of sl.runs) {
+      if (open) r.t = (r.t + dt / 40) % 1;
+      const [x, y, z, yaw] = at(r.t);
+      r.sled.position.set(x, y, z);
+      r.sled.facing = r.sled.targetFacing = yaw;
+      r.sled.update(dt); r.sled.lightOpen(sun);
+      // the two men behind, either side, holding the ropes and running with it
+      const [bx, by, bz] = at(r.t - 0.006);
+      r.men.forEach((m, k) => {
+        const side = k ? 0.55 : -0.55;
+        m.position.set(bx + Math.cos(yaw) * side, by, bz - Math.sin(yaw) * side);
+        m.facing = m.targetFacing = yaw;
+        m.anim = open ? 'run' : 'idle'; m.speed = 3;
+        m.update(dt); m.lightOpen(sun);
+      });
+    }
+  }
+
   private updateCats(dt: number): void {
     for (const c of this.cats) {
       const a = c.actor, p = a.position;
@@ -2379,6 +2496,8 @@ class Game {
       this.birds.update(dt, this.tod.hour, pl.position.x, pl.position.z, viewR, threats, (x, z, r) => this.crowd.nearest(x, z, r), food);
       this.perf.lap('birds');
       this.updateCats(dt);
+      this.updateCable(dt);
+      this.updateSleds(dt);
       for (const v of this.vendors) {
         if (v.waveT > 0) { v.waveT -= dt; v.actor.anim = 'wave'; if (v.waveT <= 0) { v.actor.anim = 'cook'; v.actor.targetFacing = v.ang; } }
         const d = Math.hypot(pp.x - v.actor.position.x, pp.z - v.actor.position.z);
@@ -2620,7 +2739,9 @@ class Game {
     this.updateNear();
     this.updateCamera(dt);
     this.perf.lap('camera');
-    this.streamer.update(dt, this.streamView(), !this.inside);
+    const sv = this.streamView();
+    this.streamer.update(dt, sv, !this.inside);
+    if (!this.inside) this.farTown?.update(dt, sv.cam, sv.fp, sv.focus, this.streamer.dist);
     this.perf.lap('streaming');
     this.updateCutaway(dt);
     this.perf.lap('cutaway');
@@ -2660,6 +2781,12 @@ class Game {
         this.ui.toast('flower', 'The lemon terraces', 'The whole town below, the sea beyond. Worth every step.', true);
         this.afterChange();
       }
+      // the levada round the hill, the whole bay below
+      if (MADEIRA && this.started && !this.inside && !this.upstairs && !this.s.flags.climbed && pl.y > 25) {
+        this.s.flags.climbed = true;
+        this.ui.toast('flower', 'The levada', 'The red roofs of Funchal below, the Sé, the marina, the whole bay. Worth every step.', true);
+        this.afterChange();
+      }
       // the terrace of the Süleymaniye, the whole Horn below
       if (ISTANBUL && this.started && !this.inside && !this.upstairs && !this.s.flags.climbed && pl.y > 12.5) {
         this.s.flags.climbed = true;
@@ -2679,13 +2806,14 @@ class Game {
         const d = Math.hypot(e.pos[0] - pl.x, e.pos[2] - pl.z);
         sizzle = Math.max(sizzle, 1 - d / 7);
       }
-      const water = this.inside ? 0 : ISTANBUL ? THREE.MathUtils.clamp(1 - Math.min(30 - pl.x, 44 - pl.z) / 18, 0, 1) : AMALFI ? THREE.MathUtils.clamp((pl.x - 22) / 22, 0, 1) : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
+      const water = this.inside ? 0 : ISTANBUL ? THREE.MathUtils.clamp(1 - Math.min(30 - pl.x, 44 - pl.z) / 18, 0, 1) : AMALFI || MADEIRA ? THREE.MathUtils.clamp((pl.x - 22) / 22, 0, 1) : Math.max(0, 1 - Math.abs(pl.z - 46.5) / 9);
       this.audio.ambience(Math.max(0, sizzle), water, this.tod.night, this.inside);
       // Sant'Andrea strikes the hours (not through the small hours)
       const hr = Math.floor(this.tod.hour);
-      if (AMALFI && hr !== this.lastToll) {
+      if ((AMALFI || MADEIRA) && hr !== this.lastToll) {
         if (this.lastToll >= 0 && this.started && hr >= 7 && hr <= 22) {
-          const d = Math.hypot(pl.x + 23, pl.z - 14);
+          // (Sant'Andrea's campanile, or the Sé's tower in Funchal)
+          const d = MADEIRA ? Math.hypot(pl.x + 19.5, pl.z + 15.5) : Math.hypot(pl.x + 23, pl.z - 14);
           this.audio.toll(hr % 12 || 12, 0.22 * THREE.MathUtils.clamp(1 - d / 160, 0.2, 1));
         }
         this.lastToll = hr;

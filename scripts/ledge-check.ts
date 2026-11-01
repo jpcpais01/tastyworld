@@ -51,15 +51,15 @@ console.log(`walkable cells ${walk}, town network ${size[main]} (${((size[main] 
 
 const at = (i: number) => [ox + ((i % sx) + 0.5) * V, oz + (Math.floor(i / sx) + 0.5) * V];
 // on a planned hillside, name the ground kinds either side (for working out what to fix)
-const planMod: any = process.argv.includes('--kinds') && CITY !== 'tokyo' ? await (CITY === 'amalfi' ? import('../src/world/amalfiPlan') : import('../src/world/istanbulPlan')) : null;
-const plan = planMod ? (CITY === 'amalfi' ? planMod.amalfiPlan() : planMod.istanbulPlan()) : null;
+const planMod: any = process.argv.includes('--kinds') && CITY !== 'tokyo' ? await (CITY === 'amalfi' ? import('../src/world/amalfiPlan') : CITY === 'madeira' ? import('../src/world/madeiraPlan') : import('../src/world/istanbulPlan')) : null;
+const plan = planMod ? (CITY === 'amalfi' ? planMod.amalfiPlan() : CITY === 'madeira' ? planMod.madeiraPlan() : planMod.istanbulPlan()) : null;
 /** Ground past the town's edge (Amalfi's wild slopes and crags, Istanbul's band beyond the edge): a natural or built end. */
-const edgeMod: any = CITY === 'amalfi' ? await import('../src/world/amalfiPlan') : CITY === 'istanbul' ? await import('../src/world/istanbulPlan') : null;
-const edgePlan = CITY === 'amalfi' ? edgeMod.amalfiPlan() : null;
+const edgeMod: any = CITY === 'amalfi' ? await import('../src/world/amalfiPlan') : CITY === 'madeira' ? await import('../src/world/madeiraPlan') : CITY === 'istanbul' ? await import('../src/world/istanbulPlan') : null;
+const edgePlan = CITY === 'amalfi' ? edgeMod.amalfiPlan() : CITY === 'madeira' ? edgeMod.madeiraPlan() : null;
 const wildAt = (i: number) => {
   const [x, z] = at(i);
   if (CITY === 'istanbul') return edgeMod.beyond(x, z);
-  if (CITY !== 'amalfi') return false;
+  if (CITY !== 'amalfi' && CITY !== 'madeira') return false;
   const vx = Math.floor(x / V), vz = Math.floor(z / V), c = edgeMod.col(vx, vz);
   return edgePlan.kind[c] === 0 && (edgePlan.crag[c] === 1 || edgeMod.wildRock(vx, vz, edgePlan.walk[c]));
 };

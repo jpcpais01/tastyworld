@@ -1,6 +1,7 @@
 import { rng } from './grid';
 import { Palette } from './palette';
 import { Prop } from './props';
+import { buildMadeiraFood, type MadeiraFood } from './foodMadeira';
 
 /** Voxel models of every dish. Pure data so they can be built in the worker (counter displays) and on the main thread (icons). */
 
@@ -63,6 +64,16 @@ export function foodColors(pal: Palette) {
     ragu: a(0x8a2416, 0.06), meat: a(0x7a4028, 0.08), meatDark: a(0x5a2a18, 0.06),
     candied: a(0x6aa83a, 0.15), shortcrust: a(0xd89a4a, 0.08), shortcrustHi: a(0xe8b060, 0.06), pastieraTop: a(0xe8c87a, 0.06), wheat: a(0xd8b878, 0.06),
     risotto: a(0xf2e6b8, 0.04), risottoHi: a(0xfaf2d0, 0.03), leaf: a(0x2f6a26, 0.08), pastaEdge: a(0xe8cc88, 0.05),
+    // Madeira
+    mustard: a(0xd9a62a, 0.05), poncha: a(0xe8b84a, 0.04, 0.04), peanut: a(0xc8a070, 0.08), peanutDark: a(0x8a6038, 0.08),
+    nikita: a(0xf4ecd0, 0.03), pineapple: a(0xf2d050, 0.06), passion: a(0xf2c23a, 0.06), passionSkin: a(0x5a2a4a, 0.08),
+    seed: a(0x2a2018, 0.05), anona: a(0x8ab05a, 0.08), anonaDark: a(0x5a7a3a, 0.08), trunkLite: a(0x8a6a48, 0.06),
+    brisaLabel: a(0xe8b030, 0.04), laurel: a(0x2a5a22, 0.08), tunaSear: a(0x6a3a2a, 0.08), tunaPink: a(0xd8707a, 0.06),
+    porkWine: a(0x8a3a2a, 0.08), orange: a(0xe8822a, 0.05), orangeIn: a(0xf2a84a, 0.05), garlicW: a(0xf6f0de, 0.03),
+    honeyCake: a(0x4a2414, 0.06), honeyTop: a(0x6a3418, 0.06), walnut: a(0x8a5a30, 0.08), wine: a(0x9a4a1a, 0.04, 0.05),
+    wineLabel: a(0xefe6cc, 0.03), wineLabelInk: a(0x6a1a1a, 0.04), bottleDark: a(0x1e2a1a, 0.04), broa: a(0x9a5a2a, 0.08),
+    milkCoffee: a(0xc89a6a, 0.04), coffeeDark: a(0x3a2010, 0.04), pumpkin: a(0xe0882a, 0.06), gaiado: a(0x8a8a84, 0.08),
+    pudim: a(0xe8a83a, 0.05), banana: a(0xf2d65a, 0.05), limpet: a(0x6a6458, 0.1), limpetIn: a(0xe0b060, 0.06),
   };
 }
 
@@ -76,7 +87,8 @@ export type FoodId =
   | 'dondurma' | 'salep' | 'doner' | 'ayran' | 'baklava' | 'kunefe' | 'hunkar' | 'manti'
   | 'espresso' | 'cornetto' | 'ndunderi' | 'parmigiana' | 'vongole' | 'acquapazza' | 'margherita' | 'calzone'
   | 'bruschetta' | 'carrozza' | 'panuozzo' | 'taralli' | 'arancino' | 'crocche' | 'baba' | 'zeppola'
-  | 'alici' | 'polpo' | 'sorrentina' | 'polpette' | 'melanzane' | 'pastiera' | 'risotto' | 'ravioli';
+  | 'alici' | 'polpo' | 'sorrentina' | 'polpette' | 'melanzane' | 'pastiera' | 'risotto' | 'ravioli'
+  | MadeiraFood;
 
 type FC = ReturnType<typeof foodColors>;
 
@@ -151,6 +163,7 @@ export function buildFood(id: FoodId, pal: Palette): Prop {
     case 'pastiera': return pastiera(c);
     case 'risotto': return risotto(c);
     case 'ravioli': return ravioli(c);
+    default: return buildMadeiraFood(id, c);
   }
 }
 

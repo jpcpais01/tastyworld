@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.0',
+    date: '2026-11-01',
+    title: 'New destination: Funchal, Madeira',
+    items: [
+      'Fly to Funchal on Madeira, in the middle of the Atlantic: a new city on the travel globe with its own arrival, passport stamp and flag.',
+      'Walk the old town and the seafront: the Sé cathedral in white plaster and black basalt (step inside under its carved ceiling), the Largo da Sé paved in black and white calçada, the Mercado dos Lavradores, the stone-walled ribeira running down to the sea under its bridges, the yellow fort, the curved breakwater and marina, and the black pebble beach.',
+      'Rua de Santa Maria in the Zona Velha has its painted doors, and the cable car station to Monte waits by the gardens.',
+      'The city climbs the hill behind you on basalt terrace walls: contour lanes and stairs, a levada with water running in its little channel, banana groves, vine pergolas, dragon trees, jacarandas in flower and bird-of-paradise flowers.',
+      'Eat your way through 26 Madeiran dishes: bolo do caco, espetada on its laurel skewer, black scabbardfish with banana, tuna steak, lapas, milho frito, picado, prego, malasadas, queijadas, broas, passion-fruit pudding, poncha, nikita and a glass of Madeira wine, from 8 restaurants, 4 street carts, cafés, and one hidden place for those who look closely.',
+      '6 hotels to stay in, prices in euros, and crowds of locals and visitors out at every hour.',
+      'Past the edge of town the whole amphitheatre of Funchal climbs to the mountains in voxels, its houses built one by one like the ones in town, with the open Atlantic to the horizon.',
+    ],
+  },
+  {
     version: '0.17.17',
     date: '2026-11-01',
     title: 'Real houses on the hills round Amalfi',

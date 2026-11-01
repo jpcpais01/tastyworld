@@ -107,6 +107,8 @@ export class Renderer {
   readonly particleDepth: THREE.IUniform<THREE.Texture | null> = { value: null };
   /** And the scene's colour, for light that lands on it (the halls' sun shafts). */
   readonly particleColor: THREE.IUniform<THREE.Texture | null> = { value: null };
+  /** Size of the half-res particle buffer in pixels (particles keep a minimum on-screen size). */
+  readonly particleRes: THREE.IUniform<THREE.Vector2> = { value: new THREE.Vector2(1, 1) };
   quality: Quality;
   renderScale = 1;
   /** Hears each render pass start by name (the perf overlay times them on the GPU). */
@@ -206,6 +208,7 @@ export class Renderer {
       new THREE.WebGLRenderTarget(Math.max(1, Math.round(w / d)), Math.max(1, Math.round(h / d)), { type, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
     this.rtHalf = half(2);
     this.rtParticles = half(2, THREE.HalfFloatType);
+    this.particleRes.value.set(this.rtParticles.width, this.rtParticles.height);
     this.bloom = [half(4), half(8), half(16), half(32)];
     this.composite.uniforms.uRes.value.set(w, h);
     this.persp.aspect = cw / Math.max(1, ch);

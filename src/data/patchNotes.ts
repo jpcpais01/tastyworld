@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.14',
+    date: '2026-11-01',
+    title: 'Calm cherry petals from above',
+    items: [
+      'Falling cherry blossom petals in Tokyo no longer shimmer and flicker when the camera is zoomed far out: tiny petals now stay a steady soft speck instead of popping in and out between pixels, and only flutter when you are close enough to see it.',
+      'Petals floating on the canal and fireflies at night hold steady from high up too.',
+    ],
+  },
+  {
     version: '0.18.13',
     date: '2026-11-01',
     title: 'Overhead view stays put',

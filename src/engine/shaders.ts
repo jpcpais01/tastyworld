@@ -1070,6 +1070,7 @@ void main() {
     vec2 pp = (sp.xz - flow * uTime * (0.4 + 0.6 * slow)) * 2.3;
     vec2 cell = floor(pp);
     float hp = hash12(cell);
+    float ppx = length(fwidth(pp)); // petal-cell units per pixel: fade the floating petals before they go sub-pixel
     if (uSea > 0.5) {
       // surf: a ribbon of foam where the swell breaks on the pebbles, pulled back and forth
       float run = dEdge * 6.0 - uTime * 1.1 + vnoise(sp.xz * 0.4) * 3.0;
@@ -1080,8 +1081,8 @@ void main() {
       vec2 f = fract(pp) - 0.5 - (vec2(hash12(cell + 7.1), hash12(cell + 3.3)) - 0.5) * 0.5;
       float a = hp * 40.0 + uTime * 0.4;
       f = mat2(cos(a), -sin(a), sin(a), cos(a)) * f;
-      float pet = smoothstep(0.075, 0.05, length(f * vec2(1.0, 1.9)));
-      water = mix(water, srgb2lin(vec3(0.96, 0.74, 0.82)) * clamp(lightF, 0.08, 1.4), pet * smoothstep(0.05, 0.3, dEdge) * 0.9);
+      float pe = max(0.0125, ppx * 0.5), pet = smoothstep(0.0625 + pe, 0.0625 - pe, length(f * vec2(1.0, 1.9)));
+      water = mix(water, srgb2lin(vec3(0.96, 0.74, 0.82)) * clamp(lightF, 0.08, 1.4), pet * smoothstep(0.05, 0.3, dEdge) * smoothstep(0.16, 0.07, ppx) * 0.9);
     }
     if (uFog.w > 0.0) {
       float fd = max(0.0, distance(sp, uFog.xyz) - FOG_START) * uFog.w;
@@ -1145,6 +1146,7 @@ uniform vec3 uCamRight;
 uniform vec3 uCamUp;
 uniform vec3 uWind;
 uniform float uNight;
+uniform vec2 uPartRes; // size of the half-res particle buffer in pixels
 out vec2 vUv;
 out float vAlpha;
 out vec3 vTint;
@@ -1184,7 +1186,10 @@ void main() {
     p = q;
     vAlpha = smoothstep(0.0, 0.08, life) * smoothstep(0.0, 0.3, p.y) * 0.95;
     vTint = mix(vec3(1.0, 0.72, 0.8), vec3(1.0, 0.86, 0.9), fract(aSeed.x * 13.0));
-    size *= 0.85 + 0.3 * sin(uTime * 4.0 + aSeed.x * 50.0);
+    // flutter, settled out once the petal is only a few pixels (a size pulse there reads as twinkling)
+    vec4 pc = projectionMatrix * viewMatrix * vec4(p, 1.0);
+    float px0 = size * projectionMatrix[0][0] / pc.w * 0.5 * uPartRes.x;
+    size *= 1.0 + 0.15 * sin(uTime * 4.0 + aSeed.x * 50.0) * smoothstep(6.0, 14.0, px0);
   } else if (kind > 4.5) { // sparkle around a lucky cat
     life = fract(uTime * aSeed.y * 0.6 + aSeed.x);
     p += vec3(0.0, life * 0.5, 0.0);
@@ -1200,6 +1205,17 @@ void main() {
   }
   vKind = kind;
   vUv = position.xy + 0.5;
+  // Sub-pixel particles (petals and fireflies seen from high up) would pop in and out between pixels and
+  // shimmer. Keep every quad at least a few pixels wide and dim it by the area it grew, so it covers the
+  // same light on average but lands smoothly on the pixel grid.
+  vec4 cc = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  float px = size * projectionMatrix[0][0] / cc.w * 0.5 * uPartRes.x;
+  float minPx = kind > 2.5 && kind < 3.5 ? 4.0 : 2.5;
+  if (px < minPx && px > 0.0) {
+    float g = minPx / px;
+    size *= g;
+    vAlpha /= g * g;
+  }
   vec3 wp = p + (uCamRight * position.x + uCamUp * position.y) * size;
   vClip = projectionMatrix * viewMatrix * vec4(wp, 1.0);
   gl_Position = vClip;
@@ -1225,7 +1241,8 @@ void main() {
   if (vKind > 2.5 && vKind < 3.5) {
     // petal: little ellipse
     vec2 q = vec2(c.x * 1.6, c.y);
-    a = smoothstep(0.25, 0.18, length(q));
+    float lq = length(q), e = max(0.035, fwidth(lq));
+    a = smoothstep(0.215 + e, 0.215 - e, lq);
   } else if (vKind > 4.5) {
     // four-point star
     vec2 q = abs(c) * 2.0;

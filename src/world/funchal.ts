@@ -2105,7 +2105,7 @@ function awning(c: AC, col: number): Prop {
  * Via Lorenzo d'Amalfi and the streets off the piazza: the shops spill out of their doors, ceramics on racks,
  * limoncello on shelves, linen on rails and crates of lemons, under striped awnings.
  */
-type Extra = { pos: [number, number, number]; face: number; seed: number; indoor?: boolean };
+type Extra = import('./tokyo').Extra;
 
 /**
  * The Mercado dos Lavradores at work: a seller behind every fruit trestle in the courtyard, shoppers picking over
@@ -2208,11 +2208,21 @@ function shopfronts(b: Builder, c: AC, plan: Plan, out: Extra[]): void {
         b.place(prop, x, fl, z, turn);
         b.block(x - 0.6, z - 0.6, x + 0.6, z + 0.6);
         if (front && r() < 0.6) b.place(awning(c, awnings[Math.floor(r() * awnings.length)]), ex + nx * side * (d - 0.5625), fl + 2.5, ez + nz * side * (d - 0.5625), turn); // its back against the wall
-        // the shopkeeper out on the step beside the goods, where the street is wide enough to stand in
-        if (front && s.w >= 3.5 && r() < 0.45) {
-          const ux = (bx - ax) / len, uz = (bz - az) / len, kx = x + ux * 0.95, kz = z + uz * 0.95;
-          const kc = col(Math.floor(kx / V), Math.floor(kz / V));
-          if (!plan.lot[kc] && Math.abs((plan.walk[kc] - G) * V - fl) < 0.3) { out.push({ pos: [kx, fl, kz], face: Math.atan2(-nx * side, -nz * side), seed: 9000 + out.length * 7 }); b.block(kx - 0.3, kz - 0.3, kx + 0.3, kz + 0.3); }
+        // the shopkeeper out on the step beside the goods, where the street is wide enough to stand in (the first
+        // test keeps the street's random draws as they were; the second, by hash, adds keepers along the walls)
+        if ((front && s.w >= 3.5 && r() < 0.45) || (s.w >= 3 && hash3(Math.round(x * 4), Math.round(z * 4), 67) < 0.18)) {
+          const ux = (bx - ax) / len, uz = (bz - az) / len;
+          for (const along of [0.95, -0.95, 1.5, -1.5]) {
+            const kx = x + ux * along, kz = z + uz * along, kc = col(Math.floor(kx / V), Math.floor(kz / V));
+            const ox = kx - nx * side * 0.25, oz = kz - nz * side * 0.25, oc = col(Math.floor(ox / V), Math.floor(oz / V));
+            if (plan.lot[kc] || plan.lot[oc] || Math.abs((plan.walk[kc] - G) * V - fl) >= 0.3) continue;
+            // they sell what is on their rack: tiles and crafts, wine, embroidery, flowers
+            const shop = pick < 0.3 ? 'artesanato' : pick < 0.55 ? 'vinho' : pick < 0.8 ? 'bordado' : 'flores';
+            const sa = along > 0 ? 0.45 : -0.45;
+            out.push({ pos: [kx, fl, kz], face: Math.atan2(-nx * side, -nz * side), seed: 9000 + out.length * 7, shop, stand: [x - nx * side * 1.1 + ux * sa, z - nz * side * 1.1 + uz * sa] });
+            b.block(kx - 0.3, kz - 0.3, kx + 0.3, kz + 0.3);
+            break;
+          }
         }
       }
     }

@@ -7,6 +7,9 @@ import { HOTEL, HOTELS } from './hotels';
 import { perCity } from '../world/cityId';
 import { eur, lira } from './money';
 import { MADEIRA_ITEMS } from './madeira';
+import { CITY_SOUVENIRS } from './souvenirs';
+import { ISTANBUL_MORE_STALLS } from './istanbulMenu';
+import { TOKYO_MORE_STALLS } from './tokyoMenu';
 
 export interface Reward { yen?: number; item?: string; title?: string; }
 
@@ -42,6 +45,8 @@ const TOKYO_MISSIONS: Mission[] = [
   { id: 'stars', name: 'Three Stars', desc: 'Earn three stars on any cooking challenge.', progress: (s) => [Math.max(0, ...Object.values(s.cooked)) >= 3 ? 1 : 0, 1], reward: { yen: 2000 } },
   { id: 'browse', name: 'Window Shopper', desc: 'Step inside ten different shops, cafés and bars.', progress: (s) => [Math.min(10, s.rooms.length), 10], reward: { yen: 2500 } },
   { id: 'tables', name: 'Table for One', desc: 'Sit down to eat at Kissa Komorebi and Soba-dokoro Kikyō.', progress: (s) => [['komorebi', 'kikyo'].filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st)).length, 2], reward: { yen: 3000, item: 'noren' } },
+  { id: 'noren', name: 'Under the Noren', desc: 'Eat at six of the district\'s restaurants: oden, katsu, unagi, yōshoku, sukiyaki, robata, udon and more.', progress: (s) => [Math.min(6, TOKYO_MORE_STALLS.filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st.id)).length), 6], reward: { yen: 6000 } },
+  { id: 'kanmi', name: 'Afternoon Sweets', desc: 'Have anmitsu or kakigōri, warabi mochi with matcha, and a kurīmu pan.', progress: (s) => [[['anmitsu', 'kakigori'], ['warabimochi', 'matcha'], ['kurimupan', 'fruitsando']].filter((g) => g.some((d) => s.tasted[d])).length, 3], reward: { yen: 3000 } },
   { id: 'gacha', name: 'Capsule Collector', desc: 'Collect six different gachapon capsule charms.', progress: (s) => [Math.min(6, s.capsules.length), 6], reward: { yen: 3500 } },
   { id: 'gacha-all', name: 'Gachapon Master', desc: `Complete the set of ${CAPSULES.length} capsule charms, golden shrimp included.`, progress: (s) => [s.capsules.length, CAPSULES.length], reward: { yen: 7500, title: 'Capsule Royalty' } },
   { id: 'shelf', name: 'Between the Pages', desc: 'An old bookshop on Kaminari Lane is hiding a room.', progress: (s) => [s.flags.shelfOpen ? 1 : 0, 1], reward: { yen: 3000 } },
@@ -70,7 +75,10 @@ const AMALFI_MISSIONS: Mission[] = [
   { id: 'a-master', name: 'Master of Amalfi', desc: `Collect all ${AMALFI_COUNT} Amalfi passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: eur(120), title: 'Amalfi Gourmet', item: 'goldlemon' } },
 ];
 
-const ISTANBUL_STALL_IDS = ['simitci', 'balikci', 'midyeci', 'kestaneci', 'dondurmaci', 'durumcu', 'baklavaci'];
+const ISTANBUL_STALL_IDS = ['simitci', 'balikci', 'midyeci', 'kestaneci', 'dondurmaci', 'durumcu', 'baklavaci', ...ISTANBUL_MORE_STALLS.map((st) => st.id)];
+/** The places with tables: every sit-down passport cook in the city. */
+const ISTANBUL_TABLES = ['durumcu', 'baklavaci', ...ISTANBUL_MORE_STALLS.filter((st) => st.restaurant).map((st) => st.id)];
+const ateAt = (s: SaveState, st: string) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st);
 const ISTANBUL_MISSIONS: Mission[] = [
   { id: 'i-first-bite', name: 'Afiyet Olsun', desc: 'Taste your first dish in Istanbul.', progress: (s) => [Math.min(1, AMALFI_TASTED(s)), 1], reward: { yen: lira(400) } },
   { id: 'i-trio', name: 'Üç Lezzet', desc: 'Discover three street foods in Istanbul.', progress: (s) => [Math.min(3, AMALFI_TASTED(s)), 3], reward: { yen: lira(600), item: 'fes' } },
@@ -78,6 +86,9 @@ const ISTANBUL_MISSIONS: Mission[] = [
   { id: 'i-apprentice', name: 'Çırak', desc: 'Help an Istanbul vendor cook a dish.', progress: (s) => [Math.min(1, ISTANBUL_STALL_IDS.filter((st) => s.cooked[st]).length), 1], reward: { yen: lira(400), item: 'onluk' } },
   { id: 'i-quay', name: 'By the Boats', desc: 'Eat a balık ekmek and drink a pickle juice on the quay.', progress: (s) => [['balikekmek', 'tursu'].filter((d) => s.tasted[d]).length, 2], reward: { yen: lira(500) } },
   { id: 'i-tables', name: 'Sit Down, Sit Down', desc: 'Eat at the dürüm house and the baklava house up the hill.', progress: (s) => [['durumcu', 'baklavaci'].filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st)).length, 2], reward: { yen: lira(800) } },
+  { id: 'i-lokantas', name: 'Lokanta Hopping', desc: 'Sit down to eat at six different lokantas, salons and pudding shops.', progress: (s) => [Math.min(6, ISTANBUL_TABLES.filter((st) => ateAt(s, st)).length), 6], reward: { yen: lira(1500) } },
+  { id: 'i-carts', name: 'Street Corner Gourmet', desc: 'Eat from the kumpir, lokma and gözleme carts.', progress: (s) => [['kumpirci', 'lokmaci', 'gozlemeci'].filter((st) => ateAt(s, st)).length, 3], reward: { yen: lira(800) } },
+  { id: 'i-coffee', name: 'Forty Years', desc: 'Drink a Turkish coffee in the Grand Bazaar and a glass of tea on the quay.', progress: (s) => [['kahve', 'cay'].filter((d) => s.tasted[d]).length, 2], reward: { yen: lira(500) } },
   { id: 'i-climb', name: 'Seven Hills', desc: 'Climb to the terrace of the great mosque on the hill.', progress: (s) => [s.flags.climbed ? 1 : 0, 1], reward: { yen: lira(600), item: 'tespih' } },
   { id: 'i-browse', name: 'Çarşı Wanderer', desc: 'Step inside ten different shops, tea houses and lokantas.', progress: (s) => [Math.min(10, s.rooms.length), 10], reward: { yen: lira(600) } },
   { id: 'i-night', name: 'Istanbul Nights', desc: 'Eat something after dark, when the minarets light up.', progress: (s) => [s.flags.ateAtNight ? 1 : 0, 1], reward: { yen: lira(300) } },
@@ -110,7 +121,22 @@ const MADEIRA_MISSIONS: Mission[] = [
 ];
 const MADEIRA_TABLES = ['espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
 
-export const MISSIONS: Mission[] = perCity({ tokyo: TOKYO_MISSIONS, amalfi: AMALFI_MISSIONS, istanbul: ISTANBUL_MISSIONS, madeira: MADEIRA_MISSIONS });
+/** Every city's souvenir shops: a first piece to take home, a shelf of eight, and a piece the city has only one of. */
+function shopMissions(p: string, city: string, first: number, eight: number): Mission[] {
+  const mine = (s: SaveState) => CITY_SOUVENIRS.filter((it) => s.souvenirs?.[it.id] !== undefined);
+  return [
+    { id: `${p}souvenir`, name: 'Something to Remember', desc: `Buy your first souvenir in ${city}.`, progress: (s) => [Math.min(1, mine(s).length), 1], reward: { yen: first } },
+    { id: `${p}collector`, name: 'Souvenir Collector', desc: `Take home eight different souvenirs from the shops of ${city}.`, progress: (s) => [Math.min(8, mine(s).length), 8], reward: { yen: eight } },
+    { id: `${p}treasure`, name: 'One of a Kind', desc: `Find a piece nobody else in ${city} sells, and make it yours. Shopkeepers know who has what.`, progress: (s) => [mine(s).some((it) => it.tier === 'treasure') ? 1 : 0, 1], reward: { title: 'Treasure Hunter' } },
+  ];
+}
+
+export const MISSIONS: Mission[] = perCity({
+  tokyo: [...TOKYO_MISSIONS, ...shopMissions('', 'Tokyo', 2000, 6000)],
+  amalfi: [...AMALFI_MISSIONS, ...shopMissions('a-', 'Amalfi', eur(15), eur(40))],
+  istanbul: [...ISTANBUL_MISSIONS, ...shopMissions('i-', 'Istanbul', lira(500), lira(1500))],
+  madeira: [...MADEIRA_MISSIONS, ...shopMissions('m-', 'Madeira', eur(15), eur(40))],
+});
 /** The mission for the hidden restaurant, which stays secret until its door is found. */
 export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret', madeira: 'm-secret' });
 

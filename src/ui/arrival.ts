@@ -5,7 +5,8 @@ import type { CityId } from '../world/cityId';
  * The arrival veil: after the plane lands, something rolls in over the globe, hides the switch to the city, then
  * parts to show the streets. Each city has its own: Tokyo walks you through a split noren curtain in a flurry of
  * cherry petals, Amalfi sweeps lemon boughs and bougainvillea aside through sea mist, Istanbul turns a wall of
- * İznik tiles and lets the gulls out. Anywhere else gets the blocky clouds.
+ * İznik tiles and lets the gulls out, Madeira rises out of the Atlantic and dives you into Funchal's bay. Anywhere
+ * else gets the blocky clouds.
  *
  * Everything is DOM with transform and opacity transitions only, so it stays on the compositor while the city
  * loads underneath. The art is a handful of inline SVGs used as backgrounds (each rasterised once per size).
@@ -255,46 +256,208 @@ const istanbul: Theme = (v) => {
 };
 
 // --------------------------------------------------------------------------------------------- Madeira
-/**
- * A Portuguese azulejo in cobalt on white: a quarter of a big rosette in each corner (four tiles join into one whole
- * flower), a passion flower in the middle, scrolls between. The tiles of the panel flip in from the middle out.
+/*
+ * Madeira does not pull anything across the screen: the island itself rises out of the Atlantic. Five voxel strips
+ * stack up from the bottom (the peaks with Pico Ruivo, the cloud sea that sits on them, the terraced poios, Funchal's
+ * amphitheatre of white houses round the Sé, the bay with the promenade palms and the Santa Maria), the cable car
+ * climbs its wire while the city loads, and then you dive into the town: every strip zooms past the camera at its own
+ * depth, the far ones first, the bay last.
+ *
+ * Every strip is drawn on the same scale (U units per screen height) and laid bottom-centre with `cover`, so the art
+ * lines up on any screen up to 2.6:1; a phone in portrait sees the middle of it, where the Pico and the Sé stand.
  */
-const AZULEJO = (() => {
-  const C = '#1d4a9a', L = '#6f95cf', W = '#fbf8f1';
-  const corner = (x: number, y: number) =>
-    `<g transform='translate(${x} ${y})'><circle r='22' fill='${C}'/>${
-      Array.from({ length: 12 }, (_, k) => `<ellipse cy='-15' rx='3.6' ry='7' fill='${W}' transform='rotate(${k * 30})'/>`).join('')}<circle r='7' fill='${W}'/><circle r='3.4' fill='${C}'/></g>`;
-  const scroll = (a: number) =>
-    `<g transform='rotate(${a} 50 50)' fill='none' stroke='${C}' stroke-width='2.2' stroke-linecap='round'><path d='M50 6 C50 16 40 18 36 26 C33 32 38 36 42 34'/><path d='M50 6 C50 16 60 18 64 26 C67 32 62 36 58 34'/></g>` +
-    `<g transform='rotate(${a} 50 50)' fill='${L}'><circle cx='42' cy='34' r='2.6'/><circle cx='58' cy='34' r='2.6'/></g>`;
-  // the passion flower: ten petals, a fringe of filaments, the five-armed centre
-  const petals = Array.from({ length: 10 }, (_, k) => `<ellipse cy='-11' rx='3.2' ry='8' fill='${L}' transform='rotate(${k * 36 + 18})'/>`).join('');
-  const fringe = Array.from({ length: 24 }, (_, k) => `<path d='M0 -6 L0 -12' stroke='${C}' stroke-width='1.1' transform='rotate(${k * 15})'/>`).join('');
-  const arms = Array.from({ length: 5 }, (_, k) => `<path d='M0 0 L0 -6' stroke='${C}' stroke-width='1.8' stroke-linecap='round' transform='rotate(${k * 72})'/>`).join('');
-  return svg('0 0 100 100',
-    `<rect width='100' height='100' fill='${W}'/>` + [0, 90, 180, 270].map(scroll).join('') +
-    corner(0, 0) + corner(100, 0) + corner(0, 100) + corner(100, 100) +
-    `<g transform='translate(50 50)'>${petals}${fringe}<circle r='5' fill='${W}' stroke='${C}' stroke-width='1.2'/>${arms}<circle r='1.8' fill='${C}'/></g>`);
-})();
+const SW = 480, U = SW / 2.6;
+/** Deterministic randomness, so the island is the same every landing. */
+const rng = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0;
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+const n1 = (n: number) => +n.toFixed(1);
+const wav = (x: number, w: [number, number, number][]) => w.reduce((s, [k, a, p]) => s + a * Math.sin((2 * Math.PI * k * x) / SW + p), 0);
+/** From `centre` in the middle of the bay to `edge` at the sides: Funchal is an amphitheatre. */
+const bowl = (x: number, centre: number, edge: number) => centre + (edge - centre) * Math.min(1, Math.abs(x - SW / 2) / 180) ** 1.4;
+const bump = (x: number, at: number, hgt: number, w: number) => hgt * Math.exp(-(((x - at) / w) ** 2));
 
-/** A jacaranda blossom: a little purple trumpet seen from the side. */
-const JACARANDA = svg('-12 -12 24 24', `<path d='M-8 -2 C-4 -7 4 -7 8 -3 C6 0 6 3 8 6 C3 8 -4 7 -8 2 C-6 1 -6 -1 -8 -2Z' fill='#8b6bd0'/><path d='M-6 0 C-2 -3 3 -3 6 0' stroke='#c7b4ef' stroke-width='1.3' fill='none'/>`);
-/** A petal of bird-of-paradise orange. */
-const STRELITZIA = svg('-14 -6 28 12', `<path d='M-13 0 C-6 -6 6 -5 13 0 C6 5 -6 6 -13 0Z' fill='#f08a24'/><path d='M-10 0 L10 0' stroke='#ffc066' stroke-width='1.2'/>`);
+/** One strip `h` screens tall; `top(x)` is how high the land reaches there, in screens from the bottom. */
+function strip(h: number, cell: number, top: (x: number) => number) {
+  const SH = n1(h * U), cols = Math.ceil(SW / cell);
+  const tops = Array.from({ length: cols }, (_, i) => Math.max(0, Math.round((SH - top((i + 0.5) * cell) * U) / cell) * cell));
+  return { SH, cell, tops, svg: (body: string, defs = '') => svg(`0 0 ${SW} ${SH}`, `<g shape-rendering='crispEdges'>${body}</g>`, defs) };
+}
+type Strip = ReturnType<typeof strip>;
 
-const madeira: Theme = (v) => {
-  v.style.setProperty('--tile', AZULEJO);
-  const W = innerWidth, H = innerHeight, s = Math.ceil(Math.max(W, H) / (W > H ? 7 : 5.5));
-  const kx = Math.ceil(W / 2 / s), ky = Math.ceil(H / 2 / s);
-  const x0 = W / 2 - kx * s, y0 = H / 2 - ky * s;
-  const far = Math.hypot(kx, ky);
-  for (let r = 0; r < 2 * ky; r++) for (let c = 0; c < 2 * kx; c++) {
-    const d = Math.hypot(c + 0.5 - kx, r + 0.5 - ky) / far;
-    v.appendChild(el('tl', `left:${f(x0 + c * s, 0)}px;top:${f(y0 + r * s, 0)}px;width:${s}px;height:${s}px;--dd:${f(d, 3)};--fl:${(c + r) % 2 ? 1 : -1}`));
+/** The stepped ground of a strip, with lit tops and shaded risers so every column reads as a voxel. */
+function land(s: Strip, fill: string, lit: string, shade: string): string {
+  const { tops, cell: c, SH } = s;
+  let d = `M0 ${SH}`, hi = '', sh = '';
+  tops.forEach((y, i) => {
+    const x = i * c, n = tops[i + 1];
+    d += `L${n1(x)} ${y}H${n1(x + c)}`;
+    hi += `M${n1(x)} ${n1(y + c * 0.12)}h${c}`;
+    if (n !== undefined && n !== y) sh += `M${n1(x + c + (n > y ? -c * 0.12 : c * 0.12))} ${Math.min(y, n)}V${Math.max(y, n)}`;
+  });
+  return `<path d='${d}V${SH}Z' fill='${fill}'/><path d='${hi}' stroke='${lit}' stroke-width='${n1(c * 0.24)}'/><path d='${sh}' stroke='${shade}' stroke-width='${n1(c * 0.24)}'/>`;
+}
+
+/** Little houses for a strip's cell size: whitewash or ochre under a terracotta roof, green shutters (lit at night). */
+function houses(c: number, night: boolean): string {
+  const walls = night ? ['#80839f', '#8b8197', '#7a849a', '#80839f'] : ['#f7f2e8', '#f2dfbd', '#f6e6df', '#f7f2e8'];
+  const roof = night ? '#5a3442' : '#c9532f', q = (k: number) => n1(c * k);
+  return walls.map((w, k) => {
+    const win = night ? (k === 3 ? '#3d405c' : '#ffd27a') : '#3f7d4f';
+    return `<g id='h${k}'><rect x='${q(0.08)}' y='${q(0.3)}' width='${q(0.84)}' height='${q(0.7)}' fill='${w}'/><rect width='${c}' height='${q(0.34)}' fill='${roof}'/>` +
+      `<rect x='${q(0.36)}' y='${q(0.52)}' width='${q(0.28)}' height='${q(0.3)}' fill='${win}'/></g>`;
+  }).join('') +
+    `<g id='t'><rect x='${q(0.05)}' y='${q(0.1)}' width='${q(0.9)}' height='${q(0.75)}' fill='${night ? '#203a30' : '#3d7b36'}'/><rect x='${q(0.25)}' width='${q(0.5)}' height='${q(0.3)}' fill='${night ? '#2a4a3a' : '#5c9c45'}'/><rect x='${q(0.44)}' y='${q(0.8)}' width='${q(0.12)}' height='${q(0.2)}' fill='#5a3d2a'/></g>` +
+    `<g id='j'><rect x='${q(0.05)}' y='${q(0.1)}' width='${q(0.9)}' height='${q(0.75)}' fill='${night ? '#4b3f72' : '#9a7ad8'}'/><rect x='${q(0.25)}' width='${q(0.5)}' height='${q(0.3)}' fill='${night ? '#5c4f88' : '#bba3ec'}'/><rect x='${q(0.44)}' y='${q(0.8)}' width='${q(0.12)}' height='${q(0.2)}' fill='#5a3d2a'/></g>`;
+}
+const use = (id: string, x: number, y: number) => `<use href='#${id}' x='${n1(x)}' y='${n1(y)}'/>`;
+
+function madeiraArt(night: boolean) {
+  const P = night
+    ? { pk: ['#2e3863', '#3d4876'], cl: ['#a3acd8', '#6f79aa'], sl: '#2d4a3f', sld: '#253f37', fo: '#1b3330', tn: '#2f4b3c', sea: ['#173a66', '#0d2346'], wall: '#9095b4', basalt: '#22232b' }
+    : { pk: ['#7f93b8', '#a8bdd8'], cl: ['#ffffff', '#dfe3f3'], sl: '#5c9a48', sld: '#4a843c', fo: '#2f6a37', tn: '#76ad52', sea: ['#2c7fc0', '#154d86'], wall: '#fbf8f1', basalt: '#3b3b42' };
+  const grad = (id: string, [a, b]: string[]) => `<linearGradient id='${id}' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${a}'/><stop offset='1' stop-color='${b}'/></linearGradient>`;
+
+  // the peaks: Pico Ruivo and Pico do Arieiro in the middle, the central massif either side
+  const pk = strip(0.86, 2, (x) => 0.63 + wav(x, [[2, 0.025, 0.4], [5, 0.012, 1.3], [11, 0.006, 2]]) + bump(x, 222, 0.17, 24) + bump(x, 262, 0.1, 18) + bump(x, 150, 0.08, 34) + bump(x, 345, 0.07, 40));
+  const rp = rng(3);
+  let strata = '';
+  pk.tops.forEach((y, i) => {
+    for (let k = 0; k < 3; k++) {
+      const yy = y + 2 * Math.round(2 + rp() * 14);
+      if (yy < pk.SH) strata += `<rect x='${i * 2}' y='${yy}' width='2' height='${rp() < 0.5 ? 2 : 4}'/>`;
+    }
+  });
+  const peaks = pk.svg(land(pk, 'url(#g)', night ? '#4a5688' : '#b8c8e0', night ? '#252d52' : '#6d80a5') +
+    `<g fill='${night ? '#262f57' : '#6f84ab'}' opacity='0.55'>${strata}</g>`, grad('g', P.pk));
+
+  // the cloud sea that sits on the mountains, a solid back bank and lower wisps in front of the poios
+  const r = rng(11);
+  const cb = strip(0.7, 3, (x) => 0.6 + 0.035 * Math.abs(Math.sin(x / 13)) + 0.025 * Math.abs(Math.sin(x / 5.3 + 1)) + r() * 0.012);
+  const cloudBack = cb.svg(land(cb, 'url(#c)', P.cl[0], P.cl[1]), grad('c', P.cl));
+  const cf = strip(0.6, 3, () => 0);
+  let wisps = '';
+  for (let i = 0; i < SW / 3; i++) {
+    const x = i * 3, k = Math.sin(x / 31) + 0.6 * Math.sin(x / 11 + 2);
+    if (k < 0.15) continue;
+    const yt = Math.round((cf.SH - (0.535 + 0.025 * k) * U) / 3) * 3, yb = Math.round((cf.SH - (0.52 - 0.012 * k) * U) / 3) * 3;
+    if (yb > yt) wisps += `<rect x='${x}' y='${yt}' width='3' height='${yb - yt}'/>`;
   }
-  mist(v, 1);
-  flutter(v, [JACARANDA, JACARANDA, JACARANDA, STRELITZIA], W > H ? 22 : 16, [3, 5.5], 1);
-  return { coverMs: 1200, partMs: 2000 };
+  const cloudFront = cf.svg(`<g fill='${P.cl[0]}' opacity='0.92'>${wisps}</g>`);
+
+  // the poios: green terraces climbing to the laurel forest, the odd farmhouse and banana patch
+  const sl = strip(0.62, 2.5, (x) => bowl(x, 0.5, 0.6) + wav(x, [[3, 0.012, 0.2], [9, 0.006, 1.1]]));
+  const rs = rng(23);
+  let sBody = land(sl, 'url(#p)', night ? '#3a5e4c' : '#76b45a', P.sld);
+  sl.tops.forEach((y, i) => {
+    const x = i * sl.cell, deep = 2 + Math.round(2.5 + 2.5 * Math.sin(x / 17) + rs() * 1.5);
+    sBody += `<rect x='${n1(x)}' y='${y}' width='${sl.cell}' height='${n1(deep * sl.cell)}' fill='${P.fo}'/>`;
+    for (let yy = y + (deep + 1) * sl.cell; yy < sl.SH; yy += sl.cell) {
+      const p = rs();
+      if (p < 0.07) sBody += use(`h${(i + yy) % 4}`, x, yy);
+      else if (p < 0.11) sBody += `<rect x='${n1(x)}' y='${n1(yy)}' width='${sl.cell}' height='${n1(sl.cell * 0.7)}' fill='${night ? '#3c5a32' : '#a6c64a'}'/>`;
+    }
+  });
+  const slopes = sl.svg(sBody,
+    `<pattern id='p' width='10' height='5' patternUnits='userSpaceOnUse'><rect width='10' height='5' fill='${P.sl}'/><rect y='4' width='10' height='1' fill='${P.sld}'/></pattern>${houses(sl.cell, night)}`);
+
+  // Funchal: whitewashed houses packed down to the bay, trees and jacarandas between, the Sé in the middle
+  const tw = strip(0.42, 3, (x) => bowl(x, 0.3, 0.4) + wav(x, [[4, 0.01, 0.5], [13, 0.005, 2.2]]));
+  const rt = rng(5), hidden = tw.SH - 0.14 * U;
+  let tBody = land(tw, P.tn, night ? '#3d5f4b' : '#93c46a', night ? '#253c30' : '#5a8a3e');
+  tw.tops.forEach((y, i) => {
+    const x = i * tw.cell;
+    // (nothing below the promenade: the bay covers it)
+    for (let yy = y; yy < hidden; yy += tw.cell) {
+      const depth = (yy - y) / Math.max(1, hidden - y), p = rt();
+      if (p < 0.58 + 0.3 * depth) tBody += use(`h${Math.floor(rt() * 4)}`, x, yy);
+      else if (p < 0.8 + 0.1 * depth) tBody += use(rt() < 0.3 ? 'j' : 't', x, yy);
+    }
+  });
+  // the Sé: a white nave framed in basalt, the tower with its tiled spire (ground just above the promenade)
+  const g = n1(tw.SH - 0.175 * U), b = P.basalt, w = P.wall;
+  const tile = night ? ['#3d6a8a', '#8a8f6a'] : ['#2e8a8a', '#e8d27a'];
+  let spire = '';
+  for (let row = 0; row < 4; row++) for (let c = row; c < 8 - row; c++) {
+    spire += `<rect x='${258 + c}' y='${n1(g - 22.6 - row * 1.6)}' width='1' height='1.6' fill='${tile[(c + row) % 2]}'/>`;
+  }
+  tBody += `<rect x='234' y='${n1(g - 9)}' width='24' height='9' fill='${w}'/><rect x='234' y='${n1(g - 10.5)}' width='24' height='1.5' fill='${night ? '#4a3038' : '#b8492c'}'/>` +
+    `<rect x='234' y='${n1(g - 9)}' width='1.2' height='9' fill='${b}'/><rect x='256.8' y='${n1(g - 9)}' width='1.2' height='9' fill='${b}'/>` +
+    `<rect x='241' y='${n1(g - 15)}' width='10' height='6' fill='${w}'/><path d='M241 ${n1(g - 15)}h10l-2 -2h-6z' fill='${b}'/>` +
+    `<rect x='244.5' y='${n1(g - 6)}' width='3' height='6' fill='${b}'/><rect x='245.2' y='${n1(g - 5.3)}' width='1.6' height='5.3' fill='${night ? '#ffcf6a' : '#5b3a26'}'/>` +
+    `<circle cx='246' cy='${n1(g - 12)}' r='1.4' fill='${night ? '#ffcf6a' : '#3a4a66'}'/>` +
+    `<rect x='258' y='${n1(g - 21)}' width='8' height='21' fill='${w}'/><rect x='258' y='${n1(g - 21)}' width='1.2' height='21' fill='${b}'/><rect x='264.8' y='${n1(g - 21)}' width='1.2' height='21' fill='${b}'/>` +
+    `<rect x='258' y='${n1(g - 21)}' width='8' height='1.2' fill='${b}'/><rect x='260.6' y='${n1(g - 19)}' width='2.8' height='3.4' fill='${night ? '#ffcf6a' : '#2a2a32'}'/>${spire}` +
+    `<rect x='261.6' y='${n1(g - 30)}' width='0.8' height='2.4' fill='${b}'/><rect x='260.8' y='${n1(g - 29.4)}' width='2.4' height='0.6' fill='${b}'/>`;
+  const town = tw.svg(tBody, houses(tw.cell, night));
+
+  // the bay: promenade palms on the calçada, the sea wall, the Santa Maria at anchor
+  const sh = n1(0.2 * U), prom = n1(sh - 0.16 * U);
+  let sBay = `<rect y='${prom}' width='${SW}' height='${n1(sh - prom)}' fill='url(#s)'/><rect y='${prom}' width='${SW}' height='2' fill='${night ? '#33353f' : '#4b4f57'}'/>` +
+    `<rect y='${n1(prom + 2)}' width='${SW}' height='1' fill='${night ? '#8a8a9a' : '#efeae0'}'/><rect y='${n1(prom + 3)}' width='${SW}' height='1.6' fill='${b}'/>` +
+    `<rect y='${n1(prom + 4.6)}' width='${SW}' height='0.8' fill='${night ? '#6f86b0' : '#e8f4fb'}'/>`;
+  for (let x = 4; x < SW; x += 6) sBay += `<rect x='${x}' y='${n1(prom + 2.2)}' width='2' height='0.6' fill='${night ? '#4a4a5a' : '#2a2a2e'}'/>`;
+  for (let x = 9; x < SW; x += 23) {
+    const t = n1(prom - 7);
+    sBay += `<rect x='${x}' y='${t}' width='0.8' height='7' fill='#7a5a3a'/><rect x='${x - 2.6}' y='${n1(t - 0.6)}' width='6' height='1.4' fill='${night ? '#24463a' : '#3f8a3a'}'/>` +
+      `<rect x='${x - 1.4}' y='${n1(t - 1.8)}' width='3.6' height='1.4' fill='${night ? '#2c5244' : '#56a548'}'/><rect x='${x - 3.4}' y='${n1(t + 0.8)}' width='1.6' height='1.2' fill='${night ? '#24463a' : '#3f8a3a'}'/>` +
+      `<rect x='${x + 2.6}' y='${n1(t + 0.8)}' width='1.6' height='1.2' fill='${night ? '#24463a' : '#3f8a3a'}'/>` +
+      (night ? `<rect x='${x + 11}' y='${n1(prom - 3.5)}' width='0.6' height='3.5' fill='#33353f'/><rect x='${x + 10.6}' y='${n1(prom - 4.4)}' width='1.4' height='1' fill='#ffd27a'/>` : '');
+  }
+  // the nao: a dark hull, two masts, square sails with the red Cross of the Order of Christ
+  const nx = 214, ny = n1(prom + 14);
+  sBay += `<path d='M${nx} ${ny}h16l-2 3h-12z' fill='#5a3a24'/><rect x='${nx}' y='${n1(ny - 1.5)}' width='3' height='1.5' fill='#6e4a2e'/><rect x='${nx + 13}' y='${n1(ny - 1)}' width='3' height='1' fill='#6e4a2e'/>` +
+    `<rect x='${nx + 5}' y='${n1(ny - 10)}' width='0.6' height='10' fill='#3a2a1e'/><rect x='${nx + 10.5}' y='${n1(ny - 8)}' width='0.6' height='8' fill='#3a2a1e'/>` +
+    `<rect x='${nx + 3}' y='${n1(ny - 9)}' width='4.6' height='5' fill='${night ? '#b9b4c8' : '#f6efe0'}'/><rect x='${nx + 8.6}' y='${n1(ny - 7)}' width='4.6' height='4.4' fill='${night ? '#b9b4c8' : '#f6efe0'}'/>` +
+    `<rect x='${nx + 4.9}' y='${n1(ny - 8.2)}' width='0.8' height='3.4' fill='#c8302a'/><rect x='${nx + 3.6}' y='${n1(ny - 6.9)}' width='3.4' height='0.8' fill='#c8302a'/>` +
+    `<rect x='${nx + 10.5}' y='${n1(ny - 6.3)}' width='0.8' height='3' fill='#c8302a'/><rect x='${nx + 9.3}' y='${n1(ny - 5.2)}' width='3.2' height='0.8' fill='#c8302a'/>` +
+    `<rect x='${nx - 1}' y='${n1(ny + 3.2)}' width='19' height='0.7' fill='${night ? '#3d5c8a' : '#6aa8d8'}'/>`;
+  const bay = svg(`0 0 ${SW} ${sh}`, `<g shape-rendering='crispEdges'>${sBay}</g>`, grad('s', P.sea));
+
+  // glints on the water (gold under the town lights at night), turned on and off while you wait
+  const rg = rng(31);
+  let gl = '';
+  for (let k = 0; k < 70; k++) gl += `<rect x='${n1(rg() * SW)}' y='${n1(prom + 6 + rg() * (sh - prom - 7))}' width='${n1(1.5 + rg() * 3)}' height='0.5'/>`;
+  const glints = svg(`0 0 ${SW} ${sh}`, `<g shape-rendering='crispEdges' fill='${night ? '#ffd27a' : '#ffffff'}'>${gl}</g>`);
+
+  // night only: voxel stars
+  const rz = rng(41);
+  let st = '';
+  for (let k = 0; k < 90; k++) st += `<rect x='${n1(rz() * 200)}' y='${n1(rz() * 70)}' width='0.5' height='0.5' opacity='${n1(0.4 + rz() * 0.6)}'/>`;
+  const stars = svg('0 0 200 100', `<g fill='#fff'>${st}</g>`);
+
+  return { peaks, cloudBack, cloudFront, slopes, town, bay, glints, stars };
+}
+const MADEIRA_ART: Partial<Record<'day' | 'night', ReturnType<typeof madeiraArt>>> = {};
+
+/** A Funchal cable car cabin, hung from its grip. */
+const CABIN = svg('0 0 20 30',
+  `<rect x='9.3' y='0' width='1.4' height='9' fill='#2a2a2e'/><rect x='6' y='0' width='8' height='2.4' rx='1' fill='#3a3a40'/>` +
+  `<rect x='2' y='9' width='16' height='17' rx='2.2' fill='#d8452e'/><rect x='2' y='9' width='16' height='3' rx='1.2' fill='#f2f0ea'/>` +
+  `<rect x='4' y='13' width='12' height='7' rx='1' fill='#bfe1f2'/><rect x='9.5' y='13' width='1' height='7' fill='#d8452e'/><rect x='2' y='23' width='16' height='3' rx='1' fill='#a8331f'/>`);
+
+const madeira: Theme = (v, night) => {
+  const A = (MADEIRA_ART[night ? 'night' : 'day'] ??= madeiraArt(night));
+  const W = innerWidth, H = innerHeight;
+  // every strip zooms about the same point on the screen (the Sé), so the dive keeps them in register
+  const layer = (cls: string, img: string, h: number, z: number, d: number, dz: number) =>
+    v.appendChild(el(`md ${cls}`, `--img:${img};--h:${f(h * 100)}%;--z:${z};--d:${d}s;--dz:${dz}s;transform-origin:50% ${f(((h - 0.24) / h) * 100)}%`));
+  v.appendChild(el('md-st', night ? `--img:${A.stars}` : ''));
+  layer('md-pk', A.peaks, 0.86, 1.35, 0, 0);
+  layer('md-cl md-cb', A.cloudBack, 0.7, 1.8, 0.07, 0.06);
+  layer('md-sl', A.slopes, 0.62, 2.1, 0.14, 0.13);
+  layer('md-cl md-cf', A.cloudFront, 0.6, 2.4, 0.2, 0.17);
+  // the teleférico: from the seafront up through the town to Monte, on a wire of its own between town and bay
+  const x0 = W * 0.6, y0 = H * 0.2, x1 = W * (W > H ? 0.94 : 1.05), y1 = H * 0.5;
+  const len = Math.hypot(x1 - x0, y1 - y0), ang = (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI;
+  const wire = el('md-wire', `left:${f(x0, 0)}px;bottom:${f(y0, 0)}px;width:${f(len, 0)}px;--ang:${f(ang, 2)}deg`);
+  wire.appendChild(el('md-run')).appendChild(el('md-cab', `--img:${CABIN}`));
+  layer('md-tw', A.town, 0.42, 2.9, 0.26, 0.22).appendChild(wire);
+  layer('md-bay', A.bay, 0.2, 3.4, 0.34, 0.26).appendChild(el('md-gl', `--img:${A.glints}`));
+  return { coverMs: 1300, partMs: 1900 };
 };
 
 /** Every city chooses its own arrival; destinations without a city yet get the clouds. */
@@ -369,7 +532,8 @@ export function arrivalVeil(parent: HTMLElement, dest: string, night: boolean, h
     },
     progress: (f) => {
       v.classList.add('busy');
-      bar.style.setProperty('--f', Math.max(0, Math.min(1, f)).toFixed(3));
+      // on the veil, so a theme can follow it too (Madeira's cable car climbs with it)
+      v.style.setProperty('--f', Math.max(0, Math.min(1, f)).toFixed(3));
     },
     part: () => {
       void shown.then(() => {

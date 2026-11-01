@@ -330,6 +330,76 @@ function brazierCart(c: IC2): Prop {
   return p;
 }
 
+/**
+ * The kumpir cart of the Ortaköy seafront: a glass warming case of giant potatoes in foil, a row of steel bins of
+ * toppings (corn, olives, pickles, sausage, red cabbage, carrot) across the counter, a striped canopy. Faces +z.
+ */
+function kumpirCart(c: IC2): Prop {
+  const p = new Prop(18, 20, 10);
+  for (const x of [1, 15]) { p.box(x, 0, 0, x + 1, 2, 0, c.iron); p.box(x, 0, 9, x + 1, 2, 9, c.iron); }
+  p.box(0, 3, 0, 17, 6, 9, (x, y) => (y === 5 && x % 4 < 2 ? c.awnYellow : c.awnBlue));
+  p.box(0, 7, 0, 17, 7, 9, c.chrome);
+  // the warming case at the back: potatoes in foil stacked behind the glass
+  p.box(1, 8, 6, 9, 12, 9, c.cartGlass);
+  p.box(2, 8, 7, 8, 11, 8, 0);
+  for (let x = 2; x <= 8; x += 2) for (let y = 8; y <= 10; y += 2) p.box(x, y, 7, x + 1, y + 1, 8, hash3(x, y, 3) < 0.5 ? c.zinc : c.chrome);
+  // the bins of toppings along the front edge
+  const tops = [c.spiceYellow, c.spiceDark, c.leaf, c.cartRed, c.silkPurple, c.spiceOrange, c.sesame];
+  for (let k = 0; k < 7; k++) { p.box(1 + k * 2, 8, 1, 2 + k * 2, 8, 3, c.chrome); p.box(1 + k * 2, 9, 1, 2 + k * 2, 9, 3, tops[k]); }
+  // one potato split and filled, ready to hand over
+  p.box(14, 8, 2, 16, 9, 5, c.zinc); p.box(14, 10, 2, 16, 10, 5, (x, _y, z) => ((x + z) % 2 ? c.spiceYellow : c.sesame));
+  for (const x of [0, 17]) for (const z of [0, 9]) p.box(x, 8, z, x, 17, z, c.chrome);
+  p.box(0, 18, 0, 17, 18, 9, (x) => (x % 4 < 2 ? c.awnBlue : c.awnWhite));
+  p.box(0, 17, 0, 17, 17, 0, (x) => (x % 4 < 2 ? c.awnBlue : c.awnWhite));
+  return p;
+}
+
+/** The lokma cart: a wide round copper pan of hot oil, a tray of golden balls in syrup, a brass urn of boza. Faces +z. */
+function lokmaCart(c: IC2): Prop {
+  const p = new Prop(18, 19, 10);
+  for (const x of [1, 15]) { p.box(x, 0, 0, x + 1, 2, 0, c.iron); p.box(x, 0, 9, x + 1, 2, 9, c.iron); }
+  p.box(0, 3, 0, 17, 7, 9, (x, y) => (y === 6 ? c.paintGold : x % 6 === 0 ? c.woodDark : c.paintCream));
+  p.box(0, 8, 0, 17, 8, 9, c.chrome);
+  // the frying pan over its burner, the oil catching the light
+  p.cylY(5, 5, 4, 9, 10, c.copper);
+  p.cylY(5, 5, 3, 10, 10, (x, _y, z) => ((x + z) % 3 === 0 ? c.simit : c.spiceYellow));
+  p.box(1, 8, 1, 9, 8, 9, c.ember);
+  // the tray of finished lokma, glossy
+  p.box(11, 9, 1, 16, 9, 6, c.chrome);
+  for (let x = 11; x <= 16; x++) for (let z = 1; z <= 6; z++) if ((x + z) % 2 === 0) p.set(x, 10, z, hash3(x, 10, z) < 0.3 ? c.simitDark : c.apricot2);
+  // the boza urn with its brass lid
+  p.cylY(14, 8, 1.6, 9, 13, c.brass); p.box(14, 14, 8, 14, 14, 8, c.gold);
+  for (const x of [0, 17]) for (const z of [0, 9]) p.box(x, 9, z, x, 16, z, c.chrome);
+  p.box(0, 17, 0, 17, 17, 9, (x) => (x % 4 < 2 ? c.awnRed : c.awnWhite));
+  return p;
+}
+
+/**
+ * Ayşe Teyze's gözleme corner: a low wooden table with a sheet of yufka and the thin rolling rod, the domed iron sac
+ * glowing over its fire, a cushion to sit on, a double teapot on its own little stove, and a reed shade. Faces +z.
+ */
+function gozlemeStall(c: IC2): Prop {
+  const p = new Prop(20, 20, 12);
+  // the shade: four poles and a woven reed mat
+  for (const x of [0, 19]) for (const z of [0, 11]) p.box(x, 0, z, x, 17, z, c.woodBare);
+  p.box(0, 18, 0, 19, 18, 11, (x, _y, z) => ((x + z) % 3 === 0 ? c.woodDark : c.sand));
+  // the low table with a white cloth, a round of yufka and the oklava
+  p.box(2, 0, 2, 9, 3, 9, c.woodDark);
+  p.box(2, 3, 2, 9, 3, 9, c.marble);
+  p.cylY(5.5, 5.5, 3, 4, 4, c.cream);
+  p.box(2, 5, 8, 9, 5, 8, c.woodBare);
+  // the sac: a domed iron griddle over a ring of embers, a gözleme browning on it
+  p.box(11, 0, 3, 17, 2, 9, c.brick);
+  p.box(12, 1, 4, 16, 2, 8, c.ember);
+  p.cylY(14, 6, 3.4, 3, 3, c.iron);
+  p.cylY(14, 6, 2.6, 4, 4, c.iron);
+  p.box(12, 5, 5, 16, 5, 7, (x, _y, z) => ((x + z) % 3 === 0 ? c.simitDark : c.cream));
+  // the cushion by the table, the teapot stove at the back corner
+  p.box(2, 0, 10, 5, 1, 11, c.carpetRed);
+  p.box(16, 0, 10, 18, 4, 11, c.chrome); p.box(16, 5, 10, 17, 7, 11, c.copper); p.box(16, 8, 10, 17, 9, 11, c.copper);
+  return p;
+}
+
 /** The mussel seller's tray stand: a wide tray of stuffed mussels with lemon wedges. Faces +z. */
 function midyeStand(c: IC2): Prop {
   const p = new Prop(14, 14, 10);
@@ -891,6 +961,18 @@ const NAZAR_SPOTS: [number, number, number][] = [[-36.5, 22.9, 1.2], [-15.2, 56,
 
 export type Use = { room?: RoomKind; hotel?: number; restaurant?: { id: string; foods: [FoodId, FoodId] } };
 
+/** The second menu's restaurants on the streets: near (x, z), which room they furnish like, the cook's stall and dishes. */
+const RESTAURANTS: [number, number, RoomKind, string, [FoodId, FoodId]][] = [
+  [0, -70, 'kebap', 'iskenderci', ['iskender', 'sutlac']],
+  [-30, -65, 'pide', 'lahmacuncu', ['lahmacun', 'salgam']],
+  [0, -7, 'pide', 'karadenizli', ['karapide', 'hamsi']],
+  [-24, -10, 'lokanta', 'esnaf', ['kurufasulye', 'mercimek']],
+  [-43, -97, 'kebap', 'koftecisi', ['kofte', 'piyaz']],
+  [-104, -20, 'muhallebi', 'muhallebici', ['tavukgogsu', 'kazandibi']],
+  [-84, -66, 'kahve', 'kahvaltici', ['menemen', 'kaymak']],
+  [-73, 22, 'balik', 'meyhane', ['meze', 'kalamar']],
+];
+
 /** Which buildings hold the hotels, restaurants and food rooms: decided from the plan alone. */
 /** Whether a lot's front door opens past the town's edge (so nobody could walk in). */
 function doorBeyond(l: LotPlan): boolean {
@@ -926,6 +1008,8 @@ function assignUses(plan: Plan): Map<number, Use> {
   const near = (x: number, z: number) => free.filter((l) => !out.has(l.id)).sort((p, q) => Math.hypot((p.x0 + p.x1) / 2 * V - x, (p.z0 + p.z1) / 2 * V - z) - Math.hypot((q.x0 + q.x1) / 2 * V - x, (q.z0 + q.z1) / 2 * V - z))[0];
   const bak = near(-40, -22); if (bak) out.set(bak.id, { room: 'kebap', restaurant: { id: 'baklavaci', foods: ['baklava', 'kunefe'] } });
   const dur = near(6, -24); if (dur) out.set(dur.id, { room: 'kebap', restaurant: { id: 'durumcu', foods: ['doner', 'ayran'] } });
+  // the second menu's sit-down places, spread over the town (see data/istanbulMenu.ts)
+  for (const [x, z, room, id, foods] of RESTAURANTS) { const l = near(x, z); if (l) out.set(l.id, { room, restaurant: { id, foods } }); }
   // food rooms on the streets, spread round the town
   const street: RoomKind[] = ['kahve', 'lokanta', 'borek', 'pide', 'muhallebi', 'cay', 'kebap', 'kahve', 'lokanta', 'borek', 'pide', 'muhallebi', 'cay', 'kebap', 'firin', 'balik'];
   const spots: [number, number][] = [[-60, -50], [2, -60], [-20, -17], [-70, -36], [-90, -46], [-108, 2], [14, -86], [-36, 36], [-4, -84], [-30, -50], [-48, -88], [20, -18], [-60, 2], [6, -102], [-82, -16], [-82, 37]];
@@ -938,6 +1022,28 @@ function assignUses(plan: Plan): Map<number, Use> {
   spiceKinds.forEach((k, i) => { const l = inSpice[Math.floor((i + 0.5) * inSpice.length / spiceKinds.length)]; if (l) out.set(l.id, { room: k }); });
   const grandKinds: RoomKind[] = ['kahve', 'lokanta'];
   grandKinds.forEach((k, i) => { const l = inGrand[Math.floor((i + 0.3) * inGrand.length / 2.4)]; if (l && !out.has(l.id)) out.set(l.id, { room: k }); });
+  // the Grand Bazaar's coffee house and lokanta run by passport cooks, and more of its sweet, tea and pudding shops
+  const grandMore: [number, Use][] = [
+    [0.08, { room: 'kahve', restaurant: { id: 'kahveci', foods: ['kahve', 'lokum'] } }],
+    [0.9, { room: 'lokanta', restaurant: { id: 'kalpakcilar', foods: ['karniyarik', 'cacik'] } }],
+    [0.22, { room: 'lokum' }], [0.5, { room: 'cay' }], [0.66, { room: 'muhallebi' }], [0.78, { room: 'borek' }],
+  ];
+  for (const [t, u] of grandMore) {
+    // the nearest free hall shop to that share of the way through the bazaar
+    const i0 = Math.floor(t * inGrand.length);
+    for (let d = 0; d < inGrand.length; d++) {
+      const l = inGrand[(i0 + (d % 2 ? -1 : 1) * ((d + 1) >> 1) + inGrand.length) % inGrand.length];
+      if (l && !out.has(l.id)) { out.set(l.id, u); break; }
+    }
+  }
+  // two more in the Spice Bazaar: a tea house and a börek counter for the shoppers
+  for (const [t, k] of [[0.12, 'cay'], [0.88, 'borek']] as [number, RoomKind][]) {
+    const i0 = Math.floor(t * inSpice.length);
+    for (let d = 0; d < inSpice.length; d++) {
+      const l = inSpice[(i0 + (d % 2 ? -1 : 1) * ((d + 1) >> 1) + inSpice.length) % inSpice.length];
+      if (l && !out.has(l.id)) { out.set(l.id, { room: k }); break; }
+    }
+  }
   return out;
 }
 
@@ -3242,11 +3348,14 @@ function washingLines(ctx: Ctx): void {
 
 // ------------------------------------------------------------------------------------------- food stalls
 
-const STALL_SPOTS: { id: string; kind: 'simit' | 'brazier' | 'midye' | 'dondurma'; x: number; z: number; face: number }[] = [
+const STALL_SPOTS: { id: string; kind: 'simit' | 'brazier' | 'midye' | 'dondurma' | 'kumpir' | 'lokma' | 'gozleme'; x: number; z: number; face: number }[] = [
   { id: 'simitci', kind: 'simit', x: 14, z: 33, face: Math.PI },
   { id: 'kestaneci', kind: 'brazier', x: -12, z: 36.6, face: 0 },
   { id: 'midyeci', kind: 'midye', x: 23.2, z: 8, face: -Math.PI / 2 },
   { id: 'dondurmaci', kind: 'dondurma', x: -36, z: -15.6, face: Math.PI },
+  { id: 'kumpirci', kind: 'kumpir', x: 25, z: -24, face: -Math.PI / 2 },
+  { id: 'lokmaci', kind: 'lokma', x: 20, z: 38, face: Math.PI },
+  { id: 'gozlemeci', kind: 'gozleme', x: -30, z: 39, face: Math.PI },
 ];
 
 function foodStalls(ctx: Ctx): StallAnchor[] {
@@ -3256,13 +3365,14 @@ function foodStalls(ctx: Ctx): StallAnchor[] {
     const fx = Math.sin(s.face), fz = Math.cos(s.face);
     const y = (plan.walk[col(Math.floor(s.x / V), Math.floor(s.z / V))] - G) * V;
     const turns = Math.round(((-s.face / (Math.PI / 2)) % 4 + 4) % 4);
-    const prop = s.kind === 'simit' ? simitCart(c) : s.kind === 'brazier' ? brazierCart(c) : s.kind === 'midye' ? midyeStand(c) : dondurmaStall(c);
+    const prop = s.kind === 'simit' ? simitCart(c) : s.kind === 'brazier' ? brazierCart(c) : s.kind === 'midye' ? midyeStand(c) : s.kind === 'kumpir' ? kumpirCart(c)
+      : s.kind === 'lokma' ? lokmaCart(c) : s.kind === 'gozleme' ? gozlemeStall(c) : dondurmaStall(c);
     b.place(prop, s.x, y, s.z, turns);
     b.block(s.x - 1.0, s.z - 1.0, s.x + 1.0, s.z + 1.0);
     const stand: [number, number] = [s.x + fx * 1.6, s.z + fz * 1.6];
     out.push({ id: s.id, stand, vendor: [s.x - fx * 1.0, s.z - fz * 1.0, s.face], label: [s.x, y + 2.6, s.z] });
     b.lamp(s.x, y + 2.3, s.z, WARM, 4, 0.8);
-    if (s.kind === 'brazier' || s.kind === 'midye') b.emitters.push({ kind: 'smoke', pos: [s.x - fx * 0.3, y + 1.4, s.z - fz * 0.3], rate: 1 });
+    if (s.kind === 'brazier' || s.kind === 'midye' || s.kind === 'lokma' || s.kind === 'gozleme') b.emitters.push({ kind: 'smoke', pos: [s.x - fx * 0.3, y + 1.4, s.z - fz * 0.3], rate: 1 });
   }
   // the fish boat in the middle is the one you buy from: the vendor at its rail, you on the quay
   out.push({ id: 'balikci', stand: [1, HORN_Z - 1.6], vendor: [1, HORN_Z + 0.6, Math.PI], label: [1, QUAY_Y + 2.4, HORN_Z + 1] });

@@ -2,6 +2,7 @@ import { rng } from './grid';
 import { Palette } from './palette';
 import { Prop } from './props';
 import { buildMadeiraFood, type MadeiraFood } from './foodMadeira';
+import { buildIstanbulFood, type IstanbulFood } from './foodIstanbul';
 
 /** Voxel models of every dish. Pure data so they can be built in the worker (counter displays) and on the main thread (icons). */
 
@@ -74,6 +75,11 @@ export function foodColors(pal: Palette) {
     wineLabel: a(0xefe6cc, 0.03), wineLabelInk: a(0x6a1a1a, 0.04), bottleDark: a(0x1e2a1a, 0.04), broa: a(0x9a5a2a, 0.08),
     milkCoffee: a(0xc89a6a, 0.04), coffeeDark: a(0x3a2010, 0.04), pumpkin: a(0xe0882a, 0.06), gaiado: a(0x8a8a84, 0.08),
     pudim: a(0xe8a83a, 0.05), banana: a(0xf2d65a, 0.05), limpet: a(0x6a6458, 0.1), limpetIn: a(0xe0b060, 0.06),
+    // Istanbul's second menu
+    lahmacun: a(0xa8442a, 0.08), salgam: a(0x4a1030, 0.04), beanW: a(0xf2ead6, 0.04), beanSauce: a(0xc0562a, 0.06), lentil: a(0xe0863a, 0.04),
+    tahini: a(0xdcc496, 0.04), fava: a(0xe6d690, 0.04), sarma: a(0x3e5a24, 0.08), melon: a(0xf2b460, 0.04), melonRind: a(0x8ab05a, 0.06),
+    rose: a(0xf09aac, 0.04), potSkin: a(0x9a6a3a, 0.08), kiwi: a(0x7ab040, 0.06), boza: a(0xe6d2a0, 0.03), chickpea: a(0xe0b45a, 0.06),
+    honeycomb: a(0xe8a82a, 0.06, 0.05), gold: a(0xd8a83a, 0.03),
   };
 }
 
@@ -88,7 +94,7 @@ export type FoodId =
   | 'espresso' | 'cornetto' | 'ndunderi' | 'parmigiana' | 'vongole' | 'acquapazza' | 'margherita' | 'calzone'
   | 'bruschetta' | 'carrozza' | 'panuozzo' | 'taralli' | 'arancino' | 'crocche' | 'baba' | 'zeppola'
   | 'alici' | 'polpo' | 'sorrentina' | 'polpette' | 'melanzane' | 'pastiera' | 'risotto' | 'ravioli'
-  | MadeiraFood;
+  | MadeiraFood | IstanbulFood;
 
 type FC = ReturnType<typeof foodColors>;
 
@@ -163,7 +169,7 @@ export function buildFood(id: FoodId, pal: Palette): Prop {
     case 'pastiera': return pastiera(c);
     case 'risotto': return risotto(c);
     case 'ravioli': return ravioli(c);
-    default: return buildMadeiraFood(id, c);
+    default: return buildIstanbulFood(id as IstanbulFood, c) ?? buildMadeiraFood(id as MadeiraFood, c);
   }
 }
 

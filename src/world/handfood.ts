@@ -174,6 +174,33 @@ export function mealKit(id: string): MealKit {
     case 'batido': return kit('sip', { held: glass(c.custard, c, true), drink: true, bites: 3 });
     case 'cachorro': return kit('bite', { held: sando(c, c.sausage), biteR: 4.4, crunch: true, steam: 0.4, hot: true, scale: 0.7 });
     case 'laranjada': return kit('sip', { held: bottle(c.orange, c.paper, c), drink: true, bites: 2 });
+    // Istanbul's second menu
+    case 'iskender': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.iznik, c.iznikRed]), held: fork(c), steam: 0.8, hot: true, scale: 0.56 });
+    case 'sutlac': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate, c.terracotta, c.terracottaDark]), held: spoon(c), scale: 0.7 });
+    case 'lahmacun': return kit('bite', { held: durum(c), biteR: 4.2, steam: 0.4, hot: true, crunch: true, scale: 0.66 });
+    case 'salgam': return kit('sip', { held: glass(c.salgam, c, false), drink: true, bites: 2 });
+    case 'karapide': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.board]), held: fork(c), steam: 0.7, hot: true, crunch: true, scale: 0.52 });
+    case 'hamsi': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate]), held: fork(c), steam: 0.6, hot: true, crunch: true, scale: 0.56 });
+    case 'kurufasulye': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.plateRim]), held: spoon(c), steam: 0.8, hot: true, scale: 0.56 });
+    case 'mercimek': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate, c.ceramicWhite]), held: spoon(c), steam: 0.9, hot: true, scale: 0.6 });
+    case 'kofte': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite]), held: fork(c), steam: 0.7, hot: true, scale: 0.54 });
+    case 'piyaz': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.iznik, c.iznikRed]), held: fork(c), scale: 0.64 });
+    case 'tavukgogsu': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate]), held: spoon(c), scale: 0.66 });
+    case 'kazandibi': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate]), held: spoon(c), scale: 0.66 });
+    case 'menemen': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.copper, c.copperDark]), held: spoon(c), steam: 0.8, hot: true, scale: 0.58 });
+    case 'kaymak': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate]), held: spoon(c), scale: 0.62 });
+    case 'meze': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.board, c.boardDark, c.ceramicWhite]), held: fork(c), scale: 0.52 });
+    case 'kalamar': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.ceramicBlue]), held: fork(c), steam: 0.5, hot: true, crunch: true, scale: 0.56 });
+    case 'kahve': return kit('sip', { held: cup(c.ceramicWhite, c.crema, c), drink: true, bites: 2, steam: 0.6, hot: true, scale: 0.66 });
+    case 'lokum': return kit('pop', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.iznik, c.iznikRed]), scale: 0.66 });
+    case 'karniyarik': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.ceramicWhite, c.iznik, c.iznikRed]), held: fork(c), steam: 0.7, hot: true, scale: 0.54 });
+    case 'cacik': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.plate, c.ceramicWhite]), held: spoon(c), scale: 0.66 });
+    case 'kumpir': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.paper, c.steelLight]), held: fork(c), steam: 0.7, hot: true, scale: 0.56 });
+    case 'waffle': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.paper]), held: fork(c), crunch: true, scale: 0.54 });
+    case 'lokma': return kit('pop', { vessel: plated(pal, id as FoodId, [c.paper, c.paperRed, c.skewer]), crunch: true, scale: 0.66 });
+    case 'boza': return kit('sip', { held: glass(c.boza, c, false), drink: true, bites: 3 });
+    case 'gozleme': return kit('spoon', { vessel: plated(pal, id as FoodId, [c.board]), held: fork(c), steam: 0.6, hot: true, crunch: true, scale: 0.52 });
+    case 'cay': return kit('sip', { held: glass(c.tea, c, false), drink: true, bites: 2, steam: 0.6, hot: true, scale: 0.72 });
   }
   return snackKit(id, kit, pal, c);
 }

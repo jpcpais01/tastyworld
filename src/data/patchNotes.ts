@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.16',
+    date: '2026-11-01',
+    title: 'Istanbul: fifty places to eat',
+    items: [
+      'Istanbul now has 50 places to eat, up from 31, and 42 dishes for your passport, up from 16.',
+      'Eight new sit-down places across the old town, each with its own cook and two dishes: İskender kebap with butter poured at the table and baked rice pudding at Bursalı İskenderci; lahmacun and purple şalgam at the Urfa salon; Black Sea pide and fried hamsi at Karadenizli; beans, rice and lentil soup at the tradesmen\'s lokanta; grilled köfte and piyaz at Selim Usta\'s; chicken-breast pudding and burnt kazandibi at Muhallebici Nurettin; menemen and clotted cream with honey at the breakfast house; and a meze tray with fried squid at the meyhane.',
+      'Inside the Grand Bazaar, Muhsin Efendi brews Turkish coffee with a cube of lokum, and the Kalpakçılar lokanta serves karnıyarık and cold cacık to the shopkeepers at noon. The bazaars also gained a Turkish delight shop, tea houses, a pudding shop and börek counters.',
+      'Three new street carts: kumpir and chocolate waffles on the Bosphorus quay, lokma and boza on Eminönü Square, and Ayşe Teyze rolling gözleme on her iron sac by the Golden Horn, with a glass of tea.',
+      'Every new place has a pin on the map, counts toward the food places you have found, and has its own cooking challenge.',
+      'New missions: Lokanta Hopping, Street Corner Gourmet and Forty Years (coffee in the bazaar, tea on the quay).',
+    ],
+  },
+  {
     version: '0.18.15',
     date: '2026-11-01',
     title: 'A new landing in Madeira',

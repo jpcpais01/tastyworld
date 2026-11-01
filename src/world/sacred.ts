@@ -1283,3 +1283,318 @@ export function mosqueInterior(b: Builder, f: MosqueFrame): HallAnchor {
   }
   return hall;
 }
+
+// ------------------------------------------------------------------------------------------- Sé do Funchal
+
+export interface SeFrame {
+  /** The church's voxel box (chancel at the low-x end, X0..XN), floor layer, the front screen and the walls' heights. */
+  X0: number; X1: number; Z0: number; Z1: number; XN: number; Y: number; FX: number;
+  /** Aisle walls, nave walls and chancel walls (voxels over the floor). */
+  AH: number; NH: number; CHH: number;
+}
+
+/** The Sé's geometry, shared by the shell and the inside. */
+export function seGeom(f: SeFrame) {
+  const { X0, X1, Z0, Z1, XN, Y } = f;
+  const IZ0 = Z0 + 3, IZ1 = Z1 - 3, NZ0 = Z0 + 17, NZ1 = Z1 - 17, cz = (NZ0 + NZ1 + 1) / 2;
+  // round grey columns between the nave and the aisles, a pointed arch over every bay
+  const cols: number[] = [];
+  for (let x = XN + 13; x < X1 - 8; x += 14) cols.push(x);
+  // the aisle windows (four wide from x) and the clerestory's round windows, one per bay
+  const wins = cols.map((x) => x + 6).filter((x) => x + 3 < X1 - 2);
+  const occuli = cols.map((x) => x + 7).filter((x) => x + 2 < X1 - 2);
+  return { IZ0, IZ1, NZ0, NZ1, cz, cols, wins, occuli, CX0: X0 + 3, CX1: XN - 3, WIN_Y0: Y + 12, WIN_Y1: Y + 23 };
+}
+
+/** The aisle windows' glass: clear glass in lead, a border of amber, a little red and blue at the head. */
+export function seGlass(k: { sgWhite: number; sgGold: number; sgRed: number; sgBlue: number }, x: number, y: number, x0: number, y0: number, y1: number): number {
+  if (x === x0 || x === x0 + 3 || y === y0) return k.sgGold;
+  if (y >= y1 - 1) return (x + y) % 2 ? k.sgRed : k.sgBlue;
+  return k.sgWhite;
+}
+
+/** A silver sanctuary lamp on its chain: a bowl, its little ruby glass and flame. */
+function silverLamp(k: K): Prop {
+  const p = new Prop(5, 6, 5);
+  p.ellipsoid(2, 1.5, 2, 2.2, 1.6, 2.2, (_x, y) => (y < 1 ? k.tinDark : k.tin));
+  p.set(2, 3, 2, k.lampRed); p.set(2, 4, 2, k.flame);
+  for (const [x, z] of [[0, 2], [4, 2], [2, 0], [2, 4]] as const) p.box(x, 3, z, x, 5, z, k.tinDark);
+  return p;
+}
+
+/**
+ * Inside the Sé do Funchal (1514): a nave and two aisles on round columns of grey stone and pointed arches, the
+ * famous ceiling of carved Madeira cedar in Mudéjar star-work over the nave, a dado of blue and yellow azulejos round
+ * every wall, floors of limestone and black basalt slabs. The chancel (capela-mor), two steps up through a pointed
+ * triumphal arch, under a Manueline vault with gilt ribs, holds the great retable of talha dourada: gilt twisted
+ * columns framing painted panels in three bays, the stepped throne in the middle with the crucifix on top, the altar
+ * with its tiled frontal. Side altars of gilt woodwork close the aisles; a gilt pulpit on a column; pews of dark
+ * wood; silver lamps on long chains.
+ */
+export function seInterior(b: Builder, f: SeFrame): HallAnchor {
+  const k = colors(b);
+  const g = b.grid;
+  const { X0, X1, Z0, Z1, XN, Y, FX, AH, NH, CHH } = f;
+  const S = seGeom(f);
+  const { IZ0, IZ1, NZ0, NZ1, cz, cols, wins, occuli, CX0, CX1 } = S;
+  const a = (hex: number, vary = 0.04, o: { emit?: number } = {}) => b.pal.add(hex, { vary, ...o });
+  const stone = a(0x8d8a84, 0.05), stoneL = a(0xb3afa7, 0.04), basalt = a(0x343231, 0.05), basaltL = a(0x55524e, 0.05);
+  const lime = a(0xf3f0e8, 0.02), limeShade = a(0xdcd6ca, 0.03), slabW = a(0xe3ddd0, 0.03), slabG = a(0xb9b3a6, 0.04);
+  const cedar = a(0x7a4a28, 0.05), cedarDark = a(0x4b2b17, 0.05), inlay = a(0xe0cfa2, 0.03), azY = a(0xd8a33a, 0.04);
+  const floorY = yM(Y), m = (v: number) => v * V;
+  const AIR_A = Y + AH - 2, AIR_N = Y + NH - 2, AIR_C = Y + CHH - 2;
+
+  const hall: HallAnchor = {
+    id: 'se', kind: 'church',
+    rect: [m(CX0), m(IZ0), m(X1 + 1), m(IZ1 + 1)], floor: floorY, top: yM(AIR_N + 1),
+    inner: [[XN + 1, Y, IZ0, X1, AIR_N, IZ1], [CX0, Y, NZ0, XN, AIR_C, NZ1]],
+    beams: [], people: [],
+  };
+  b.indoor.push([XN + 1, Y, IZ0, X1, AIR_N, IZ1]);
+  b.indoor.push([CX0, Y, NZ0, XN, AIR_C, NZ1]);
+
+  // ---- what every worker registers
+  // pews in two blocks either side of the middle aisle, facing the chancel
+  const PZ = [[NZ0 + 2, Math.floor(cz) - 3], [Math.ceil(cz) + 2, NZ1 - 2]] as const;
+  const rows: number[] = [];
+  for (let x = XN + 9; x <= X1 - 12; x += 5) rows.push(x);
+  rows.forEach((xr, ri) => {
+    for (const [z0, z1] of PZ) {
+      const len = (z1 - z0 + 1) * 2;
+      const bx = m(xr + 1), bz = m((z0 + z1 + 1) / 2);
+      b.place(pew(k, len), bx, floorY, bz);
+      b.block(m(xr), m(z0), m(xr + 2), m(z1 + 1));
+      const half = (z1 - z0 + 1) * V / 4;
+      if (ri < 4 && hash3(ri, z0, 51) < 0.65) {
+        const sz = bz + (hash3(ri, z0, 53) < 0.5 ? -half : half);
+        hall.people.push({ pos: [bx + 0.04, floorY + 0.5, sz], face: -Math.PI / 2, seed: 1900 + ri * 7 + z0, pose: 'sit' });
+      } else for (const s of [-1, 1]) b.benches.push([bx, bz + s * half, -Math.PI / 2, floorY]);
+    }
+  });
+  // silver lamps down the nave and one before the altar
+  for (let i = 0; i < 4; i++) {
+    const x = m(XN + 14 + i * 20), y = floorY + 3.4;
+    b.place(silverLamp(k), x, y, m(cz));
+    b.place(chain(k, Math.round((yM(AIR_N) - y - 0.75) / 0.125), k.tinDark), x, y + 0.75, m(cz));
+    b.lamp(x, y + 0.5, m(cz), WARM, 9, 0.85);
+  }
+  {
+    const x = m(CX1 - 2), y = floorY + 0.5 + 3.0;
+    b.place(silverLamp(k), x, y, m(cz));
+    b.place(chain(k, Math.round((yM(AIR_C) - y - 0.75) / 0.125), k.tinDark), x, y + 0.75, m(cz));
+    b.lamp(x, y, m(cz), [1, 0.45, 0.3], 4, 0.6);
+  }
+  // the altar's candles and crucifix; light on the gilt retable
+  for (const dz of [-4.5, -2.5, 2.5, 4.5]) b.place(candlestick(k, 8), m(CX0 + 4), floorY + 0.5 + 1.0 + 0.25, m(cz + dz));
+  b.place(crucifix(k), m(CX0 + 4), floorY + 0.5 + 1.0 + 1.25, m(cz), 3);
+  b.lamp(m(CX0 + 6), floorY + 3, m(cz), WARM, 8, 0.9);
+  b.lamp(m(CX0 + 3), floorY + 6, m(cz), WARM, 7, 0.6);
+  b.lamp(m((CX0 + CX1) / 2), floorY + 5, m(cz), WHITEWARM, 7, 0.5);
+  // votives before the side altars, a lamp in each aisle
+  for (const [z, out] of [[IZ0 + 6, 1], [IZ1 - 6, -1]] as const) {
+    b.place(votives(k, z), m(XN + 7), floorY, m(z + out * 1.5), 1);
+    b.block(m(XN + 6.4), m(z + out * 1.5) - 0.65, m(XN + 7.6), m(z + out * 1.5) + 0.65);
+    b.lamp(m(XN + 7), floorY + 1.2, m(z), WARM, 4, 0.55);
+    for (let x = XN + 20; x < X1; x += 24) b.lamp(m(x), floorY + 4.5, m(z), WHITEWARM, 7, 0.35);
+  }
+  // people: at the side altars, at the chancel step, a sacristan, visitors
+  hall.people.push(
+    { pos: [m(XN + 4), floorY, m(IZ0 + 6)], face: -Math.PI / 2, seed: 1931, pose: 'pray' },
+    { pos: [m(XN + 4), floorY, m(IZ1 - 6)], face: -Math.PI / 2, seed: 1932, pose: 'pray' },
+    { pos: [m(XN + 4), floorY, m(cz - 5)], face: -Math.PI / 2, seed: 1933, pose: 'kneel' },
+    { pos: [m(CX1 - 4), floorY + 0.5, m(cz + 6)], face: Math.PI / 2 + 0.6, seed: 1934, pose: 'idle', alt: 'bow' },
+    { pos: [m(X1 - 8), floorY, m(cz + 2)], face: -Math.PI / 2 + 0.3, seed: 1935, pose: 'photo', alt: 'browse' },
+    { pos: [m(cols[2] + 6), floorY, m(IZ1 - 3)], face: 0, seed: 1936, pose: 'browse', alt: 'idle' },
+    { pos: [m(cols[1] + 6), floorY, m(IZ0 + 3)], face: Math.PI, seed: 1937, pose: 'browse', alt: 'idle' },
+  );
+  // the sun through the aisle windows, the chancel's lancets and the front's óculo
+  {
+    for (const x of wins) for (const [zg, nz] of [[Z0, -1], [Z1, 1]] as const) {
+      const cells: [number, number, number, number][] = [];
+      for (let y = S.WIN_Y0; y <= S.WIN_Y1; y++) for (let xx = x; xx <= x + 3; xx++) cells.push([xx, y, zg, seGlass(k, xx, y, x, S.WIN_Y0, S.WIN_Y1)]);
+      hall.beams.push(glassBeam(b, cells, 0, nz));
+    }
+    const lx = Math.round((CX0 + CX1) / 2) - 1;
+    for (const [zg, nz] of [[NZ0 - 3, -1], [NZ1 + 3, 1]] as const) {
+      const cells: [number, number, number, number][] = [];
+      for (let y = Y + 12; y <= Y + 26; y++) for (let xx = lx; xx <= lx + 2; xx++) cells.push([xx, y, zg, seGlass(k, xx === lx ? lx : xx === lx + 2 ? lx + 3 : xx, y, lx, Y + 12, Y + 26)]);
+      hall.beams.push(glassBeam(b, cells, 0, nz));
+    }
+    const oy = Y + NH - 9, cells: [number, number, number, number][] = [];
+    for (let y = oy - 5; y <= oy + 5; y++) for (let z = Math.floor(cz) - 6; z <= Math.ceil(cz) + 5; z++) {
+      const r = Math.hypot(z + 0.5 - cz, y + 0.5 - oy);
+      if (r < 4.6) cells.push([FX + 3, y, z, r < 1.4 ? k.sgGold : pm(Math.floor((Math.atan2(y + 0.5 - oy, z + 0.5 - cz) + Math.PI) * 8 / Math.PI), 2) ? k.sgBlue : k.sgWhite]);
+    }
+    hall.beams.push(glassBeam(b, cells, 1, 0));
+  }
+  b.halls.push(hall);
+
+  if (!g.touches(X0, Z0, X1 + 4, Z1)) return hall;
+
+  // ---- the voxels: clear the aisles, the nave and the chancel
+  g.box(XN + 1, Y, IZ0, X1, AIR_A, IZ1, 0);
+  g.box(XN + 1, Y, NZ0, X1, AIR_N, NZ1, 0);
+  g.box(CX0, Y, NZ0, CX1, AIR_C, NZ1, 0);
+  // floors: limestone and grey slabs in the nave, black basalt tombstones in the aisles
+  g.box(XN + 1, Y - 1, IZ0, X1, Y - 1, IZ1, (x, _y, z) => {
+    if (z >= NZ0 && z <= NZ1) {
+      if (Math.abs(z + 0.5 - cz) < 3) return pm(x, 6) === 0 ? slabG : slabW;
+      return (Math.floor(x / 6) + Math.floor((z - NZ0) / 5)) & 1 ? slabG : slabW;
+    }
+    const u = pm(x - XN, 9), v = pm(z - IZ0, 6);
+    return u === 0 || v === 0 ? basaltL : hash3(x >> 2, 3, z >> 2) < 0.12 ? stone : basalt;
+  });
+  // the arcades: round columns with a moulded base and capital, pointed arches, white walls up to the ceiling
+  const colAt = (x: number) => cols.find((c) => x >= c && x <= c + 1);
+  const archTop = (x: number) => {
+    // the bay x lies in: from the column (or the chancel wall) before it to the next one (or the front)
+    let s = XN + 1, e = X1;
+    for (const c of cols) { if (c + 1 < x) s = c + 2; else { e = c - 1; break; } }
+    const hw = (e - s + 1) / 2, dx = Math.abs(x + 0.5 - (s + e + 1) / 2), R = hw * 1.6;
+    return Y + 16 + Math.floor(Math.sqrt(Math.max(0, R * R - (dx + R - hw) ** 2)));
+  };
+  for (const [z0, z1, inner] of [[NZ0 - 2, NZ0 - 1, NZ0 - 1], [NZ1 + 1, NZ1 + 2, NZ1 + 1]] as const) {
+    g.box(XN + 1, Y, z0, X1, AIR_N, z1, (x, y, z) => {
+      if (colAt(x) !== undefined) {
+        if (y < Y + 1) return basaltL;
+        if (y < Y + 15) return (y + x + z) % 5 === 0 ? stoneL : stone;
+        if (y < Y + 17) return y === Y + 16 ? stoneL : basaltL;
+      } else {
+        const t = archTop(x);
+        if (y < t) return 0;
+        if (y < t + 2) return stone;
+      }
+      if (z === inner && y >= AIR_N - 1) return cedarDark;
+      return y < Y + AH && z !== inner ? limeShade : lime;
+    });
+  }
+  // the clerestory's round windows open through the nave walls
+  for (const x of occuli) for (const z of [NZ0 - 2, NZ0 - 1, NZ1 + 1, NZ1 + 2]) for (let y = Y + NH - 7; y <= Y + NH - 4; y++) for (let xx = x; xx <= x + 2; xx++) {
+    const r = Math.hypot(xx - x - 1, y - (Y + NH - 5.5));
+    if (r < 1.9) g.set(xx, y, z, z === NZ0 - 2 || z === NZ1 + 2 ? k.sgWhite : 0);
+  }
+  // the ceiling of carved cedar over the nave: eight-pointed stars of pale inlay, a gilt boss in each, tie-beams
+  // across every bay
+  g.box(XN + 1, AIR_N + 1, NZ0, X1, AIR_N + 1, NZ1, (x, _y, z) => {
+    const u = pm(x - XN, 12) - 6, v = pm(z - NZ0 + 3, 12) - 6;
+    if (Math.abs(u) <= 1 && Math.abs(v) <= 1) return (u + v) & 1 ? k.goldLight : k.gold;
+    const sq = Math.max(Math.abs(u), Math.abs(v)), di = Math.abs(u) + Math.abs(v);
+    if (sq === 4 || di === 6) return inlay;
+    return (x + z) & 1 ? cedar : cedarDark;
+  });
+  for (const c of cols) g.box(c, AIR_N, NZ0, c + 1, AIR_N, NZ1, (x, _y, z) => (pm(z, 6) === 0 ? k.gold : x === c ? cedarDark : cedar));
+  // the aisles' ceilings: cedar boards between dark joists
+  for (const [z0, z1] of [[IZ0, NZ0 - 3], [NZ1 + 3, IZ1]] as const) g.box(XN + 1, AIR_A + 1, z0, X1, AIR_A + 1, z1, (x) => (pm(x, 4) === 0 ? cedarDark : cedar));
+  // the azulejo dado round every wall: blue and yellow on white, a border band, a basalt rail over it
+  const azul = (a0: number, y: number) => {
+    const v = y - Y;
+    if (v === 9) return basaltL;
+    if (v === 8) return pm(a0, 2) ? k.cobalt : azY;
+    const p = pm(a0, 6), q = pm(v, 4);
+    const dp = Math.abs(p - 2.5), dq = Math.abs(q - 1.5);
+    if (dp + dq < 1.2) return azY;
+    if (Math.abs(dp - dq) < 0.6 || p === 0) return k.cobalt;
+    return k.tile;
+  };
+  for (const zw of [IZ0 - 1, IZ1 + 1]) g.box(XN + 1, Y, zw, X1, Y + 9, zw, (x, y) => azul(x, y));
+  for (const [z0, z1] of [[IZ0, NZ0 - 3], [NZ1 + 3, IZ1]] as const) g.box(XN, Y, z0, XN, Y + 9, z1, (_x, y, z) => azul(z, y));
+  for (const [z0, z1] of [[IZ0, NZ0 - 3], [NZ1 + 3, IZ1]] as const) g.box(X1 + 1, Y, z0, X1 + 1, Y + 9, z1, (_x, y, z) => azul(z, y));
+  for (const zw of [NZ0 - 1, NZ1 + 1]) g.box(CX0, Y + 2, zw, CX1, Y + 11, zw, (x, y) => azul(x, y - 2));
+
+  // ---- the chancel: two steps up, the triumphal arch, the Manueline vault and the retable
+  g.box(CX0, Y, NZ0, XN, Y + 1, NZ1, (x, y, z) => (y === Y ? stone : (Math.floor(x / 3) + Math.floor(z / 3)) & 1 ? slabW : (Math.abs(z + 0.5 - cz) < 2 ? basalt : slabG)));
+  g.box(XN + 1, Y, Math.floor(cz) - 9, XN + 2, Y, Math.ceil(cz) + 8, (x) => (x === XN + 2 ? stoneL : slabW));
+  // the arch wall between chancel and nave: a pointed arch in grey stone, the wall above it white
+  g.box(XN - 2, Y + 2, NZ0, XN, AIR_N, NZ1, (_x, y, z) => {
+    const hw = 11, dz = Math.abs(z + 0.5 - cz), R = hw * 1.6;
+    const top = Y + 20 + Math.floor(Math.sqrt(Math.max(0, R * R - (dz + R - hw) ** 2)));
+    if (dz < hw && y < top) return 0;
+    if (dz < hw + 2 && y < top + 2) return (y + z) % 2 ? stone : stoneL; // the moulding, twisted like a rope
+    return lime;
+  });
+  // the vault: white cells between gilt ribs running corner to corner and round a central boss
+  g.box(CX0, AIR_C + 1, NZ0, CX1, AIR_C + 1, NZ1, (x, _y, z) => {
+    const u = (x - CX0) / (CX1 - CX0), v = (z - NZ0) / (NZ1 - NZ0);
+    if (Math.abs(u - v) < 0.06 || Math.abs(u - (1 - v)) < 0.06) return k.gold;
+    if (Math.abs(Math.hypot((u - 0.5) * 1.9, v - 0.5) - 0.28) < 0.04) return k.goldDeep;
+    if (Math.hypot(u - 0.5, v - 0.5) < 0.06) return k.goldLight;
+    return lime;
+  });
+  // the retable on the back wall, all gilt woodwork: a base of carved panels, four twisted columns making three
+  // bays, painted panels in the side bays, the stepped throne in the middle under a gilt arch, a crown of arches
+  {
+    const rx = CX0, y0 = Y + 2, y1 = AIR_C - 1, z0 = NZ0, z1 = NZ1;
+    const colZ = [z0 + 1, z0 + 9, z1 - 10, z1 - 2];
+    const isCol = (z: number) => colZ.some((c) => z >= c && z <= c + 1);
+    g.box(rx, y0, z0, rx, y1, z1, (_x, y, z) => {
+      const v = y - y0;
+      if (v < 6) return (z + v) % 3 === 0 ? k.goldDeep : v === 5 || v === 0 ? k.goldLight : k.gold;
+      if (isCol(z)) return k.goldDeep;
+      // the crown: concentric arches over the middle bay, scrolls over the sides
+      if (y > y1 - 6) return (y + z) % 2 ? k.goldLight : k.gold;
+      const mid = z > colZ[1] + 1 && z < colZ[2];
+      if (mid) return v < 9 ? k.gold : k.velvet; // the throne's niche, hung with red
+      // the side bays: two painted panels each, one over the other, in gilt frames
+      const sz0 = z < cz ? colZ[0] + 2 : colZ[2] + 2, sw = colZ[1] - colZ[0] - 2;
+      const ph = Math.floor((y1 - 6 - (y0 + 6)) / 2);
+      const pv = (v - 6) % ph, pi = Math.floor((v - 6) / ph);
+      return framed(k, z - sz0, pv, sw, ph, (z < cz ? 0 : 2) + pi * 5);
+    });
+    // the twisted columns stand out from it, their gilt bands winding round
+    for (const c of colZ) g.box(rx + 1, y0 + 6, c, rx + 2, y1 - 6, c + 1, (x, y, z) => (pm(y + (z - c) * 2 + (x - rx) * 3, 5) < 2 ? k.goldLight : k.gold));
+    // the arch over the throne's niche
+    const nz0 = colZ[1] + 2, nz1 = colZ[2] - 1, ncz = (nz0 + nz1 + 1) / 2, nhw = (nz1 - nz0 + 1) / 2, ny = y1 - 10;
+    for (let y = ny; y < y1 - 5; y++) for (let z = nz0; z <= nz1; z++) {
+      const r = Math.hypot(z + 0.5 - ncz, y - ny);
+      if (r > nhw - 0.6 && r < nhw + 0.8) g.set(rx + 1, y, z, k.goldLight);
+      else if (r >= nhw + 0.8) g.set(rx + 1, y, z, k.gold);
+    }
+    // the throne: gilt steps rising in the niche, the crucifix's place at the top
+    for (let i = 0; i < 6; i++) g.box(rx + 1, y0 + 6 + i * 2, Math.floor(ncz) - 5 + i, rx + 5 - Math.floor(i * 0.6), y0 + 7 + i * 2, Math.ceil(ncz) + 4 - i, (x, y) => (y % 2 ? k.goldLight : x === rx + 5 - Math.floor(i * 0.6) ? k.goldDeep : k.gold));
+    g.box(rx + 2, y0 + 18, Math.floor(ncz), rx + 2, y0 + 25, Math.floor(ncz), k.goldDeep);
+    g.box(rx + 2, y0 + 23, Math.floor(ncz) - 2, rx + 2, y0 + 23, Math.floor(ncz) + 2, k.goldDeep);
+    g.box(rx + 3, y0 + 20, Math.floor(ncz), rx + 3, y0 + 23, Math.floor(ncz), k.pFlesh);
+    // the altar before it: stone, its frontal of azulejos in a gilt frame
+    g.box(CX0 + 3, Y + 2, Math.floor(cz) - 6, CX0 + 6, Y + 5, Math.ceil(cz) + 5, (x, y, z) => {
+      if (y === Y + 5) return slabW;
+      if (x !== CX0 + 6) return stone;
+      const e = z === Math.floor(cz) - 6 || z === Math.ceil(cz) + 5 || y === Y + 2 || y === Y + 4;
+      return e ? k.gold : pm(z, 2) === pm(y, 2) ? k.cobalt : k.tile;
+    });
+  }
+  // side altars of gilt woodwork closing each aisle: a painting between twisted columns under a round arch
+  for (const [za, zb] of [[IZ0, NZ0 - 3], [NZ1 + 3, IZ1]] as const) {
+    const scz = (za + zb + 1) / 2, s0 = Math.floor(scz) - 4, s1 = Math.ceil(scz) + 3;
+    g.box(XN + 1, Y, s0 - 1, XN + 3, Y + 3, s1 + 1, (x, y, z) => (y === Y + 3 ? slabW : x === XN + 3 ? (z === s0 - 1 || z === s1 + 1 ? k.gold : (z + y) % 2 ? k.cobalt : k.tile) : stone));
+    g.box(XN + 1, Y + 4, s0, XN + 1, Y + 18, s1, (_x, y, z) => framed(k, z - s0, y - (Y + 4), s1 - s0 + 1, 15, za * 7 + 3));
+    for (const zc2 of [s0 - 2, s1 + 1]) g.box(XN + 1, Y + 4, zc2, XN + 2, Y + 18, zc2 + 1, (x, y, z) => (pm(y + (z - zc2) * 2 + x, 4) < 2 ? k.goldLight : k.gold));
+    for (let y = Y + 19; y <= Y + 24; y++) for (let z = s0 - 2; z <= s1 + 2; z++) {
+      const r = Math.hypot(z + 0.5 - scz, y - (Y + 19));
+      if (r < (s1 - s0) / 2 + 3) g.set(XN + 1, y, z, r > (s1 - s0) / 2 + 1.5 ? k.goldLight : k.gold);
+    }
+  }
+  // the pulpit on the third column of the north arcade: a gilt drum on a stem, its sounding board above
+  {
+    const px = cols[2], z0 = NZ1 - 3;
+    g.box(px, Y, z0 + 2, px + 1, Y + 7, z0 + 3, stone);
+    g.box(px - 1, Y + 8, z0, px + 2, Y + 12, z0 + 3, (x, y, z) => (x === px - 1 || x === px + 2 || z === z0 ? (y === Y + 12 || y === Y + 8 ? k.goldLight : (x + y) % 2 ? k.gold : k.goldDeep) : y === Y + 8 ? cedar : 0));
+    g.box(px - 2, Y + 19, z0 - 1, px + 3, Y + 19, z0 + 3, k.gold);
+    g.box(px - 1, Y + 20, z0, px + 2, Y + 20, z0 + 2, k.goldLight);
+  }
+  // holy water stoups by the door
+  for (const zz of [Math.floor(cz) - 7, Math.ceil(cz) + 6]) {
+    g.box(X1 - 3, Y, zz, X1 - 3, Y + 2, zz, stone);
+    g.box(X1 - 4, Y + 3, zz - 1, X1 - 2, Y + 3, zz + 1, (x, _y, z) => (x === X1 - 3 && z === zz ? k.water : stoneL));
+  }
+  // the doorway through the front, the doors folded back inside; the óculo's glass seen from within
+  g.box(FX, Y, Math.floor(cz) - 4, FX + 3, Y + 15, Math.ceil(cz) + 3, 0);
+  for (const zz of [Math.floor(cz) - 5, Math.ceil(cz) + 4]) g.box(X1 - 3, Y, zz, X1, Y + 15, zz, (x, y) => ((x + y) % 4 === 0 ? cedarDark : cedar));
+  {
+    const oy = Y + NH - 9;
+    for (let y = oy - 5; y <= oy + 5; y++) for (let z = Math.floor(cz) - 6; z <= Math.ceil(cz) + 5; z++) {
+      const r = Math.hypot(z + 0.5 - cz, y + 0.5 - oy);
+      if (r < 4.6) g.box(FX, y, z, FX + 2, y, z, 0);
+    }
+  }
+  return hall;
+}

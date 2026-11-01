@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.15',
+    date: '2026-11-01',
+    title: 'Food places found',
+    items: [
+      'The pocket map now shows how many of the city\'s food places you have found, under the city name: every stall, restaurant and the hidden place counts. A place is found once you have walked past it or eaten there, and the hidden one once you have discovered it.',
+      'Find them all and the counter turns green with a tick.',
+      'Once you have found the hidden place, it now has its own marker on the pocket map.',
+    ],
+  },
+  {
     version: '0.17.14',
     date: '2026-10-31',
     title: 'Light through stained glass',

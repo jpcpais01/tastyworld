@@ -2,7 +2,7 @@ import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
 import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, StallAnchor } from './tokyo';
-import { Prop, rotateProp, bench, cafeTable, scooter, stool, bush, grassTuft } from './props';
+import { Prop, rotateProp, bench, scooter, stool, bush, grassTuft, terraceTable, terraceChair, TERRACE_TOP } from './props';
 import { buildFood, type FoodId } from './food';
 import type { RoomAnchor, RoomNpc } from './interiors';
 import { STALL } from '../data/stalls';
@@ -590,7 +590,7 @@ export function buildMadeira(win?: Window): BuildResult {
       { id: 'padre', pos: [-8.5, 0, -24] },
     ],
     benches: b.benches,
-    stools: b.stools,
+    stools: b.stools, cafeTables: b.cafeTables,
     stepSeats: [],
     extras,
     cats: [[-2, 0, -20], [6.5, 0, 72], [38, 0, -30], [-14, 0, 28], [20, 0, -4]],
@@ -1803,9 +1803,10 @@ function largo(b: Builder, c: AC, plan: Plan): void {
   // café tables on the square in front of the café
   for (let i = 0; i < 4; i++) {
     const x = 6 + i * 2.2, z = -15.2;
-    b.place(cafeTable(k(b), b.k.c.white), x, Yp, z);
-    b.place(stool(k(b), c.iron), x - 0.55, Yp, z); b.place(stool(k(b), c.iron), x + 0.55, Yp, z);
+    b.place(terraceTable(k(b), b.k.c.white, i), x, Yp, z);
+    b.place(terraceChair(k(b), c.iron, c.iron), x - 0.55, Yp, z, 1); b.place(terraceChair(k(b), c.iron, c.iron), x + 0.55, Yp, z, 3);
     b.stools.push([x - 0.55, z, Math.PI / 2, Yp], [x + 0.55, z, -Math.PI / 2, Yp]);
+    b.cafeTables.push([x, z, Yp + TERRACE_TOP]);
     if (i % 2 === 0) b.place(umbrella(c, i), x, Yp, z);
     b.lamp(x, Yp + 1.1, z, WARM, 2.5, 0.5);
   }
@@ -1824,9 +1825,10 @@ function largo(b: Builder, c: AC, plan: Plan): void {
   for (const z0 of [-80, -72, -64, -56]) for (const dz of [0, 1.9]) {
     const x = 6.6, z = z0 + dz, y = floorAt(plan, x, z);
     if (Math.abs(floorAt(plan, x - 0.6, z) - y) > 0.05 || Math.abs(floorAt(plan, x + 0.6, z) - y) > 0.05 || !free(x - 0.9, z - 0.5, x + 0.9, z + 0.5)) continue;
-    b.place(cafeTable(k(b), cloths[(z0 / 8) & 1 ? 0 : (ti % 3)]), x, y, z);
-    b.place(stool(k(b), c.iron), x - 0.55, y, z); b.place(stool(k(b), c.iron), x + 0.55, y, z);
+    b.place(terraceTable(k(b), cloths[(z0 / 8) & 1 ? 0 : (ti % 3)], ti), x, y, z);
+    b.place(terraceChair(k(b), c.iron, c.iron), x - 0.55, y, z, 1); b.place(terraceChair(k(b), c.iron, c.iron), x + 0.55, y, z, 3);
     b.stools.push([x - 0.55, z, Math.PI / 2, y], [x + 0.55, z, -Math.PI / 2, y]);
+    b.cafeTables.push([x, z, y + TERRACE_TOP]);
     if (ti % 2 === 0) b.place(umbrella(c, ti + 5), x, y, z);
     b.block(x - 0.9, z - 0.45, x + 0.9, z + 0.45);
     b.lamp(x, y + 1.1, z, WARM, 2.5, 0.5);
@@ -2529,12 +2531,13 @@ function eateryLayout(lt: LotPlan) {
 /** Which tables have someone eating at them: a seat each side, about half of them taken. */
 function eaterySeats(lt: LotPlan) {
   const L = eateryLayout(lt);
-  const seats: { x: number; z: number; face: number; taken: boolean }[] = [];
+  const seats: { x: number; z: number; face: number; taken: boolean; table: [number, number] }[] = [];
   L.tables.forEach((t, i) => {
+    const table = L.P(t.a + 1, t.d + 1);
     for (const s of [-1, 1]) {
       const [x, z] = L.P(s < 0 ? t.a - 0.5 : t.a + 2.5, t.d + 1);
       const dir = s < 0 ? L.ax : [-L.ax[0], -L.ax[1]];
-      seats.push({ x, z, face: Math.atan2(dir[0], dir[1]), taken: hash3(lt.seed + i, s + 3, 17) < 0.4 });
+      seats.push({ x, z, face: Math.atan2(dir[0], dir[1]), taken: hash3(lt.seed + i, s + 3, 17) < 0.4, table });
     }
   });
   return seats;
@@ -2551,11 +2554,13 @@ function eateryAnchors(plan: Plan): { stalls: StallAnchor[]; rooms: RoomAnchor[]
     stalls.push({ id: lt.food, stand: [sx, sz], vendor: [vx, vz, Math.atan2(L.out[0], L.out[1])], label: [lx, L.floorY + 3.5, lz] });
     const [ax0, az0] = L.P(1, 1), [ax1, az1] = L.P(L.W - 1, L.D - 1);
     const [dx, dz] = L.P(L.mid + 0.5, 1.6);
-    const npcs: RoomNpc[] = eaterySeats(lt).filter((s) => s.taken).map((s, i) => ({ role: 'guest', pos: [s.x, L.floorY + 0.5, s.z], facing: s.face, sit: true, seed: lt.seed + i * 13 }));
+    const all = eaterySeats(lt);
+    const npcs: RoomNpc[] = all.filter((s) => s.taken).map((s, i) => ({ role: 'guest', pos: [s.x, L.floorY + 0.5, s.z], facing: s.face, sit: true, seed: lt.seed + i * 13 }));
     rooms.push({
       id: `eat-${lt.food}`, kind: 'cafe', nth: rooms.length, stall: lt.food,
       rect: [Math.min(ax0, ax1), Math.min(az0, az1), Math.max(ax0, ax1), Math.max(az0, az1)],
       door: [dx, dz], npcs, spots: [],
+      seats: all.map((s) => ({ pos: [s.x, L.floorY + 0.5, s.z], face: s.face, table: [s.table[0], L.floorY + 0.75, s.table[1]], taken: s.taken })),
     });
   }
   return { stalls, rooms };

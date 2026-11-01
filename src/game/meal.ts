@@ -32,6 +32,14 @@ export interface MealHost {
   bubble(key: string, text: string, pos: [number, number, number], secs: number): void;
   /** Steam over the food and sparkles around the face (world positions; null hides them). */
   fx(steam: THREE.Vector3 | null, steamAmount: number, sparkle: THREE.Vector3 | null): void;
+  /**
+   * Eating at a table: the spot on the table top (world) where the dish is set down. The vendor is then the waiter,
+   * who carries it over (`arrived()` when they reach the table) and sets it down; with no waiter it is on the table
+   * already. The dish stays on the table while it is eaten, and the empty plate stays until it is cleared.
+   */
+  table?: THREE.Vector3 | null;
+  /** What the waiter says as the plate goes down. */
+  serveLine?: string;
 }
 
 type At = 'rest' | 'mouth' | 'piece' | 'dip' | 'chest' | 'cheek' | 'low';
@@ -199,7 +207,12 @@ export class Meal {
   private beats: Beat[] = [];
   private bi = -1;
   private bt = 0;
-  private phase: 'serve' | 'present' | 'pass' | 'thanks' | 'eat' | 'yum' | 'end' = 'serve';
+  private phase: 'serve' | 'present' | 'pass' | 'carry' | 'set' | 'thanks' | 'eat' | 'yum' | 'end' | 'clear' = 'serve';
+  /** Table mode: the plate's spot on the table (world) and the waiter clearing the empties. */
+  private table: THREE.Vector3 | null = null;
+  private clearer: Actor | null = null;
+  private tableM = new THREE.Matrix4();
+  private picked = false;
   private phaseT = 0;
   private pieceI = 0;
   private biteN = 0;
@@ -245,9 +258,15 @@ export class Meal {
     if (k.held) this.held = new Held(k.held, k.pal, this.mat, k.scale, host.scene);
     const pl = host.player;
     this.start.copy(pl.position);
-    // step up to the counter so hands can meet over it
     const v = host.vendor;
-    if (v) {
+    if (host.table) {
+      // at a table: the waiter carries it over and sets it down, or it is there already
+      this.table = host.table.clone();
+      this.phase = v ? 'carry' : 'thanks';
+      this.picked = !!k.vessel || !k.held;
+      if (v) this.vendorFacing = v.targetFacing;
+    } else if (v) {
+      // step up to the counter so hands can meet over it
       this.vendorFacing = v.targetFacing;
       const dx = pl.position.x - v.position.x, dz = pl.position.z - v.position.z, d = Math.hypot(dx, dz);
       const want = 1.35;
@@ -263,6 +282,7 @@ export class Meal {
       v.anim = 'cook';
       host.audio.play('sizzle');
     } else this.phase = 'thanks';
+    if (this.table) this.tableMatrix();
     this.focus.copy(pl.position).add(this.tmp.set(0, 1, 0));
     this.buildBeats();
     for (const h of this.hands) h.pos.set(0, 0.9, 0.25);
@@ -273,7 +293,32 @@ export class Meal {
   get eating(): boolean { return !this.finished; }
 
   /** Tap to hurry along. */
-  hurry(): void { this.speed = 2.6; }
+  hurry(): void { if (this.phase !== 'carry') this.speed = 2.6; }
+
+  /** Table mode: the waiter has reached the table with the dish. */
+  arrived(): void { if (this.phase === 'carry') this.next('set'); }
+
+  /** Table mode: the dish is down and the waiter's hands are free. */
+  get served(): boolean { return this.phase !== 'carry' && this.phase !== 'set'; }
+
+  /** Table mode: a waiter takes the empties away in both hands (until disposed). */
+  clearBy(waiter: Actor): void {
+    this.clearer = waiter;
+    this.phase = 'clear';
+    this.phaseT = 0;
+    this.host.fx(null, 0, null);
+  }
+
+  /** Still on the table, waiting to be cleared (the meal has been eaten). */
+  get leftover(): boolean { return this.finished && !!this.table && (!!this.vessel || !!this.kit.drink) && this.phase !== 'clear'; }
+
+  /** Where the plate sits on the table, in world space, upright and turned the way the diner faces. */
+  private tableMatrix(): void {
+    const h = this.main(), t = this.table!;
+    const k = h.mesh.scale.x, lift = h.model.grip[1] * VOX * k + 0.004;
+    this.tq.setFromAxisAngle(this.tmp.set(0, 1, 0), this.host.player.facing);
+    this.tableM.compose(this.tmp2.set(t.x, t.y + lift, t.z), this.tq, this.tmp3.setScalar(k));
+  }
 
   /** Walking off: finish at once, leftovers vanish. */
   stop(): void {
@@ -298,7 +343,10 @@ export class Meal {
     pl.reach[0].on = pl.reach[1].on = false;
     pl.pose.chew = 0;
     const v = this.host.vendor;
-    if (v) { v.reach[0].on = v.reach[1].on = false; v.pose.lean = 0; if (v.anim !== 'cook') v.anim = 'cook'; v.targetFacing = this.vendorFacing; }
+    if (v && !this.table) { v.reach[0].on = v.reach[1].on = false; v.pose.lean = 0; if (v.anim !== 'cook') v.anim = 'cook'; v.targetFacing = this.vendorFacing; }
+    else if (v && this.phase !== 'clear') { v.reach[0].on = v.reach[1].on = false; v.pose.lean = 0; }
+    const c = this.clearer;
+    if (c) { c.reach[0].on = c.reach[1].on = false; c.pose.lean = 0; }
   }
 
   // ------------------------------------------------------------------------------------------- script
@@ -308,7 +356,7 @@ export class Meal {
     const pieces = k.vessel?.pieces ?? k.held?.pieces ?? [];
     const n = k.drink ? k.bites : Math.max(1, Math.min(k.bites, k.vessel ? pieces.length : 99));
     for (let i = 0; i < n; i++) B.push(...this.style(i, n));
-    if (k.style === 'slurp') B.push(...drinkBroth());
+    if (k.style === 'slurp' && !this.host.table) B.push(...drinkBroth());
     this.beats = B;
   }
 
@@ -397,6 +445,7 @@ export class Meal {
 
   /** Before the actors animate: advance the scene and aim the hands. */
   update(dt: number): void {
+    if (this.phase === 'clear') { if (this.clearer) this.offer(this.clearer, 0.3); return; }
     if (this.finished) return;
     dt *= this.speed;
     const pl = this.host.player, v = this.host.vendor;
@@ -407,17 +456,45 @@ export class Meal {
     pl.pose.chew = this.chewT > 0 ? 1 : 0;
     pl.pose.bob = this.hafuT > 0 ? Math.abs(Math.sin(this.phaseT * 9)) * 0.01 : 0;
     const mouth = this.mouthM(this.tmp);
-    this.pitch = this.phase === 'serve' || this.phase === 'present' || this.phase === 'pass' ? -0.2 : -0.62;
+    this.pitch = this.phase === 'serve' || this.phase === 'present' || this.phase === 'pass' || this.phase === 'carry' ? -0.2 : -0.62;
     // the camera looks at what matters: the counter while serving, the food while eating
     const fw = new THREE.Vector3();
     this.toWorldM(fw.copy(mouth).add(this.tmp2.set(0, -0.15, 0.15)));
-    if (v && (this.phase === 'serve' || this.phase === 'present' || this.phase === 'pass')) {
+    if (this.table && (this.phase === 'carry' || this.phase === 'set')) {
+      fw.copy(this.table).add(this.tmp2.set(0, 0.25, 0));
+      this.zoom = 9;
+    } else if (v && (this.phase === 'serve' || this.phase === 'present' || this.phase === 'pass')) {
       fw.lerp(this.tmp2.set(v.position.x, pl.position.y + 1.05, v.position.z), 0.4);
       this.zoom = 10;
     } else this.zoom = 8.2;
     this.focus.lerp(fw, 1 - Math.exp(-dt * 4));
 
     switch (this.phase) {
+      case 'carry': {
+        // the waiter walks over holding the dish out in front (game/service.ts moves them)
+        if (v) this.offer(v, 0.3);
+        this.restPose(pl, 0.02, [0.05, 0, 0]);
+        this.holdPose();
+        break;
+      }
+      case 'set': {
+        // leaning in to set it down, then a step back
+        const u = sstep(this.phaseT / 0.55);
+        if (v) {
+          v.pose.lean = 0.3 * Math.sin(Math.min(1, this.phaseT / 0.75) * Math.PI);
+          if (this.phaseT < 0.55) this.offer(v, 0.3 + 0.12 * u);
+          else { v.reach[0].on = v.reach[1].on = false; }
+        }
+        if (this.phaseT - dt <= 0.3 && this.phaseT > 0.3 && v) {
+          const q = v.position;
+          this.host.bubble('meal-vendor', this.host.serveLine ?? pick(TEXT.meal.serve), [q.x, q.y + 2.15, q.z], 2);
+          this.host.audio.play('clink');
+        }
+        this.restPose(pl, 0.02, [0.12, 0, 0]);
+        this.holdPose();
+        if (this.phaseT > 0.85) { if (v) v.pose.lean = 0; this.next('thanks'); }
+        break;
+      }
       case 'serve': {
         if (this.stepTo) pl.position.lerp(this.stepTo, 1 - Math.exp(-dt * 5));
         if (v) pl.targetFacing = Math.atan2(v.position.x - pl.position.x, v.position.z - pl.position.z);
@@ -464,10 +541,17 @@ export class Meal {
       case 'thanks': {
         // a little bow over the food: itadakimasu
         const yaw = this.host.viewYaw();
-        if (yaw !== null && this.faced === 0) { this.faced = 1; pl.targetFacing = yaw + 0.55; }
+        if (!this.table && yaw !== null && this.faced === 0) { this.faced = 1; pl.targetFacing = yaw + 0.55; }
         const u = Math.sin(Math.min(1, this.phaseT / 0.9) * Math.PI);
         this.restPose(pl, 0.18 * u, [0.22 * u + 0.08, 0, 0]);
         this.holdPose();
+        if (!this.picked) {
+          // reach for the cup or the bun on the table and take it in hand
+          const w = sstep(this.phaseT / 0.45);
+          const at = this.fromWorldM(this.tmp2.copy(this.table!).add(this.tmp.set(0, this.gripLift(this.held!) + 0.01, 0)));
+          this.setReach(1, this.tmp3.lerpVectors(this.hands[1].pos, at, w));
+          if (this.phaseT > 0.45) { this.picked = true; this.host.audio.play('click'); }
+        }
         if (this.phaseT - dt <= 0.05 && this.phaseT > 0.05) {
           const p = pl.position;
           this.host.bubble('meal-me', this.kit.drink ? TEXT.meal.startDrink : TEXT.meal.start, [p.x, p.y + 2.1, p.z], 1.4);
@@ -494,6 +578,7 @@ export class Meal {
         if (t > 1.45) {
           this.release();
           pl.pose.roll = pl.pose.pitch = pl.pose.bob = pl.pose.lean = 0;
+          pl.reach[0].on = pl.reach[1].on = false;
           this.next('end');
         }
         break;
@@ -503,7 +588,7 @@ export class Meal {
         break;
     }
     // steam over hot food while there is food left
-    const steamOn = this.kit.steam > 0 && (this.phase === 'eat' || this.phase === 'thanks' || this.phase === 'pass' || this.phase === 'present');
+    const steamOn = this.kit.steam > 0 && (this.phase === 'eat' || this.phase === 'thanks' || this.phase === 'pass' || this.phase === 'present' || this.phase === 'carry' || this.phase === 'set');
     const src = this.vessel ?? this.held;
     let steamAt: THREE.Vector3 | null = null;
     if (steamOn && src && src.mesh.visible) {
@@ -518,15 +603,27 @@ export class Meal {
 
   private beatsBites(): number { return this.kit.bites; }
 
+  /** Height of a model's grip over the bottom of it (metres): what it stands on. */
+  private gripLift(h: Held): number { return h.model.grip[1] * VOX * h.mesh.scale.x; }
+
   /** After the actors animate: glue the food to the hands, fly the crumbs. */
   place(dt: number): void {
+    if (this.phase === 'clear') {
+      const c = this.clearer;
+      const m = this.vessel ?? this.held;
+      if (c && m) { c.root.updateMatrixWorld(); this.offerMatrix(c, m); m.mesh.visible = true; }
+      if (this.held && this.held !== m) this.held.mesh.visible = false;
+      for (const cm of this.crumbMeshes) cm.count = 0;
+      return;
+    }
     if (this.finished) return;
     const pl = this.host.player, v = this.host.vendor;
     pl.root.updateMatrixWorld();
     v?.root.updateMatrixWorld();
     const main = this.main();
     const other = main === this.vessel ? this.held : null;
-    if (this.phase === 'serve') {
+    if (this.table) this.placeTable(main, other, v);
+    else if (this.phase === 'serve') {
       for (const h of [this.vessel, this.held, this.morsel]) if (h) h.mesh.visible = false;
     } else if (this.phase === 'present' && v) {
       main.mesh.visible = true;
@@ -565,10 +662,58 @@ export class Meal {
     }
     if (this.morsel) this.placeMorsel(pl);
     for (const h of [this.vessel, this.held, this.morsel]) h?.rebuild();
-    this.updateCrumbs(dt * this.speed, pl.position.y);
+    this.updateCrumbs(dt * this.speed, this.table ? this.table.y : pl.position.y);
   }
 
   private main(): Held { return (this.vessel ?? this.held)!; }
+
+  /** Table mode: carried in the waiter's hands, set down, then on the table while the hands eat from it. */
+  private placeTable(main: Held, other: Held | null, v: Actor | null): void {
+    const pl = this.host.player;
+    if (this.phase === 'carry' && v) {
+      main.mesh.visible = true;
+      if (other) other.mesh.visible = false;
+      this.offerMatrix(v, main);
+      this.passFrom.copy(main.mesh.matrix);
+      return;
+    }
+    if (this.phase === 'set') {
+      main.mesh.visible = true;
+      if (other) other.mesh.visible = false;
+      const u = sstep(this.phaseT / 0.55);
+      const a = new THREE.Vector3(), b = new THREE.Vector3(), qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), sc = new THREE.Vector3();
+      this.passFrom.decompose(a, qa, sc);
+      this.tableM.decompose(b, qb, sc);
+      a.lerp(b, u); a.y += Math.sin(u * Math.PI) * 0.05;
+      qa.slerp(qb, u);
+      main.mesh.matrix.compose(a, qa, sc);
+      return;
+    }
+    const gone = this.phase === 'yum' || this.phase === 'end';
+    if (this.vessel) {
+      this.vessel.mesh.visible = true;
+      this.vessel.mesh.matrix.copy(this.tableM);
+      if (this.wobT > 0) {
+        const w = Math.sin((0.5 - this.wobT) * 40) * this.wobT * 0.16;
+        this.vessel.mesh.matrix.scale(this.tmp.set(1 - w * 0.5, 1 + w, 1 - w * 0.5));
+      }
+    }
+    if (this.held) {
+      if (!this.picked) {
+        this.held.mesh.visible = true;
+        if (this.held === main) this.held.mesh.matrix.copy(this.tableM);
+      } else {
+        const show = this.phase !== 'thanks' || this.held === main || this.phaseT > 0.5;
+        this.held.mesh.visible = show && !gone;
+        this.attach(pl, 1, this.held);
+        if (gone && this.held === main) {
+          // the cup or the paper goes back on the table, empty
+          this.held.mesh.visible = !!this.kit.drink;
+          this.held.mesh.matrix.copy(this.tableM);
+        }
+      }
+    }
+  }
 
   private next(p: Meal['phase']): void {
     this.phase = p;
@@ -673,27 +818,27 @@ export class Meal {
     const u = sstep(this.bt / b.d);
     const fp = this.host.firstPerson();
     for (let side = 0; side < 2; side++) {
-      const key = side ? b.r : b.l;
+      const key = side ? b.r : this.table ? undefined : b.l;
       const st = this.hands[side], fr = this.from[side];
       if (key) {
         const tp = new THREE.Vector3(), tq = new THREE.Quaternion();
         this.resolve(key, side, tp, tq, fp, this.bt / b.d);
         st.pos.lerpVectors(fr.pos, tp, u);
         st.q.slerpQuaternions(fr.q, tq, u);
-      } else if (side === 0 && !b.l) {
+      } else if (side === 0 && (!b.l || this.table)) {
         // the plate hand stays put, a little sway
         this.anchor('rest', 0, st.pos, fp);
         st.pos.y += Math.sin(this.phaseT * 1.3) * 0.006;
         if (this.vessel) st.q.slerp(this.tq.setFromEuler(new THREE.Euler(-0.22, 0, 0)), 0.1);
       }
     }
-    if (!this.vessel && this.held && !b.l) this.freeHand();
+    if (!this.vessel && this.held && (!b.l || this.table)) this.freeHand();
     if (this.kit.style === 'sandwich' && this.held?.model.grip2) this.secondHand();
     this.setReach(0, this.hands[0].pos);
     this.setReach(1, this.hands[1].pos);
     const hd = b.head ?? [0.12, 0, 0];
     this.head.lerpVectors(this.headFrom, this.tmp.set(hd[0], hd[1], hd[2]), u);
-    this.lean = this.leanFrom + ((b.lean ?? 0.04) - this.leanFrom) * u;
+    this.lean = this.leanFrom + ((b.lean ?? (this.table ? 0.16 : 0.04)) - this.leanFrom) * u;
     this.setHead(pl, this.head.x, this.head.y, this.head.z);
     pl.pose.lean = this.lean;
     if (this.bt >= b.d) {
@@ -732,6 +877,7 @@ export class Meal {
   /** One-handed foods: the other hand cups underneath the food, or hangs loose for a drink or a skewer. */
   private freeHand(): void {
     const h = this.hands[0].pos;
+    if (this.table) { this.anchor('rest', 0, h, false); return; }
     if (this.kit.style === 'bite' && this.held?.mesh.visible) {
       const c = this.held.world([this.held.prop.sx / 2, 0, this.held.prop.sz / 2], new THREE.Vector3());
       this.fromWorldM(c);
@@ -796,6 +942,14 @@ export class Meal {
   private anchor(at: At, side: number, out: THREE.Vector3, fp: boolean): THREE.Vector3 {
     switch (at) {
       case 'rest':
+        if (this.table) {
+          // at a table: the free hand rests on the table beside the plate, the other just over it (a drink set down)
+          this.fromWorldM(out.copy(this.table));
+          if (!side) return out.add(this.tmp.set(-0.17, 0.035, -0.06));
+          const h = this.held;
+          if (h && !this.vessel && this.kit.drink) return out.add(this.tmp.set(0.02, this.gripLift(h) + 0.006, 0));
+          return out.add(this.tmp.set(0.13, 0.1, -0.04));
+        }
         out.set(...(side ? REST_R : REST_L));
         // first person: the plate comes to the middle and a little forward, under the eyes
         if (fp) { out.x = side ? out.x * 0.9 : 0.02; out.y += 0.04; out.z += 0.08; }

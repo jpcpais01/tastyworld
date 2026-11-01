@@ -37,6 +37,21 @@ export interface RoomSpot {
   stand: [number, number];
 }
 
+/**
+ * A seat at a table (or a stool at a counter) that a guest can take. The player sits down on the free ones and is
+ * served there (game/service.ts); the taken ones have a regular on them (one of the room's npcs).
+ */
+export interface Seat {
+  /** Middle of the seat's top (metres). */
+  pos: [number, number, number];
+  /** The way a sitter faces. */
+  face: number;
+  /** Middle of the table top in front of them (metres; y is the top's height): for a counter stool, the counter. */
+  table: [number, number, number];
+  /** Someone already sits here. */
+  taken?: boolean;
+}
+
 export interface RoomAnchor {
   id: string;
   kind: RoomKind;
@@ -53,6 +68,8 @@ export interface RoomAnchor {
   /** A hotel lobby: the hotel's id, and where guests stand to take the lift (or the stairs) up to the rooms. */
   hotel?: string;
   lift?: { stand: [number, number]; pick: [number, number, number]; facing: number };
+  /** Seats at the tables and counter where guests eat (rooms that serve food). */
+  seats?: Seat[];
 }
 
 export interface SecretAnchor {
@@ -241,6 +258,14 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
   const spot = (kindS: RoomSpot['kind'], a: number, d: number, y: number, sa: number, sd: number) => {
     const [x, z] = P(a, d);
     room.spots.push({ kind: kindS, pos: [x, y, z], stand: P(sa, sd) });
+  };
+  /** A seat at a table or the counter: (a, d) the seat, (ta, td) the spot on the table top ty metres up. A regular
+   *  sits on it when `taken` (and nobody is there yet). */
+  const seat = (a: number, d: number, dir: number, ta: number, td: number, ty: number, taken: boolean, sy = 0.5) => {
+    const n = room.npcs.length;
+    if (taken) npc('guest', a, d, dir, true, sy);
+    const [x, z] = P(a, d), [tx, tz] = P(ta, td);
+    (room.seats ??= []).push({ pos: [x, sy, z], face: face(dir), table: [tx, ty, tz], taken: room.npcs.length > n });
   };
   const darumaAt = (a: number, d: number, y: number) => b.darumaSpots.push({ kind: o.spotKind ?? kind, pos: withY(P(a, d), y) });
 
@@ -537,8 +562,10 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       lot.box(A0, 7, D1, a1, 7, D1, (a) => [ic.cup, 0, ic.bottleA, ic.cup, ic.bottleB][a % 5]);
       // counter stools
       const sd = D1 - 4.3;
-      for (let a = A0 + 1; a <= a1 - 1; a += 3) put(stool(k, kissa ? k.c.lacquer : k.c.woodLight), a + 0.5, sd, 0, OUT);
-      npc('guest', A0 + 1.5, sd, IN, true);
+      for (let a = A0 + 1; a <= a1 - 1; a += 3) {
+        put(stool(k, kissa ? k.c.lacquer : k.c.woodLight), a + 0.5, sd, 0, OUT);
+        seat(a + 0.5, sd, IN, a + 0.5, D1 - 1.9, 1.0, a === A0 + 1);
+      }
       // tables: booths along the walls in the kissa, small round tables in the café, only as many
       // rows as fit in front of the counter stools with room for the sitters' backs
       const rowEnd = kissa ? 5 : 3.3, rowStep = kissa ? 6 : 5;
@@ -557,8 +584,9 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
             lot.box(wallA, 0, d + 1, wallA, 2, d + 2, ic.wainDark);
             lot.box(a0, 3, d + 1, a1b, 3, d + 2, c.hinoki);
             tables.push({ a: (a0 + a1b + 1) / 2, d: d + 2, y: 1.0, w: 12, dd: 8, along: 'd', lamp: false });
-            if (i === 0 || r() < 0.7) npc('guest', (a0 + a1b + 1) / 2, d + 0.5, IN, true);
-            if (r() < 0.5) npc('guest', (a0 + a1b + 1) / 2, d + 3.5, OUT, true);
+            const ma = (a0 + a1b + 1) / 2;
+            seat(ma, d + 0.5, IN, ma, d + 1.8, 1.0, i === 0 || r() < 0.7);
+            seat(ma, d + 3.5, OUT, ma, d + 2.2, 1.0, r() < 0.5);
             put(pendant(k, k.c.lanternAmber), (a0 + a1b + 1) / 2, d + 2, 2.15, OUT);
           } else {
             // stools far enough out that a sitter's chest clears the round top and the knees tuck under it
@@ -566,8 +594,9 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
             tables.push({ a: ta + 0.5, d: d + 1.5, y: 0.75, w: 7, dd: 7, along: 'd', lamp: true });
             put(stool(k, k.c.woodLight), ta + 0.5, d - 0.3, 0, OUT);
             put(stool(k, k.c.woodLight), ta + 0.5, d + 3.3, 0, OUT);
-            if ((i + side) % 2 === 0) npc('guest', ta + 0.5, d - 0.3, IN, true);
-            else if (r() < 0.5) npc('guest', ta + 0.5, d + 3.3, OUT, true);
+            const near = (i + side) % 2 === 0;
+            seat(ta + 0.5, d - 0.3, IN, ta + 0.5, d + 1.5, 0.75, near);
+            seat(ta + 0.5, d + 3.3, OUT, ta + 0.5, d + 1.5, 0.75, !near && r() < 0.5);
           }
         }
       }
@@ -605,7 +634,8 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       for (let d = cd0 + 1; d <= cd1; d += 3) {
         // a thigh's length out from the counter, so knees tuck under the overhang instead of into it
         put(stool(k, k.c.lacquer), A0 + 5.2, d + 0.5, 0, NA);
-        if (n++ % 2 === 0 && n < 5) npc('guest', A0 + 5.2, d + 0.5, NA, true);
+        seat(A0 + 5.2, d + 0.5, NA, A0 + 3.0, d + 0.5, 1.0, n % 2 === 0 && n < 4);
+        n++;
       }
       put(lantern(k, o.lanterns ?? k.c.lanternRed, 4, 5, o.seed + 2), A0 + 3, (cd0 + cd1) / 2, 2.3, OUT);
       lot.set(A0, 6, cd0 + 1, 0); lot.set(A0, 7, cd0 + 1, 0);
@@ -762,7 +792,7 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       for (let d = zd0 + 2; d + 2 <= zd1; d += 5) {
         lot.box(A0 + 1, 1, d, A0 + 2, 3, d + 1, c.woodDark);
         lot.set(A0 + 3, 1, d, ic.zabuton); lot.set(A0 + 3, 1, d + 1, ic.zabuton);
-        npc('guest', A0 + 3.6, d + 1, NA, true);
+        seat(A0 + 3.6, d + 1, NA, A0 + 2.2, d + 1, 1.0, true);
       }
       // counter on the right with the open kitchen behind it
       const ca = A1 - 3;
@@ -772,8 +802,10 @@ export function shopFloor(lot: Lot, o: ShopFloorOpts): void {
       const [ex, ez] = P(A1 + 0.5, D1 - 2);
       b.emitters.push({ kind: 'steam', pos: [ex, 1.15, ez], rate: 0.9 });
       b.place(bowlStack(ic, o.seed), ...withY(P(ca + 1, D0 + 5.5), 1.0), turn(NA));
-      for (let d = D0 + 6; d <= D1 - 1; d += 3) put(stool(k, k.c.woodDark), ca - 1.2, d + 0.5, 0, PA);
-      npc('guest', ca - 1.2, D0 + 9.5, PA, true);
+      for (let d = D0 + 6; d <= D1 - 1; d += 3) {
+        put(stool(k, k.c.woodDark), ca - 1.2, d + 0.5, 0, PA);
+        seat(ca - 1.2, d + 0.5, PA, ca + 1.0, d + 0.5, 1.0, d === D0 + 9);
+      }
       npc('keeper', A1, D0 + 8, NA);
       put(lantern(k, k.c.lanternWhite, 4, 5, o.seed + 3), (A0 + A1 + 1) / 2, D0 + 6, 2.3, OUT);
       spot('buy', ca, D0 + 8, 1.2, ca - 2.4, D0 + 8);

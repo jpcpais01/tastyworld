@@ -284,6 +284,9 @@ function tabure(c: IC2, col: number): Prop {
   return p;
 }
 
+/** Height of a tea table's top (metres). */
+const TEA_TOP = 0.625;
+
 /** A tea table: small, round-ish, a tray of tulip glasses on it. */
 function teaTable(c: IC2, seed: number, glasses = true): Prop {
   const p = new Prop(6, 6, 6);
@@ -890,7 +893,7 @@ export function buildIstanbul(win?: Window): BuildResult {
       { id: 'kaptan', pos: [39.3, 0, -6] },
     ],
     benches: b.benches.filter(([x, z]) => !beyond(x, z)),
-    stools: b.stools.filter(([x, z]) => !beyond(x, z)),
+    stools: b.stools.filter(([x, z]) => !beyond(x, z)), cafeTables: b.cafeTables.filter(([x, z]) => !beyond(x, z)),
     cats: [...CATS, ...laneCats(plan)].filter(([x, , z]) => !beyond(x, z)),
     extras: ([...anglers(), ...teaGardenFolk(), ...bazaarShoppers(plan.lots), ...ctx.keepers] as Extra[]).filter((e) => e.indoor || !beyond(e.pos[0], e.pos[2])),
     emitters: b.emitters,
@@ -2075,10 +2078,12 @@ export function foodRoom(ctx: Ctx, f: Frame, lt: LotPlan, kind: RoomKind, touche
     for (const s of [-1, 1]) {
       const [sx, sz] = f.m(side + 0.5 + s * 2.4, td + 0.5);
       b.place(tabure(c, look.stoolTop), sx, y, sz);
-      if (hash3(lt.seed, i, s) < 0.5 && t < 4) {
+      const taken = hash3(lt.seed, i, s) < 0.5 && t < 4;
+      if (taken) {
         room.npcs.push({ role: 'guest', pos: [sx, y + 0.375, sz], facing: Math.atan2(tx - sx, tz - sz), sit: true, seed: lt.seed * 31 + i * 7 + s });
         t++;
       }
+      (room.seats ??= []).push({ pos: [sx, y + 0.375, sz], face: Math.atan2(tx - sx, tz - sz), table: [tx, y + TEA_TOP, tz], taken });
     }
   });
   if (restaurant) {
@@ -2802,6 +2807,7 @@ function suleymaniye(ctx: Ctx): void {
     b.place(teaTable(c, i), x, HILLTOP_Y, z);
     b.block(x - 0.35, z - 0.35, x + 0.35, z + 0.35);
     for (const s of [-1, 1]) { b.place(tabure(c, c.woodBare), x + s * 0.6, HILLTOP_Y, z); b.stools.push([x + s * 0.6, z, s > 0 ? -Math.PI / 2 : Math.PI / 2, HILLTOP_Y]); }
+    b.cafeTables.push([x, z, HILLTOP_Y + TEA_TOP]);
     b.lamp(x, HILLTOP_Y + 1, z, WARM, 2.5, 0.4);
   }
   for (const x of [-150, -128, -116]) b.place(planeTree(c, x, false), x, HILLTOP_Y, 14.5);
@@ -2863,6 +2869,7 @@ function waterfront(ctx: Ctx): void {
     b.place(teaTable(c, i + 20), x, QUAY_Y, z);
     b.block(x - 0.35, z - 0.35, x + 0.35, z + 0.35);
     for (const s of [-1, 1]) { b.place(tabure(c, [c.hullBlue, c.hullRed, c.hullYellow][i % 3]), x + s * 0.6, QUAY_Y, z); b.stools.push([x + s * 0.6, z, s > 0 ? -Math.PI / 2 : Math.PI / 2, QUAY_Y]); }
+    b.cafeTables.push([x, z, QUAY_Y + TEA_TOP]);
   }
   // ferries at the Kadıköy and Üsküdar piers, a smaller one at the Horn pier
   const pier = (x0: number, z: number, along: 'x' | 'z') => {
@@ -3234,6 +3241,7 @@ function streetLife(ctx: Ctx): void {
           b.place(teaTable(c, Math.floor(r() * 1e4)), ex, ey, ez); b.block(ex - 0.35, ez - 0.35, ex + 0.35, ez + 0.35);
           const ux = (bx - ax) / len, uz = (bz - az) / len;
           for (const k of [-1, 1]) { const sx = ex + ux * 0.6 * k, sz = ez + uz * 0.6 * k; b.place(tabure(c, c.woodBare), sx, ey, sz); b.stools.push([sx, sz, Math.atan2(-ux * k, -uz * k), ey]); }
+          b.cafeTables.push([ex, ez, ey + TEA_TOP]);
         }
       } else {
         if (pick < 0.25) { b.place(catHouse(c), ex, ey, ez, turn); b.block(ex - 0.5, ez - 0.5, ex + 0.5, ez + 0.5); }

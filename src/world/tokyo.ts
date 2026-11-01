@@ -10,7 +10,7 @@ import {
   Prop, rotateProp, makePropColors, PropKit, lantern, giantLantern, verticalSign, boardSign, noren, vendingMachine,
   acUnit, crateStack, stool, plantPot, stoneLantern, incenseBurner, streetLamp, bench, bicycle, nobori, manekiNeko, wire,
   postBox, trafficMirror, bollard, scooter, aFrame, binCorner, flowerStand, bookCart, fishDisplay, breadShelf, jizo, meters,
-  billboard, antenna, planterBox, cafeTable,
+  billboard, antenna, planterBox, terraceTable, terraceChair, TERRACE_TOP,
 } from './props';
 import { hiddenKitchenDress } from './dining';
 import { buildFood, FoodId } from './food';
@@ -100,6 +100,8 @@ export interface Anchors {
   benches: [number, number, number, number?][];
   /** Single outdoor seats (café terrace stools): x, z, the angle a sitter faces and the ground (0 when left out). */
   stools: [number, number, number, number?][];
+  /** Outdoor café tables (x, z, height of the top in metres): the stools beside one are a terrace a nearby café serves. */
+  cafeTables?: [number, number, number][];
   /** Steps people sit on (x, z and the angle a sitter faces): they sit on the step itself, feet on the ones below. */
   stepSeats?: [number, number, number][];
   cats: [number, number, number][];
@@ -246,6 +248,7 @@ export class Builder {
   /** Footprints of props standing on the ground, so later ones can keep clear of them. */
   standing: [number, number, number, number][] = [];
   stools: [number, number, number, number?][] = [];
+  cafeTables: [number, number, number][] = [];
   /** Great halls one walks into (world/sacred.ts). */
   halls: HallAnchor[] = [];
   sway: SwayBody[] = [];
@@ -1704,10 +1707,11 @@ export function buildTokyo(win?: Window): BuildResult {
       // a table nudged out of a doorway must not land on its neighbour's stool
       if (tablesAt.some((t) => Math.abs(t - x) < 1.4)) continue;
       tablesAt.push(x);
-      b.place(cafeTable(k, col), x, 0, 38.65, 0);
+      b.place(terraceTable(k, col, tablesAt.length), x, 0, 38.65, 0);
       solid(x, 38.65, 0.3, 0.3);
-      b.place(stool(k, k.c.woodLight), x + 0.6, 0, 38.65);
+      b.place(terraceChair(k, k.c.woodLight, k.c.steelDark), x + 0.6, 0, 38.65, 3);
       b.stools.push([x + 0.6, 38.65, -Math.PI / 2]);
+      b.cafeTables.push([x, 38.65, TERRACE_TOP]);
     }
     // a scooter and planters on the far bank lane
     // (in front of the far bank's row houses, whose fronts are at z = 54)
@@ -1786,7 +1790,7 @@ export function buildTokyo(win?: Window): BuildResult {
       { id: 'florist', pos: [58.5, 0, 9.7] },
     ],
     benches: b.benches,
-    stools: b.stools,
+    stools: b.stools, cafeTables: b.cafeTables,
     cats: [[34.4, 0, 30.4], [12.2, 0, 40.2], [49.4, 0, 52.3], ...city.cats],
     emitters: b.emitters,
     vending,

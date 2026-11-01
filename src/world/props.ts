@@ -872,6 +872,38 @@ export function cafeTable(k: PropKit, cloth: number): Prop {
   return p;
 }
 
+/** Height of a terrace table's top (metres): a real dining height, so a seated guest eats off it. */
+export const TERRACE_TOP = 0.75;
+
+/**
+ * A café terrace table: a round top 0.66 m across under a cloth that falls over its rim, on one cast iron pedestal,
+ * a little vase of flowers off to the side (guests sit along x, so the plates go either side of the middle).
+ */
+export function terraceTable(k: PropKit, cloth: number, seed = 0): Prop {
+  const { c } = k;
+  const p = new Prop(11, 14, 11, 0.0625);
+  p.box(3, 0, 5, 7, 0, 5, c.steelDark); p.box(5, 0, 3, 5, 0, 7, c.steelDark);
+  p.box(5, 1, 5, 5, 10, 5, c.steelDark);
+  p.cylY(5.5, 5.5, 5.3, 11, 11, cloth);
+  // the cloth hangs down a hand's width all round
+  p.cylY(5.5, 5.5, 5.3, 10, 10, (x, _y, z) => (Math.hypot(x + 0.5 - 5.5, z + 0.5 - 5.5) > 4.4 ? cloth : 0));
+  const vz = seed % 2 ? 2 : 8;
+  p.set(5, 12, vz, c.white);
+  p.set(5, 13, vz, [c.flowerRed, c.flowerYellow, c.pink, c.flowerWhite][seed % 4] ?? c.pink);
+  return p;
+}
+
+/** A bistro chair for a terrace: an iron frame, a woven seat 0.5 m up, a curved back. Faces +z (its back at -z). */
+export function terraceChair(k: PropKit, seat: number, frame = k.c.steelDark): Prop {
+  const p = new Prop(7, 15, 7, 0.0625);
+  for (const [x, z] of [[0, 0], [6, 0], [0, 6], [6, 6]]) p.box(x, 0, z, x, 6, z, frame);
+  p.box(0, 7, 0, 6, 7, 6, seat);
+  p.box(0, 8, 0, 0, 14, 0, frame); p.box(6, 8, 0, 6, 14, 0, frame);
+  p.box(0, 12, 0, 6, 14, 0, (x, y) => (y === 13 && x > 0 && x < 6 ? seat : frame));
+  p.box(1, 9, 0, 5, 9, 0, frame);
+  return p;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Set dressing for the wider city (see world/dressing.ts)
 

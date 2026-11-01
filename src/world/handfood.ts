@@ -269,6 +269,11 @@ function snackKit(icon: string, kit: KitFn, pal: Palette, c: FC): MealKit {
     case 'coffee': return kit('sip', { held: cup(c.plate, a(0x5a3218), c), drink: true, bites: 2, steam: 0.7 });
     case 'latte': return kit('sip', { held: glass(a(0x9cc46a), c, true), drink: true, bites: 2 });
     case 'tea': return kit('sip', { held: glass(a(0xc08a3a), c, true), drink: true, bites: 2 });
+    case 'beer': return kit('sip', { held: beerMug(c, a(0xe8a83a, 0.03), a(0xfbf6e8, 0.02)), drink: true, bites: 3 });
+    case 'wine': return kit('sip', { held: wineGlass(c, a(0xf0dc8a, 0.03)), drink: true, bites: 2 });
+    case 'water': return kit('sip', { held: glass(a(0xcfe6ee, 0.02), c, true), drink: true, bites: 2 });
+    case 'juice': return kit('sip', { held: glass(a(0xf2902a, 0.04), c, false), drink: true, bites: 2 });
+    case 'yunomi': return kit('sip', { held: yunomi(a(0xe2dccd, 0.03), a(0x5f7f4a, 0.04), a(0x9ab85a, 0.03)), drink: true, bites: 2, steam: 0.6 });
     case 'vitamin': return kit('sip', { held: bottle(a(0x7a3a12, 0.03), a(0xf2c74a), c), drink: true, bites: 1 });
     case 'onigiri': return kit('bite', { held: onigiri(c), biteR: 4 });
     case 'sando': return kit('bite', { held: sando(c, a(0xf6dc6a)), biteR: 4 });
@@ -630,6 +635,34 @@ function glass(drink: number, c: FC, ice: boolean): HandModel {
   if (ice) { p.set(2, 9, 3, c.glass); p.set(4, 8, 2, c.glass); p.set(3, 10, 4, c.glass); }
   p.cylY(3.5, 3.5, 2.5, 10, 11, 0);
   return { prop: p, grip: [3.5, 4, 3.5], tip: [3.5, 11.5, 0.8] };
+}
+
+/** A dimpled beer mug with a handle, a collar of foam on top. */
+function beerMug(c: FC, beer: number, foam: number): HandModel {
+  const p = new Prop(10, 13, 7, VOX);
+  p.cylY(3.5, 3.5, 3.4, 0, 10, c.glass);
+  p.cylY(3.5, 3.5, 2.6, 1, 9, beer);
+  p.cylY(3.5, 3.5, 2.6, 10, 11, foam);
+  ell(p, [3.5, 11.6, 3.5], [2.6, 0.8, 2.6], foam);
+  p.box(7, 2, 3, 9, 2, 3, c.glass); p.box(9, 3, 3, 9, 8, 3, c.glass); p.box(7, 9, 3, 9, 9, 3, c.glass);
+  return { prop: p, grip: [8.5, 5.5, 3.5], tip: [3.5, 11.6, 0.8] };
+}
+
+/** A stemmed wine glass, a third full. */
+function wineGlass(c: FC, wine: number): HandModel {
+  const p = new Prop(7, 13, 7, VOX);
+  p.cylY(3.5, 3.5, 2.4, 0, 0, c.glass);
+  p.box(3, 1, 3, 3, 5, 3, c.glass);
+  for (let y = 6; y <= 12; y++) p.cylY(3.5, 3.5, y < 8 ? 2.2 : 3.1, y, y, (x, yy, z) => (yy <= 8 && Math.hypot(x + 0.5 - 3.5, z + 0.5 - 3.5) < 2.3 ? wine : Math.hypot(x + 0.5 - 3.5, z + 0.5 - 3.5) > 2.3 ? c.glass : 0));
+  return { prop: p, grip: [3.5, 3, 3.5], tip: [3.5, 12.5, 0.8] };
+}
+
+/** A tall handleless Japanese teacup, the green tea showing at the rim. */
+function yunomi(body: number, glaze: number, tea: number): HandModel {
+  const p = new Prop(7, 9, 7, VOX);
+  p.cylY(3.5, 3.5, 3.0, 0, 8, (_x, y) => (y >= 6 ? glaze : body));
+  p.cylY(3.5, 3.5, 2.2, 7, 8, tea);
+  return { prop: p, grip: [3.5, 3.5, 3.5], tip: [3.5, 8.5, 1] };
 }
 
 function bottle(body: number, label: number, c: FC): HandModel {

@@ -259,6 +259,9 @@ class Game {
   private idlers: { actor: Actor; id: string; home: V3; baseFacing: number; talk: number; waved: boolean; habit: Anim; habitT: number }[] = [];
   private vendors: { actor: Actor; stall: StallInfo; ang: number; waveT: number }[] = [];
   private cats: Cat[] = [];
+  /** While a patrol drone holds its light on you, the crowd's spectacle (see Crowd.spectacle). */
+  private scanSpot: { x: number; z: number; r: number; id: number } | null = null;
+  private scanCount = 0;
   /** Where your 2040 cat sits, for passers-by to fuss over. */
   private petSpot = { x: 0, z: 0, lines: NEO_REMARKS.pet };
   /** Funchal's cable car to Monte: its line and the cabins running up and down it. */
@@ -3304,13 +3307,18 @@ class Game {
       // held in a patrol's light for a few seconds: it reads you your record (once each time it locks on)
       if (this.drones.scanT > 2.5 && !this.scanned) { this.scanned = true; this.lifeSys.scanned(); }
       if (this.drones.scanT === 0) this.scanned = false;
+      // a citizen in a patrol's light is a show: passers-by close by stop and film you (each lock-on its own event)
+      if (this.drones.scanT > 0) {
+        if (!this.scanSpot) this.scanSpot = { x: 0, z: 0, r: 14, id: -1 - (this.scanCount++) };
+        this.scanSpot.x = this.player.position.x; this.scanSpot.z = this.player.position.z;
+      } else this.scanSpot = null;
     }
     if (this.holo) {
       // the Halo sings from midnight until its song is done (about half a minute); within earshot, the lyrics float over the square
       const out = !this.inside && !this.upstairs && !this.roomHere, sing = this.tod.hour < 0.8;
       this.holo.update(dt, sing, out);
       // while the Halo sings, the crowd round the crossing stops to film it (each night's song is its own event)
-      if (this.crowd) this.crowd.spectacle = sing ? { x: 0, z: 0, r: 36, id: this.s.life?.day ?? 1 } : null;
+      if (this.crowd) this.crowd.spectacle = sing ? { x: 0, z: 0, r: 36, id: this.s.life?.day ?? 1 } : this.scanSpot;
       const pq = this.player.position, near = out && Math.hypot(pq.x, pq.z) < 45;
       if (sing && near && this.started) {
         if ((this.songT -= dt) <= 0) {

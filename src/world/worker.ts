@@ -2,7 +2,7 @@
 import { WorldPart, PartInit } from './bake';
 import type { MeshData } from './mesher';
 import type { FarLot } from './farTiles';
-import { AMALFI } from './cityId';
+import { AMALFI, MADEIRA } from './cityId';
 
 // the villages round Amalfi are baked by a worker of their own (engine/fartown.ts), imported only there
 let farTown: Promise<import('./amalfiFar').FarTown> | null = null;
@@ -36,6 +36,8 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
   const msg = e.data;
   if (msg.type === 'farInit' && AMALFI) {
     farTown = import('./amalfiFar').then((m) => new m.FarTown(msg.lots));
+  } else if (msg.type === 'farInit' && MADEIRA) {
+    farTown = import('./madeiraFar').then((m) => m.madeiraFarTown(msg.lots));
   } else if (msg.type === 'farMesh' && farTown) {
     const meshes = (await farTown).mesh(msg.tiles, msg.lod);
     const tr: Transferable[] = [];

@@ -38,14 +38,28 @@ const snap = (v: number) => Math.round(v / V) * V;
 const ceil8 = (v: number) => Math.ceil(v / 8) * 8;
 const floor8 = (v: number) => Math.floor(v / 8) * 8;
 
+/**
+ * The town generator a city's villages are built with: its colours, its house() and its terrace masonry. Amalfi's by
+ * default; Funchal passes its own (world/madeiraFar.ts), whose colour set carries every key Amalfi's does.
+ */
+export interface FarKit {
+  colors: (b: Builder) => AC;
+  house: (b: Builder, c: AC, plan: null, lt: LotPlan, ground: (x: number, z: number) => number) => void;
+  masonry: (c: AC, x: number, y: number, z: number, white: boolean) => number;
+  /** Colour of the low wall along a terrace's open edge, from a roll of the dice. */
+  parapet?: (c: AC, r: number) => number;
+}
+
+const AMALFI_KIT: FarKit = { colors: amalfiColors, house, masonry };
+
 export class FarTown {
   readonly tiles: FarTile[];
   private b = new Builder([0, 0, 0, 0]);
   private c: AC;
 
-  constructor(readonly lots: FarLot[]) {
+  constructor(readonly lots: FarLot[], private kit: FarKit = AMALFI_KIT) {
     this.tiles = farTiles(lots);
-    this.c = amalfiColors(this.b);
+    this.c = kit.colors(this.b);
   }
 
   /**
@@ -133,9 +147,9 @@ export class FarTown {
     };
 
     // the terrace: dry-stone courses, cotto tiles on top, a low parapet along its open edges
-    g.box(tx0, 0, tz0, tx1, base - 2, tz1, (x, y, z) => masonry(c, x, y, z, false));
+    g.box(tx0, 0, tz0, tx1, base - 2, tz1, (x, y, z) => this.kit.masonry(c, x, y, z, false));
     g.box(tx0, base - 1, tz0, tx1, base - 1, tz1, (x, _y, z) => ((x + z) & 1 ? c.cotto : c.cottoB));
-    const pc = rnd() < 0.6 ? c.whiteWarm : c.dryStone;
+    const pr = rnd(), pc = this.kit.parapet ? this.kit.parapet(c, pr) : pr < 0.6 ? c.whiteWarm : c.dryStone;
     const parapet = (x: number, z: number) => { g.box(x, base, z, x, base + 1, z, pc); g.set(x, base + 2, z, c.sill); };
     if (base > 6 || drop > 2) {
       if (lt.front === 0) for (let z = tz0; z <= tz1; z++) parapet(tx1, z);
@@ -152,7 +166,7 @@ export class FarTown {
     }
 
     const plan: LotPlan = { id: i + 1, x0, z0, x1, z1, base, top, side: SIDES[lt.front], door: base, seed: lt.seed, shop: false };
-    house(b, c, null, plan, ground);
+    this.kit.house(b, c, null, plan, ground);
     // the town's lamps burn as warm (see buildAmalfi)
     for (const l of b.lamps) { l.r *= 1.3; l.g *= 1.3; l.b *= 1.25; l.radius *= 1.15; }
 

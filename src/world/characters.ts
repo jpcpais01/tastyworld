@@ -1,4 +1,4 @@
-import { AMALFI, ISTANBUL, perCity } from './cityId';
+import { AMALFI, ISTANBUL, MADEIRA, perCity } from './cityId';
 import { Grid, rng } from './grid';
 import { Palette } from './palette';
 import { PART, PART_COUNT, CHAR_SCALE } from './charparts';
@@ -67,13 +67,13 @@ export function randomLook(seed: number): Look {
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
   const hairStyles: Look['hairStyle'][] = ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald'];
   // a summer coast dresses lighter than a Tokyo street: tees and linen, shorts, straw hats and sunglasses
-  const topStyles: Look['topStyle'][] = perCity({ tokyo: ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'], amalfi: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], istanbul: ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'] });
+  const topStyles: Look['topStyle'][] = perCity({ tokyo: ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'], amalfi: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], istanbul: ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'], madeira: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'] });
   const topStyle = pick(topStyles);
-  const hats: Look['hat'][] = perCity({ tokyo: ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'], amalfi: ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'], istanbul: ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'] });
+  const hats: Look['hat'][] = perCity({ tokyo: ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'], amalfi: ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'], istanbul: ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'], madeira: ['none', 'none', 'none', 'none', 'cap', 'straw', 'bucket', 'cap'] });
   const look: Look = {
     skin: pick(SKINS), hair: pick(HAIRS), hairStyle: pick(hairStyles), top: pick(TOPS), topStyle,
-    accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.25, shoes: pick(SHOES), shorts: r() < (AMALFI ? 0.4 : 0.12),
-    hat: pick(hats), hatColor: pick(TOPS), backpack: r() < 0.15 ? pick(TOPS) : undefined, glasses: r() < (AMALFI ? 0.35 : 0.15),
+    accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.25, shoes: pick(SHOES), shorts: r() < (AMALFI ? 0.4 : MADEIRA ? 0.3 : 0.12),
+    hat: pick(hats), hatColor: pick(TOPS), backpack: r() < 0.15 ? pick(TOPS) : undefined, glasses: r() < (AMALFI || MADEIRA ? 0.3 : 0.15),
   };
   if (ISTANBUL) {
     // headscarves in soft prints and plain colours, long skirts or trousers under them; moustaches on the men

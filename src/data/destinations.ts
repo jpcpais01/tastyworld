@@ -47,6 +47,11 @@ export const DESTINATIONS: Destination[] = [
     menu: [['croissant', 'Sfogliatella'], ['squid', 'Cuoppo di mare'], ['pizza', 'Pizza a portafoglio'], ['vanilla', 'Gelato al limone']],
   },
   {
+    id: 'madeira', city: 'Funchal', country: 'Portugal', local: 'Madeira', code: 'FNC', lat: 32.65, lon: -16.91, tz: 'Atlantic/Madeira', open: true,
+    blurb: 'Black basalt and white plaster above the Atlantic: espetada on laurel sticks, poncha in the Zona Velha, bananas on every terrace.',
+    menu: [['sando', 'Bolo do caco'], ['skewer', 'Espetada'], ['fish', 'Espada com banana'], ['honey', 'Bolo de mel']],
+  },
+  {
     id: 'lisbon', city: 'Lisbon', country: 'Portugal', local: 'Lisboa', code: 'LIS', lat: 38.72, lon: -9.14, tz: 'Europe/Lisbon', open: false,
     blurb: 'Tiled hills, yellow trams and sardines on the grill in June.',
     menu: [['tart', 'Pastel de nata'], ['sando', 'Bifana'], ['fish', 'Sardinhas']],

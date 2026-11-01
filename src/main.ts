@@ -1518,6 +1518,7 @@ class Game {
   private skyCars: SkyTraffic | null = null;
   private drones: Drones | null = null;
   private droneNight = 0;
+  private scanned = false;
   private wet = 0.3;
   private wetY: number | null = null;
   private umbrellas: Umbrellas | null = null;
@@ -3179,7 +3180,11 @@ class Game {
     if (this.drones) {
       const h = this.tod.hour, dark = h >= 19 || h < 6 ? 1 : 0;
       this.droneNight += (dark - this.droneNight) * Math.min(1, dt * 0.5);
-      this.drones.update(dt, this.droneNight, !this.inside && !this.upstairs && !this.roomHere);
+      const outside = !this.inside && !this.upstairs && !this.roomHere;
+      this.drones.update(dt, this.droneNight, outside, outside && this.started && !this.ui.busy && !this.meal ? this.player.position : null);
+      // held in a patrol's light for a few seconds: it reads you your record (once each time it locks on)
+      if (this.drones.scanT > 2.5 && !this.scanned) { this.scanned = true; this.lifeSys.scanned(); }
+      if (this.drones.scanT === 0) this.scanned = false;
     }
     if (this.holo) {
       // the Halo sings from midnight until its song is done (about half a minute); within earshot, the lyrics float over the square

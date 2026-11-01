@@ -124,6 +124,20 @@ export function refinePerson(coarse: CharModel, look: Look, ink: Ink): CharModel
     for (let x = 8; x <= 11; x++) paint(x, 34, FZ, mo);
     for (let x = 7; x <= 12; x++) paint(x, 33, FZ, mo);
   } else { paint(8, 33, FZ, ink.mouth); paint(11, 33, FZ, ink.mouth); }
+  // 2040's face gear goes over the features just drawn
+  if (look.tattoo !== undefined) {
+    const t = pal.add(look.tattoo, { emit: 0.5 });
+    for (let y = 33; y <= 40; y++) paint(5, y, FZ, t);
+    paint(6, 40, FZ, t); paint(7, 40, FZ, t); paint(4, 36, FZ, t); paint(6, 33, FZ, t);
+  }
+  if (look.visor !== undefined) {
+    const v = pal.add(look.visor, { emit: 0.9 }), vb = pal.add(mix(look.visor, 0xffffff, 0.45), { emit: 1 });
+    for (let y = 35; y <= 38; y++) for (let x = 4; x <= 15; x++) paint(x, y, FZ, y === 37 ? vb : v);
+  }
+  if (look.mask) {
+    const plate = pal.add(0x22252c, { vary: 0.03 }), slat = pal.add(0x3a3e48, { vary: 0.02 });
+    for (let y = 30; y <= 34; y++) for (let x = 5; x <= 14; x++) paint(x, y, FZ, y === 32 ? slat : plate);
+  }
 
   // ears: one fine voxel thin, a little taller than wide, with a warmer inside
   if (get(2, 36, 6) === ink.skin) {

@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.25',
+    date: '2026-11-01',
+    title: '2040: face gear',
+    items: [
+      'New face gear in the character creator: a lit optic visor, a respirator with filters glowing in your neon trim, and a circuit tattoo from cheek to brow. Each comes in the neon colours.',
+      'Halcyon\'s clinics fit them too, if you skipped them at the start. Plenty of people in the crowd wear them now.',
+    ],
+  },
+  {
     version: '0.20.24',
     date: '2026-11-01',
     title: '2040: the sound of the city',

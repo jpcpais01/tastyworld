@@ -44,7 +44,11 @@ const CLINIC = [
   { id: 'patch', name: 'Patch-up', icon: 'plaster', price: 45, text: 'Cleaned, stitched and scanned. Health back to full.' },
   { id: 'gel', name: 'Nutri-gel pouch', icon: 'drop', price: 14, text: 'A pouch of everything your body forgot. Takes the edge off hunger.' },
   { id: 'stim', name: 'Wake stim', icon: 'vitamin', price: 22, text: 'A shot of something bright. Holds off sleep for a few hours. Do not make it a habit.' },
+  { id: 'implant', name: 'Face implant', icon: 'signal', price: 380, text: 'A lit seam fitted under the skin, cheek to temple, matched to your neon trim. Ten minutes in the chair.' },
+  { id: 'chrome', name: 'Chrome arm', icon: 'key', price: 1600, text: 'The left arm, replaced from the shoulder: brushed steel, a lit elbow joint, a grip that never gets tired.' },
 ] as const;
+/** Changing the implant's colour once it is in. */
+const RECOLOUR = 60;
 export type ClinicItem = typeof CLINIC[number]['id'];
 
 export class LifeUI {
@@ -100,10 +104,16 @@ export class LifeUI {
     const body = h('div', 'panel-body');
     this.say(body, keeper, line);
     const menu = h('div', 'menu');
+    const look = this.d.life().look;
     for (const it of CLINIC) {
-      const c = h('div', 'dish-card', `<div class="dimg"><span class="emo">${icon(it.icon)}</span></div><div><h3>${esc(it.name)}</h3><p>${esc(it.text)}</p><div class="row"><button class="btn btn-red">${esc(this.d.money(it.price))}</button></div></div>`);
+      // the ripperdoc's chair: a chrome arm is for life; an implant already in can be recoloured
+      if (it.id === 'chrome' && look?.chrome) continue;
+      const again = it.id === 'implant' && look?.implant !== undefined;
+      const price = again ? RECOLOUR : it.price;
+      const title = again ? 'Implant recolour' : it.name, text = again ? 'Same seam, a new glow: the next colour along the neon.' : it.text;
+      const c = h('div', 'dish-card', `<div class="dimg"><span class="emo">${icon(it.icon)}</span></div><div><h3>${esc(title)}</h3><p>${esc(text)}</p><div class="row"><button class="btn btn-red">${esc(this.d.money(price))}</button></div></div>`);
       c.querySelector('button')!.onclick = () => {
-        if (!this.d.spend(it.price)) { this.kit.play('fail'); this.kit.toast('purse', 'Not enough credits', 'The clinic runs on credits, sadly. A gig pays in minutes.'); return; }
+        if (!this.d.spend(price)) { this.kit.play('fail'); this.kit.toast('purse', 'Not enough credits', 'The clinic runs on credits, sadly. A gig pays in minutes.'); return; }
         this.kit.play('coin');
         use(it.id);
         this.kit.close();

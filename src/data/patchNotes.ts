@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.12',
+    date: '2026-11-01',
+    title: '2040: the ripperdoc\'s chair',
+    items: [
+      'Halcyon\'s street clinics now fit cyberware: a face implant for 380 cr (recolour it later for 60) or a chrome arm for 1,600 cr. You come out of the chair wearing it.',
+    ],
+  },
+  {
     version: '0.20.11',
     date: '2026-11-01',
     title: '2040: cyberware',

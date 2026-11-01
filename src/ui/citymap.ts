@@ -2,7 +2,8 @@ import { TEXT, localName } from '../data/cityText';
 import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, CITY } from '../world/cityId';
 import type { NavData } from '../world/bake';
 import type { Occluder, StallAnchor } from '../world/tokyo';
-import { NON_FOOD_ROOMS, type RoomAnchor } from '../world/interiors';
+import { NON_FOOD_ROOMS, type RoomAnchor, type RoomKind } from '../world/interiors';
+import { PLACES, roomName } from '../data/places';
 import { V, G as STREET, WX0, WZ0, WX1, WZ1, WORLD_W, WORLD_D, ZONES, zoneAt } from '../world/layout';
 import { STALLS, type StallInfo } from '../data/stalls';
 import { DISHES } from '../data/dishes';
@@ -27,7 +28,7 @@ export interface MapWorld {
   /** Where the hidden restaurant is on the street (its interior lives off the map). */
   hiddenDoor: [number, number];
   /** Walk-in rooms (shops, food rooms, restaurant interiors, hotel lobbies). */
-  rooms: Pick<RoomAnchor, 'id' | 'kind' | 'stall' | 'hotel'>[];
+  rooms: Pick<RoomAnchor, 'id' | 'kind' | 'nth' | 'door' | 'stall' | 'hotel'>[];
   /** Each hotel's front door (just inside it), by hotel id. */
   hotels: { id: string; entrance: [number, number] }[];
 }
@@ -81,7 +82,7 @@ const SAKURA = ['#f1b6c4', '#eeaabb', '#f5c3cf'];
 const PARKS = new Set(['park', 'inari', 'midori', 'farbank']);
 
 // ---------------------------------------------------------------------------------------- places
-type Glyph = 'train' | 'torii' | 'temple' | 'tree' | 'bag' | 'bath' | 'lantern' | 'bed' | 'mosque' | 'boat';
+type Glyph = 'train' | 'torii' | 'temple' | 'tree' | 'bag' | 'bath' | 'lantern' | 'bed' | 'mosque' | 'boat' | 'cup' | 'bowl' | 'bread' | 'fish' | 'sweet' | 'store';
 const GLYPH: Record<Glyph, string> = {
   train: 'M7 3.5h10a3 3 0 0 1 3 3V15a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6.5a3 3 0 0 1 3-3Z M4 10.5h16 M8.5 21l2-3 M15.5 21l-2-3 M8 14.5h.01 M16 14.5h.01',
   torii: 'M3 5.5c3.5 1.3 14.5 1.3 18 0 M5 9.5h14 M7 6.6V21 M17 6.6V21 M12 9.5V7',
@@ -92,6 +93,12 @@ const GLYPH: Record<Glyph, string> = {
   bed: 'M3 19V6.5 M3 15.5h18V19 M21 15.5v-3a2.5 2.5 0 0 0-2.5-2.5H11v5.5 M7 12.4a1.6 1.6 0 1 0 0-.01',
   mosque: 'M3 20.5h15 M5 20.5v-6h11v6 M5.6 14.5a4.9 4.9 0 0 1 9.8 0 M10.5 9.6V7.4 M20.5 20.5V8.5 M19.3 8.5h2.4 M20.5 8.5 20.5 5.5',
   boat: 'M3 15h18l-2.4 4.5H5.4L3 15Z M6 15v-4h9v4 M8.5 11V8h4v3 M3 21.5c1.5-.8 3-.8 4.5 0s3 .8 4.5 0 3-.8 4.5 0 3 .8 4.5 0',
+  cup: 'M4.5 9h12v5a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V9Z M16.5 10.5h1.5a2.5 2.5 0 0 1 0 5h-1.8 M8.5 6.5c0-1.2 1-1.2 1-2.5 M12 6.5c0-1.2 1-1.2 1-2.5',
+  bowl: 'M3.5 11h17a8.5 8.5 0 0 1-17 0Z M9 20.5h6 M9 7.5c0-1.5 1-1.5 1-3 M13 7.5c0-1.5 1-1.5 1-3',
+  bread: 'M4 13.5c0-4.4 3.6-7 8-7s8 2.6 8 7v4a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-4Z M9 9.5l-1.5 3 M13 9l-1.5 3 M17 9.8l-1.5 3',
+  fish: 'M3 12c3-4.5 9-5.5 13-2l4.5-3v10L16 14c-4 3.5-10 2.5-13-2Z M8 11h.01',
+  sweet: 'M5 9.5h14v9.5H5Z M5 13.5h14 M9.5 9.5v9.5 M14.5 9.5v9.5 M8 9.5 12 5l4 4.5',
+  store: 'M4 9.5 5.5 4.5h13L20 9.5 M4 9.5h16v1a2.7 2.7 0 0 1-5.3 0 2.7 2.7 0 0 1-5.4 0A2.7 2.7 0 0 1 4 10.5v-1Z M5.5 13v7h13v-7 M10 20v-4h4v4',
   lantern: 'M12 2.5v2 M9 4.5h6 M7.5 8.2c0-2.1 2-3.7 4.5-3.7s4.5 1.6 4.5 3.7v5.6c0 2.1-2 3.7-4.5 3.7s-4.5-1.6-4.5-3.7V8.2Z M7.6 11h8.8 M9 19.5h6',
 };
 const ZONE_ICON: Record<string, Glyph> = { yeni: 'mosque', suleymaniye: 'mosque', kapali: 'bag', misir: 'bag', gar: 'train', kadikoy: 'boat', uskudar: 'boat', halicpier: 'boat', station: 'train', midori: 'torii', inari: 'torii', park: 'tree', ginza: 'bag', plaza: 'temple', gado: 'lantern' };
@@ -104,6 +111,15 @@ interface Roof { x0: number; z0: number; x1: number; z1: number; top: number; fi
 interface Tree { x: number; z: number; r: number; fill: string }
 interface Label { name: string; jp: string; x: number; z: number; district: boolean; vertical: boolean; icon?: Glyph; zone?: string }
 interface HotelMark { h: HotelInfo; x: number; z: number; sx: number; sy: number }
+/** A walk-in place to eat (café, izakaya, bakery, lokanta...): pinned at its door, named once you have been inside. */
+interface RoomMark { id: string; kind: RoomKind; name: string; jp: string; x: number; z: number; found: boolean; sx: number; sy: number }
+const ROOM_GLYPH: Partial<Record<RoomKind, Glyph>> = {
+  cafe: 'cup', kissa: 'cup', kahve: 'cup', cay: 'cup', bakery: 'bread', firin: 'bread', borek: 'bread', pide: 'bread',
+  fish: 'fish', balik: 'fish', muhallebi: 'sweet', lokum: 'sweet', konbini: 'store', baharat: 'store', izakaya: 'lantern',
+};
+/** Walk-in food places are amber, set apart from the tomato stalls and indigo restaurants. */
+const ROOM_COL = '#c27a1e';
+const isFoodRoom = (r: MapWorld['rooms'][number]) => !r.stall && !r.hotel && !NON_FOOD_ROOMS.has(r.kind);
 interface Marker { id: string; kind: 'stall' | 'resto' | 'hidden' | 'unknown'; st: StallInfo; x: number; z: number; sx: number; sy: number; target: boolean; done: number; total: number }
 
 /**
@@ -260,9 +276,10 @@ export class CityMap {
   private last = 0;
   private t0 = 0;
   private pinT = -9;
-  private sel: { kind: 'marker'; m: Marker } | { kind: 'hotel'; m: HotelMark } | { kind: 'pin' } | { kind: 'friend'; name: string; x: number; z: number } | null = null;
+  private sel: { kind: 'marker'; m: Marker } | { kind: 'room'; m: RoomMark } | { kind: 'hotel'; m: HotelMark } | { kind: 'pin' } | { kind: 'friend'; name: string; x: number; z: number } | null = null;
   private markers: Marker[] = [];
   private hotelMarks: HotelMark[] = [];
+  private roomMarks: RoomMark[] = [];
   private pointers = new Map<number, { x: number; y: number }>();
   private drag = { moved: 0, pinch: 0, lastT: 0 };
   private ro: ResizeObserver | null = null;
@@ -295,6 +312,7 @@ export class CityMap {
     this.s = s;
     this.icons = icons;
     this.markers = this.buildMarkers();
+    this.roomMarks = this.buildRoomMarks();
     this.hotelMarks = HOTELS.flatMap((h) => {
       const a = this.world.hotels.find((x) => x.id === h.id);
       return a ? [{ h, x: a.entrance[0], z: a.entrance[1], sx: 0, sy: 0 }] : [];
@@ -383,11 +401,19 @@ export class CityMap {
     }
     // restaurant interiors are already counted through their passport vendor's stall
     for (const r of this.world.rooms) {
-      if (r.stall || r.hotel || NON_FOOD_ROOMS.has(r.kind)) continue;
+      if (!isFoodRoom(r)) continue;
       total++;
       if (s.rooms.includes(r.id)) found++;
     }
     return { found, total };
+  }
+
+  /** Every walk-in food room counted in the tally gets a pin too, so the map shows where the rest of the total is. */
+  private buildRoomMarks(): RoomMark[] {
+    return this.world.rooms.filter(isFoodRoom).map((r) => {
+      const [name, jp] = roomName(r.kind, r.nth);
+      return { id: r.id, kind: r.kind, name, jp, x: r.door[0], z: r.door[1], found: this.s.rooms.includes(r.id), sx: 0, sy: 0 };
+    });
   }
 
   private foundPill(): string {
@@ -408,7 +434,7 @@ export class CityMap {
       const done = dishes.filter((d) => s.tasted[d.id]).length;
       const seen = s.seen.includes(st.id) || done > 0;
       if (st.hidden && !s.hiddenFound) continue;
-      const [x, z] = st.hidden || !a ? this.world.hiddenDoor : [a.vendor[0], a.vendor[2]];
+      const [x, z] = st.hidden || !a ? this.world.hiddenDoor : [a.vendor[0], a.vendor[1]];
       const kind: Marker['kind'] = !seen ? 'unknown' : st.hidden ? 'hidden' : st.restaurant ? 'resto' : 'stall';
       out.push({ id: st.id, kind, st, x, z, sx: 0, sy: 0, target: targets.has(st.id), done, total: dishes.length });
       const icon = dishes[0] && this.icons[dishes[0].id];
@@ -565,6 +591,12 @@ export class CityMap {
       if (d < bd) { bd = d; best = m; }
     }
     if (best) { this.host.click(); this.select({ kind: 'marker', m: best }); return; }
+    let room: RoomMark | null = null; bd = 18;
+    if (this.filter.food) for (const m of this.roomMarks) {
+      const d = Math.hypot(m.sx - sx, m.sy - sy);
+      if (d < bd) { bd = d; room = m; }
+    }
+    if (room) { this.host.click(); this.select({ kind: 'room', m: room }); return; }
     if (this.filter.hotels) for (const m of this.hotelMarks) {
       if (Math.hypot(m.sx - sx, m.sy - sy) < 20) { this.host.click(); this.select({ kind: 'hotel', m }); return; }
     }
@@ -637,6 +669,14 @@ export class CityMap {
       const tasted = m.kind === 'unknown' ? '' : m.done >= m.total ? `<span class="cm-tag ok">${G.check}All ${m.total} tasted</span>` : `<span class="cm-tag">${m.done}/${m.total} tasted</span>`;
       html = `<div class="cm-ic${m.kind === 'unknown' ? ' q' : ''}">${m.kind === 'unknown' ? '?' : img ? `<img src="${img}" alt="">` : G.bowl}</div>
         <div class="cm-tx"><b>${esc(guide.name)}${guide.jp && localName(guide.name, guide.jp) ? `<span class="jp">${esc(guide.jp)}</span>` : ''}</b><small>${sub}</small><div class="cm-meta">${tasted}${m.target ? `<span class="cm-tag mq">${G.sparkle}Mission</span>` : ''}<span class="cm-dist">${dist(stand[0], stand[1])}</span></div></div>`;
+    } else if (sel.kind === 'room') {
+      const m = sel.m, pk = PLACES[m.kind];
+      guide = { x: m.x, z: m.z, name: m.found ? m.name : 'Something smells good', jp: m.found ? m.jp : undefined, id: m.id };
+      const street = zoneAt(m.x, m.z);
+      const sub = m.found ? `${street && street.id !== 'passage' ? `${esc(street.name)} · ` : ''}${esc(pk.label)}` : `A ${esc(pk.label.toLowerCase())}. Step inside to see what they serve.`;
+      const g = ROOM_GLYPH[m.kind] ?? 'bowl';
+      html = `<div class="cm-ic${m.found ? '' : ' q'}">${m.found ? `<svg class="g" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${GLYPH[g]}"/></svg>` : '?'}</div>
+        <div class="cm-tx"><b>${esc(guide.name)}${guide.jp && localName(guide.name, guide.jp) ? `<span class="jp">${esc(guide.jp)}</span>` : ''}</b><small>${sub}</small><div class="cm-meta">${m.found ? `<span class="cm-tag ok">${G.check}Been inside</span>` : ''}<span class="cm-dist">${dist(m.x, m.z)}</span></div></div>`;
     } else if (sel.kind === 'hotel') {
       const h = sel.m.h, booked = this.s.hotel?.id === h.id;
       guide = { x: sel.m.x, z: sel.m.z, name: h.name, jp: h.jp, id: `hotel-${h.id}` };
@@ -702,6 +742,7 @@ export class CityMap {
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.drawRoute(c);
     this.drawLabels(c);
+    this.drawRooms(c);
     this.drawMarkers(c, t);
     this.drawHotels(c, t);
     this.drawFriends(c);
@@ -955,6 +996,51 @@ export class CityMap {
         c.font = `600 ${11.5}px Fredoka, system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'top';
         c.strokeStyle = C.halo; c.lineWidth = 3.5; c.strokeText(m.st.name, x, y + 3);
         c.fillStyle = C.ink; c.fillText(m.st.name, x, y + 3);
+      }
+    }
+  }
+
+  /** Walk-in food rooms: a small amber disc with what they serve once you have been in, a dashed one before.
+   *  There are over a hundred in Tokyo, so they shrink to dots when the whole city is on screen. */
+  private drawRooms(c: CanvasRenderingContext2D): void {
+    if (!this.filter.food) return;
+    const sel = this.sel?.kind === 'room' ? this.sel.m : null;
+    const far = this.scale < 3.2;
+    for (const m of this.roomMarks) {
+      const [x, y] = this.toScreen(m.x, m.z);
+      m.sx = x; m.sy = y;
+      if (x < -20 || y < -20 || x > this.w + 20 || y > this.h + 20) continue;
+      if (far && sel !== m) {
+        c.fillStyle = m.found ? ROOM_COL : 'rgba(255, 250, 238, 0.9)'; c.strokeStyle = m.found ? 'rgba(40, 24, 16, 0.45)' : C.inkSoft; c.lineWidth = 1;
+        c.beginPath(); c.arc(x, y, 3, 0, Math.PI * 2); c.fill(); c.stroke();
+        continue;
+      }
+      const r = (this.scale >= 8 ? 8.5 : 6.5) * (sel === m ? 1.25 : 1);
+      if (!m.found) {
+        c.setLineDash([2.5, 2.5]);
+        c.fillStyle = 'rgba(255, 250, 238, 0.8)'; c.strokeStyle = C.inkSoft; c.lineWidth = 1.3;
+        c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.stroke();
+        c.setLineDash([]);
+        c.font = `600 ${r * 1.25}px Fredoka, system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillStyle = C.ink; c.fillText('?', x, y + 0.5);
+        continue;
+      }
+      c.fillStyle = 'rgba(60, 36, 20, 0.22)';
+      c.beginPath(); c.arc(x + 0.8, y + 1.2, r, 0, Math.PI * 2); c.fill();
+      c.fillStyle = ROOM_COL; c.strokeStyle = '#fffaf0'; c.lineWidth = 1.6;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.stroke();
+      c.save();
+      c.translate(x, y);
+      const k = (r * 1.25) / 24;
+      c.scale(k, k);
+      c.translate(-12, -12);
+      c.strokeStyle = '#fffaf0'; c.lineWidth = 2.4; c.lineCap = c.lineJoin = 'round';
+      c.stroke(glyphPath(GLYPH[ROOM_GLYPH[m.kind] ?? 'bowl']));
+      c.restore();
+      if (this.scale >= 14 || sel === m) {
+        c.font = `600 ${10.5}px Fredoka, system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'top';
+        c.strokeStyle = C.halo; c.lineWidth = 3.2; c.strokeText(m.name, x, y + r + 2);
+        c.fillStyle = C.ink; c.fillText(m.name, x, y + r + 2);
       }
     }
   }

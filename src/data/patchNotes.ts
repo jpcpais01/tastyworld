@@ -8,12 +8,41 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
-    version: '0.18.9',
+    version: '0.18.12',
     date: '2026-11-01',
     title: 'Funchal: a new Portuguese Sé',
     items: [
       'The cathedral of Funchal has been rebuilt from the ground up as a true Portuguese Sé, a little smaller than before: whitewashed walls framed in dark basalt, a stepped gable with twisted Manueline pinnacles, a roped stone portal under the arms of King Manuel, and a lower tower with a tiled spire.',
       'Inside, the nave is roofed in carved cedar with a star pattern picked out in gold, the walls wear a dado of blue and yellow azulejos, and the chancel glows with a gilded talha retable of twisted columns and painted panels under a ribbed Manueline vault. Silver lamps hang on chains over the pews, with side altars, a gilt pulpit and holy water stoups by the doors.',
+    ],
+  },
+  {
+    version: '0.18.11',
+    date: '2026-11-01',
+    title: 'Stall and restaurant pins in the right place',
+    items: [
+      'In Amalfi, Istanbul and Funchal, stall and restaurant pins on the pocket map were all bunched in one line across the middle of town, so many places seemed missing. Every pin now sits on its own counter or restaurant door.',
+      'Walking past a stall or restaurant now discovers it on the map in every city, wherever it is in town.',
+    ],
+  },
+  {
+    version: '0.18.10',
+    date: '2026-11-01',
+    title: 'Window glass you can feel',
+    items: [
+      'Looking out of a hotel room window, the glass is no longer invisible: it carries a faint cool tint, light catches along its edges where it meets the frame, and a soft wiped smear shows when you look closely, while the view out stays clear.',
+      'The pane now faintly mirrors the room behind you, a hint by day and a warm half reflection after dark when the lamps are on, and it grows more reflective as you look along it at an angle.',
+      'Looking toward the sun through a window gives a gentle glare on the glass.',
+    ],
+  },
+  {
+    version: '0.18.9',
+    date: '2026-11-01',
+    title: 'Every place to eat on the map',
+    items: [
+      'The pocket map now pins every walk-in place to eat, not just the street stalls and restaurants: Tokyo\'s cafés, izakaya, bakeries, kissaten, soba shops and fishmongers, and Istanbul\'s lokantas, kebap and pide houses, börek shops, tea and coffee houses and sweet shops.',
+      'Places you have not been into yet show as a dashed question mark; once you step inside they turn into an amber badge showing what they serve, with the name on the card. Tap one to guide yourself there or walk to its door.',
+      'The "food places found" counter now matches what you can see on the map.',
     ],
   },
   {

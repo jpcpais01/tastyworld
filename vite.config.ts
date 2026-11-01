@@ -5,6 +5,8 @@ export default defineConfig({
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 900,
+    // two games, one engine: Tasty World at / and 2040 (Halcyon City) at /2040
+    rollupOptions: { input: { main: 'index.html', y2040: '2040/index.html' } },
   },
   worker: { format: 'es' },
   plugins: [
@@ -29,6 +31,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2,webmanifest}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // /2040 is its own page: never answer it with Tasty World's
+        navigateFallbackDenylist: [/^\/2040/],
       },
     }),
   ],

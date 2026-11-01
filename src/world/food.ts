@@ -6,6 +6,7 @@ import { buildIstanbulFood, type IstanbulFood } from './foodIstanbul';
 import { buildTokyoFood, type TokyoFood } from './foodTokyo';
 import { buildAmalfiFood, type AmalfiFood } from './foodAmalfi';
 import { buildMadeiraMoreFood, type MadeiraMoreFood } from './foodMadeiraMore';
+import { buildNeoFood, type NeoFood } from './foodNeo';
 
 /** Voxel models of every dish. Pure data so they can be built in the worker (counter displays) and on the main thread (icons). */
 
@@ -105,11 +106,13 @@ export type FoodId =
   | 'espresso' | 'cornetto' | 'ndunderi' | 'parmigiana' | 'vongole' | 'acquapazza' | 'margherita' | 'calzone'
   | 'bruschetta' | 'carrozza' | 'panuozzo' | 'taralli' | 'arancino' | 'crocche' | 'baba' | 'zeppola'
   | 'alici' | 'polpo' | 'sorrentina' | 'polpette' | 'melanzane' | 'pastiera' | 'risotto' | 'ravioli'
-  | MadeiraFood | IstanbulFood | TokyoFood | AmalfiFood | MadeiraMoreFood;
+  | MadeiraFood | IstanbulFood | TokyoFood | AmalfiFood | MadeiraMoreFood | NeoFood;
 
 type FC = ReturnType<typeof foodColors>;
 
 export function buildFood(id: FoodId, pal: Palette): Prop {
+  const neo = buildNeoFood(id, pal);
+  if (neo) return neo;
   const c = foodColors(pal);
   switch (id) {
     case 'takoyaki': return takoyaki(c);

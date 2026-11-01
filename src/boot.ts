@@ -1,4 +1,5 @@
 import './styles.css';
+import './neo/theme.css';
 import { holdLanding } from './ui/arrival';
 import { peekResume } from './world/cityId';
 

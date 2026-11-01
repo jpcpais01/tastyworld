@@ -6,7 +6,8 @@ import { buildTokyo, Anchors, PlacedProp, BuildResult, Window } from './tokyo';
 import { buildAmalfi } from './amalfi';
 import { buildMadeira } from './funchal';
 import { buildIstanbul } from './istanbul';
-import { AMALFI, ISTANBUL, MADEIRA } from './cityId';
+import { AMALFI, ISTANBUL, MADEIRA, NEO } from './cityId';
+import { buildNeo } from './neo';
 import { CHUNK, CHUNKS_X, CHUNKS_Z, G, V, VX0, VZ0, SX, SZ, INTERIOR_ORIGIN, ISX, ISZ } from './layout';
 import { assemble } from './assemble';
 import { solidBase, type Owners } from './owners';
@@ -89,7 +90,7 @@ const BLOCKED = 255;
 
 /** The builder of the city this page is visiting. */
 export function buildWorld(win?: Window): BuildResult {
-  return MADEIRA ? buildMadeira(win) : ISTANBUL ? buildIstanbul(win) : AMALFI ? buildAmalfi(win) : buildTokyo(win);
+  return NEO ? buildNeo(win) : MADEIRA ? buildMadeira(win) : ISTANBUL ? buildIstanbul(win) : AMALFI ? buildAmalfi(win) : buildTokyo(win);
 }
 /** Extra voxel rows a strip keeps on its -z side (long sun shadows from tall buildings) and +z side (sky light). */
 const HALO_LO = 112, HALO_HI = 40;

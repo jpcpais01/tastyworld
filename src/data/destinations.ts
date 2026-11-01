@@ -64,6 +64,11 @@ export const DESTINATIONS: Destination[] = [
 ];
 
 export const DEST: Record<string, Destination> = Object.fromEntries(DESTINATIONS.map((d) => [d.id, d]));
+/** 2040's city: no flights go there, but co-op sessions name it like any trip. */
+DEST.neo = {
+  id: 'neo', city: 'Halcyon City', country: '2040', local: 'HALCYON', code: 'HLC', lat: 22.3, lon: 114.2, tz: 'Asia/Hong_Kong', open: true,
+  blurb: 'Rain, neon and noodle steam, forty storeys deep.', menu: [['ramen', 'Kelp ramen'], ['nikuman', 'Vat bao']],
+};
 
 export interface Home { city: string; code: string; lat: number; lon: number; }
 

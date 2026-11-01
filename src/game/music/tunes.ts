@@ -336,7 +336,72 @@ const MADEIRA_NIGHT: Tune = {
   ],
 };
 
+
+// ---- Halcyon City, 2040 ----
+// Rain on glass: a slow neo-noir in C minor, Rhodes held like a synth pad under a bell lead with a long echo; at
+// night it drops to F minor and the bell plays a lonely line over a half-time kick.
+
+const neoPad: Comp = { voice: 'rhodes', style: 'pad', vol: 0.12, pat: 'X...............' };
+const neoKeys: Comp = { voice: 'rhodes', style: 'keys', vol: 0.1, pat: 'X.......x.......X.......x.....P.' };
+const rainLine = 'r4 G5/4 Eb5/4 C5/4 | D5/8 Bb4/4 G4/4 | Ab4/6 C5/2 Eb5/8 | D5/12 r4 | r4 G5/4 Bb5/4 Ab5/4 | G5/6 F5/2 Eb5/8 | F5/4 D5/4 Bb4/4 D5/4 | C5/16';
+const rainLine2 = 'Eb6/8 D6/4 C6/4 | Bb5/6 G5/2 F5/8 | Ab5/4 G5/4 F5/4 Eb5/4 | D5/16 | C6/8 Bb5/4 Ab5/4 | G5/8 Eb5/8 | F5/6 G5/2 Ab5/4 Bb5/4 | G5/16';
+
+const NEO_DAY: Tune = {
+  title: 'Rain on Meridian',
+  bpm: 78, swing: 0.55, tone: 6200, crackle: 0.35, echo: 0.38, loopFrom: 1,
+  chords: [
+    'C2 G3 Bb3 D4 Eb4', // Cm9
+    'Ab1 G3 C4 Eb4 F4', // Abmaj9 (add 6)
+    'Eb2 G3 Bb3 D4 F4', // Ebmaj9
+    'G1 F3 B3 D4 Ab4', // G7b9
+    'F2 Ab3 C4 Eb4 G4', // Fm9
+  ],
+  grooves: {
+    rain: { kick: '9.......5.7.....9.......4.......', snare: '....8.......8...', hat: '4.2.4.2.4.2.4.3.', ohat: '..............3.' },
+    drizzle: { kick: '7...............5.......', rim: '........5.......', hat: '3.1.3.1.3.1.3.1.' },
+  },
+  bass: 'R.......R...5.A.',
+  sparkle: { voice: 'bell', notes: 'G6 C7 D7 Eb7', every: 4, chance: 0.35, vol: 0.05, count: [2, 4] },
+  parts: [
+    { prog: [0, 1, 2, 3], comp: [neoPad], bass: false, lp: 900 },
+    { prog: [0, 1, 2, 3, 0, 4, 1, 3], comp: [neoPad, neoKeys], groove: 'rain', lead: { voice: 'bell', vol: 0.16, mel: rainLine } },
+    { prog: [4, 1, 0, 3, 4, 2, 1, 3], comp: [neoPad, neoKeys], groove: 'rain', lead: { voice: 'bell', vol: 0.15, mel: rainLine2 } },
+    { prog: [0, 1, 2, 3, 0, 4, 1, 3], comp: [neoPad], groove: 'drizzle', bass: 'R.......O.......',
+      fills: { voice: 'bell', scale: [0, 2, 3, 7, 10], lo: 67, hi: 86, density: 0.16, vol: 0.12 } },
+    { prog: [0, 1, 2, 3, 0, 4, 1, 3], comp: [neoPad, neoKeys], groove: 'rain', lead: { voice: 'bell', vol: 0.16, mel: rainLine } },
+    { prog: [0, 1, 2, 3], comp: [neoPad], bass: 'R...............', lp: 1400 },
+  ],
+};
+
+const neoNightPad: Comp = { voice: 'rhodes', style: 'pad', vol: 0.11, pat: 'X...............' };
+const neonLine = 'r8 C5/4 Ab4/4 | G4/12 F4/4 | Ab4/8 C5/4 Eb5/4 | Db5/16 | r8 Eb5/4 F5/4 | G5/8 F5/4 Eb5/4 | C5/6 Db5/2 Eb5/4 C5/4 | C5/16';
+
+const NEO_NIGHT: Tune = {
+  title: 'Neon Mile, 3 a.m.',
+  bpm: 66, swing: 0.58, tone: 4800, crackle: 0.6, echo: 0.45, loopFrom: 1,
+  chords: [
+    'F2 Ab3 C4 Eb4 G4', // Fm9
+    'Db2 F3 Ab3 C4 Eb4', // Dbmaj9
+    'Bb1 Ab3 Db4 F4', // Bbm7
+    'C2 E3 Bb3 Db4 G4', // C7b9
+  ],
+  grooves: {
+    late: { kick: '8...............6.......', snare: '........7.......', hat: '3.1.3.1.3.1.3.1.' },
+  },
+  bass: 'R...............',
+  sparkle: { voice: 'bell', notes: 'C7 Eb7 F7 Ab7', every: 4, chance: 0.25, vol: 0.04, count: [1, 3] },
+  parts: [
+    { prog: [0, 1, 2, 3], comp: [neoNightPad], bass: false, lp: 800 },
+    { prog: [0, 1, 2, 3, 0, 1, 2, 3], comp: [neoNightPad], groove: 'late', lead: { voice: 'bell', vol: 0.13, mel: neonLine } },
+    { prog: [0, 1, 2, 3, 0, 1, 2, 3], comp: [neoNightPad], groove: 'late', bass: 'R.......O.......',
+      fills: { voice: 'bell', scale: [0, 3, 5, 7, 8], lo: 65, hi: 84, density: 0.12, vol: 0.1 } },
+    { prog: [0, 1, 2, 3, 0, 1, 2, 3], comp: [neoNightPad], groove: 'late', lead: { voice: 'bell', vol: 0.13, mel: neonLine } },
+    { prog: [0, 1, 2, 3], comp: [neoNightPad], bass: 'R...............', lp: 1200 },
+  ],
+};
+
 export const LOFI: Record<CityId, { day: Tune; night: Tune }> = {
+  neo: { day: NEO_DAY, night: NEO_NIGHT },
   tokyo: { day: TOKYO_DAY, night: TOKYO_NIGHT },
   amalfi: { day: AMALFI_DAY, night: AMALFI_NIGHT },
   istanbul: { day: ISTANBUL_DAY, night: ISTANBUL_NIGHT },

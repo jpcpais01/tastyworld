@@ -6,7 +6,8 @@
  */
 import type { MessageAction } from 'trystero';
 
-export interface Profile { name: string; color: number; wear: string[]; }
+/** `look`: 2040's made character, worn instead of Tasty World's traveller outfit. */
+export interface Profile { name: string; color: number; wear: string[]; look?: import('../world/characters').Look; }
 
 export interface Peer extends Profile {
   id: string;
@@ -172,6 +173,7 @@ export class Coop {
       const p: Peer = {
         id: from, name: String(hi.name || 'Traveller').slice(0, 18), color: Number(hi.color) || 0xe9573f, wear: Array.isArray(hi.wear) ? hi.wear.slice(0, 8) : [],
         host: !!hi.host, dest: String(hi.dest), seat: String(hi.seat || ''), inWorld: !!hi.inWorld, st: old?.st ?? null, at: performance.now(),
+        look: hi.look && typeof hi.look === 'object' ? hi.look : undefined,
       };
       this.peers.set(from, p);
       if (p.host && !this.host) this.dest = p.dest;

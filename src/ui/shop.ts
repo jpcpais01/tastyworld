@@ -254,8 +254,8 @@ export class ShopView {
 }
 
 // ------------------------------------------------------------------------------------------- the souvenir shelf at home
-const FLAG: Record<CityId, string> = { tokyo: '', amalfi: 'it', istanbul: 'tr', madeira: 'pt' };
-const NAME: Record<CityId, string> = { tokyo: 'Tokyo', amalfi: 'Amalfi', istanbul: 'Istanbul', madeira: 'Madeira' };
+const FLAG: Record<CityId, string> = { tokyo: '', amalfi: 'it', istanbul: 'tr', madeira: 'pt', neo: '' };
+const NAME: Record<CityId, string> = { tokyo: 'Tokyo', amalfi: 'Amalfi', istanbul: 'Istanbul', madeira: 'Madeira', neo: 'Halcyon' };
 
 /** The bag's souvenir pages: what came home from each city, and how much is still out there. */
 export function souvenirPages(host: ShopHost, page: HTMLElement, rerender: () => void): void {

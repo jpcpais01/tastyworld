@@ -362,7 +362,7 @@ const NEONS = (b: Builder) => [b.c.neonPink, b.c.neonCyan, b.c.neonViolet, b.c.n
 const NEON_RGB: [number, number, number][] = [[1, 0.4, 0.75], [0.35, 0.9, 1], [0.65, 0.5, 1], [1, 0.86, 0.35], [0.5, 1, 0.65], [1, 0.6, 0.3]];
 
 /** Friendly neon on a tall building: blade signs, glowing bands, a screen, a crown of light. */
-function neonDress(lot: Lot, H: number, floors: number, seed: number) {
+export function neonDress(lot: Lot, H: number, floors: number, seed: number) {
   const b = lot.b, c = b.c;
   const r = rng(seed * 7 + 3);
   const w = lot.width;

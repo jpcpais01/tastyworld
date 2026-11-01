@@ -6,6 +6,8 @@ const MAX_STEP = 2; // voxels a character can step up or down between neighbouri
 /** Player body radius in metres: slim and round so it slips between chairs, trees and props. */
 export const PLAYER_R = 0.13;
 const TIGHT_COST = 2.5; // extra A* cost for squeezing through cells without clearance
+/** A* cost per cell on ground walkers keep off (Tokyo's carriageways): they cross at the crosswalks. */
+const OFF_COST = 6;
 const NUDGE = [0.4, 0.8, 1.2]; // radians to deflect around an obstacle before giving up
 const POCKET = 4000; // biggest separate walkable region (cells) a drop may land in: garden terraces, not open hillside
 /**
@@ -34,6 +36,8 @@ export class Nav {
   private stamp = 0;
   private heap: Int32Array;
   private hf: Float32Array;
+  /** Cells routes avoid when they can (see keepOff), or null. */
+  private off: Uint8Array | null = null;
   /** Cells a drop may land on (built on the first drop query). */
   private main: Uint8Array | null = null;
 
@@ -49,6 +53,13 @@ export class Nav {
     this.mark = new Uint32Array(n);
     this.heap = new Int32Array(n);
     this.hf = new Float32Array(n);
+  }
+
+  /** Routes keep off the cells where `fn` (world metres) holds unless there is no sensible way round. */
+  keepOff(fn: (x: number, z: number) => boolean): void {
+    const d = this.d, off = new Uint8Array(d.sx * d.sz);
+    for (let z = 0; z < d.sz; z++) for (let x = 0; x < d.sx; x++) off[z * d.sx + x] = fn(d.ox + (x + 0.5) * V, d.oz + (z + 0.5) * V) ? 1 : 0;
+    this.off = off;
   }
 
   /** Recompute the clearance and passability flags of a cell range (inclusive). */
@@ -300,6 +311,7 @@ export class Nav {
     this.came[start] = -1;
     mark[start] = OPEN;
     push(start);
+    const off = this.off;
     const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
     let found = false;
     let iter = 0;
@@ -321,7 +333,7 @@ export class Nav {
         if (drop && (-rise > reach.down || dx && dz || !this.mainAt(ni))) continue;
         if (dx && dz && (!this.pass[cz * sx + nx] || !this.pass[nz * sx + cx])) continue;
         // narrow gaps are allowed but cost more, so open ground is still preferred
-        const ng = this.g[cur] + cost * (this.clear[ni] ? 1 : TIGHT_COST) + (drop ? DROP_COST - rise * DROP_COST_PER_VOX : 0);
+        const ng = this.g[cur] + cost * (this.clear[ni] ? 1 : TIGHT_COST) * (off && off[ni] ? OFF_COST : 1) + (drop ? DROP_COST - rise * DROP_COST_PER_VOX : 0);
         if (mark[ni] === OPEN && ng >= this.g[ni]) continue;
         this.g[ni] = ng;
         this.came[ni] = cur;
@@ -365,9 +377,11 @@ export class Nav {
     const stx = x0 < x1 ? 1 : -1, stz = z0 < z1 ? 1 : -1;
     let err = dx - dz;
     let prevH = this.d.height[a];
+    // a straightened route only cuts over ground to keep off (a carriageway) where the route itself went
+    const off = this.off && !this.off[a] && !this.off[b] ? this.off : null;
     for (;;) {
       const i = z0 * sx + x0;
-      if (!this.clear[i]) return false;
+      if (!this.clear[i] || (off && off[i])) return false;
       const h = this.d.height[i];
       if (Math.abs(h - prevH) > MAX_STEP) return false;
       prevH = h;

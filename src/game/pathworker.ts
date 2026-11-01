@@ -1,12 +1,13 @@
 /// <reference lib="webworker" />
 import { Nav, type Reach } from './nav';
 import type { NavData } from '../world/bake';
+import { offFoot } from '../world/roads';
 
 declare const self: DedicatedWorkerGlobalScope;
 
 /** Messages the path worker understands (see game/paths.ts). */
 export type PathIn =
-  | { type: 'init'; nav: NavData }
+  | { type: 'init'; nav: NavData; roads?: boolean }
   | { type: 'find'; id: number; ax: number; az: number; bx: number; bz: number; reach?: Reach }
   | { type: 'block'; key: string; rect: [number, number, number, number]; blocked: boolean };
 
@@ -16,7 +17,7 @@ let nav: Nav | null = null;
 
 self.onmessage = (e: MessageEvent<PathIn>) => {
   const m = e.data;
-  if (m.type === 'init') nav = new Nav(m.nav);
+  if (m.type === 'init') { nav = new Nav(m.nav); if (m.roads) nav.keepOff(offFoot); }
   else if (m.type === 'block') nav?.setBlocked(m.key, m.rect, m.blocked);
   else self.postMessage({ id: m.id, path: nav ? nav.findPath(m.ax, m.az, m.bx, m.bz, m.reach) : null } satisfies PathOut);
 };

@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.6',
+    date: '2026-11-01',
+    title: 'Traffic in Tokyo',
+    items: [
+      'Hikari-dori and Neon-dori now carry traffic: kei cars, hatchbacks, sedans, minivans, delivery vans, small trucks and Tokyo\'s taxis, each built in voxels with turning wheels, glass windows and headlights that glow at night. The roads are busiest in the rush hours and quiet before dawn, and there are more taxis late at night.',
+      'Cars come up out of underpasses at the edge of town, keep left, stop at red lights and wait for anyone in the road, turn at the scramble and dive back under the street. Turning cars give way to oncoming traffic, and nobody stops in the middle of a crossing.',
+      'The traffic lights are live. At the scramble, Hikari-dori and Neon-dori take turns, then everyone on foot crosses at once, every which way. Taxis wait in line at the rank north of the scramble and pull out one by one when they pick up a fare.',
+      'The canal bridge on Neon-dori is now a car bridge, with a roadway, a pavement on each side, green railings and lamps at each end.',
+      'People in town keep to the pavements along the avenues. They wait at the kerb for the walk light, cross at the crosswalks and never stop to chat in the road. Guard rails line the kerbs between crossings. Auto-walk also uses the pavements and crosswalks.',
+    ],
+  },
+  {
     version: '0.18.5',
     date: '2026-11-01',
     title: 'Funchal: the Jardim Municipal in bloom, cafés under the jacarandas',

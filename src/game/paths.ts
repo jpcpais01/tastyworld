@@ -25,14 +25,15 @@ export class PathService implements Router {
   private nextId = 1;
 
   /** `nav` is copied, so the caller's grid stays its own. */
-  constructor(nav: NavData, private maxInFlight = 6) {
+  /** `roads`: routes keep off Tokyo's carriageways and cross at the crosswalks. */
+  constructor(nav: NavData, roads = false, private maxInFlight = 6) {
     this.worker = new Worker(new URL('./pathworker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<PathOut>) => {
       const done = this.waiting.get(e.data.id);
       this.waiting.delete(e.data.id);
       done?.(e.data.path);
     };
-    this.worker.postMessage({ type: 'init', nav: { ...nav, height: nav.height.slice() } } satisfies PathIn);
+    this.worker.postMessage({ type: 'init', nav: { ...nav, height: nav.height.slice() }, roads } satisfies PathIn);
   }
 
   find(ax: number, az: number, bx: number, bz: number, done: (path: V2[] | null) => void, reach?: Reach): boolean {

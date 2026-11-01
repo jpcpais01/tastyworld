@@ -9,6 +9,7 @@ import { G, V, VX0, VZ0, SX, SZ, HILL } from './layout';
 import type { Builder } from './tokyo';
 import { tree, streetAt, hillAt } from './city';
 import { trafficCone, workBarrier } from './props';
+import { underpassAt } from './roads';
 
 const MAP_W = VX0 * V, MAP_E = (VX0 + SX) * V, MAP_S = (VZ0 + SZ) * V;
 
@@ -89,6 +90,8 @@ export function tokyoEdge(b: Builder): void {
   for (let z = VZ0; z <= ZS; z++)
     for (let x = XW; x <= XE; x++) {
       if (!near(x, z) || !g.inside(x, G, z) || !beyondCell(x, z)) continue;
+      // the avenues' underpasses close themselves (their trench walls and portal, see city.ts underpass)
+      if (underpassAt(x, z)) continue;
       // the walkable side this column borders, if any
       let open: Ground | null = null;
       for (const [dx, dz] of N4) {
@@ -199,7 +202,7 @@ export function tokyoEdge(b: Builder): void {
   // cones in front of the hoarding on the avenues (props, so they cost no voxels; placed the same in every worker)
   for (let z = VZ0; z <= ZS; z++)
     for (let x = XW; x <= XE; x++) {
-      if (!near(x, z) || (x * 7 + z * 13) % 23 !== 0 || beyondCell(x, z)) continue;
+      if (!near(x, z) || (x * 7 + z * 13) % 23 !== 0 || beyondCell(x, z) || underpassAt(x, z)) continue;
       const kind = groundOf(x, z);
       if (kind !== 'avenue' && kind !== 'street') continue;
       // two cells in front of the band, facing it
@@ -216,7 +219,7 @@ export function tokyoEdge(b: Builder): void {
     ...[-5, 77].map((x) => [x, MAP_S - insetS(x) - 1.1, 0] as [number, number, number]),
   ];
   for (const [x, z, t] of shut) {
-    if (tokyoBeyond(x, z)) continue;
+    if (tokyoBeyond(x, z) || underpassAt(Math.floor(x / V), Math.floor(z / V))) continue;
     b.place(workBarrier(k), x, 0, z, t);
   }
 }

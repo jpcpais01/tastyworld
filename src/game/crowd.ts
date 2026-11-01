@@ -8,6 +8,14 @@ import { rng } from '../world/grid';
 import { crowdSpots, laneFor, streetAt, Spot, type CrowdSpots } from '../world/crowdspots';
 import { zoneAt } from '../world/layout';
 import { ISTANBUL } from '../world/cityId';
+import { kerbStep, onCarriageway, offFoot, type Crosswalk } from '../world/roads';
+
+/** Does the straight walk from a to b go along a carriageway away from its crosswalks? */
+function roadOnWay(ax: number, az: number, bx: number, bz: number): boolean {
+  const n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5);
+  for (let i = 1; i <= n; i++) if (offFoot(ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n)) return true;
+  return false;
+}
 import { CROWD_CHAT, CROWD_GREET, CROWD_STARTLE, CROWD_ENVY } from '../data/dialogue';
 
 /**
@@ -51,11 +59,19 @@ type Doing =
   | { k: 'browse'; t: number; face: number; stall?: StallAnchor; served: boolean }
   | { k: 'sit'; seat: Seat; t: number; stage: 0 | 1 | 2; s: number }
   | { k: 'chat'; t: number; with: Walker; talk: boolean; swap: number }
-  | { k: 'seq'; steps: Step[]; i: number; t: number; spot: Taken | null; then?: (w: Walker) => boolean };
+  | { k: 'seq'; steps: Step[]; i: number; t: number; spot: Taken | null; then?: (w: Walker) => boolean }
+  /** At the kerb, waiting for the walk light. */
+  | { k: 'kerb'; c: Crosswalk | null; face: number };
 
 interface Pet { actor: Actor; sniff: number; next: number }
 /** A rider: the walker's own actor is the bicycle or scooter, `person` sits on it. */
 interface Ride { person: Actor; seat: number; scooter: boolean; parked: boolean }
+
+/** What the crowd asks of Tokyo's traffic: the walk lights, and whether a car is in the way of the next step. */
+interface CrowdTraffic {
+  walkOk(c: Crosswalk | null): boolean;
+  carAt(x: number, z: number, r: number): boolean;
+}
 
 interface Walker {
   actor: Actor;
@@ -93,6 +109,8 @@ interface Walker {
   run: boolean;
   /** Seconds left of walking straight down the path, ignoring walls and people (to get unstuck). */
   ghost: number;
+  /** Where this leg steps off the kerb onto an avenue, and the crossing there (Tokyo's traffic: see world/roads.ts). */
+  kerb: { x: number; z: number; c: Crosswalk | null } | null;
   /** Where we last stood up or walked out from (to get back onto the graph). */
   from: V2 | null;
   hideT: number;
@@ -139,6 +157,7 @@ const SNACK_ROOMS: RoomKind[] = ['bakery', 'cafe', 'konbini'];
 /** Zones bicycles and scooters keep out of. */
 const NO_RIDE = new Set(['ginza', 'park', 'midori', 'inari', 'yokocho', 'passage', 'station', 'plaza', 'kaminari', 'canal', 'farbank']);
 const BIKE_SEAT = 0.42, SCOOTER_SEAT = 0.3; // rider origin above the ground
+const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const CELL = 2;
 const ROUTE_CACHE = 8000;
 
@@ -218,6 +237,20 @@ export class Crowd {
   private budget = 0;
   /** Finds routes off the main thread when set; otherwise a couple of searches run inline each frame. */
   router: Router | null = null;
+  /** Tokyo's traffic lights: people wait at the kerb for the walk light, and never stop to chat in the road. */
+  get traffic(): CrowdTraffic | null { return this.cars; }
+  set traffic(t: CrowdTraffic | null) {
+    this.cars = t;
+    if (!t) return;
+    // nobody idles out in the carriageway: the nooks, meeting points and shop windows there go
+    const keep = (s: { x: number; z: number }) => !onCarriageway(s.x, s.z) && !onCarriageway(s.x + 0.5, s.z) && !onCarriageway(s.x - 0.5, s.z) && !onCarriageway(s.x, s.z + 0.5) && !onCarriageway(s.x, s.z - 0.5);
+    this.meet = this.meet.filter(keep);
+    this.windows = this.windows.filter(keep);
+    const N = this.nodes;
+    this.nooks = this.nooks.filter(keep);
+    this.nookNear = N.map(([nx, nz]) => this.nooks.flatMap((s, i) => (Math.hypot(s.x - nx, s.z - nz) < 24 ? [i] : [])));
+  }
+  private cars: CrowdTraffic | null = null;
   private popT = 0;
   private chatT = 0;
   private sayT = 4;
@@ -498,7 +531,7 @@ export class Crowd {
       actor, persona: ps, mode, node, prev: -1, path: [], tgt: null, goal: { k: 'node' }, doing: null,
       pace: PERSONA_PACE[ps] * rnd(0.88, 1.12), v: 0, lane: 0, laneR: Math.random(), side: Math.random() < 0.5 ? 1 : -1,
       food: 0, hidden: false, wantHome: false, lead: null, mate: null, mateSeat: null,
-      chatCool: rnd(5, 25), greetCool: rnd(0, 20), nearT: 0, stuck: 0, stuckRef: [0, 0], run: mode === 'jog', ghost: 0, from: null, hideT: 0,
+      chatCool: rnd(5, 25), greetCool: rnd(0, 20), nearT: 0, stuck: 0, stuckRef: [0, 0], run: mode === 'jog', ghost: 0, kerb: null, from: null, hideT: 0,
       dest: -1, place: null, ring: -1, laps: 0, pet: null, ride: null, out: Math.random(), dist: 0, unseen: 0, acc: Math.random() * 0.25,
       hawker: !!look.tray, nook: null, home: -1,
     };
@@ -639,6 +672,23 @@ export class Crowd {
   }
   private near = { d: Infinity, speed: 0, x: 0, z: 0 };
 
+  /** Is anyone (or their dog) standing within r metres (at most 2) of a point? For drivers looking down the road. */
+  occupied(x: number, z: number, r: number): boolean {
+    const kx = Math.floor(x / CELL) + 512, kz = Math.floor(z / CELL) + 512, r2 = r * r;
+    for (let ix = kx - 1; ix <= kx + 1; ix++) for (let iz = kz - 1; iz <= kz + 1; iz++) {
+      const l = this.grid.get(ix * 1024 + iz);
+      if (!l) continue;
+      for (const o of l) {
+        if (o.hidden) continue;
+        const p = o.actor.position;
+        if ((p.x - x) ** 2 + (p.z - z) ** 2 < r2) return true;
+        const pet = o.pet?.actor.position;
+        if (pet && (pet.x - x) ** 2 + (pet.z - z) ** 2 < r2) return true;
+      }
+    }
+    return false;
+  }
+
   private key(x: number, z: number): number {
     return (Math.floor(x / CELL) + 512) * 1024 + Math.floor(z / CELL) + 512;
   }
@@ -681,8 +731,8 @@ export class Crowd {
     const st = streetAt(x, z);
     if (w.mode === 'ride') {
       if (!st) return (w.laneR - 0.5) * 0.4;
-      // keep left, as traffic does here
-      return st.kind === 'avenue' ? -(1.3 + w.laneR * 1.1) : st.kind === 'street' ? -0.6 : 0;
+      // keep left, as traffic does here; on the avenues bicycles keep to the pavement, as they do here
+      return st.kind === 'avenue' ? laneFor('avenue', w.laneR) : st.kind === 'street' ? -0.6 : 0;
     }
     if (w.goal.k !== 'node') return (w.laneR - 0.5) * 0.5;
     if (w.mode === 'jog' && w.ring >= 0) return 0;
@@ -1128,14 +1178,50 @@ export class Crowd {
         const st = streetAt((wp[0] + p.x) / 2, (wp[1] + p.z) / 2);
         // along a straight street, hold the lane measured from its centre line; elsewhere offset the waypoint
         let ox = wp[0] - (dz / dl) * w.lane, oz = wp[1] + (dx / dl) * w.lane;
-        if (st && Math.abs(st.ew ? dz : dx) < dl * 0.25 && Math.abs((st.ew ? wp[1] : wp[0]) - st.centre) < 1.5) {
+        // (only Tokyo has avenues: their walking routes run down the pavements, and over the crosswalks)
+        const off = st ? (st.ew ? wp[1] : wp[0]) - st.centre : 0;
+        if (st?.kind === 'avenue' && (this.traffic || Math.abs(off) > 2.5)) {
+          // along an avenue: down the middle of the pavement the waypoint is on; across it: straight over the zebra
+          if (Math.abs(st.ew ? dz : dx) < dl * 0.25 && Math.abs(off) > 2.5) {
+            // the graph's lanes are already pavement offsets; a routed walk keeps to the middle of the pavement
+            const m = Math.abs(w.lane) > 2 ? clamp(Math.abs(w.lane), 3.45, 4.6) : 3.55 + w.laneR * 0.8;
+            const v = st.centre + Math.sign(off) * m;
+            if (st.ew) { ox = wp[0]; oz = v; } else { ox = v; oz = wp[1]; }
+          } else { ox = wp[0] - (dz / dl) * (w.laneR - 0.5) * 0.8; oz = wp[1] + (dx / dl) * (w.laneR - 0.5) * 0.8; }
+        } else if (st && Math.abs(st.ew ? dz : dx) < dl * 0.25 && Math.abs((st.ew ? wp[1] : wp[0]) - st.centre) < 1.5) {
           const sgn = st.ew ? (dx > 0 ? 1 : -1) : (dz > 0 ? -1 : 1);
           if (st.ew) { ox = wp[0]; oz = st.centre + sgn * w.lane; } else { ox = st.centre + sgn * w.lane; oz = wp[1]; }
         }
         if (this.free(ox, oz)) t = [ox, oz];
         else if (this.free((ox + wp[0]) / 2, (oz + wp[1]) / 2)) t = [(ox + wp[0]) / 2, (oz + wp[1]) / 2];
+        // a lane offset never takes a walk out into the traffic that the waypoint itself keeps out of
+        if (this.traffic && t !== undefined && (t[0] !== wp[0] || t[1] !== wp[1]) && roadOnWay(p.x, p.z, t[0], t[1]) && !roadOnWay(p.x, p.z, wp[0], wp[1])) t = [wp[0], wp[1]];
       }
       w.tgt = t;
+      w.kerb = this.traffic ? kerbStep(p.x, p.z, t[0], t[1]) : null;
+    }
+    // about to step into an avenue: cross on the walk light, waiting at the kerb for it
+    if (w.kerb && this.traffic) {
+      if (onCarriageway(p.x, p.z)) w.kerb = null;
+      else if (!this.traffic.walkOk(w.kerb.c)) {
+        const k = w.kerb;
+        if (Math.hypot(k.x - p.x, k.z - p.z) > 0.25) { this.steer(w, k.x, k.z, w.pace, dt, pl, w.mate, near); return; }
+        w.doing = { k: 'kerb', c: k.c, face: Math.atan2(w.tgt[0] - p.x, w.tgt[1] - p.z) };
+        w.actor.anim = 'idle';
+        w.actor.speed = 0;
+        w.v = 0;
+        return;
+      }
+    }
+    // out in the road: never walk into the side of a car going by, wait for it to pass
+    if (this.traffic && onCarriageway(p.x, p.z)) {
+      const dx = w.tgt[0] - p.x, dz = w.tgt[1] - p.z, dl = Math.hypot(dx, dz) || 1;
+      if (this.traffic.carAt(p.x + (dx / dl) * 0.55, p.z + (dz / dl) * 0.55, 0.3)) {
+        w.actor.anim = 'idle';
+        w.actor.speed = 0;
+        w.v = 0;
+        return;
+      }
     }
     const last = w.path.length <= 1;
     const speed = w.run ? (w.mode === 'jog' ? w.pace : 2.7) : w.pace;
@@ -1222,6 +1308,11 @@ export class Crowd {
     w.v = 0;
     if (w.ride && d.k !== 'seq') a.anim = 'idle';
     switch (d.k) {
+      case 'kerb':
+        if (!w.ride) a.anim = 'idle';
+        a.targetFacing = d.face;
+        if (!this.traffic || this.traffic.walkOk(d.c)) w.doing = null;
+        return;
       case 'wait':
         if (!w.ride) a.anim = d.anim;
         if (d.face !== undefined) a.targetFacing = d.face;
@@ -1416,7 +1507,7 @@ export class Crowd {
     this.chatT -= dt;
     if (this.chatT > 0) return;
     this.chatT = 0.5;
-    const free = this.walkers.filter((w) => !w.hidden && w.mode === 'foot' && w.dist < this.viewR + 10 && !w.lead && !w.mate && !w.doing && w.chatCool <= 0 && w.goal.k === 'node' && w.path.length > 0);
+    const free = this.walkers.filter((w) => !w.hidden && w.mode === 'foot' && w.dist < this.viewR + 10 && !w.lead && !w.mate && !w.doing && w.chatCool <= 0 && w.goal.k === 'node' && w.path.length > 0 && !(this.traffic && onCarriageway(w.actor.position.x, w.actor.position.z)));
     for (let i = 0; i < free.length; i++) for (let j = i + 1; j < free.length; j++) {
       const a = free[i], b = free[j];
       if (a.doing || b.doing) continue;

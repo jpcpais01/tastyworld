@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.16',
+    date: '2026-11-01',
+    title: '2040: drones over the streets',
+    items: [
+      'Delivery drones now buzz up and down Halcyon\'s streets with parcels slung underneath, and police drones patrol the avenues flashing red and blue. After dark they stop to hover now and then, sweeping a searchlight over the crowd below.',
+    ],
+  },
+  {
     version: '0.20.15',
     date: '2026-11-01',
     title: '2040: six new faces',

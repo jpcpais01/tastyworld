@@ -50,6 +50,7 @@ import { Vitals } from './neo/vitals';
 import { NeoLifeSys } from './neo/life';
 import { Rain } from './neo/rain';
 import { SkyTraffic } from './neo/skytraffic';
+import { Drones } from './neo/drones';
 import { Umbrellas } from './neo/umbrellas';
 import { Hologram, HALO_SONG } from './neo/hologram';
 import { neoShop } from './neo/roles';
@@ -584,7 +585,7 @@ class Game {
     this.blobs = new Blobs(this.r.scene, 160);
     if (a.koiArea) this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, a.petals);
-    if (NEO) { this.rain = new Rain(this.r); this.skyCars = new SkyTraffic(this.worldGroup as unknown as THREE.Scene, this.r); this.umbrellas = new Umbrellas(this.worldGroup, this.r); this.holo = new Hologram(this.r); }
+    if (NEO) { this.rain = new Rain(this.r); this.skyCars = new SkyTraffic(this.worldGroup as unknown as THREE.Scene, this.r); this.umbrellas = new Umbrellas(this.worldGroup, this.r); this.holo = new Hologram(this.r); this.drones = new Drones(this.worldGroup, this.r); }
     this.beams = new SkylightBeams(this.r, a.shafts ?? []);
     (a.warm ?? []).slice(0, 3).forEach(([x0, z0, x1, z1, top], i) => { this.r.shared.uWarm.value[i].set(x0, z0, x1, z1); this.r.shared.uWarmTop.value.setComponent(i, top); });
     this.beacon = new Beacon(this.r.scene);
@@ -1514,6 +1515,8 @@ class Game {
   private rain: Rain | null = null;
   /** Flying cars along the sky lanes. */
   private skyCars: SkyTraffic | null = null;
+  private drones: Drones | null = null;
+  private droneNight = 0;
   private umbrellas: Umbrellas | null = null;
   private holo: Hologram | null = null;
   private songT = 0;
@@ -3152,6 +3155,11 @@ class Game {
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
     this.koi?.update(sh.uTime.value);
     this.skyCars?.update(dt, sh.uTime.value);
+    if (this.drones) {
+      const h = this.tod.hour, dark = h >= 19 || h < 6 ? 1 : 0;
+      this.droneNight += (dark - this.droneNight) * Math.min(1, dt * 0.5);
+      this.drones.update(dt, this.droneNight, !this.inside && !this.upstairs && !this.roomHere);
+    }
     if (this.holo) {
       // the Halo sings from midnight until its song is done (about half a minute); within earshot, the lyrics float over the square
       const out = !this.inside && !this.upstairs && !this.roomHere, sing = this.tod.hour < 0.8;

@@ -1138,7 +1138,9 @@ void main() {
             vec2 edgeF = smoothstep(vec2(0.0), vec2(0.08), suv) * smoothstep(vec2(0.0), vec2(0.08), 1.0 - suv);
             // tall things fade out of the puddle: a wet street mirrors what is near it most clearly
             hitW = edgeF.x * edgeF.y * (1.0 - float(i) / 18.0) * mix(1.0, 0.45, smoothstep(1.0, 14.0, hp.y - uWetY));
-            rcol = mix(rcol, texture(tScene, suv).rgb, hitW);
+            // bright neon reflects softer than it shines, so a lit sign makes a glow in the wet, not a second sign
+            vec3 sc = texture(tScene, suv).rgb;
+            rcol = mix(rcol, sc / (1.0 + max(max(sc.r, sc.g), sc.b) * 0.6), hitW);
           }
           break;
         }
@@ -1146,7 +1148,7 @@ void main() {
     }
     float cosT = clamp(dot(-rd, nrm), 0.0, 1.0);
     float fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
-    float k = uWet * mix(0.22, 0.62, pud) * clamp(fres * 2.5 + 0.35, 0.0, 1.0);
+    float k = uWet * mix(0.16, 0.55, pud) * clamp(fres * 2.5 + 0.35, 0.0, 1.0);
     col = mix(col * mix(1.0, 0.7, uWet * (0.4 + 0.6 * pud)), rcol, k);
   } else if (wpos.y < uWaterY + 0.4 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w) {
     // wet stone just above the waterline, with a waterline that rises and falls with the lapping

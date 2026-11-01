@@ -8,6 +8,7 @@ import { G, SX, SZ, V, VX0, VZ0, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout
 import { Builder, Lot, building, flatRoof, stall, WARM, COOL, WHITEWARM, RED, type BuildResult, type Window, type Anchors, type StallAnchor, type PlacedProp, type BuildingOpts, type Ground, type Style, type Side } from './tokyo';
 import { neonDress, tree } from './city';
 import { dressBlock } from './facades';
+import { shopFloor } from './interiors';
 import { Prop, rotateProp, streetLamp, bench, vendingMachine, wire, acUnit, crateStack, scooter, stool, plantPot, binCorner, utilityBox, hangingSign, lantern, glyph } from './props';
 import { buildFood } from './food';
 import { hiddenKitchenDress } from './dining';
@@ -333,14 +334,24 @@ function warehouse(lot: Lot, n: NC, seed: number) {
   const wall = r() < 0.5 ? n.corrugated : n.corrugatedB;
   lot.box(0, 0, 0, w - 1, H - 1, dep - 1, (a, y) => (a % 2 === 0 ? wall : y % 8 === 0 ? n.rustBrown : wall));
   b.occlude(lot.x0, lot.z0, lot.x1, lot.z1, H * V + 3, 0.95, 'building');
+  // the floor inside is a working shop (a dock hub, a trader, a gear outlet): its door sits in the first gap
+  // between the roller doors, and the roller doors either side stay down
+  const doorA = 16;
+  shopFloor(lot, { kind: 'shop', seed, trim: n.yellowSteel, awn: [n.yellowSteel, n.steelDark], awning: () => {}, doorA });
   // big roller doors with a lit sign over them
   for (let a0 = 3; a0 + 12 < w - 2; a0 += 18) {
+    if (a0 + 11 >= doorA - 1 && a0 <= doorA + 4) continue;
     lot.box(a0, 0, 0, a0 + 11, 13, 0, (_a, y) => (y % 2 ? n.steel : n.steelDark));
     lot.box(a0 - 1, 14, -1, a0 + 12, 14, -1, n.yellowSteel);
     lot.box(a0 + 2, 16, -1, a0 + 9, 17, -1, n.neon[(seed + a0) % 6]);
   }
   // a saw-tooth roof
-  for (let d = 0; d < dep; d += 8) for (let s = 0; s < 6; s++) lot.box(0, H + s, d + s, w - 1, H + s, Math.min(dep - 1, d + 7), s === 5 ? n.litGlass : n.corrugatedB);
+  // (the glazing is the steep face of each tooth, lit from the work floor inside, mullions every few cells)
+  for (let d = 0; d < dep; d += 8) {
+    for (let s = 0; s < 6; s++) lot.box(0, H + s, d + s, w - 1, H + s, Math.min(dep - 1, d + 7), n.corrugatedB);
+    const zf = Math.min(dep - 1, d + 7);
+    lot.box(0, H + 1, zf, w - 1, H + 5, zf, (a, y) => (a % 4 === 0 || y === H + 5 ? n.steelDark : (a + y) % 3 ? n.blackGlass : n.litGlass));
+  }
   dressBlock(b, lot.x0, lot.z0, lot.x1, lot.z1, H, wall, seed);
   const [lx, lz] = lot.front(w / 2, 1.2);
   b.lamp(lx, 4.2, lz, WARM, 7, 0.8);

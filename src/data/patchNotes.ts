@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.35',
+    date: '2026-11-01',
+    title: '2040: caught in the light',
+    items: [
+      'When a patrol drone locks its searchlight on you at night, people nearby stop and film the scene on their phones.',
+    ],
+  },
+  {
     version: '0.20.34',
     date: '2026-11-01',
     title: '2040: your cat comes home',

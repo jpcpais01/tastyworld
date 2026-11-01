@@ -1,1 +1,39 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#07080d"/><path d="M14 46h36" stroke="#46e8ff" stroke-width="3"/><path d="M18 46V22h6v24M28 46V12h7v34M39 46V26h7v20" fill="#1c2430" stroke="#ff4fa8" stroke-width="2"/><circle cx="32" cy="30" r="9" fill="none" stroke="#7ff6ff" stroke-width="2.5"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a0b2e"/><stop offset="0.6" stop-color="#0b0d1a"/><stop offset="1" stop-color="#05060b"/></linearGradient>
+ <radialGradient id="glow" cx="0.5" cy="0.42" r="0.5"><stop offset="0" stop-color="#ff4fa8" stop-opacity="0.45"/><stop offset="1" stop-color="#ff4fa8" stop-opacity="0"/></radialGradient>
+ <linearGradient id="wet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#46e8ff" stop-opacity="0.55"/><stop offset="1" stop-color="#46e8ff" stop-opacity="0"/></linearGradient>
+ <filter id="neon" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+</defs>
+<g clip-path="url(#tile)">
+ <rect width="512" height="512" fill="url(#sky)"/>
+ <rect width="512" height="512" fill="url(#glow)"/>
+ <g transform="translate(256 256) scale(1) translate(-256 -256)">
+  <!-- the Halo ring over the city -->
+  <circle cx="256" cy="196" r="92" fill="none" stroke="#7ff6ff" stroke-width="14" filter="url(#neon)"/>
+  <!-- towers, voxel-stepped -->
+  <g fill="#141a26" stroke="#ff4fa8" stroke-width="6" stroke-linejoin="miter">
+   <path d="M86 392V250h44v-26h30v168z"/>
+   <path d="M184 392V150h40v-30h56v30h12v242z" fill="#19202e"/>
+   <path d="M314 392V226h36v-24h44v190z"/>
+  </g>
+  <!-- lit windows -->
+  <g fill="#ffdc5a">
+   <rect x="100" y="270" width="12" height="12"/><rect x="132" y="300" width="12" height="12"/><rect x="100" y="330" width="12" height="12"/>
+   <rect x="204" y="176" width="12" height="12"/><rect x="236" y="206" width="12" height="12"/><rect x="262" y="176" width="12" height="12"/>
+   <rect x="204" y="266" width="12" height="12"/><rect x="262" y="296" width="12" height="12"/><rect x="236" y="326" width="12" height="12"/>
+   <rect x="330" y="250" width="12" height="12"/><rect x="364" y="280" width="12" height="12"/><rect x="330" y="320" width="12" height="12"/>
+  </g>
+  <g fill="#46e8ff"><rect x="132" y="240" width="12" height="12"/><rect x="236" y="146" width="12" height="12"/><rect x="364" y="226" width="12" height="12"/></g>
+  <!-- street line and its reflection -->
+  <rect x="56" y="392" width="400" height="10" fill="#46e8ff" filter="url(#neon)"/>
+  <rect x="56" y="402" width="400" height="70" fill="url(#wet)" opacity="0.6"/>
+  <g stroke="#ff4fa8" stroke-width="6" opacity="0.35"><path d="M124 410v34M232 410v50M352 410v40"/></g>
+ </g>
+ <!-- rain -->
+ <g stroke="#9fdcff" stroke-width="3" opacity="0.28" stroke-linecap="round">
+  <path d="M60 40l-10 34M150 80l-10 34M330 30l-10 34M430 90l-10 34M470 220l-10 34M30 260l-10 34M400 330l-10 34M110 160l-10 34"/>
+ </g>
+</g>
+</svg>

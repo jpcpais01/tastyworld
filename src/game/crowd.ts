@@ -580,6 +580,19 @@ export class Crowd {
     if (this.beach) yield* this.beach.visible(this.pl, this.viewR);
   }
 
+  /** Bodies on foot drawn this frame, for things they carry (2040's umbrellas): a stable key per walker. */
+  *holders(): Generator<{ actor: Actor; onFoot: boolean; key: number }> {
+    const out = { actor: null as unknown as Actor, onFoot: false, key: 0 };
+    for (let i = 0; i < this.walkers.length; i++) {
+      const w = this.walkers[i];
+      if (w.hidden || !w.actor.root.visible) continue;
+      const a = w.actor;
+      out.actor = a; out.key = i;
+      out.onFoot = w.mode === 'foot' && !w.ride && a.hold === 'none' && (a.anim === 'walk' || a.anim === 'idle' || a.anim === 'talk' || a.anim === 'listen');
+      yield out;
+    }
+  }
+
   private release(w: Walker): void {
     if (!w.actor.built) return;
     w.actor.release();

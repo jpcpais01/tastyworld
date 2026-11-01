@@ -50,6 +50,7 @@ import { Vitals } from './neo/vitals';
 import { NeoLifeSys } from './neo/life';
 import { Rain } from './neo/rain';
 import { SkyTraffic } from './neo/skytraffic';
+import { Umbrellas } from './neo/umbrellas';
 import { neoShop } from './neo/roles';
 import { defaultLife } from './neo/state';
 import { nightAt, dropLanding, endLanding } from './ui/arrival';
@@ -582,7 +583,7 @@ class Game {
     this.blobs = new Blobs(this.r.scene, 160);
     if (a.koiArea) this.koi = new Koi(this.worldGroup as unknown as THREE.Scene, this.r, a.koiArea);
     this.particles = new Particles(this.r, a.emitters, [...a.manekis, ...a.darumas], a.fireflies, a.petals);
-    if (NEO) { this.rain = new Rain(this.r); this.skyCars = new SkyTraffic(this.worldGroup as unknown as THREE.Scene, this.r); }
+    if (NEO) { this.rain = new Rain(this.r); this.skyCars = new SkyTraffic(this.worldGroup as unknown as THREE.Scene, this.r); this.umbrellas = new Umbrellas(this.worldGroup, this.r); }
     this.beams = new SkylightBeams(this.r, a.shafts ?? []);
     (a.warm ?? []).slice(0, 3).forEach(([x0, z0, x1, z1, top], i) => { this.r.shared.uWarm.value[i].set(x0, z0, x1, z1); this.r.shared.uWarmTop.value.setComponent(i, top); });
     this.beacon = new Beacon(this.r.scene);
@@ -1498,6 +1499,7 @@ class Game {
   private rain: Rain | null = null;
   /** Flying cars along the sky lanes. */
   private skyCars: SkyTraffic | null = null;
+  private umbrellas: Umbrellas | null = null;
   /** 2040's life sim (built on first use, once the world's anchors exist). */
   private get lifeSys(): NeoLifeSys {
     return (this.lifeSysV ??= new NeoLifeSys({
@@ -2894,11 +2896,17 @@ class Game {
     // everyone animated and drawn this frame (one list, reused)
     const all = this.drawn;
     all.length = 0;
-    if (this.inside) all.push(this.chef);
+    if (this.inside) { all.push(this.chef); this.umbrellas?.update([], 0); }
     else {
       for (const v of this.vendors) all.push(v.actor);
       for (const e of this.idlers) all.push(e.actor);
       for (const a of this.crowd.visible()) all.push(a);
+      if (this.umbrellas) {
+        // the player puts one up too, unless sheltered, riding the cable car or carrying food
+        const pl0 = this.player, self = this;
+        const me = { actor: pl0, key: 0, always: true, onFoot: !this.upstairs && !this.roomHere && pl0.hold === 'none' && (pl0.anim === 'walk' || pl0.anim === 'idle' || pl0.anim === 'run') };
+        this.umbrellas.update((function* () { yield me; yield* self.crowd.holders(); })(), this.rain?.amount ?? 0);
+      }
       // cats only near enough to be seen: Istanbul has thirty of them spread over the whole map
       const catR = 40 + this.cam.zoom * 1.6, pp0 = this.player.position;
       for (const c of this.cats) {

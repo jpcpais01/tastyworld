@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.4',
+    date: '2026-11-01',
+    title: '2040: umbrellas',
+    items: [
+      'When a shower rolls in, Halcyon puts up its umbrellas: lit shafts and glowing rims in five colours, more of them the harder it rains. You put one up too when you are out in it.',
+    ],
+  },
+  {
     version: '0.20.3',
     date: '2026-11-01',
     title: '2040: rain and sky traffic',

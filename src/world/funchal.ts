@@ -1340,7 +1340,19 @@ function se(b: Builder, c: AC): void {
     }
     // the front: a white gable between basalt corner piers, a basalt cornice along the eaves line
     const FW0 = Z0 - 2, FW1 = Z1 + 2;
-    g.box(FX, Y, FW0, FX + 3, Y + H + 6, FW1, (_x, y, z) => (z - FW0 < 4 || FW1 - z < 4 ? c.cantaria : y < Y + 3 ? c.cantaria : c.white));
+    g.box(FX, Y, FW0, FX + 3, Y + H + 6, FW1, (x, y, z) => (z - FW0 < 4 || FW1 - z < 4 ? c.cantaria : y < Y + 3 || y === Y + 44 || y === Y + 45 ? c.cantaria : hash3(x, y >> 1, z >> 1) < 0.05 ? c.plasterOld : c.white));
+    // over the portal, the arms of King Manuel I in a basalt frame: the shield with its five blue escutcheons, the
+    // armillary sphere either side
+    for (let y = Y + 30; y <= Y + 40; y++) for (let z = zc - 5; z <= zc + 4; z++) {
+      const edge = y === Y + 30 || y === Y + 40 || z === zc - 5 || z === zc + 4;
+      const shield = Math.abs(z + 0.5 - zc) < 3 - Math.max(0, Y + 33 - y) * 0.6 && y < Y + 39;
+      const dot = shield && ((y - Y) % 3 === 0) && Math.abs(z + 0.5 - zc) < 1.5 + ((y - Y) === 36 ? 1.2 : 0);
+      g.set(FX + 4, y, z, edge ? c.cantaria : dot ? c.majolicaBlue : shield ? c.white : c.cantariaB);
+    }
+    for (const z0 of [zc - 10, zc + 9]) for (let y = Y + 32; y <= Y + 38; y++) for (let z = z0 - 2; z <= z0 + 2; z++) {
+      const r = Math.hypot(z - z0, y - (Y + 35));
+      if (r < 2.9 && (r > 1.9 || Math.abs(y - (Y + 35)) < 0.6)) g.set(FX + 4, y, z, c.brass);
+    }
     const gable = Y + H + 6;
     for (let i = 0; i <= 38; i++) g.box(FX, gable + i, FW0 + i, FX + 3, gable + i, FW1 - i, (_x, _y, z) => (z - (FW0 + i) < 2 || (FW1 - i) - z < 2 ? c.cantaria : c.white));
     g.box(FX + 3, gable - 1, FW0, FX + 4, gable, FW1, c.cantaria);

@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.26',
+    date: '2026-11-01',
+    title: '2040: the opening shot',
+    items: [
+      'Waking up in Halcyon after making your character now opens on you up close in the evening rain. The camera then slowly pulls back and swings round until the whole Halo Crossing is in view.',
+      'Passers-by also comment on visors, respirators and circuit tattoos.',
+    ],
+  },
+  {
     version: '0.20.25',
     date: '2026-11-01',
     title: '2040: face gear',

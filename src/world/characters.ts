@@ -54,6 +54,8 @@ export interface Look {
   tray?: boolean;
   /** A full moustache, Istanbul's classic. */
   moustache?: boolean;
+  /** A short full beard along the jaw and chin, in the hair colour (2040's creator). */
+  beard?: boolean;
   /** 2040 cyberware: a lit implant line from the cheek up the temple, in this colour. */
   implant?: number;
   /** 2040 cyberware: a chrome left arm with a glowing elbow joint. */
@@ -110,6 +112,7 @@ export function randomLook(seed: number): Look {
     if (r() < 0.125) look.implant = pick(NEO_ACCENTS);
     if (r() < 0.07) look.chrome = true;
     if (r() < 0.06) look.visor = pick(NEO_ACCENTS);
+    if (!look.skirt && r() < 0.14) look.beard = true;
     else if (r() < 0.06) look.mask = true;
     if (r() < 0.08) look.tattoo = pick(NEO_ACCENTS);
     if (look.hat !== 'none') look.hatColor = pick([...NEO_TOPS, ...NEO_ACCENTS]);
@@ -244,6 +247,13 @@ function coarsePerson(look: Look): { model: CharModel; ink: Ink } {
   set(4, 16, 6, mouth, PART.head); set(5, 16, 6, mouth, PART.head);
   const moustache = look.moustache ? C(look.hair === 0xb9b6b0 || look.hair === 0x6b6b70 ? look.hair : 0x1d1a1c) : -1;
   if (look.moustache) box(3, 17, 6, 6, 17, 6, moustache, PART.head);
+  if (look.beard) {
+    // jaw, chin and cheeks below the blush, the mouth left clear; a shade darker than the hair
+    const bd = C(mixHex(look.hair, 0x000000, 0.18), 0.05);
+    box(2, 15, 6, 7, 15, 6, bd, PART.head);
+    set(2, 16, 6, bd, PART.head); set(3, 16, 6, bd, PART.head); set(6, 16, 6, bd, PART.head); set(7, 16, 6, bd, PART.head);
+    box(2, 15, 5, 2, 17, 5, bd, PART.head); box(7, 15, 5, 7, 17, 5, bd, PART.head);
+  }
   if (look.implant !== undefined) {
     // a lit seam under the right eye that runs back along the temple
     const glow = pal.add(look.implant, { emit: 0.95 });

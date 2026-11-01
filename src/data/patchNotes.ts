@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.33',
+    date: '2026-11-01',
+    title: '2040: beards',
+    items: [
+      'The 2040 character creator can give you a short full beard in your hair colour, and some of Halcyon\'s crowd wear one too.',
+    ],
+  },
+  {
     version: '0.20.32',
     date: '2026-11-01',
     title: '2040: four new hairstyles',

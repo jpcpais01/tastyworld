@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.15',
+    date: '2026-11-01',
+    title: 'A new landing in Madeira',
+    items: [
+      'Landing in Madeira now has an arrival all its own. Instead of a wall of tiles, the island rises out of the Atlantic in voxel layers: the peaks around Pico Ruivo, the sea of cloud that sits on them, the green terraced poios, Funchal\'s amphitheatre of white houses around the Sé, and the bay with its promenade palms and the Santa Maria at anchor.',
+      'While the city loads, the cloud sea drifts along the mountainside, the water glints and a cable car climbs its wire towards Monte. Then the camera dives into the town, every layer rushing past at its own depth, and you are standing in Funchal. At night the stars are out and the windows are lit.',
+    ],
+  },
+  {
     version: '0.18.14',
     date: '2026-11-01',
     title: 'Calm cherry petals from above',

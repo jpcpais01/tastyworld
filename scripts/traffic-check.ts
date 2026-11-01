@@ -1,10 +1,13 @@
-// Runs Tokyo's traffic with the street crowd for a few game hours against the baked world and checks that cars
+// Runs a city's traffic with the street crowd for a few game hours against the baked world and checks that cars
 // keep to the carriageway, never run into each other or anyone on foot, never wait for ever, and that the crowd
-// keeps to the pavements and crosses at the crosswalks (npx tsx scripts/traffic-check.ts).
+// keeps to the pavements and crosses at the crosswalks (CITY=tokyo|madeira|amalfi|istanbul npx tsx scripts/traffic-check.ts).
 import { bakeWorld } from '../src/world/bake';
 import { Nav } from '../src/game/nav';
 import { Crowd } from '../src/game/crowd';
 import { Traffic } from '../src/game/traffic';
+import { shoreNet } from '../src/game/shoreTraffic';
+import { CITY, perCity } from '../src/world/cityId';
+import { shoreRoad } from '../src/world/shoreRoads';
 import { offFoot, onCarriageway, crosswalkAt, roadY, NEON, HIKARI } from '../src/world/roads';
 import { V } from '../src/world/layout';
 import * as THREE from 'three';
@@ -20,8 +23,15 @@ const fake = () => {
 const crowd = new Crowd(nav, a, { bubble: () => {}, serve: () => {}, quiet: () => false }, { person: fake, dog: fake, vehicle: fake, boat: fake });
 const asked: (() => void)[] = [];
 crowd.router = { find: (ax, az, bx, bz, done) => asked.length < 6 && asked.push(() => done(nav.findPath(ax, az, bx, bz))) > 0 };
-crowd.populate({ walkers: 300, joggers: 6, dogs: 8, cyclists: 10, couriers: 6, boats: 2, exercise: 0 });
-const traffic = new Traffic(null, null, false);
+crowd.populate(perCity({
+  tokyo: { walkers: 300, joggers: 6, dogs: 8, cyclists: 10, couriers: 6, boats: 2, exercise: 0 },
+  madeira: { walkers: 400, joggers: 6, dogs: 8, cyclists: 0, couriers: 0, boats: 2, exercise: 0 },
+  amalfi: { walkers: 170, joggers: 4, dogs: 6, cyclists: 0, couriers: 0, boats: 2, exercise: 0 },
+  istanbul: { walkers: 600, joggers: 4, dogs: 8, cyclists: 0, couriers: 0, boats: 2, exercise: 0 },
+}));
+const TOKYO = CITY === 'tokyo';
+const SR = shoreRoad();
+const traffic = new Traffic(null, null, false, TOKYO ? undefined : shoreNet(w.anchors.signals));
 crowd.traffic = traffic;
 let hour = 7.5;
 crowd.settle(hour);
@@ -30,8 +40,10 @@ console.log('routes', traffic.routeNames.length, traffic.routeNames.map((n) => `
 
 const dt = 1 / 30;
 const SECS = Number(process.env.SECS ?? 480), STEPS = Math.round(SECS / dt); // real seconds: a game day is 12 minutes
-// the player strolls up and down Neon-dori's west pavement and over the scramble, so the cars meet people
-const pl = { x: 72.9, z: 0, speed: 1.2, running: false, eating: false, facing: 0 };
+// the player strolls up and down Neon-dori's west pavement and over the scramble (or the shore road's pavement), so
+// the cars meet people
+const pl = { x: TOKYO ? 72.9 : SR!.av.x0 * V - 1.2, z: 0, speed: 1.2, running: false, eating: false, facing: 0 };
+const z0 = TOKYO ? -40 : SR!.av.z0 * V + 6, z1 = TOKYO ? 100 : (SR!.av.z1 + 1) * V - 6;
 const seen = new Set<number>();
 let maxCars = 0, overlapF = 0, hitF = 0, offRoadF = 0, carF = 0, maxStill = 0, footRoadT = 0, footT = 0, jayT = 0, kerbWaits = 0, onBridge = 0;
 const stillT = new Map<number, number>();
@@ -46,7 +58,7 @@ const overAt = new Map<string, number>();
 const t0 = performance.now();
 for (let s = 0; s < STEPS; s++) {
   hour = 7.5 + (s * dt * 24) / 720;
-  pl.z = -40 + 140 * (0.5 + 0.5 * Math.sin(s * dt * 0.01));
+  pl.z = z0 + (z1 - z0) * (0.5 + 0.5 * Math.sin(s * dt * 0.01));
   for (const f of asked.splice(0)) f();
   crowd.update(dt, hour, pl, [], 45);
   for (const _ of crowd.visible()) { /* */ }
@@ -60,7 +72,9 @@ for (let s = 0; s < STEPS; s++) {
     const c = cars[i];
     seen.add(c.id);
     carF++;
-    if (!onCarriageway(c.x, c.z) && !(c.x > NEON.x0 * V && c.x < (NEON.x1 + 1) * V)) offRoadF++;
+    // (Tokyo's cars leave by Neon-dori's stub and the tunnels; the shore roads' run on beyond the map)
+    const inMap = TOKYO || (c.z > SR!.av.z0 * V + 1 && c.z < (SR!.av.z1 + 1) * V - 1);
+    if (inMap && !onCarriageway(c.x, c.z) && !(TOKYO && c.x > NEON.x0 * V && c.x < (NEON.x1 + 1) * V)) offRoadF++;
     if (c.z > 42.75 && c.z < 50 && c.x > 72 && c.x < 82) onBridge++;
     for (let j = i + 1; j < cars.length; j++) {
       const o = cars[j];
@@ -81,9 +95,9 @@ for (let s = 0; s < STEPS; s++) {
     if (wk.dist > 50) continue;
     footT += dt;
     if (onCarriageway(p.x, p.z)) { footRoadT += dt; if (!crosswalkAt(p.x, p.z, 1.5)) { jayT += dt; const k = `${Math.round(p.x / 4) * 4},${Math.round(p.z / 4) * 4} ${wk.mode}`; jayAt.set(k, (jayAt.get(k) ?? 0) + dt); } }
-    for (const b of boxes) if (inBox(b, p.x, p.z, -0.1) && Math.abs(roadY(p.x, p.z)) < 0.6) {
+    for (const b of boxes) if (inBox(b, p.x, p.z, -0.1) && (!TOKYO || Math.abs(roadY(p.x, p.z)) < 0.6)) {
       const c = cars[boxes.indexOf(b)];
-      if (c.v > 1) { hitF++; const k = `${Math.round(p.x)},${Math.round(p.z)} ${wk.mode} crosswalk ${crosswalkAt(p.x, p.z, 1.5)?.id ?? '-'}`; hitAt.set(k, (hitAt.get(k) ?? 0) + 1); }
+      if (c.v > 1) { if (process.env.DUMP && hitF < 6) console.log('HIT', c.id, 'car', c.x.toFixed(2), c.z.toFixed(2), 'v', c.v.toFixed(2), 'why', c.why, 'stop in', (c.stopS - c.s).toFixed(1), 'walker', p.x.toFixed(2), p.z.toFixed(2), wk.mode, 'doing', wk.doing?.k, 'v', wk.v?.toFixed(2), 'occ', crowd.occupied(p.x, p.z, 0.3), 'kerb', !!wk.kerb, 'len', c.shape.car.length.toFixed(1), c.shape.car.kind, 's', c.s.toFixed(1)); hitF++; const k = `${Math.round(p.x)},${Math.round(p.z)} ${wk.mode} crosswalk ${crosswalkAt(p.x, p.z, 1.5)?.id ?? '-'}`; hitAt.set(k, (hitAt.get(k) ?? 0) + 1); }
     }
   }
 }
@@ -103,6 +117,14 @@ if (process.env.DUMP) {
   console.log('overlap spots', [...overAt].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${k}:${v}`).join(' | '));
   console.log('hit spots', [...hitAt].sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => `${k}:${v}`).join(' | '));
 }
-const ok = seen.size > 60 && overlapF < carF * 0.002 && offRoadF === 0 && maxStill < 120 && hitF === 0 && jayT / footT < 0.01 && onBridge > 0 && kerbWaits > 0;
+if (process.env.DUMP) for (const c of traffic.cars as any[]) {
+  if (c.why !== 8 || (stillT.get(c.id) ?? 0) < 30) continue;
+  console.log('stuck', c.id, c.x.toFixed(1), c.z.toFixed(1), 'zebraT', c.zebraT.toFixed(1), 'stops', c.path.stops.map((st: any) => st.cross.id + '@' + st.s.toFixed(0)).join(','), 's', c.s.toFixed(1));
+  for (const wk of crowd.walkers as any[]) {
+    const p = wk.actor.position;
+    if (Math.abs(p.z - c.z) < 14 && Math.abs(p.x - c.x) < 6) console.log('  near stuck car', c.id, wk.mode, wk.hidden, p.x.toFixed(1), p.z.toFixed(1), 'doing', wk.doing?.k, 'v', wk.v?.toFixed(2), 'path', wk.path.length, 'goal', wk.goal?.k);
+  }
+}
+const ok = seen.size > perCity({ tokyo: 60, madeira: 40, amalfi: 25, istanbul: 1 }) && overlapF < carF * 0.002 && offRoadF === 0 && maxStill < 120 && hitF === 0 && jayT / footT < 0.01 && (onBridge > 0 || !TOKYO) && kerbWaits > 0;
 console.log(ok ? 'traffic OK' : 'TRAFFIC PROBLEMS');
 if (!ok) process.exit(1);

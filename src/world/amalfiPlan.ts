@@ -681,3 +681,19 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
   FOOD_MISSED.push(...takeOverHouses(lots, walk, kind, col, V, K.Rock, K.Lane, MORE_FOOD_PLACES.filter((fp): fp is TakenPlace => 'takeOver' in fp)));
   return lots;
 }
+
+/** The water's edge (x) along the coast at z, beyond the map. */
+export function coastX(z: number): number {
+  if (z > 0) {
+    // west: the coast bends gently seaward past Conca dei Marini, a headland every few hundred metres
+    const t = Math.max(0, z - 80);
+    return 46 + t * 0.22 + 22 * Math.sin(t * 0.011) * smooth(0, 120, t) + 9 * Math.sin(t * 0.031 + 1.3) * smooth(0, 60, t);
+  }
+  // east: under the headland, then Atrani's cove behind it and the coast on towards Minori
+  const t = Math.max(0, -80 - z);
+  const cove = 52 * Math.exp(-(((z + 265) / 42) ** 2));
+  return 36 - t * 0.08 + 10 * Math.sin(t * 0.017) * smooth(0, 80, t) - cove;
+}
+
+/** The middle of the coast road beyond the map (x at z): it leaves the map down the middle of the shore road. */
+export const farRoadX = (z: number) => coastX(z) - 15;

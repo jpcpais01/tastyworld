@@ -1230,11 +1230,17 @@ export function utilityBox(k: PropKit, seed = 1): Prop {
  * A traffic signal pole for the live lights (see world/roads.ts POLE and game/traffic.ts): the pole at (1, 1), its
  * arm out along +X over the lane, a horizontal three-lamp head facing +Z with a visor over each lamp, and a walk
  * light on the pole facing +X across the road. The lamps are dark recesses: the traffic system draws the lit
- * lens into whichever one is on.
+ * lens into whichever one is on. `mirror` flips it along X (the arm out along -X, the walk light facing -X), for
+ * roads where traffic keeps right.
  */
-export function signalPole(k: PropKit): Prop {
+export function signalPole(k: PropKit, mirror = false): Prop {
   const { c } = k;
   const p = new Prop(16, 40, 4);
+  if (mirror) {
+    const q = signalPole(k);
+    for (let y = 0; y < q.sy; y++) for (let z = 0; z < q.sz; z++) for (let x = 0; x < q.sx; x++) p.set(q.sx - 1 - x, y, z, q.get(x, y, z));
+    return p;
+  }
   p.box(0, 0, 0, 2, 1, 2, c.poleGray);
   p.box(1, 2, 1, 1, 37, 1, c.poleGray);
   p.box(1, 36, 1, 14, 36, 1, c.poleGray);
@@ -1260,6 +1266,38 @@ export const SIGNAL_LENS = {
   stop: [[4, 24, 1], [4, 25, 1], [4, 26, 1], [4, 25, 0], [4, 25, 2]],
   walk: [[4, 20, 1], [4, 21, 1], [4, 22, 1], [4, 21, 0], [4, 20, 2]],
 } as const;
+
+/**
+ * A bus shelter: a glass back between slim posts, a flat roof in the operator's colour, a perch bench and the stop's
+ * flag at one end. Open along +X (the kerb) at turns 0; 1.25 m deep, 2.5 m long.
+ */
+export function busShelter(k: PropKit, roof: number, flag: number): Prop {
+  const { c } = k;
+  const p = new Prop(10, 23, 20);
+  for (const z of [0, 19]) { p.box(0, 0, z, 0, 20, z, c.poleGray); p.box(9, 0, z, 9, 20, z, c.poleGray); }
+  p.box(0, 1, 1, 0, 19, 18, c.vmGlass); // the glass back
+  p.box(1, 1, 19, 8, 19, 19, c.vmGlass); // and the glass end
+  p.box(0, 20, 0, 9, 21, 19, roof);
+  p.box(0, 21, 0, 9, 21, 19, (x, _y, z) => (x === 0 || x === 9 || z === 0 || z === 19 ? c.poleGray : roof));
+  p.box(1, 5, 2, 3, 5, 17, c.steel); // the perch
+  p.box(1, 1, 3, 1, 4, 3, c.steelDark); p.box(1, 1, 16, 1, 4, 16, c.steelDark);
+  // the timetable on the end wall, and the flag with the route numbers sticking out over the kerb
+  p.box(2, 9, 18, 6, 15, 18, c.paper);
+  p.box(9, 13, 1, 9, 19, 2, flag);
+  p.box(9, 13, 3, 9, 19, 3, c.white);
+  return p;
+}
+
+/** A bus stop's sign on its pole: the blue plate with the operator's name, a timetable case below. Faces +Z. */
+export function busStopSign(k: PropKit, plate: number): Prop {
+  const { c } = k;
+  const p = new Prop(6, 26, 3);
+  p.box(2, 0, 1, 2, 24, 1, c.poleGray);
+  p.box(0, 18, 2, 5, 24, 2, (x, y) => (y === 18 || y === 24 || x === 0 || x === 5 ? c.white : (x + y) % 4 === 0 ? c.white : plate));
+  p.box(1, 10, 2, 4, 14, 2, c.paper);
+  p.box(1, 15, 2, 4, 15, 2, c.charcoal);
+  return p;
+}
 
 /** A round "no pedestrians" sign on a grey pole, facing +Z: red ring, a walking figure, the red bar across. */
 export function noWalkSign(k: PropKit): Prop {

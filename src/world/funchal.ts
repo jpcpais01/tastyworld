@@ -2,14 +2,16 @@ import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
 import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, StallAnchor } from './tokyo';
-import { Prop, rotateProp, bench, scooter, stool, bush, grassTuft, terraceTable, terraceChair, TERRACE_TOP } from './props';
+import { Prop, rotateProp, bench, scooter, stool, bush, grassTuft, terraceTable, terraceChair, TERRACE_TOP, signalPole, busShelter } from './props';
+import { poleCentre } from './roads';
+import { shoreRoad, shorePoles, shoreMark, offRoad } from './shoreRoads';
 import { buildFood, type FoodId } from './food';
 import type { RoomAnchor, RoomNpc } from './interiors';
 import { STALL } from '../data/stalls';
 import { HOTEL } from '../data/hotels';
 import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
-import { madeiraPlan, K, col, layerOf, isPath, wildRock, LotPlan, PIAZZA_Y, SEA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, PROM_X1, ribZ, RIB_HALF, bedY, SE, SE_TOWER, MERCADO, JARDIM, TELE, FORT_C, fortR, MAR_CX, MAR_CZ, MAR_A0, MAR_A1, moleRadii, waterX, type Plan } from './madeiraPlan';
+import { madeiraPlan, K, col, layerOf, isPath, wildRock, LotPlan, PIAZZA_Y, SEA_Y, DUOMO_Y, ROAD_X0, PROM_X1, ribZ, RIB_HALF, bedY, SE, SE_TOWER, MERCADO, JARDIM, TELE, FORT_C, fortR, MAR_CX, MAR_CZ, MAR_A0, MAR_A1, moleRadii, waterX, type Plan } from './madeiraPlan';
 import { seInterior, seGeom, type SeFrame, HALL_ROOM } from './sacred';
 import { paintColors, picture, hangIn, type PaintColors, type PictureKind } from './paintings';
 import { dineColors, dressWalls, kitchenLine, tableTop, pendants, counterPiece, cornerPlant, rug, cornice, hangRail, windowBench, hiddenKitchenDress, onWall, bare, walls, put, type Dine, type Goods, type TableStyle, type WallLook } from './dining';
@@ -553,6 +555,7 @@ export function buildMadeira(win?: Window): BuildResult {
   ribeira(b, c, plan);
   marina(b, c, plan);
   shore(b, c, plan);
+  const signals = avenue(b, c, plan);
   gardens(b, c, plan, inWin);
   levada(b, c, plan);
   lanes(b, c, plan);
@@ -571,7 +574,6 @@ export function buildMadeira(win?: Window): BuildResult {
   for (const [x, y, z] of tiles) { b.place(azulejoCharm(c), x, y, z); b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3); }
   const hidden = secretDoor(b, c, plan);
 
-  const P = (x: number, z: number) => [x, z] as [number, number];
   const anchors: Anchors = {
     spawn: [6, 0, -27],
     stalls,
@@ -580,7 +582,9 @@ export function buildMadeira(win?: Window): BuildResult {
     interiorExit: [0, 0], interiorSpawn: [0, 0, 0], chef: [0, 0, 0], counterStand: [0, 0],
     // three azulejo tiles tucked away around town open it
     manekis: tiles,
-    graph: { nodes: plan.nodes.map(([x, z]) => P(x, z)), edges: plan.edges.map(([i, j]) => [i, j] as [number, number]) },
+    // the walking graph keeps to the pavements: the line down the Avenida do Mar walks its town-side pavement
+    graph: { nodes: plan.nodes.map(([x, z]) => offRoad(x, z)), edges: plan.edges.map(([i, j]) => [i, j] as [number, number]) },
+    signals,
     idlers: [
       { id: 'avo', pos: [-6, 0, -16] },
       { id: 'pescador', pos: [38.5, 0, -58] },
@@ -737,8 +741,8 @@ function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: n
             return y < G - 1 ? (y < G - 3 ? c.algae : c.wet) : masonry(c, xx, y, zz, false);
           case K.Road:
             if (d === 0) {
-              const zl = Math.abs(mz % 6);
-              return Math.abs(mx - (ROAD_X0 + ROAD_X1) / 2) < 0.13 && zl < 3 ? c.roadLine : c.asphalt;
+              // the dashed centre line, the zebras and the stop lines at the lights (world/shoreRoads.ts)
+              return shoreMark(SHORE, mx + V / 2, mz + V / 2) ? c.roadLine : c.asphalt;
             }
             return masonry(c, xx, y, zz, false);
           case K.Walk: return d === 0 ? calcada(c, K.Walk, xx, zz) : masonry(c, xx, y, zz, false);
@@ -1299,6 +1303,28 @@ function ironLamp(c: AC): Prop {
   return p;
 }
 
+const SHORE = shoreRoad()!;
+
+/**
+ * The Avenida do Mar's traffic furniture: the signal poles at its two crossings with lights (their lenses lit live by
+ * game/traffic.ts, which gets them back from the anchors) and the shelters at the bus stops, one each way.
+ */
+function avenue(b: Builder, c: AC, plan: Plan): NonNullable<Anchors['signals']> {
+  const out: NonNullable<Anchors['signals']> = [];
+  for (const p of shorePoles(SHORE, (x, z, t) => poleCentre(x, z, t, true), (x, z) => floorAt(plan, x, z))) {
+    b.place(signalPole(b.k, true), p.x, p.y, p.z, p.turns);
+    b.block(p.fx - 0.2, p.fz - 0.2, p.fx + 0.2, p.fz + 0.2);
+    out.push({ x: p.x, z: p.z, y: p.y, turns: p.turns, cross: p.cross });
+  }
+  // the Horários do Funchal's yellow and orange: the shelter on the pavement beside where the bus stands
+  const kerbLo = SHORE.av.x0 * V, kerbHi = (SHORE.av.x1 + 1) * V;
+  for (const [z, x, turns] of [[SHORE.stopsN[0], kerbLo - 1.55, 0], [SHORE.stopsS[0], kerbHi + 1.25, 2]] as [number, number, number][]) {
+    b.place(busShelter(b.k, c.fortYellow, c.hullRed), x, floorAt(plan, x, z), z, turns);
+    b.block(x - 0.62, z - 1.25, x + 0.62, z + 1.25);
+  }
+  return out;
+}
+
 /** The sea front: lamps and benches along the promenade, palms by the avenue, boats on the black pebble beach. */
 function shore(b: Builder, c: AC, plan: Plan): void {
   const at = (x: number, z: number) => floorAt(plan, x, z);
@@ -1313,6 +1339,8 @@ function shore(b: Builder, c: AC, plan: Plan): void {
   // palms and the odd dragon tree between the avenue and the promenade
   for (let z = -82; z < 86; z += 12) {
     if (Math.abs(z - ribZ(35.3)) < 6) continue;
+    // (clear of the signal poles at the crossings with lights)
+    if (SHORE.crossings.some((cw) => cw.signal && z > cw.lo * V - 3 && z < (cw.hi + 1) * V + 3)) continue;
     const y = at(35.4, z);
     b.place(palmTree(c, z * 13 + 7), 35.4, y, z); b.block(35.1, z - 0.3, 35.7, z + 0.3);
   }

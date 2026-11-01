@@ -82,6 +82,8 @@ export const PIAZZA_Y = 3.0;
 export const DUOMO_Y = 3.0;
 /** Avenida do Mar (x) and the promenade seaward of it. */
 export const ROAD_X0 = 27, ROAD_X1 = 35, PROM_X1 = 39.75;
+/** The footway along the town side of the avenue's bridge over the ribeira: its kerb (x), and how far it runs either side of the channel's line (z). */
+export const FOOTWAY_X = 28.25, BRIDGE_HALF = 6.5;
 /** The marina: its breakwater is a curved arm round (MAR_CX, MAR_CZ), between radii MAR_R0 and MAR_R1, from MAR_A0 to MAR_A1. */
 export const MAR_CX = 39.5, MAR_CZ = -44, MAR_R0 = 21, MAR_R1 = 25, MAR_A0 = -Math.PI / 2, MAR_A1 = 0.9;
 /** Largo da Sé and the Sé on it (m). */
@@ -262,7 +264,8 @@ function network(): { nodes: Record<string, N>; edges: [string, string, number, 
     xs.forEach((x, i) => { add(`${tag}${i}`, x, ribZ(x) + side * (RIB_HALF + 2.4), i === 0 ? ROAD_Y : undefined); if (i) e.push([`${tag}${i - 1}`, `${tag}${i}`, 4, K.Street]); });
   };
   bank(-1, 'bs'); bank(1, 'bn');
-  e.push(['bs0', 'r4', 4, K.Street], ['bn0', 'r4', 4, K.Street]);
+  // the avenue's bridge over the ribeira's mouth keeps a footway on the town side, between the two bank streets
+  e.push(['bs0', 'bn0', 1.5, K.Walk]);
   for (const i of [3, 5]) e.push([`bs${i}`, `bn${i}`, 4.2, K.Street]);
   e.push(['bs2', 'aj1', 4, K.Street], ['bn2', 'aj2', 4, K.Street], ['bs1', 'al5', 4, K.Street]);
   // Rua dos Ferreiros and Rua do Bispo, either side of the Sé, climbing inland
@@ -373,6 +376,14 @@ export function madeiraPlan(): Plan {
   void ny;
   // paint the paths: each column takes the height of the closest path over it, uniformly graded along it
   for (const s of segs) paintSeg(s, walk, kind, best);
+  // the avenue is asphalt from kerb to kerb: the streets meeting it stop at its kerb (their round ends would spill
+  // over it), and the crossings over it are zebras; on the bridge the town side keeps its footway
+  for (let z = VZ0; z < VZ0 + SZ; z++) for (let x = Math.round(27.25 / V); x < Math.round(34.75 / V); x++) {
+    const c = col(x, z), px = (x + 0.5) * V, pz = (z + 0.5) * V;
+    if (kind[c] !== K.Street && kind[c] !== K.Walk && kind[c] !== K.Road) continue;
+    kind[c] = px < FOOTWAY_X && Math.abs(pz - ribZ(px)) < BRIDGE_HALF ? K.Walk : K.Road;
+    walk[c] = layerOf(ROAD_Y);
+  }
   // the squares are level
   rect(LARGO[0], LARGO[1], LARGO[2], LARGO[3], PIAZZA_Y, K.Piazza, walk, kind, best);
   rect(LAVRADORES[0], LAVRADORES[1], LAVRADORES[2], LAVRADORES[3], PIAZZA_Y, K.Piazza, walk, kind, best);
@@ -665,3 +676,13 @@ function placeLots(walk: Uint8Array, kind: Uint8Array, lot: Uint16Array, segs: P
   FOOD_MISSED.push(...takeOverHouses(lots, walk, kind, col, V, K.Rock, K.Lane, MORE_FOOD_PLACES.filter((m): m is TakenPlace => 'takeOver' in m)));
   return lots;
 }
+
+/** The water's edge (x) along the coast at z, beyond the map: the bay opens out seaward on both sides. */
+export function coastX(z: number): number {
+  const t = Math.max(0, Math.abs(z) - 88);
+  if (z > 0) return 46 + t * 0.2 + 16 * Math.sin(t * 0.012) * smooth(0, 120, t) + 6 * Math.sin(t * 0.037 + 0.7) * smooth(0, 60, t);
+  return 46 + t * 0.26 + 20 * Math.sin(t * 0.009 + 0.4) * smooth(0, 140, t) + 7 * Math.sin(t * 0.029 + 2.1) * smooth(0, 60, t);
+}
+
+/** The middle of the coast road beyond the map (x at z): it leaves the map down the middle of the shore road. */
+export const farRoadX = (z: number) => coastX(z) - 15;

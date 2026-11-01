@@ -6,16 +6,18 @@ import { sampleLightmap } from './actors';
 import type { LightMap2D } from '../world/bake';
 import { V } from '../world/layout';
 import {
-  CROSSWALKS, SCRAMBLE, HIKARI, NEON, POLE, LANE, centreOf, carLight, walkLight, roadY, roadShade, signalPoles,
-  type Crosswalk, type Phase, type Avenue, type SignalPole,
+  CROSSWALKS, SCRAMBLE, HIKARI, NEON, POLE, LANE, centreOf, carLight, walkLight, roadY, roadShade, signalPoles, onCarriageway,
+  type Crosswalk, type Phase, type Avenue,
 } from '../world/roads';
 
 /**
- * Cars on Tokyo's two avenues. They come up out of the underpasses at the edge of town, keep left, stop at the
- * lights and for anyone in the road, turn at the scramble and dive back under the street; taxis now and then
- * pull into the rank north of the scramble, wait their turn and set off again. The traffic lights are live: the
- * lit lens of every signal head is drawn by the character batch, as are the cars, so a whole street of them is
- * one draw call, one shared mesh per make and paint, and the wheels turn and steer through the pose texture.
+ * Cars on a city's roads: Tokyo's two avenues (tokyoNet below), or another city's shore road (game/shoreTraffic.ts).
+ * In Tokyo they come up out of the underpasses at the edge of town, keep left, stop at the lights and for anyone in
+ * the road, turn at the scramble and dive back under the street; taxis now and then pull into the rank north of the
+ * scramble, wait their turn and set off again. The traffic lights are live: the lit lens of every signal head is
+ * drawn by the character batch, as are the cars, so a whole street of them is one draw call, one shared mesh per
+ * make and paint, and the wheels turn and steer through the pose texture. At a zebra with no lights the drivers give
+ * way to anyone on it or about to step onto it, and the people wait for a gap in the traffic.
  *
  * The simulation is cheap: a car is a distance along a fixed path. It looks ahead along that path a few times a
  * second for the stop line it must heed, the car in front, or someone on foot, and brakes or pulls away.
@@ -26,16 +28,9 @@ const TAU = Math.PI * 2;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
-// lane lines (metres)
-const HC = centreOf(HIKARI), NC = centreOf(NEON);
-const EB = HC - LANE, WB = HC + LANE, SB = NC + LANE, NB = NC - LANE;
-const XW = HIKARI.x0 * V + 0.4, XE = (HIKARI.x1 + 1) * V - 0.4, ZS = (NEON.z1 + 1) * V - 0.4;
-/** The turnaround in front of the railway viaduct, at the top of the taxi rank, and where the rank's first car waits. */
-const UTURN_Z = -44.6, RANK_Z = -31.6;
-const ACCEL = 2.2, BRAKE = 3.6, HARD = 8;
-const MAX_CARS = { desktop: 44, mobile: 26 };
+export const ACCEL = 2.2, BRAKE = 3.6, HARD = 8;
 
-interface Path {
+export interface Path {
   /** x, z per point, and the distance along the path at each. */
   pts: Float32Array;
   cum: Float32Array;
@@ -46,10 +41,61 @@ interface Path {
   stops: { s: number; exit: number; cross: Crosswalk; phase: Phase }[];
   /** Turns across another way's lane: wait short of `s` (where the nose would meet it) while a car on `q` nears `sq`. */
   yields: { s: number; q: Path; sq: number }[];
-  /** Turning here (speed limited for a corner) at each point. */
   /** Where a taxi waits for its fare (s), -1 if this is no taxi's way in. */
   hold: number;
   /** Ends in the taxi rank (counts towards how many it holds). */
+  rank: boolean;
+  /** Bus (and tram) stops along the way: where the centre stands (s), in order. */
+  halts: number[];
+  /** A tram's way on from the end of this path (it reverses there): the route it carries on along. */
+  then: string;
+}
+
+/** A stop line across an avenue: cars heading `dir` along it stop short of `at` (m) for the crossing beyond. */
+export interface StopPlane {
+  av: Avenue;
+  at: number;
+  dir: 1 | -1;
+  cross: Crosswalk;
+  phase: Phase;
+  /** The stretch of road a car must not stop in: x0, x1, z0, z1 (m). */
+  box: [number, number, number, number];
+}
+
+/** A signal pole whose lit lenses the traffic draws: where the prop stands, and which light it shows. */
+export interface LensPole {
+  /** Footprint centre (m), ground height and quarter turns, as the prop was placed. */
+  x: number; z: number; y: number; turns: number;
+  cross: number;
+  phase: Phase;
+  /** The keep-right pole, its arm on the other side (props.signalPole(k, true)). */
+  mirror: boolean;
+}
+
+/** A city's road network: its routes, crossings and lights, and what drives on it when. */
+export interface Network {
+  max: { desktop: number; mobile: number };
+  crossings: Crosswalk[];
+  /** Builds the routes (stops and give-way points are found by the traffic). */
+  routes(): Record<string, Path>;
+  planes(): StopPlane[];
+  poles(): LensPole[];
+  /** The ways in: each gets a car every `every(arm)` seconds at the busiest hour. */
+  arms: string[];
+  every(arm: string): number;
+  /** The route and make of the next car in from an arm, or null to skip one. */
+  next(arm: string, hour: number, t: Traffic): { route: string; kind: CarKind } | null;
+  /** Fills the roads as if the traffic had been running a while. */
+  populate(t: Traffic, hour: number): void;
+  /** How busy the roads are by the hour, 0..1. */
+  density(hour: number): number;
+  /** How far past a zebra's kerbs (m) a driver watches for people about to step onto it. */
+  kerbM: number;
+  /** Cruising speed relative to Tokyo's avenues. */
+  pace: number;
+  /** How close beside its path (m, past its sides) someone on foot makes a driver brake. */
+  margin: number;
+  /** Taxis queue in a rank and are sent off one at a time. */
   rank: boolean;
 }
 
@@ -78,27 +124,42 @@ interface Car {
   lightT: number;
   cur: number;
   released: boolean;
-  /** What stopped it at the last look (for checks): 0 nothing, 1 a light, 2 the rank, 3 giving way, 4 a car, 5 no room past a crossing, 6 someone ahead, 7 someone beside. */
+  /** The next bus stop (index into path.halts), and how long it still stands there (-1: not stopped yet). */
+  haltI: number;
+  dwell: number;
+  /** How long it has stood at a zebra letting people over: after a while it is its turn. */
+  zebraT: number;
+  /** What stopped it at the last look (for checks): 0 nothing, 1 a light, 2 the rank or a bus stop, 3 giving way, 4 a car, 5 no room past a crossing, 6 someone ahead, 7 someone beside, 8 people on a zebra. */
   why: number;
 }
 
 /** Someone on foot the cars look out for: the crowd answers whether anyone stands within r of a point. */
 export interface TrafficPeople {
-  occupied(x: number, z: number, r: number): boolean;
+  occupied(x: number, z: number, r: number, pets?: boolean): boolean;
 }
+
+/** Makes that stop at the bus stops. */
+const STOPPING = new Set<CarKind>(['bus', 'tram']);
+
+/** The strip of a crossing (across the road) a car's body will sweep over it, with a little room either side. */
+const laneBand = (c: { x: number; z: number }, cross: Crosswalk, halfW: number): [number, number] => {
+  const v = cross.av.ew ? c.z : c.x;
+  return [v - halfW - 0.1, v + halfW + 0.1];
+};
 
 export class Traffic {
   readonly cars: Car[] = [];
   private shapes = new Map<string, Shape>();
   private routes: Record<string, Path> = {};
   private nextId = 1;
-  private spawnT: Record<'W' | 'E' | 'S', number> = { W: 1, E: 2, S: 3 };
+  private spawnT: Record<string, number> = {};
   private dispatchT = 12;
   /** The signals' clock (s). */
   clock = Math.random() * 600;
   private hidden = false;
   private max: number;
-  private poles: { p: SignalPole; copy: number; tex: Float32Array; shown: boolean }[] = [];
+  private poles: { p: LensPole; copy: number; tex: Float32Array; shown: boolean }[] = [];
+  private zebraPts = new Map<Crosswalk, { road: Float32Array; kerb: Float32Array; edge: Uint8Array }>();
   private mtx = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -107,41 +168,17 @@ export class Traffic {
   private tmpL = new Float32Array(5);
   private samples = new Float32Array(96 * 3);
 
-  constructor(private batch: CharacterBatch | null, private lightmap: LightMap2D | null, mobile: boolean) {
-    this.max = mobile ? MAX_CARS.mobile : MAX_CARS.desktop;
-    this.buildRoutes();
+  constructor(private batch: CharacterBatch | null, private lightmap: LightMap2D | null, mobile: boolean, private net: Network = tokyoNet()) {
+    this.max = mobile ? net.max.mobile : net.max.desktop;
+    net.arms.forEach((a, i) => { this.spawnT[a] = 1 + i; });
+    this.routes = net.routes();
+    const planes = net.planes();
+    for (const p of Object.values(this.routes)) this.findStops(p, planes);
+    this.findYields();
     this.buildSignals();
   }
 
   // ------------------------------------------------------------------ routes
-
-  private buildRoutes(): void {
-    const W = (b: Builder) => b.start(XW, EB, 1, 0);
-    const E = (b: Builder) => b.start(XE, WB, -1, 0);
-    const S = (b: Builder) => b.start(NB, ZS, 0, -1);
-    // up Neon-dori's stub, round in front of the viaduct and down to the rank, then away from it
-    const stub = (b: Builder) => b.toZ(UTURN_Z).turn(1, 0, 1.4).turn(0, 1, 1.4).hold(RANK_Z);
-    const outS = (b: Builder) => b.toZ(ZS);
-    const outE = (b: Builder) => b.toZ(EB - 2.5).turn(1, 0, 2.5).toX(XE);
-    const r = this.routes;
-    r.WE = W(new Builder()).toX(XE).done();
-    r.WS = W(new Builder()).toX(SB - 3).turn(0, 1, 3).toZ(ZS).done();
-    r.EW = E(new Builder()).toX(XW).done();
-    r.ES = E(new Builder()).toX(SB + 2.5).turn(0, 1, 2.5).toZ(ZS).done();
-    r.SW = S(new Builder()).toZ(WB + 2.5).turn(-1, 0, 2.5).toX(XW).done();
-    r.SE = S(new Builder()).toZ(EB + 3).turn(1, 0, 3).toX(XE).done();
-    // taxis for the rank: in from the west or the south, out to the south or the east (left turns and straight on,
-    // so no two taxis turn across each other in the box)
-    const ins: Record<string, (b: Builder) => Builder> = {
-      W: (b) => W(b).toX(NB - 2.5).turn(0, -1, 2.5),
-      S: (b) => S(b),
-    };
-    const outs: Record<string, (b: Builder) => Builder> = { S: outS, E: outE };
-    for (const [a, fin] of Object.entries(ins)) for (const [o, fout] of Object.entries(outs)) r[`${a}R${o}`] = fout(stub(fin(new Builder()))).done(true);
-    for (const p of Object.values(r)) this.findStops(p);
-    this.findYields();
-  }
-
   /**
    * Where a turning path cuts across or into another path's lane: a turn gives way to traffic going straight on,
    * and a right turn (the long way across, keeping left) to a left turn into the same lane.
@@ -219,33 +256,9 @@ export class Traffic {
   }
 
   /** Where a path crosses each stop line in the direction it guards. */
-  private findStops(p: Path): void {
-    const planes: { av: Avenue; at: number; dir: 1 | -1; cross: Crosswalk; phase: Phase; box: [number, number, number, number] }[] = [];
-    // the stretch of road a car must not stop in: the zebra and a car's length past it, or the scramble's whole box
-    const zone = (c: Crosswalk): [number, number, number, number] => {
-      if (c.scramble) return [NEON.x0 * V, (NEON.x1 + 1) * V, HIKARI.z0 * V, (HIKARI.z1 + 1) * V];
-      // a crossing a few steps from the next (the canal bank pair) makes one stretch with it
-      let l0 = c.lo, h0 = c.hi;
-      for (const o of CROSSWALKS) if (o.signal && !o.scramble && o.av === c.av && o.lo - h0 < 16 && l0 - o.hi < 16) { l0 = Math.min(l0, o.lo); h0 = Math.max(h0, o.hi); }
-      const a = c.av, lo = (l0 - 2) * V, hi = (h0 + 3) * V, w0 = a.ew ? a.z0 * V : a.x0 * V, w1 = (a.ew ? a.z1 + 1 : a.x1 + 1) * V;
-      return a.ew ? [lo, hi, w0, w1] : [w0, w1, lo, hi];
-    };
-    for (const c of CROSSWALKS) {
-      if (!c.signal) continue;
-      const ph: Phase = c.scramble ? 'ew' : 'mid';
-      planes.push({ av: c.av, at: (c.lo - 5) * V, dir: 1, cross: c, phase: ph, box: zone(c) });
-      planes.push({ av: c.av, at: (c.hi + 6) * V, dir: -1, cross: c, phase: ph, box: zone(c) });
-    }
-    // Neon-dori's two arms of the scramble
-    planes.push({ av: NEON, at: (HIKARI.z0 - 5) * V, dir: 1, cross: SCRAMBLE, phase: 'ns', box: zone(SCRAMBLE) });
-    planes.push({ av: NEON, at: (HIKARI.z1 + 6) * V, dir: -1, cross: SCRAMBLE, phase: 'ns', box: zone(SCRAMBLE) });
-    // no waiting at a line where the queue would stand on the next crossing back (the canal bank pair): the
-    // cars stop before the first of the two
-    const LEN = 5 / V;
-    for (let i = planes.length - 1; i >= 0; i--) {
-      const pl = planes[i], at = pl.at / V, b0 = pl.dir > 0 ? at - LEN : at, b1 = pl.dir > 0 ? at : at + LEN;
-      if (CROSSWALKS.some((c) => c.signal && !c.scramble && c !== pl.cross && c.av === pl.av && c.lo <= b1 && c.hi >= b0)) planes.splice(i, 1);
-    }
+
+  /** Where a path crosses each stop line in the direction it guards. */
+  private findStops(p: Path, planes: StopPlane[]): void {
     const n = p.pts.length / 2;
     for (let i = 0; i + 1 < n; i++) {
       const ax = p.pts[i * 2], az = p.pts[i * 2 + 1], bx = p.pts[i * 2 + 2], bz = p.pts[i * 2 + 3];
@@ -255,7 +268,7 @@ export class Traffic {
         const c = centreOf(pl.av);
         if (Math.abs(lat - c) > 3.2) continue;
         if ((b - a) * pl.dir <= 0) continue;
-        if ((pl.at - a) * pl.dir < 0 || (pl.at - b) * pl.dir > 0) continue;
+        if ((pl.at - a) * pl.dir < 0 || (pl.at - b) * pl.dir >= 0) continue;
         const t = (pl.at - a) / (b - a || 1);
         const at = p.cum[i] + t * (p.cum[i + 1] - p.cum[i]);
         const [x0, x1, z0, z1] = pl.box;
@@ -274,11 +287,14 @@ export class Traffic {
 
   private buildSignals(): void {
     if (!this.batch) return;
-    const m = signalLenses();
-    const gid = this.batch.shared(meshBody(m));
-    const pivots = m.pivots.map((p) => new THREE.Vector3(...p));
-    for (const p of signalPoles()) {
-      const copy = this.batch.addCopy(gid, pivots);
+    const meshes = [false, true].map((mirror) => {
+      const m = signalLenses(mirror);
+      return { gid: -1, m, pivots: m.pivots.map((p) => new THREE.Vector3(...p)) };
+    });
+    for (const p of this.net.poles()) {
+      const k = meshes[p.mirror ? 1 : 0];
+      if (k.gid < 0) k.gid = this.batch.shared(meshBody(k.m));
+      const copy = this.batch.addCopy(k.gid, k.pivots);
       const tex = this.batch.texels(copy);
       // placed the way Builder.place puts the prop: footprint snapped to the prop's voxels, turned about its centre
       const odd = p.turns & 1;
@@ -294,7 +310,7 @@ export class Traffic {
   private lightSignals(): void {
     const t = this.clock, blinkOn = (t * 2) % 1 < 0.55;
     for (const pl of this.poles) {
-      const c = CROSSWALKS[pl.p.cross];
+      const c = this.net.crossings[pl.p.cross];
       const car = carLight(c, t, pl.p.phase === 'mid' ? c.phase : pl.p.phase);
       const walk = walkLight(c, t);
       const o = pl.tex, w = (part: number, on: boolean) => { o[(POSE.rot + part) * 4 + 3] = on ? 0 : 1; };
@@ -321,9 +337,77 @@ export class Traffic {
     return false;
   }
 
-  /** May someone on foot step out onto this crossing now? */
-  walkOk(c: Crosswalk | null): boolean {
-    return !c || walkLight(c, this.clock) === 'walk';
+
+  /**
+   * May someone on foot at (x, z) step out onto this crossing now? On the walk light; at a zebra, when no car is so
+   * close it could not stop, none is on the crossing, and none has been waiting long for its turn; anywhere else,
+   * when no car is coming.
+   */
+  walkOk(c: Crosswalk | null, x: number, z: number): boolean {
+    if (c?.signal) return walkLight(c, this.clock) === 'walk';
+    // away from a crossing, nobody steps out in front of a car that is coming
+    if (!c) {
+      for (const o of this.cars) {
+        if (o.v < 0.5) continue;
+        const dx = x - o.x, dz = z - o.z, hl = o.shape.car.length / 2;
+        const ahead = dx * Math.sin(o.yaw) + dz * Math.cos(o.yaw), side = Math.abs(dx * Math.cos(o.yaw) - dz * Math.sin(o.yaw));
+        if (side < o.shape.car.width / 2 + 2.5 && ahead > -hl - 1 && ahead < hl + o.v * 2.2 + 3) return false;
+      }
+      return true;
+    }
+    for (const o of this.cars) {
+      const hl = o.shape.car.length / 2;
+      for (const st of o.path.stops) {
+        if (st.cross !== c) continue;
+        if (o.s - hl > st.exit) continue;
+        const d = st.s - (o.s + hl);
+        if (d <= 0.05) return false;
+        if (o.zebraT > 10 && d < 3) return false;
+        if (o.v > 0.5 && d < (o.v * o.v) / (2 * BRAKE) + o.v * 0.8 + 1.5) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Anyone on a zebra, or (unless the car has waited its turn) at its kerbs about to step out? A car that has waited
+   * its turn (`band`: its own lane, across the road) no longer waits for someone lingering at the very edge of the
+   * road, waiting for it to go, unless they are in its way; anyone out on the crossing it still waits for.
+   */
+  private zebraBusy(c: Crosswalk, pl: V2, friends: V2[], people: TrafficPeople | null, kerbs: boolean, band?: [number, number]): boolean {
+    let z = this.zebraPts.get(c);
+    if (!z) {
+      // rows of points across the carriageway every 80 cm down the zebra, and a point just past either kerb on each
+      const a = c.av, ew = a.ew, w0 = (ew ? a.z0 : a.x0) * V, w1 = ((ew ? a.z1 : a.x1) + 1) * V;
+      const l0 = c.lo * V, l1 = (c.hi + 1) * V, nr = Math.max(1, Math.round((l1 - l0) / 0.8)), rows = Array.from({ length: nr }, (_, i) => l0 + ((i + 0.5) * (l1 - l0)) / nr);
+      const road: number[] = [], kerb: number[] = [], edge: number[] = [];
+      // (the road row stays clear of the kerbs, a footway over a bridge included: someone waiting there for a gap
+      // is not yet on the zebra)
+      const on = (u: number, v: number) => onCarriageway(ew ? u : v, ew ? v : u);
+      for (const u of rows) {
+        let k0 = w0, k1 = w1;
+        while (k0 < w1 && !on(u, k0 + 0.05)) k0 += 0.25;
+        while (k1 > k0 && !on(u, k1 - 0.05)) k1 -= 0.25;
+        const r0 = k0 + 0.45, r1 = k1 - 0.45, n = Math.max(2, Math.round((r1 - r0) / 0.9));
+        for (let i = 0; i <= n; i++) { const v = r0 + ((r1 - r0) * i) / n; road.push(ew ? u : v, ew ? v : u); edge.push(i === 0 || i === n ? 1 : 0); }
+        if (this.net.kerbM > 0) for (const v of [k0 - this.net.kerbM, k1 + this.net.kerbM]) kerb.push(ew ? u : v, ew ? v : u);
+      }
+      z = { road: Float32Array.from(road), kerb: Float32Array.from(kerb), edge: Uint8Array.from(edge) };
+      this.zebraPts.set(c, z);
+    }
+    const ew = c.av.ew;
+    const hit = (xs: Float32Array, r: number, edge?: Uint8Array) => {
+      for (let i = 0; i < xs.length; i += 2) {
+        const x = xs[i], zz = xs[i + 1];
+        if (band && edge?.[i >> 1]) { const v = ew ? zz : x; if (v < band[0] - r || v > band[1] + r) continue; }
+        if ((x - pl[0]) ** 2 + (zz - pl[1]) ** 2 < r * r) return true;
+        for (const f of friends) if ((x - f[0]) ** 2 + (zz - f[1]) ** 2 < r * r) return true;
+        // (a dog a step ahead of its owner at the kerb is not a reason to stop: its owner is)
+        if (people?.occupied(x, zz, r, false)) return true;
+      }
+      return false;
+    };
+    return hit(z.road, 0.5, z.edge) || (kerbs && hit(z.kerb, 0.55));
   }
 
   // ------------------------------------------------------------------ cars
@@ -339,21 +423,8 @@ export class Traffic {
     return s;
   }
 
-  private pickKind(hour: number, taxi: boolean): CarKind {
-    if (taxi) return 'taxi';
-    const night = hour < 5 || hour >= 22;
-    const day = hour >= 7 && hour < 19;
-    const w: [CarKind, number][] = [
-      ['kei', 0.24], ['hatch', 0.18], ['sedan', 0.1], ['taxi', night ? 0.45 : 0.18], ['minivan', 0.13],
-      ['truck', day ? 0.06 : 0.01], ['van', day ? 0.11 : 0.03],
-    ];
-    let u = Math.random() * w.reduce((a, [, x]) => a + x, 0);
-    for (const [k, x] of w) if ((u -= x) <= 0) return k;
-    return 'kei';
-  }
-
   /** Taxis in the rank or on their way to it. */
-  private ranked(): number {
+  ranked(): number {
     let n = 0;
     for (const c of this.cars) if (c.path.rank && !c.released) n++;
     return n;
@@ -361,14 +432,19 @@ export class Traffic {
 
   private spawn(path: Path, kind: CarKind, s = 0): Car | null {
     if (this.cars.length >= this.max) return null;
-    const shape = this.shape(kind, Math.floor(Math.random() * PAINTS[kind].length));
+    const shape = this.shape(kind, Math.floor(Math.random() * PAINTS[kind]!.length));
     const copy = this.batch ? this.batch.addCopy(shape.gid, shape.pivots) : -1;
     const tex = this.batch ? this.batch.texels(copy) : new Float32Array(32 * 4);
+    const slow = kind === 'truck' || kind === 'van' ? 0.9 : kind === 'bus' ? 0.85 : 1;
     const car: Car = {
-      id: this.nextId++, shape, path, s, v: s > 0 ? 0 : 7, cruise: rnd(7.2, 9.6) * (kind === 'truck' || kind === 'van' ? 0.9 : 1),
+      // (one put down at a stop, a tram at the end of its line, starts from standing)
+      id: this.nextId++, shape, path, s, v: s > 0 || (path.halts.length && path.halts[0] < 0.5) ? 0 : 7 * this.net.pace, cruise: rnd(7.2, 9.6) * slow * this.net.pace,
       copy, tex, shown: true, x: 0, z: 0, y: 0, yaw: 0, pitch: 0, spin: Math.random() * TAU, steer: 0, dive: 0,
-      stopS: Infinity, scanT: Math.random() * 0.1, blocker: null, wait: 0, ignore: null, ignoreT: 0, lightT: 0, cur: 0, released: false, why: 0,
+      stopS: Infinity, scanT: Math.random() * 0.1, blocker: null, wait: 0, ignore: null, ignoreT: 0, lightT: 0, cur: 0, released: false,
+      haltI: 0, dwell: -1, zebraT: 0, why: 0,
     };
+    // a bus put down part way along starts at its next stop
+    while (car.haltI < path.halts.length && path.halts[car.haltI] < s - 0.5) car.haltI++;
     this.cars.push(car);
     this.pose(car, 0, true);
     this.light(car);
@@ -381,58 +457,45 @@ export class Traffic {
     if (i >= 0) { this.cars[i] = this.cars[this.cars.length - 1]; this.cars.pop(); }
   }
 
-  /** Something within `r` of path point s on any car's body? (used to keep spawns apart) */
-  private clearAt(x: number, z: number, r: number): boolean {
+  /** Something within `r` of (x, z) on any car's body? (used to keep spawns apart) */
+  clearAt(x: number, z: number, r: number): boolean {
     for (const c of this.cars) if ((c.x - x) ** 2 + (c.z - z) ** 2 < r * r) return false;
     return true;
   }
 
-  /** Fill the streets as if the traffic had been running a while, and a few taxis in the rank. */
-  populate(hour: number): void {
-    const names = ['WE', 'WS', 'EW', 'ES', 'SW', 'SE'];
-    const want = Math.round(this.max * 0.5 * this.density(hour));
+  /** Puts cars down along these routes as if the traffic had been running a while. */
+  scatter(names: string[], want: number, kind: () => CarKind): void {
     for (let tries = 0; tries < want * 6 && this.cars.length < want; tries++) {
       const p = this.routes[names[Math.floor(Math.random() * names.length)]];
       const s = rnd(4, p.len - 4);
       const [x, z] = this.at(p, s);
       if (Math.abs(x) > 1e4 || !this.clearAt(x, z, 9)) continue;
-      const c = this.spawn(p, this.pickKind(hour, false), s);
+      const c = this.spawn(p, kind(), s);
       if (c) c.v = c.cruise * 0.6;
     }
-    const rank = this.routes[`SR${Math.random() < 0.5 ? 'S' : 'E'}`];
-    for (let i = 0; i < 3; i++) this.spawn(rank, 'taxi', rank.hold - i * 5.6);
   }
 
-  /** How busy the roads are, 0..1, by the hour: quiet before dawn, rush hours, a long busy day. */
-  private density(hour: number): number {
-    const h = ((hour % 24) + 24) % 24;
-    const bump = (c: number, w: number) => Math.exp(-(((h - c) / w) ** 2));
-    const base = h < 5 ? 0.18 : h < 6.5 ? 0.18 + (h - 5) * 0.3 : h < 22 ? 0.72 : 0.72 - (h - 22) * 0.25;
-    return clamp(base + 0.3 * bump(8.3, 1.2) + 0.25 * bump(18.2, 1.4), 0.15, 1);
+  /** Fill the streets as if the traffic had been running a while. */
+  populate(hour: number): void {
+    this.net.populate(this, hour);
   }
 
   private spawning(dt: number, hour: number): void {
-    const dens = this.density(hour);
-    for (const arm of ['W', 'E', 'S'] as const) {
+    const dens = this.net.density(hour);
+    for (const arm of this.net.arms) {
       if ((this.spawnT[arm] -= dt) > 0) continue;
-      // Neon-dori gets the scramble's shorter green and the rank's taxis: fewer cars come up it
-      this.spawnT[arm] = (arm === 'S' ? rnd(9, 19) : rnd(6.5, 14)) / dens;
-      const taxiIn = arm !== 'E' && Math.random() < 0.14 && this.ranked() < 4;
-      const kind = this.pickKind(hour, taxiIn);
-      let name: string;
-      if (taxiIn) name = `${arm}R${Math.random() < 0.5 ? 'S' : 'E'}`;
-      else {
-        const u = Math.random();
-        name = arm === 'W' ? (u < 0.62 ? 'WE' : 'WS') : arm === 'E' ? (u < 0.62 ? 'EW' : 'ES') : (u < 0.52 ? 'SW' : 'SE');
-      }
-      const p = this.routes[name];
+      this.spawnT[arm] = this.net.every(arm) * rnd(0.65, 1.4) / dens;
+      const nx = this.net.next(arm, hour, this);
+      if (!nx) continue;
+      const p = this.routes[nx.route];
       const [x, z] = this.at(p, 0);
       if (!this.clearAt(x, z, 9)) { this.spawnT[arm] = 1; continue; }
-      this.spawn(p, kind);
+      this.spawn(p, nx.kind);
     }
   }
 
   // ------------------------------------------------------------------ every frame
+
 
   setVisible(on: boolean): void {
     if (this.hidden === !on) return;
@@ -451,7 +514,7 @@ export class Traffic {
     this.lightSignals();
     this.spawning(dt, hour);
     // the rank: every so often the first taxi in line takes a fare and pulls out
-    if ((this.dispatchT -= dt) <= 0) {
+    if (this.net.rank && (this.dispatchT -= dt) <= 0) {
       this.dispatchT = rnd(14, 38);
       let head: Car | null = null;
       for (const c of this.cars) if (c.path.hold >= 0 && !c.released && c.s > c.path.hold - 1.2 && c.v < 0.3) head = c;
@@ -462,7 +525,13 @@ export class Traffic {
       if ((c.scanT -= dt) <= 0) { c.scanT = 0.1; this.look(c, pl, friends, people); }
       this.drive(c, dt);
     }
-    for (let i = this.cars.length - 1; i >= 0; i--) if (this.cars[i].s >= this.cars[i].path.len - 0.1) this.remove(this.cars[i]);
+    for (let i = this.cars.length - 1; i >= 0; i--) {
+      const c = this.cars[i];
+      if (c.s < c.path.len - 0.1) continue;
+      // a tram reverses at the end of the line and sets off back the other way (its two ends are alike)
+      if (c.path.then) { c.path = this.routes[c.path.then]; c.s = 0; c.cur = 0; c.haltI = 0; c.dwell = -1; c.v = 0; c.stopS = 0; }
+      else this.remove(c);
+    }
     for (const c of this.cars) {
       const near = (c.x - pl[0]) ** 2 + (c.z - pl[1]) ** 2 < (viewR + 14) ** 2;
       if (near !== c.shown) { c.shown = near; this.show(c, near && !this.hidden); }
@@ -477,6 +546,8 @@ export class Traffic {
     const halfL = sh.length / 2, halfW = sh.width / 2;
     const front = c.s + halfL;
     let stop = Infinity;
+    // long enough at a zebra letting people over: now it only waits for those already on it
+    const patient = c.zebraT > 10;
     c.why = 0;
     c.blocker = null;
     // lights: stop at a red, and at an amber we can still stop for
@@ -485,13 +556,21 @@ export class Traffic {
       const d = st.s - front;
       if (d < -0.2) continue;
       if (d > 60) break;
-      const l = carLight(st.cross, this.clock, st.phase);
-      if (l === 'red' || (l === 'amber' && d > (c.v * c.v) / (2 * BRAKE) + 0.5)) { stop = st.s - 0.3 - halfL; c.why = 1; break; }
+      if (st.cross.signal) {
+        const l = carLight(st.cross, this.clock, st.phase);
+        if (l === 'red' || (l === 'amber' && d > (c.v * c.v) / (2 * BRAKE) + 0.5)) { stop = st.s - 0.3 - halfL; c.why = 1; break; }
+      } else if (d > (c.v * c.v) / (2 * BRAKE) - 0.4 && this.zebraBusy(st.cross, pl, friends, people, !patient, patient ? laneBand(c, st.cross, halfW) : undefined)) {
+        // a zebra: give way to anyone on it or waiting at its kerb (once it has waited a while, only to those on it)
+        stop = st.s - 0.3 - halfL; c.why = 8; break;
+      }
       // a green ahead: only go on over if there is room for us past the crossing (never block the box)
       if (!box && d < 30) box = st;
     }
     // the rank: wait for a fare
     if (p.hold >= 0 && !c.released && c.s < p.hold + 0.5 && p.hold < stop) { stop = p.hold; c.why = 2; }
+    // a bus at its stop, letting people off and on; the next stop ahead
+    if (c.dwell > 0) { stop = c.s; c.why = 2; }
+    else if (STOPPING.has(sh.kind) && c.haltI < p.halts.length && p.halts[c.haltI] < stop) { stop = p.halts[c.haltI]; c.why = 2; }
     // turning across another lane: give way to anyone coming along it
     for (const y of p.yields) {
       const d = y.s - front;
@@ -550,16 +629,21 @@ export class Traffic {
       const s = front + d;
       if (s > p.len || s - 1.4 - halfL > stop) break;
       const [px, pz] = this.at(p, s);
-      let hit = (px - pl[0]) ** 2 + (pz - pl[1]) ** 2 < (halfW + 0.55) ** 2;
-      for (const f of friends) hit ||= (px - f[0]) ** 2 + (pz - f[1]) ** 2 < (halfW + 0.55) ** 2;
-      if (!hit && people) hit = people.occupied(px, pz, halfW + 0.5);
+      // (one that has waited its turn edges past someone lingering at the very edge of the road)
+      const m = patient ? Math.min(this.net.margin, 0.2) : this.net.margin;
+      let hit = (px - pl[0]) ** 2 + (pz - pl[1]) ** 2 < (halfW + m + 0.05) ** 2;
+      for (const f of friends) hit ||= (px - f[0]) ** 2 + (pz - f[1]) ** 2 < (halfW + m + 0.05) ** 2;
+      if (!hit && people) hit = people.occupied(px, pz, halfW + m);
       if (hit) { if (s - 1.4 - halfL < stop) { stop = s - 1.4 - halfL; c.why = 6; } c.blocker = null; break; }
     }
     // caught on a crossing as the people flood over it: stand still while anyone is right beside the car
     if (people && stop > c.s) {
       const sx = Math.sin(c.yaw), cz = Math.cos(c.yaw);
-      for (const k of [-halfL + 0.6, 0, halfL - 0.4]) {
-        if (people.occupied(c.x + sx * k, c.z + cz * k, halfW + 0.45)) { stop = c.s; c.blocker = null; c.why = 7; break; }
+      // (down the whole length of a bus or a tram)
+      const n = Math.max(2, Math.ceil((sh.length - 1) / 1.6));
+      for (let i = 0; i <= n; i++) {
+        const k = -halfL + 0.6 + ((sh.length - 1) * i) / n;
+        if (people.occupied(c.x + sx * k, c.z + cz * k, halfW + this.net.margin - 0.05)) { stop = c.s; c.blocker = null; c.why = 7; break; }
       }
     }
     c.stopS = stop;
@@ -589,6 +673,11 @@ export class Traffic {
       const b = c.blocker;
       if (c.wait > 4 && b.v < 0.1 && b.blocker === c && c.id < b.id) { c.ignore = b; c.ignoreT = 3; c.wait = 0; }
     } else c.wait = 0;
+    // at a bus stop: stand a while, then on to the next
+    if (c.dwell > 0) { if ((c.dwell -= dt) <= 0) { c.dwell = -1; c.haltI++; } }
+    else if (c.haltI < p.halts.length && STOPPING.has(sh.kind) && c.v < 0.15 && c.s > p.halts[c.haltI] - 0.6) c.dwell = sh.kind === 'tram' ? rnd(14, 24) : rnd(10, 22);
+    // patience at a zebra builds while it stands for the people there (on it, beside it or about to step out)
+    c.zebraT = c.v > 1 ? 0 : c.v < 0.3 && c.why >= 6 ? c.zebraT + dt : c.zebraT;
     c.s = Math.min(p.len, c.s + c.v * dt);
     while (c.cur + 1 < p.cum.length && p.cum[c.cur + 1] < c.s) c.cur++;
   }
@@ -678,16 +767,172 @@ export class Traffic {
   }
 }
 
-/** Builds a path from straight runs and quarter turns, keeping left, in metres. */
-class Builder {
+// ---------------------------------------------------------------------------------------------
+// Tokyo: Hikari-dori and Neon-dori
+
+// lane lines (metres)
+const HC = centreOf(HIKARI), NC = centreOf(NEON);
+const EB = HC - LANE, WB = HC + LANE, SB = NC + LANE, NB = NC - LANE;
+const XW = HIKARI.x0 * V + 0.4, XE = (HIKARI.x1 + 1) * V - 0.4, ZS = (NEON.z1 + 1) * V - 0.4;
+/** The turnaround in front of the railway viaduct, at the top of the taxi rank, and where the rank's first car waits. */
+const UTURN_Z = -44.6, RANK_Z = -31.6;
+
+/** Tokyo's network: the two avenues, their crossings and the scramble, the taxi rank on Neon-dori's stub. */
+export function tokyoNet(): Network {
+  const routes = (): Record<string, Path> => {
+    const W = (b: Builder) => b.start(XW, EB, 1, 0);
+    const E = (b: Builder) => b.start(XE, WB, -1, 0);
+    const S = (b: Builder) => b.start(NB, ZS, 0, -1);
+    // up Neon-dori's stub, round in front of the viaduct and down to the rank, then away from it
+    const stub = (b: Builder) => b.toZ(UTURN_Z).turn(1, 0, 1.4).turn(0, 1, 1.4).hold(RANK_Z);
+    const outS = (b: Builder) => b.toZ(ZS);
+    const outE = (b: Builder) => b.toZ(EB - 2.5).turn(1, 0, 2.5).toX(XE);
+    const r: Record<string, Path> = {};
+    r.WE = W(new Builder()).toX(XE).done();
+    r.WS = W(new Builder()).toX(SB - 3).turn(0, 1, 3).toZ(ZS).done();
+    r.EW = E(new Builder()).toX(XW).done();
+    r.ES = E(new Builder()).toX(SB + 2.5).turn(0, 1, 2.5).toZ(ZS).done();
+    r.SW = S(new Builder()).toZ(WB + 2.5).turn(-1, 0, 2.5).toX(XW).done();
+    r.SE = S(new Builder()).toZ(EB + 3).turn(1, 0, 3).toX(XE).done();
+    // taxis for the rank: in from the west or the south, out to the south or the east (left turns and straight on,
+    // so no two taxis turn across each other in the box)
+    const ins: Record<string, (b: Builder) => Builder> = {
+      W: (b) => W(b).toX(NB - 2.5).turn(0, -1, 2.5),
+      S: (b) => S(b),
+    };
+    const outs: Record<string, (b: Builder) => Builder> = { S: outS, E: outE };
+    for (const [a, fin] of Object.entries(ins)) for (const [o, fout] of Object.entries(outs)) r[`${a}R${o}`] = fout(stub(fin(new Builder()))).done(true);
+    return r;
+  };
+  const planes = (): StopPlane[] => {
+    const out: StopPlane[] = [];
+    // the stretch of road a car must not stop in: the zebra and a car's length past it, or the scramble's whole box
+    const zone = (c: Crosswalk): [number, number, number, number] =>
+      c.scramble ? [NEON.x0 * V, (NEON.x1 + 1) * V, HIKARI.z0 * V, (HIKARI.z1 + 1) * V] : crossingZone(c, CROSSWALKS);
+    for (const c of CROSSWALKS) {
+      const ph: Phase = c.scramble ? 'ew' : 'mid';
+      out.push({ av: c.av, at: (c.lo - 5) * V, dir: 1, cross: c, phase: ph, box: zone(c) });
+      out.push({ av: c.av, at: (c.hi + 6) * V, dir: -1, cross: c, phase: ph, box: zone(c) });
+    }
+    // Neon-dori's two arms of the scramble
+    out.push({ av: NEON, at: (HIKARI.z0 - 5) * V, dir: 1, cross: SCRAMBLE, phase: 'ns', box: zone(SCRAMBLE) });
+    out.push({ av: NEON, at: (HIKARI.z1 + 6) * V, dir: -1, cross: SCRAMBLE, phase: 'ns', box: zone(SCRAMBLE) });
+    return dropQueuedLines(out, CROSSWALKS);
+  };
+  const kind = (hour: number, taxi: boolean): CarKind => {
+    if (taxi) return 'taxi';
+    const night = hour < 5 || hour >= 22;
+    const day = hour >= 7 && hour < 19;
+    return pick([
+      ['kei', 0.24], ['hatch', 0.18], ['sedan', 0.1], ['taxi', night ? 0.45 : 0.18], ['minivan', 0.13],
+      ['truck', day ? 0.06 : 0.01], ['van', day ? 0.11 : 0.03],
+    ]);
+  };
+  return {
+    max: { desktop: 44, mobile: 26 },
+    crossings: CROSSWALKS,
+    routes,
+    planes,
+    poles: () => signalPoles().map((p) => ({ x: p.x, z: p.z, y: p.y, turns: p.turns, cross: p.cross, phase: p.phase, mirror: false })),
+    arms: ['W', 'E', 'S'],
+    // Neon-dori gets the scramble's shorter green and the rank's taxis: fewer cars come up it
+    every: (arm) => (arm === 'S' ? 13 : 9.5),
+    next: (arm, hour, t) => {
+      const taxiIn = arm !== 'E' && Math.random() < 0.14 && t.ranked() < 4;
+      if (taxiIn) return { route: `${arm}R${Math.random() < 0.5 ? 'S' : 'E'}`, kind: 'taxi' };
+      const u = Math.random();
+      return { route: arm === 'W' ? (u < 0.62 ? 'WE' : 'WS') : arm === 'E' ? (u < 0.62 ? 'EW' : 'ES') : (u < 0.52 ? 'SW' : 'SE'), kind: kind(hour, false) };
+    },
+    populate: (t, hour) => {
+      t.scatter(['WE', 'WS', 'EW', 'ES', 'SW', 'SE'], Math.round(44 * 0.5 * cityDensity(hour)), () => kind(hour, false));
+      // and a few taxis in the rank
+      const rank = `SR${Math.random() < 0.5 ? 'S' : 'E'}`;
+      for (let i = 0; i < 3; i++) t.addCar(rank, 'taxi', t.route(rank).hold - i * 5.6);
+    },
+    density: cityDensity,
+    kerbM: 0.5,
+    pace: 1,
+    margin: 0.5,
+    rank: true,
+  };
+}
+
+/** Picks a make by weight. */
+export function pick(w: [CarKind, number][]): CarKind {
+  let u = Math.random() * w.reduce((a, [, x]) => a + x, 0);
+  for (const [k, x] of w) if ((u -= x) <= 0) return k;
+  return w[0][0];
+}
+
+/** How busy a city's roads are, 0..1, by the hour: quiet before dawn, rush hours, a long busy day. */
+export function cityDensity(hour: number): number {
+  const h = ((hour % 24) + 24) % 24;
+  const bump = (c: number, w: number) => Math.exp(-(((h - c) / w) ** 2));
+  const base = h < 5 ? 0.18 : h < 6.5 ? 0.18 + (h - 5) * 0.3 : h < 22 ? 0.72 : 0.72 - (h - 22) * 0.25;
+  return clamp(base + 0.3 * bump(8.3, 1.2) + 0.25 * bump(18.2, 1.4), 0.15, 1);
+}
+
+/** The stretch of road (x0, x1, z0, z1, m) a car must not stop in at a crossing: its zebra and a car's length past it. */
+export function crossingZone(c: Crosswalk, all: Crosswalk[]): [number, number, number, number] {
+  // a crossing with lights a few steps from the next (Tokyo's canal bank pair) makes one stretch with it
+  let l0 = c.lo, h0 = c.hi;
+  if (c.signal) for (const o of all) if (o.signal && !o.scramble && o.av === c.av && o.lo - h0 < 16 && l0 - o.hi < 16) { l0 = Math.min(l0, o.lo); h0 = Math.max(h0, o.hi); }
+  const a = c.av, lo = (l0 - 2) * V, hi = (h0 + 3) * V, w0 = a.ew ? a.z0 * V : a.x0 * V, w1 = (a.ew ? a.z1 + 1 : a.x1 + 1) * V;
+  return a.ew ? [lo, hi, w0, w1] : [w0, w1, lo, hi];
+}
+
+/**
+ * No waiting at a light where the queue would stand on the next crossing with lights back (Tokyo's canal bank
+ * pair): the cars stop before the first of the two.
+ */
+export function dropQueuedLines(planes: StopPlane[], all: Crosswalk[]): StopPlane[] {
+  const LEN = 5 / V;
+  return planes.filter((pl) => {
+    if (!pl.cross.signal) return true;
+    const at = pl.at / V, b0 = pl.dir > 0 ? at - LEN : at, b1 = pl.dir > 0 ? at : at + LEN;
+    return !all.some((c) => c.signal && !c.scramble && c !== pl.cross && c.av === pl.av && c.lo <= b1 && c.hi >= b0);
+  });
+}
+
+/** Builds a path from straight runs, quarter turns and lane changes, in metres. */
+export class Builder {
   private pts: number[] = [];
   private vmax: number[] = [];
   private x = 0; private z = 0; private hx = 1; private hz = 0;
   private holdAt = NaN;
+  private halts: number[] = [];
 
   start(x: number, z: number, hx: number, hz: number): this {
     this.x = x; this.z = z; this.hx = hx; this.hz = hz;
     this.push(x, z, 99);
+    return this;
+  }
+
+  /** On to (x, z) in a straight line (for roads that bend: many short legs). */
+  to(x: number, z: number, vmax = 99): this {
+    const d = Math.hypot(x - this.x, z - this.z);
+    if (d < 1e-3) return this;
+    this.hx = (x - this.x) / d; this.hz = (z - this.z) / d;
+    this.x = x; this.z = z;
+    this.push(x, z, vmax);
+    return this;
+  }
+
+  /** Over to the next lane (or track): `d` metres sideways (+ to the right of the heading) over `len` metres. */
+  shift(d: number, len: number): this {
+    const x0 = this.x, z0 = this.z, rx = -this.hz, rz = this.hx;
+    const n = Math.max(4, Math.ceil(len / 1.5));
+    for (let i = 1; i <= n; i++) {
+      const t = i / n, side = d * (1 - Math.cos(Math.PI * t)) / 2;
+      this.push(x0 + this.hx * len * t + rx * side, z0 + this.hz * len * t + rz * side, 5);
+    }
+    this.x = x0 + this.hx * len + rx * d; this.z = z0 + this.hz * len + rz * d;
+    return this;
+  }
+
+  /** A bus stop here: a bus (or tram) stands a while with its centre at the current end of the path. */
+  halt(): this {
+    this.halts.push(this.pts.length / 2 - 1);
     return this;
   }
 
@@ -732,10 +977,10 @@ class Builder {
     return this;
   }
 
-  done(rank = false): Path {
+  done(rank = false, then = ''): Path {
     const n = this.pts.length / 2;
     const pts = Float32Array.from(this.pts), cum = new Float32Array(n), vmax = Float32Array.from(this.vmax);
     for (let i = 1; i < n; i++) cum[i] = cum[i - 1] + Math.hypot(pts[i * 2] - pts[i * 2 - 2], pts[i * 2 + 1] - pts[i * 2 - 1]);
-    return { pts, cum, vmax, len: cum[n - 1], stops: [], yields: [], hold: Number.isNaN(this.holdAt) ? -1 : cum[this.holdAt], rank };
+    return { pts, cum, vmax, len: cum[n - 1], stops: [], yields: [], hold: Number.isNaN(this.holdAt) ? -1 : cum[this.holdAt], rank, halts: this.halts.map((i) => cum[i]), then };
   }
 }

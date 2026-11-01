@@ -28,6 +28,7 @@ import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi, SkylightBeams } from './game/fx';
 import { Birds, type Threat } from './game/birds';
 import { Traffic } from './game/traffic';
+import { shoreNet } from './game/shoreTraffic';
 import { offFoot } from './world/roads';
 import { Cutaway } from './game/cutaway';
 import { solidBase } from './world/owners';
@@ -258,7 +259,7 @@ class Game {
   private blobs!: Blobs;
   private koi: Koi | null = null;
   private birds!: Birds;
-  /** Tokyo's cars and traffic lights (null in the other cities, whose streets are for walking). */
+  /** The cars (Istanbul's trams) and the traffic lights.  */
   private traffic: Traffic | null = null;
   private particles!: Particles;
   private beams!: SkylightBeams;
@@ -562,9 +563,10 @@ class Game {
     this.r.composite.uniforms.tShore.value = shore;
     this.r.composite.uniforms.uShoreRect.value.set(w.nav.ox, w.nav.oz, 1 / (w.nav.sx * 0.25), 1 / (w.nav.sz * 0.25));
     this.navWorld = new Nav(w.nav);
-    // Tokyo's avenues carry cars: walking routes keep to the pavements and cross at the crosswalks
-    if (CITY === 'tokyo') this.navWorld.keepOff(offFoot);
-    this.paths = new PathService(w.nav, CITY === 'tokyo');
+    // every city's roads carry traffic (Istanbul's avenue its trams): walking routes keep to the pavements and
+    // cross at the crossings
+    this.navWorld.keepOff(offFoot);
+    this.paths = new PathService(w.nav, true);
     Actor.details ??= new BodyDetails();
     this.navInside = new Nav(w.interiorNav);
     this.nav = this.navWorld;
@@ -761,12 +763,11 @@ class Game {
       madeira: m ? { walkers: 260, joggers: 4, dogs: 8, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 640, joggers: 8, dogs: 14, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
       neo: m ? { walkers: 360, joggers: 4, dogs: 8, cyclists: 6, couriers: 10, boats: 2, exercise: 0 } : { walkers: 1100, joggers: 10, dogs: 16, cyclists: 14, couriers: 24, boats: 4, exercise: 0 },
     }));
-    // Tokyo's avenues: cars up out of the underpasses, live traffic lights the crowd waits on
-    if (CITY === 'tokyo') {
-      this.traffic = new Traffic(this.chars, w.lightmap, m);
-      this.traffic.populate(this.tod.hour);
-      this.crowd.traffic = this.traffic;
-    }
+    // the traffic: Tokyo's avenues with cars up out of the underpasses and live lights the crowd waits on; the
+    // shore road of Funchal and Amalfi with its zebras and buses; Istanbul's trams through Sirkeci
+    this.traffic = new Traffic(this.chars, w.lightmap, m, CITY === 'tokyo' ? undefined : shoreNet(a.signals));
+    this.traffic.populate(this.tod.hour);
+    this.crowd.traffic = this.traffic;
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
     this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, ground: w.ground, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);

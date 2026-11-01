@@ -2,7 +2,8 @@ import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
 import { Builder, BuildResult, Anchors, PlacedProp, Window, WARM, WHITEWARM, StallAnchor, type Extra } from './tokyo';
-import { Prop, rotateProp, bench, scooter, stool, bush, grassTuft, terraceTable, terraceChair, TERRACE_TOP } from './props';
+import { Prop, rotateProp, bench, scooter, stool, bush, grassTuft, terraceTable, terraceChair, TERRACE_TOP, busStopSign } from './props';
+import { shoreRoad, shoreMark, offRoad } from './shoreRoads';
 import { buildFood, type FoodId } from './food';
 import type { RoomAnchor, RoomNpc } from './interiors';
 import { STALL } from '../data/stalls';
@@ -515,6 +516,8 @@ function cart(c: AC, kind: 'pastry' | 'fry' | 'pizza' | 'gelato' | 'lemon'): Pro
 // ------------------------------------------------------------------------------------------- build
 
 /** The plan's walking surface under a point (metres): what a post, a pot or a bench stands on. */
+const SHORE = shoreRoad()!;
+
 function floorAt(plan: Plan, x: number, z: number): number {
   return (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;
 }
@@ -556,8 +559,12 @@ export function buildAmalfi(win?: Window): BuildResult {
   const lemons = LEMON_SPOTS.map(([x, z]) => [x, groundY(x, z), z] as [number, number, number]);
   for (const [x, y, z] of lemons) { b.place(majolicaLemon(c), x, y, z); b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3); }
   grottaDoorway(b, c);
+  // the SITA bus stops on the seafront, one each way, their blue signs at the kerb beside where the bus stands
+  for (const [z, x, turns] of [[SHORE.stopsN[0], SHORE.av.x0 * V - 0.45, 1], [SHORE.stopsS[0], (SHORE.av.x1 + 1) * V + 0.45, 3]] as [number, number, number][]) {
+    b.place(busStopSign(b.k, c.mosaicBlue), x, floorAt(plan, x, z), z + 4.5, turns);
+    b.block(x - 0.2, z + 4.3, x + 0.2, z + 4.7);
+  }
 
-  const P = (x: number, z: number) => [x, z] as [number, number];
   const anchors: Anchors = {
     spawn: [15, 0, 9],
     stalls,
@@ -566,7 +573,8 @@ export function buildAmalfi(win?: Window): BuildResult {
     interiorExit: [0, 0], interiorSpawn: [0, 0, 0], chef: [0, 0, 0], counterStand: [0, 0],
     // three majolica lemons tucked away around town open it
     manekis: lemons,
-    graph: { nodes: plan.nodes.map(([x, z]) => P(x, z)), edges: plan.edges.map(([i, j]) => [i, j] as [number, number]) },
+    // the walking graph keeps to the pavements: the line down the coast road walks along its sea side
+    graph: { nodes: plan.nodes.map(([x, z]) => offRoad(x, z)), edges: plan.edges.map(([i, j]) => [i, j] as [number, number]) },
     idlers: [
       { id: 'nonna', pos: [6, 0, 22] },
       { id: 'pescatore', pos: [41, 0, 58] },
@@ -689,8 +697,8 @@ function terrain(b: Builder, c: AC, plan: Plan, wx0: number, wz0: number, wx1: n
             return y < G - 1 ? (y < G - 3 ? c.algae : c.wet) : masonry(c, xx, y, zz, false);
           case K.Road: case K.Tunnel:
             if (d === 0) {
-              const zl = Math.abs(mz % 6);
-              return Math.abs(mx - (ROAD_X0 + ROAD_X1) / 2 + 1) < 0.13 && zl < 3 ? c.roadLine : c.asphalt;
+              // the dashed centre line and the zebras (world/shoreRoads.ts)
+              return shoreMark(SHORE, mx + V / 2, mz + V / 2) ? c.roadLine : c.asphalt;
             }
             return masonry(c, xx, y, zz, false);
           case K.Walk: return d === 0 ? (hash3(xx >> 1, 1, zz >> 1) < 0.5 ? c.slab : c.slabB) : masonry(c, xx, y, zz, true);

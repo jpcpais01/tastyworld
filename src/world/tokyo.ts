@@ -96,6 +96,8 @@ export interface Anchors {
   counterStand: [number, number];
   manekis: [number, number, number][];
   graph: { nodes: [number, number][]; edges: [number, number][] };
+  /** Signal poles the builder put up at a shore road's crossings (world/shoreRoads.ts), for the live lenses. */
+  signals?: { x: number; z: number; y: number; turns: number; cross: number }[];
   idlers: { id: string; pos: [number, number, number] }[];
   /** Street benches: centre x, z, the angle a sitter faces and the ground they stand on (0 when left out). */
   benches: [number, number, number, number?][];

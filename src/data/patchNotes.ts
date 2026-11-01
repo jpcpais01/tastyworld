@@ -22,6 +22,19 @@ export const PATCH_NOTES: PatchNote[] = [
     ],
   },
   {
+    version: '0.19.4',
+    date: '2026-11-01',
+    title: 'Traffic in Funchal, Amalfi and Istanbul',
+    items: [
+      'Funchal\'s Avenida do Mar now carries traffic between the old town and the sea: small European hatchbacks and saloons, Madeira\'s yellow taxis with their blue band, white delivery vans and the yellow and orange town buses. They come round the bay along the coast road, keep to the right and drive off the other way round the shore.',
+      'On the Amalfi coast, Fiat 500s and Pandas in every colour, white taxis, little Piaggio trucks and the blue SITA buses come out of the tunnel through the headland and wind along the seafront road towards Conca dei Marini, taking the narrow road slowly.',
+      'In Istanbul the T1 trams now run. Two white and red trams work the avenue through Sirkeci, call at the Sirkeci stop, wait at each end of the line and set off back the other way, slowing for anyone on the tracks.',
+      'Drivers give way at the zebra crossings: they stop for anyone on the crossing or waiting at the kerb, and people wait for a gap before stepping out. Funchal has two crossings with live traffic lights, by the Largo da Sé and by the Jardim, where people wait for the green figure.',
+      'The buses stop at their stops to let people on and off: shelters on the Avenida do Mar, the blue SITA signs on Amalfi\'s seafront. Cars queue behind them.',
+      'People in all three cities now keep to the pavements and cross at the crossings, the way they already did in Tokyo. On the Avenida do Mar the walk along the town side uses the pavement, with a footway over the ribeira bridge, and the streets that meet the avenue stop at its kerb instead of spilling across the asphalt.',
+    ],
+  },
+  {
     version: '0.19.3',
     date: '2026-11-01',
     title: 'Eating out: terraces, waiters and bakeries',

@@ -4,6 +4,7 @@
 // from constants (voxel units unless noted, x * V metres), so the city builder, its workers and the game agree
 // without reading the grid.
 import { V, VX0, VZ0, SX, SZ } from './layout';
+import { shoreRoad, shoreOn, shoreCrossing, shoreY, shoreShade } from './shoreRoads';
 
 const XW = VX0, XE = VX0 + SX - 1, ZS = VZ0 + SZ - 1;
 
@@ -163,7 +164,7 @@ const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
  * Height of the road surface (metres above the street) under a car at (x, z): smooth through the voxel
  * steps of the ramps and the bridge, so a car glides up and down them instead of hopping.
  */
-export function roadY(x: number, z: number): number {
+function tokyoRoadY(x: number, z: number): number {
   for (const u of UNDERPASSES) {
     const a = u.av, along = (a.ew ? x : z) / V;
     const across = (a.ew ? z : x) / V - (a.ew ? a.z0 : a.x0);
@@ -184,7 +185,7 @@ export function roadY(x: number, z: number): number {
 }
 
 /** How much daylight reaches a car at (x, z) at road height y: 1 in the open, dimmer down a ramp, dark in a tunnel. */
-export function roadShade(x: number, z: number, y: number): number {
+function tokyoShade(x: number, z: number, y: number): number {
   if (y >= 0) return 1;
   for (const u of UNDERPASSES) {
     const along = (u.av.ew ? x : z) / V;
@@ -195,7 +196,7 @@ export function roadShade(x: number, z: number, y: number): number {
 }
 
 /** True on an avenue's carriageway (between the kerbs), the scramble's box included. */
-export function onCarriageway(x: number, z: number): boolean {
+function tokyoOn(x: number, z: number): boolean {
   for (const a of AVENUES) {
     const along = (a.ew ? x : z) / V, acr = (a.ew ? z : x) / V - (a.ew ? a.z0 : a.x0);
     if (along < (a.ew ? a.x0 : a.z0) || along > (a.ew ? a.x1 : a.z1) + 1) continue;
@@ -205,7 +206,7 @@ export function onCarriageway(x: number, z: number): boolean {
 }
 
 /** The crosswalk whose zebra (with a metre to spare either side) holds (x, z), if (x, z) is on a carriageway. */
-export function crosswalkAt(x: number, z: number, spare = 1): Crosswalk | null {
+function tokyoCrosswalk(x: number, z: number, spare: number): Crosswalk | null {
   // the scramble is one big crossing, its corners to the kerbs of all four arms
   if (x >= NEON.x0 * V - spare && x <= (NEON.x1 + 1) * V + spare && z >= HIKARI.z0 * V - spare && z <= (HIKARI.z1 + 1) * V + spare) return SCRAMBLE;
   for (const c of CROSSWALKS) {
@@ -215,6 +216,23 @@ export function crosswalkAt(x: number, z: number, spare = 1): Crosswalk | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------------------------
+// The city's roads: Tokyo's avenues above, or the other cities' shore road (world/shoreRoads.ts)
+
+const SHORE = shoreRoad();
+
+/** Height of the road surface under a car at (x, z): metres above Tokyo's street level, world height elsewhere. */
+export const roadY = (x: number, z: number): number => (SHORE ? shoreY(SHORE, x, z) : tokyoRoadY(x, z));
+
+/** How much daylight reaches a car at (x, z) at road height y: 1 in the open, dim down a ramp, dark in a tunnel. */
+export const roadShade = (x: number, z: number, y: number): number => (SHORE ? shoreShade(SHORE, x, z) : tokyoShade(x, z, y));
+
+/** True on a carriageway (between the kerbs). */
+export const onCarriageway = (x: number, z: number): boolean => (SHORE ? shoreOn(SHORE, x, z) : tokyoOn(x, z));
+
+/** The crosswalk whose zebra (with `spare` metres either side) holds (x, z), if (x, z) is on a carriageway. */
+export const crosswalkAt = (x: number, z: number, spare = 1): Crosswalk | null => (SHORE ? shoreCrossing(SHORE, x, z, spare) : tokyoCrosswalk(x, z, spare));
 
 /** Road people on foot keep off: a carriageway away from its crosswalks (walking routes only cross there). */
 export const offFoot = (x: number, z: number): boolean => onCarriageway(x, z) && !crosswalkAt(x, z, 0);
@@ -275,9 +293,10 @@ export function signalPoles(): SignalPole[] {
 /** Signal pole prop layout (prop voxels, 0.125 m): the pole stands at (1, 1); see props.signalPole. */
 export const POLE = { sx: 16, sy: 40, sz: 4, foot: [1.5, 1.5] as [number, number], scale: 0.125 };
 
-/** Footprint centre of a signalPole turned by `turns` whose pole foot lands on (x, z) metres. */
-function poleCentre(x: number, z: number, turns: number): { x: number; z: number } {
+/** Footprint centre of a signalPole (mirrored or not) turned by `turns` whose pole foot lands on (x, z) metres. */
+export function poleCentre(x: number, z: number, turns: number, mirror = false): { x: number; z: number } {
   let [px, pz] = POLE.foot, sx = POLE.sx, sz = POLE.sz;
+  if (mirror) px = sx - px;
   for (let t = 0; t < ((turns % 4) + 4) % 4; t++) { [px, pz] = [pz, sx - px]; [sx, sz] = [sz, sx]; }
   return { x: x + (sx / 2 - px) * POLE.scale, z: z + (sz / 2 - pz) * POLE.scale };
 }

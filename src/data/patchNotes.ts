@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.7',
+    date: '2026-11-01',
+    title: 'Funchal: the Santa Maria in the bay',
+    items: [
+      'The Santa Maria, Funchal\'s replica of Columbus\'s ship, now rides at anchor off the promenade: a tarred hull with its high castles fore and aft, three masts, square sails with the red cross of the Order of Christ, pennants flying and a lantern lit on the stern.',
+    ],
+  },
+  {
     version: '0.18.6',
     date: '2026-11-01',
     title: 'Traffic in Tokyo',

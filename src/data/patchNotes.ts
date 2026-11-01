@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.11',
+    date: '2026-11-01',
+    title: '2040: cyberware',
+    items: [
+      'Character creation has a Cyberware section: a lit face implant that runs from the cheek up the temple, in seven colours, and a chrome arm with a glowing elbow joint in your neon trim colour.',
+      'Halcyon\'s crowd has cyberware too: one face in eight carries an implant, and the odd chrome arm swings past.',
+      'Passers-by no longer wander into the mirror while you are making your character.',
+    ],
+  },
+  {
     version: '0.20.10',
     date: '2026-11-01',
     title: '2040: a better first look',

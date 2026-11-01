@@ -2919,7 +2919,11 @@ class Game {
     else {
       for (const v of this.vendors) all.push(v.actor);
       for (const e of this.idlers) all.push(e.actor);
-      for (const a of this.crowd.visible()) all.push(a);
+      for (const a of this.crowd.visible()) {
+        // nobody wanders into the creator's mirror
+        if (this.closeCreator && a.position.distanceToSquared(this.player.position) < 12) { a.root.visible = false; continue; }
+        all.push(a);
+      }
       if (this.umbrellas) {
         // the player puts one up too, unless sheltered, riding the cable car or carrying food
         const pl0 = this.player, self = this;

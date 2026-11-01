@@ -77,7 +77,9 @@ export function openCreator(root: HTMLElement, start: { name: string; look: Look
            <h4>Shoes</h4>${swatches('shoes', [0x16161c, 0x2a2a34, 0xf2efe7, 0xd8282e, 0x2ad8ff, 0xff5fb4, 0x6b4630, 0xf2c74a], look.shoes)}`
         : `<h4>Headwear</h4>${chips('hat', HATS, look.hat ?? 'none')}${look.hat && look.hat !== 'none' ? swatches('hatColor', [...CLOTH.slice(0, 8), ...NEON.slice(0, 6)], look.hatColor) : ''}
            <h4>Bag</h4><div class="cc-chips"><button data-k="bag" class="${look.backpack === undefined ? 'on' : ''}" data-v="none">None</button><button data-k="bag" data-v="pack" class="${look.backpack !== undefined ? 'on' : ''}">Backpack</button></div>
-           ${look.backpack !== undefined ? swatches('backpack', NEON.slice(0, 8), look.backpack) : ''}`;
+           ${look.backpack !== undefined ? swatches('backpack', NEON.slice(0, 8), look.backpack) : ''}
+           <h4>Cyberware</h4><div class="cc-chips"><button data-k="implant" data-v="none" class="${look.implant === undefined ? 'on' : ''}">No implant</button><button data-k="implant" data-v="on" class="${look.implant !== undefined ? 'on' : ''}">Face implant</button><button data-k="chrome" class="${look.chrome ? 'on' : ''}">Chrome arm</button></div>
+           ${look.implant !== undefined ? swatches('implant', NEON.slice(0, 7), look.implant) : ''}`;
     el.innerHTML = `
       <div class="cc-head">
         <button class="round-btn" data-a="back" aria-label="Back">${G.back}</button>
@@ -110,6 +112,7 @@ export function openCreator(root: HTMLElement, start: { name: string; look: Look
         top: r(CLOTH), topStyle: TOPS[Math.floor(Math.random() * 5)].value, accent: r(NEON), bottom: r(CLOTH.slice(0, 10)), shoes: r([0x16161c, 0xf2efe7, 0xd8282e, 0x2ad8ff]),
         skirt: Math.random() < 0.2, shorts: Math.random() < 0.1, hat: HATS[Math.floor(Math.random() * HATS.length)].value, hatColor: r(CLOTH),
         glasses: Math.random() < 0.35, moustache: Math.random() < 0.15, backpack: Math.random() < 0.3 ? r(NEON) : undefined,
+        implant: Math.random() < 0.3 ? r(NEON.slice(0, 7)) : undefined, chrome: Math.random() < 0.15,
       };
       name = NAMES[Math.floor(Math.random() * NAMES.length)];
       apply();
@@ -122,6 +125,8 @@ export function openCreator(root: HTMLElement, start: { name: string; look: Look
     const L = look as unknown as Record<string, unknown>;
     if (k === 'glasses') look.glasses = !look.glasses;
     else if (k === 'moustache') look.moustache = !look.moustache;
+    else if (k === 'chrome') look.chrome = !look.chrome;
+    else if (k === 'implant' && (v === 'none' || v === 'on')) look.implant = v === 'none' ? undefined : look.implant ?? NEON[0];
     else if (k === 'legs') { look.skirt = v === 'skirt'; look.shorts = v === 'shorts'; }
     else if (k === 'bag') look.backpack = v === 'none' ? undefined : look.backpack ?? NEON[0];
     else if (k === 'hairStyle' || k === 'topStyle' || k === 'hat') L[k] = v;

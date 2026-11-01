@@ -7,8 +7,6 @@ import { SunShadows } from './shadows';
 import { Sky, SKY_GLSL, skyUniforms, cloudUniforms } from './sky';
 
 export type Quality = 'low' | 'medium' | 'high';
-/** Low quality's share of the screen resolution per axis (0.75 = 56% of the pixels). */
-const LOW_SCALE = 0.75;
 
 /**
  * 64 x 64 random values that tile, filtered and repeating: value noise for the drifting cloud shadows at
@@ -116,7 +114,7 @@ export class Renderer {
   /** Draw at the screen's full resolution whatever the quality (the photo shutter's one frame). */
   fullRes = false;
   /** Drawing below the screen's resolution just now (by quality or by the auto render scale)? */
-  get scaled(): boolean { return this.quality === 'low' || this.renderScale < 1; }
+  get scaled(): boolean { return this.renderScale < 1; }
   /** Hears each render pass start by name (the perf overlay times them on the GPU). */
   onPass: ((name: string) => void) | null = null;
   private pixelRatio = 1;
@@ -198,9 +196,8 @@ export class Renderer {
   }
 
   /**
-   * Low quality is built for integrated GPUs, where every full-screen pixel costs: it draws at three quarters
-   * of the screen's resolution (the browser scales it up), with no multisampling, no real-time sun shadows
-   * (the baked sun light stays) and the LITE composite (simpler water, no reflections, no caustics).
+   * Low quality is built for integrated GPUs, where every full-screen pixel costs: no multisampling, a small
+   * single-tap shadow map and the LITE composite (simpler water, no reflections, no caustics).
    */
   private liteComposite(): void {
     const lite = this.quality === 'low';
@@ -212,7 +209,7 @@ export class Renderer {
 
   resize(): void {
     const dprCap = this.isMobile ? (this.quality === 'high' ? 2 : 1.6) : this.quality === 'low' ? 1 : 2;
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, dprCap) * (this.quality === 'low' && !this.fullRes ? LOW_SCALE : 1) * (this.fullRes ? 1 : this.renderScale);
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, dprCap) * (this.fullRes ? 1 : this.renderScale);
     const cw = window.innerWidth, ch = window.innerHeight;
     this.gl.setPixelRatio(1);
     this.gl.setSize(Math.max(1, Math.round(cw * this.pixelRatio)), Math.max(1, Math.round(ch * this.pixelRatio)), false);
@@ -301,8 +298,7 @@ export class Renderer {
     const sc = this.shared.uSunColor.value;
     const sunLum = sc.r * 0.2126 + sc.g * 0.7152 + sc.b * 0.0722;
     this.onPass?.('shadows');
-    // (none at low quality: the baked sun carries the light, and the CPU and GPU skip the shadow passes)
-    this.shadows.update(gl, this.scene, cam, this.firstPerson, this.shared.uSunDir.value, this.quality === 'low' ? 0 : THREE.MathUtils.smoothstep(sunLum, 0.075, 0.15));
+    this.shadows.update(gl, this.scene, cam, this.firstPerson, this.shared.uSunDir.value, THREE.MathUtils.smoothstep(sunLum, 0.075, 0.15));
     // scene
     this.onPass?.('world');
     gl.setRenderTarget(this.rtScene);

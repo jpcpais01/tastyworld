@@ -23,10 +23,32 @@ export interface Chunk {
   /** Cutaway: occluders the chunk can touch, and whether it currently uses the cutaway material. */
   occ: number[];
   cut: boolean;
-  /** Cross-fade in progress: the mesh being replaced, still drawn with the complementary dither. */
-  fade: Fade | null;
   /** What is inside the chunk's ground-floor rooms, drawn only near the view (full detail only). */
   inner: Inner | null;
+  /** The block of chunks this one is drawn with when they are all coarse. */
+  cl: Cluster;
+}
+
+/**
+ * A block of up to CL x CL chunks (never across two workers' strips) that is drawn as one coarse mesh while none
+ * of its chunks needs full detail: far from the view a single draw stands in for up to sixteen. While it is
+ * drawn its chunks keep no meshes of their own; when one of them comes near, they all stream in again and the
+ * block dissolves into them once every chunk in view has arrived.
+ */
+export interface Cluster {
+  ix: number;
+  iz: number;
+  nx: number;
+  nz: number;
+  members: Chunk[];
+  /** Its coarse mesh (null: the chunks draw themselves) and that mesh's level of detail. */
+  mesh: THREE.Mesh | null;
+  lod: number;
+  pending: number | null;
+  /** The level it is wanted at (null: some chunk needs full detail, or none is in view). */
+  want: number | null;
+  /** Last time (s) any of its chunks was in view. */
+  seen: number;
 }
 
 interface Inner {
@@ -38,13 +60,16 @@ interface Inner {
   mat: THREE.ShaderMaterial | null;
 }
 
+/** A mesh dissolving in or out with the level-of-detail dither (an outgoing one is dropped at the end). */
 interface Fade {
-  old: THREE.Mesh;
-  next: THREE.Mesh;
+  owner: Chunk | Cluster;
   t: number;
-  mIn: THREE.ShaderMaterial;
-  mOut: THREE.ShaderMaterial;
+  mat: THREE.ShaderMaterial;
+  out: boolean;
 }
+
+/** Chunks per side of a cluster. */
+const CL = 4;
 
 /** Faces of a swaying prop can turn this far (m) past their resting plane. */
 const SWAY_SLACK = 0.3;
@@ -108,13 +133,18 @@ export function lodRings(dist: number): { full: number; half: number; far: numbe
  * Keeps the voxel city on the GPU only where the camera can see it. The world workers each own a strip
  * of chunk rows and mesh chunks on request; this decides which chunks are wanted (full detail in or near
  * the view, then half and quarter resolution with distance), queues requests nearest first, swaps meshes
- * in as they arrive and frees chunks that have been out of sight for a while.
+ * in as they arrive and frees chunks that have been out of sight for a while. Far out, whole blocks of
+ * coarse chunks are meshed and drawn as one (see Cluster), so the draw count stays flat however much of
+ * the city is in view.
  */
 export class Streamer {
   readonly chunks: Chunk[] = [];
+  readonly clusters: Cluster[] = [];
   /** Chunks with a mesh in the scene. */
   readonly resident = new Set<Chunk>();
-  private inflight = new Map<number, Chunk>();
+  /** Clusters with a mesh in the scene. */
+  readonly residentClusters = new Set<Cluster>();
+  private inflight = new Map<number, Chunk | Cluster>();
   private busy: number[];
   private nextId = 1;
   private t = 0;
@@ -127,7 +157,8 @@ export class Streamer {
   private lead = new THREE.Vector3();
   private lastFocus = new THREE.Vector3(NaN, 0, 0);
   private vel = new THREE.Vector2();
-  private fading = new Set<Chunk>();
+  private fades = new Map<THREE.Mesh, Fade>();
+  private rank = new Map<Cluster, number>();
   private fadePool: THREE.ShaderMaterial[] = [];
   /** Makes a world material with the LODFADE dither (a `uFade` uniform of its own); null disables fading. */
   fadeMaterial: (() => THREE.ShaderMaterial) | null = null;
@@ -135,7 +166,7 @@ export class Streamer {
   budget: number;
   /** View distance in metres (first person draws out to it; the iso view uses coarser chunks when zoomed far out). */
   dist = 120;
-  /** Called for every mesh added to the scene (materials, layers, cutaway bookkeeping). */
+  /** Called for every chunk mesh added to the scene (materials, layers, cutaway bookkeeping). */
   onMesh: (c: Chunk, m: THREE.Mesh) => void = () => {};
 
   constructor(
@@ -149,12 +180,27 @@ export class Streamer {
   ) {
     this.busy = workers.map(() => 0);
     this.budget = mobile ? 130 : 240;
+    // clusters: CL x CL blocks, restarted at every worker's strip so each is meshed whole by one worker
+    const band: number[] = [];
+    for (let iz = 0; iz < CHUNKS_Z; iz++) band.push(iz > 0 && partOf(iz) === partOf(iz - 1) && iz - band[iz - 1] < CL ? band[iz - 1] : iz);
+    const clusterAt = new Map<number, Cluster>();
     for (let iz = 0; iz < CHUNKS_Z; iz++)
       for (let ix = 0; ix < CHUNKS_X; ix++) {
         let h = 0;
         for (let z = iz * CHUNK; z < (iz + 1) * CHUNK; z++)
           for (let x = ix * CHUNK; x < (ix + 1) * CHUNK; x++) h = Math.max(h, height[z * CHUNKS_X * CHUNK + x]);
-        this.chunks.push({ ix, iz, top: h * V + 6, lv: [null, null, null], pending: null, want: null, seen: -1e9, occ: [], cut: false, fade: null, inner: null });
+        const key = band[iz] * CHUNKS_X + Math.floor(ix / CL) * CL;
+        let k = clusterAt.get(key);
+        if (!k) {
+          k = { ix: Math.floor(ix / CL) * CL, iz: band[iz], nx: 0, nz: 0, members: [], mesh: null, lod: 0, pending: null, want: null, seen: -1e9 };
+          clusterAt.set(key, k);
+          this.clusters.push(k);
+        }
+        k.nx = Math.max(k.nx, ix - k.ix + 1);
+        k.nz = Math.max(k.nz, iz - k.iz + 1);
+        const c: Chunk = { ix, iz, top: h * V + 6, lv: [null, null, null], pending: null, want: null, seen: -1e9, occ: [], cut: false, inner: null, cl: k };
+        k.members.push(c);
+        this.chunks.push(c);
       }
     workers.forEach((w, i) => {
       w.addEventListener('message', (e: MessageEvent<WorkerOut>) => { if (e.data.type === 'mesh') this.arrive(i, e.data); });
@@ -167,14 +213,21 @@ export class Streamer {
     return this.chunks[iz * CHUNKS_X + ix];
   }
 
-  /** World-space box of a chunk (x0, z0, x1, z1 in metres). */
-  rect(c: Chunk): [number, number, number, number] {
-    return [WX0 + c.ix * CM, WZ0 + c.iz * CM, WX0 + (c.ix + 1) * CM, WZ0 + (c.iz + 1) * CM];
+  /** World-space box of a chunk or cluster (x0, z0, x1, z1 in metres). */
+  rect(c: Chunk | Cluster): [number, number, number, number] {
+    const nx = 'nx' in c ? c.nx : 1, nz = 'nz' in c ? c.nz : 1;
+    return [WX0 + c.ix * CM, WZ0 + c.iz * CM, WX0 + (c.ix + nx) * CM, WZ0 + (c.iz + nz) * CM];
   }
 
-  /** Ground distance from a chunk's centre to a point (m). Runs per chunk per frame, so no allocations. */
-  private dist2d(c: Chunk, p: THREE.Vector3): number {
-    return Math.hypot(WX0 + (c.ix + 0.5) * CM - p.x, WZ0 + (c.iz + 0.5) * CM - p.z);
+  /** Meshes in the scene (chunks and clusters), for the debug readout. */
+  get meshCount(): number {
+    return this.resident.size + this.residentClusters.size;
+  }
+
+  /** Ground distance from a chunk's (or cluster's) centre to a point (m). Runs per chunk per frame, so no allocations. */
+  private dist2d(c: Chunk | Cluster, p: THREE.Vector3): number {
+    const nx = 'nx' in c ? c.nx : 1, nz = 'nz' in c ? c.nz : 1;
+    return Math.hypot(WX0 + (c.ix + nx / 2) * CM - p.x, WZ0 + (c.iz + nz / 2) * CM - p.z);
   }
 
   /** True when every chunk the view wants at full detail has arrived. */
@@ -199,7 +252,8 @@ export class Streamer {
       this.plan(view);
     }
     this.pump(this.lead);
-    if (this.fading.size) this.stepFades(dt);
+    if (this.fades.size) this.stepFades(dt);
+    for (const k of this.residentClusters) this.release(k);
     this.stepInner(dt, view);
     if (this.waiters.length && this.settled) { const w = this.waiters; this.waiters = []; w.forEach((f) => f()); }
   }
@@ -254,7 +308,7 @@ export class Streamer {
         if (d < 30) want = 0;
         else if (d < ring.far && this.frustum.intersectsBox(this.box)) {
           // a chunk keeps the finer level a little past the ring it earned it in
-          const h = c.lv[0] || c.pending === 0 ? 8 : 0, h1 = c.lv[1] || c.pending === 1 ? 8 : 0;
+          const h = c.lv[0] || c.pending === 0 ? 8 : 0, h1 = c.lv[1] || c.pending === 1 || (c.cl.mesh && c.cl.lod === 1) || c.cl.pending === 1 ? 8 : 0;
           want = d < ring.full + h ? 0 : d < ring.half + h1 ? 1 : 2;
         }
       } else if (dFocus < 14 || this.frustum.intersectsBox(this.box)) {
@@ -265,10 +319,32 @@ export class Streamer {
       c.want = want;
       if (want !== null) c.seen = this.t;
     }
-    // zoomed far out in the iso view: keep full detail near the focus and draw the outskirts coarser
+    // zoomed far out in the iso view: keep full detail near the focus and draw the outskirts coarser. Whole
+    // clusters are ranked (by their nearest chunk), so the full-detail patch is made of them and every cluster
+    // past it is drawn as one coarse mesh, not split chunk by chunk along the edge.
     if (wanted.length > this.budget * 0.8) {
-      wanted.sort((a, b) => a.d - b.d);
-      for (let i = Math.floor(this.budget * 0.8); i < wanted.length; i++) wanted[i].c.want = 1;
+      const rank = this.rank;
+      rank.clear();
+      for (const { c, d } of wanted) { const r = rank.get(c.cl); if (r === undefined || d < r) rank.set(c.cl, d); }
+      const order = [...rank].sort((a, b) => a[1] - b[1]);
+      let n = 0;
+      const cap = Math.floor(this.budget * 0.8);
+      for (const [k] of order) {
+        if (n < cap) { for (const c of k.members) if (c.want === 0) n++; }
+        else for (const c of k.members) if (c.want === 0) c.want = 1;
+      }
+    }
+    // a cluster is drawn whole while none of its chunks needs full detail (or is cut away), at the finest
+    // level any of them wants
+    for (const k of this.clusters) {
+      let fine = false, lod: number | null = null;
+      for (const c of k.members) {
+        if (c.want === null) continue;
+        if (c.want === 0 || c.cut) { fine = true; break; }
+        lod = lod === null ? c.want : Math.min(lod, c.want);
+      }
+      k.want = fine ? null : lod;
+      if (fine || lod !== null) k.seen = this.t;
     }
     this.evict(view.focus);
   }
@@ -276,23 +352,31 @@ export class Streamer {
   /** Send the most urgent requests to idle workers. */
   private pump(focus: THREE.Vector3): void {
     if (this.busy.every((b) => b >= 2)) return;
-    const queue: { c: Chunk; lod: number; pri: number }[] = [];
+    const queue: { c: Chunk | Cluster; lod: number; pri: number; part: number }[] = [];
     for (const c of this.chunks) {
-      if (c.want === null || c.pending !== null) continue;
+      // a chunk drawn by its cluster asks for nothing of its own
+      if (c.want === null || c.pending !== null || c.cl.want !== null) continue;
       const lod = c.want;
       if (c.lv[lod]) continue;
-      if (this.busy[this.partOf(c.iz)] >= 2) continue;
-      queue.push({ c, lod, pri: this.dist2d(c, focus) + lod * 60 });
+      const part = this.partOf(c.iz);
+      if (this.busy[part] >= 2) continue;
+      queue.push({ c, lod, pri: this.dist2d(c, focus) + lod * 60, part });
+    }
+    for (const k of this.clusters) {
+      if (k.want === null || k.pending !== null || (k.mesh && k.lod === k.want)) continue;
+      const part = this.partOf(k.iz);
+      if (this.busy[part] >= 2) continue;
+      queue.push({ c: k, lod: k.want, pri: this.dist2d(k, focus) + k.want * 60, part });
     }
     queue.sort((a, b) => a.pri - b.pri);
     for (const q of queue) {
-      const p = this.partOf(q.c.iz);
-      if (this.busy[p] >= 2) continue;
-      this.busy[p]++;
+      if (this.busy[q.part] >= 2) continue;
+      this.busy[q.part]++;
       const id = this.nextId++;
       q.c.pending = q.lod;
       this.inflight.set(id, q.c);
-      this.workers[p].postMessage({ type: 'mesh', id, ix: q.c.ix, iz: q.c.iz, lod: q.lod });
+      const nx = 'nx' in q.c ? q.c.nx : 1, nz = 'nz' in q.c ? q.c.nz : 1;
+      this.workers[q.part].postMessage({ type: 'mesh', id, ix: q.c.ix, iz: q.c.iz, lod: q.lod, nx, nz });
     }
   }
 
@@ -302,6 +386,7 @@ export class Streamer {
     this.inflight.delete(msg.id);
     if (!c) return;
     c.pending = null;
+    if ('members' in c) { this.arriveCluster(c, msg); return; }
     const lv = msg.lod;
     if (!msg.mesh) {
       // nothing to draw (should not happen for the city, which always has ground): mark as loaded
@@ -309,6 +394,7 @@ export class Streamer {
       return;
     }
     if (c.want === null && this.t - c.seen > 2) return; // no longer needed
+    if (c.cl.want !== null) return; // its cluster draws it now
     // a coarser mesh is only worth showing while it is still wanted or nothing finer is there
     if (c.want !== null && c.want < lv && c.lv.some((m, i) => m && i < lv)) return;
     const m = this.make(msg.mesh);
@@ -322,9 +408,6 @@ export class Streamer {
       c.lv[i] = null;
     }
     c.lv[lv] = m;
-    // the sun's shadow cache treats a chunk's meshes as one caster, so a level swap doesn't redraw it
-    m.userData.shadowKey = c;
-    for (const ch of m.children) ch.userData.shadowKey = c;
     this.group.add(m);
     const im = m.children[0] as THREE.Mesh | undefined;
     if (im) {
@@ -333,47 +416,139 @@ export class Streamer {
     }
     this.resident.add(c);
     this.onMesh(c, m);
-    if (old) {
-      if (this.fadeMaterial && !c.cut && old.material === m.material) this.startFade(c, old, m);
+    if (c.cl.mesh) {
+      // its cluster is still drawn: wait under it until all of the cluster's chunks in view are here
+      m.visible = false;
+      if (old) this.drop(old);
+    } else if (old) {
+      if (this.fadeMaterial && !c.cut && old.visible) this.swap(c, old, m);
       else this.drop(old);
     }
   }
 
-  private startFade(c: Chunk, old: THREE.Mesh, next: THREE.Mesh): void {
-    const mk = () => this.fadePool.pop() ?? this.fadeMaterial!();
-    const mIn = mk(), mOut = mk();
-    mIn.uniforms.uFade.value.set(0, 0);
-    mOut.uniforms.uFade.value.set(0, 1);
-    c.fade = { old, next, t: 0, mIn, mOut };
-    old.material = mOut;
-    for (const ch of old.children) (ch as THREE.Mesh).material = mOut;
-    next.material = mIn;
-    // the shadow cache only needs redrawing once, when the swap is complete
-    next.layers.disable(SHADOW_STATIC);
-    this.fading.add(c);
+  private arriveCluster(k: Cluster, msg: Extract<WorkerOut, { type: 'mesh' }>): void {
+    // only while still wanted (its chunks may have taken over meanwhile), and never coarser than what it shows
+    // (a block of city always has ground, so an empty one is not expected)
+    if (!msg.mesh || k.want === null || (k.mesh && msg.lod > k.want)) return;
+    const m = this.make(msg.mesh);
+    m.userData.shadowKeep = true;
+    this.group.add(m);
+    this.residentClusters.add(k);
+    const old = k.mesh;
+    k.mesh = m;
+    k.lod = msg.lod;
+    const fade = !!this.fadeMaterial && !!old;
+    if (old) {
+      if (this.fadeMaterial) this.fadeOut(k, old);
+      else this.drop(old);
+    }
+    // the chunks it stands in for give up their meshes
+    let shown = false;
+    for (const c of k.members) {
+      this.endFade(c);
+      this.dropInner(c);
+      for (let i = 0; i < 3; i++) {
+        const cm = c.lv[i];
+        if (!cm) continue;
+        c.lv[i] = null;
+        if (cm.visible && cm.geometry.attributes.position && this.fadeMaterial && !c.cut) { this.fadeOut(c, cm); shown = true; }
+        else this.drop(cm);
+      }
+      this.resident.delete(c);
+    }
+    if (fade || shown) this.fadeIn(k, m);
+  }
+
+  /**
+   * A cluster no longer wanted whole (one of its chunks came near) gives way once every chunk of it in view has
+   * its own mesh, dissolving into them.
+   */
+  private release(k: Cluster): void {
+    if (!k.mesh) return;
+    if (k.want !== null) {
+      // whole again and drawn at the level wanted: chunk meshes that arrived meanwhile are not needed
+      if (k.lod === k.want) for (const c of k.members) this.dropHidden(c);
+      return;
+    }
+    let any = false;
+    for (const c of k.members) {
+      if (c.want === null) continue;
+      any = true;
+      if (!c.lv.some((m) => m)) return;
+    }
+    if (!any) return; // nothing of it in view: it stays until evicted
+    for (const c of k.members) for (const m of c.lv) if (m && !m.visible) {
+      m.visible = true;
+      if (this.fadeMaterial && !c.cut) this.fadeIn(c, m);
+    }
+    const old = k.mesh;
+    k.mesh = null;
+    if (this.fadeMaterial) this.fadeOut(k, old);
+    else this.drop(old);
+    this.residentClusters.delete(k);
+  }
+
+  /** Drop the meshes a chunk keeps hidden under its cluster. */
+  private dropHidden(c: Chunk): void {
+    let left = false;
+    for (let i = 0; i < 3; i++) {
+      const m = c.lv[i];
+      if (!m) continue;
+      if (m.visible) { left = true; continue; }
+      if (i === 0) this.dropInner(c);
+      this.drop(m);
+      c.lv[i] = null;
+    }
+    if (!left) this.resident.delete(c);
+  }
+
+  /** A chunk's mesh replaced by a finer or coarser one: the two dissolve into each other. */
+  private swap(c: Chunk, old: THREE.Mesh, next: THREE.Mesh): void {
+    this.fadeOut(c, old);
+    this.fadeIn(c, next);
+  }
+
+  /**
+   * Dissolve a mesh in. One fading in and one fading out over the same span use complementary dithers, so
+   * between them every pixel is covered exactly once.
+   */
+  private fadeIn(owner: Chunk | Cluster, m: THREE.Mesh): void {
+    const mat = this.fadePool.pop() ?? this.fadeMaterial!();
+    mat.uniforms.uFade.value.set(0, 0);
+    m.material = mat;
+    // the sun's shadow cache takes it in once it is complete
+    m.layers.disable(SHADOW_STATIC);
+    this.fades.set(m, { owner, t: 0, mat, out: false });
+  }
+
+  /** Dissolve a mesh out; it is dropped at the end. */
+  private fadeOut(owner: Chunk | Cluster, m: THREE.Mesh): void {
+    const mat = this.fadePool.pop() ?? this.fadeMaterial!();
+    mat.uniforms.uFade.value.set(0, 1);
+    m.material = mat;
+    for (const ch of m.children) (ch as THREE.Mesh).material = mat;
+    this.fades.set(m, { owner, t: 0, mat, out: true });
   }
 
   private stepFades(dt: number): void {
-    for (const c of this.fading) {
-      const f = c.fade!;
+    for (const [m, f] of this.fades) {
       f.t += dt / FADE_TIME;
-      if (f.t >= 1) { this.endFade(c); continue; }
-      const s = f.t * f.t * (3 - 2 * f.t);
-      f.mIn.uniforms.uFade.value.x = s;
-      f.mOut.uniforms.uFade.value.x = s;
+      if (f.t >= 1) { this.finish(m, f); continue; }
+      f.mat.uniforms.uFade.value.x = f.t * f.t * (3 - 2 * f.t);
     }
   }
 
-  /** Finish a chunk's cross-fade now (the new mesh takes over fully). Safe to call when none is running. */
+  private finish(m: THREE.Mesh, f: Fade): void {
+    this.fades.delete(m);
+    this.fadePool.push(f.mat);
+    if (f.out) { this.drop(m); return; }
+    if (m.material === f.mat) m.material = this.material();
+    m.layers.enable(SHADOW_STATIC);
+  }
+
+  /** Finish a chunk's dissolves now (its current mesh takes over fully). Safe to call when none is running. */
   endFade(c: Chunk): void {
-    const f = c.fade;
-    if (!f) return;
-    c.fade = null;
-    this.fading.delete(c);
-    this.drop(f.old);
-    this.fadePool.push(f.mIn, f.mOut);
-    if (f.next.material === f.mIn) f.next.material = this.material();
-    f.next.layers.enable(SHADOW_STATIC);
+    for (const [m, f] of this.fades) if (f.owner === c) this.finish(m, f);
   }
 
   private make(md: MeshData): THREE.Mesh {
@@ -402,9 +577,14 @@ export class Streamer {
     if (md.segs) { g.userData.segs = md.segs; m.onBeforeRender = facingRange; }
     m.matrixAutoUpdate = false;
     m.updateMatrix();
+    // the world is static: a streamed mesh leaving the view leaves its shadow right, so the sun's shadow cache
+    // is never redrawn for one going (see engine/shadows.ts)
+    m.userData.shadowKeep = true;
+    m.layers.enable(SHADOW_STATIC);
     if (ig) {
       const im = new THREE.Mesh(ig, m.material);
       im.matrixAutoUpdate = false;
+      im.userData.shadowKeep = true;
       // always in the sun's shadow cache (so coming and going never redraws it), out of the view until near
       im.layers.set(SHADOW_STATIC);
       m.add(im);
@@ -418,6 +598,8 @@ export class Streamer {
   }
 
   private drop(m: THREE.Mesh): void {
+    const f = this.fades.get(m);
+    if (f) { this.fades.delete(m); this.fadePool.push(f.mat); }
     m.removeFromParent();
     m.geometry.dispose();
     (m.userData.atlas as THREE.Texture | undefined)?.dispose();
@@ -464,7 +646,7 @@ export class Streamer {
     c.inner = null;
   }
 
-  /** Free chunks nobody has looked at for a while, oldest first, once over budget (or long gone). */
+  /** Free chunks (and clusters) nobody has looked at for a while, oldest first, once over budget (or long gone). */
   private evict(focus: THREE.Vector3): void {
     const stale: Chunk[] = [];
     let full = 0;
@@ -473,8 +655,9 @@ export class Streamer {
       if (c.want === null) stale.push(c);
     }
     stale.sort((a, b) => a.seen - b.seen);
+    const farOff = Math.max(130, this.dist + 30);
     for (const c of stale) {
-      const far = this.dist2d(c, focus) > Math.max(130, this.dist + 30);
+      const far = this.dist2d(c, focus) > farOff;
       const old = this.t - c.seen > 20;
       if (full <= this.budget && !far && !old) break;
       if (this.t - c.seen < 1.5) continue;
@@ -484,6 +667,14 @@ export class Streamer {
       for (let i = 0; i < 3; i++) if (c.lv[i]) { this.drop(c.lv[i]!); c.lv[i] = null; }
       c.cut = false;
       this.resident.delete(c);
+    }
+    // a cluster is cheap to keep (one coarse mesh): it goes once all of it has been out of view a while
+    for (const k of this.residentClusters) {
+      if (k.want !== null || !k.mesh || this.t - k.seen < 20) continue;
+      for (const c of k.members) for (const m of c.lv) if (m) m.visible = true;
+      this.drop(k.mesh);
+      k.mesh = null;
+      this.residentClusters.delete(k);
     }
   }
 

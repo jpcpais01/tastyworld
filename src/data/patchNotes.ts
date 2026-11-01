@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.29',
+    date: '2026-11-01',
+    title: '2040: softer reflections',
+    items: [
+      'Bright neon and lit umbrellas now reflect in Halcyon\'s wet streets as a soft glow instead of a hard copy of themselves, and the sheen between puddles is a little subtler.',
+    ],
+  },
+  {
     version: '0.20.28',
     date: '2026-11-01',
     title: 'Vending machines fixed, and a glitch in 2040',

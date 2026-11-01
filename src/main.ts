@@ -26,6 +26,8 @@ import { CharacterBatch } from './game/charbatch';
 import { IsoCamera } from './game/camera';
 import { Particles, Blobs, Koi, SkylightBeams } from './game/fx';
 import { Birds, type Threat } from './game/birds';
+import { Traffic } from './game/traffic';
+import { offFoot } from './world/roads';
 import { Cutaway } from './game/cutaway';
 import { solidBase } from './world/owners';
 import { Shafts } from './engine/shafts';
@@ -226,6 +228,8 @@ class Game {
   private blobs!: Blobs;
   private koi: Koi | null = null;
   private birds!: Birds;
+  /** Tokyo's cars and traffic lights (null in the other cities, whose streets are for walking). */
+  private traffic: Traffic | null = null;
   private particles!: Particles;
   private beams!: SkylightBeams;
   private interactables: Interactable[] = [];
@@ -498,7 +502,9 @@ class Game {
     this.r.composite.uniforms.tShore.value = shore;
     this.r.composite.uniforms.uShoreRect.value.set(w.nav.ox, w.nav.oz, 1 / (w.nav.sx * 0.25), 1 / (w.nav.sz * 0.25));
     this.navWorld = new Nav(w.nav);
-    this.paths = new PathService(w.nav);
+    // Tokyo's avenues carry cars: walking routes keep to the pavements and cross at the crosswalks
+    if (CITY === 'tokyo') this.navWorld.keepOff(offFoot);
+    this.paths = new PathService(w.nav, CITY === 'tokyo');
     Actor.details ??= new BodyDetails();
     this.navInside = new Nav(w.interiorNav);
     this.nav = this.navWorld;
@@ -689,6 +695,12 @@ class Game {
       amalfi: m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 },
       istanbul: m ? { walkers: 320, joggers: 3, dogs: 9, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 800, joggers: 6, dogs: 16, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
     }));
+    // Tokyo's avenues: cars up out of the underpasses, live traffic lights the crowd waits on
+    if (CITY === 'tokyo') {
+      this.traffic = new Traffic(this.chars, w.lightmap, m);
+      this.traffic.populate(this.tod.hour);
+      this.crowd.traffic = this.traffic;
+    }
     this.crowd.settle(this.tod.hour);
     // pigeons, sparrows, crows and the rest, on the ground, the roofs and the wires
     this.birds = new Birds({ nav: w.nav, height: w.height, solid: w.solid, ground: w.ground, shore: w.shore, lightmap: w.lightmap, anchors: a }, this.chars);
@@ -2354,6 +2366,11 @@ class Game {
       for (const rm of this.remotes.values()) if (rm.actor.root.visible) friends.push([rm.actor.position.x, rm.actor.position.z]);
       this.crowd.update(dt, this.tod.hour, { x: pl.position.x, z: pl.position.z, speed: pl.speed, running: pl.anim === 'run', eating: this.eatT > 0 || !!this.meal, facing: pl.facing }, friends, viewR);
       this.perf.lap('crowd');
+      if (this.traffic) {
+        this.traffic.setVisible(!this.upstairs);
+        this.traffic.update(dt, this.tod.hour, [pl.position.x, pl.position.z], friends, this.crowd, viewR);
+        this.perf.lap('traffic');
+      }
       // up in a hotel room you are no bother to the birds in the street
       const threats: Threat[] = this.upstairs ? [] : [{ x: pl.position.x, z: pl.position.z, speed: pl.speed }];
       for (const [x, z] of friends) threats.push({ x, z, speed: 1 });
@@ -2400,7 +2417,7 @@ class Game {
           this.ui.bubble(`call-${v.stall.id}`, VENDOR_CALLS[Math.floor(Math.random() * VENDOR_CALLS.length)], [q.x, q.y + 2.1, q.z], 2.4);
         }
       }
-    } else this.birds.setVisible(false);
+    } else { this.birds.setVisible(false); this.traffic?.setVisible(false); }
     // everyone animated and drawn this frame (one list, reused)
     const all = this.drawn;
     all.length = 0;

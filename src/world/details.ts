@@ -7,8 +7,9 @@
 import { hash3, rng } from './grid';
 import { G, V } from './layout';
 import { Builder } from './tokyo';
-import { Prop, glyph, trafficLight, trafficMirror, wire } from './props';
+import { glyph, trafficMirror, wire, signalPole, guardRail } from './props';
 import { STREETS, Street } from './city';
+import { crosswalksOf, signalPoles, railRuns, bridgeRise, HIKARI, NEON, PAVE, ROAD1 } from './roads';
 import type { Dresser, Front } from './dressing';
 
 /** Where another street crosses `s`: its extent along `s`. */
@@ -31,7 +32,10 @@ export function roadMarks(b: Builder): void {
     if (s.kind === 'arcade') continue;
     const lo = s.ew ? s.x0 : s.z0, hi = s.ew ? s.x1 : s.z1;
     const a0 = s.ew ? s.z0 : s.x0, width = (s.ew ? s.z1 - s.z0 : s.x1 - s.x0) + 1;
-    const X = crossings(s);
+    // the avenues' crosswalks are laid out in world/roads.ts (the scramble belongs to both)
+    const X = s.kind === 'avenue'
+      ? [...crosswalksOf(s.name).map((c) => ({ o: s, lo: c.lo, hi: c.hi })), ...(s.name === NEON.name ? [{ o: s, lo: HIKARI.z0, hi: HIKARI.z1 }] : [])]
+      : crossings(s);
     const at = (along: number, across: number) => (s.ew ? [along, a0 + across] : [a0 + across, along]) as [number, number];
     const set = (along: number, across: number, col: number) => { const [x, z] = at(along, across); g.set(x, G - 1, z, col); };
     const inCrossing = (u: number, m: number) => X.some(({ lo: l, hi: h }) => u >= l - m && u <= h + m);
@@ -112,37 +116,42 @@ export function roadMarks(b: Builder): void {
 
 export function signals(d: Dresser): void {
   const b = d.b, k = b.k;
-  let n = 0;
-  for (const s of STREETS) {
-    if (s.kind !== 'avenue') continue;
-    const a0 = s.ew ? s.z0 : s.x0, a1 = s.ew ? s.z1 : s.x1;
-    for (const { o, lo, hi } of crossings(s)) {
-      if (o.kind === 'avenue') continue; // the scramble's corners are all shop fronts
-      // at the corners, just round into the side street and clear of its fronts' awnings, sills and goods tables:
-      // the avenue pavement belongs to the crowd
-      for (const [along, across, side] of [[lo + 5, a0 - 2, 0], [hi - 5, a0 - 2, 0], [lo + 5, a1 + 2, 1], [hi - 5, a1 + 2, 1]] as [number, number, number][]) {
-        const [vx, vz] = s.ew ? [along, across] : [across, along];
-        if (vx < o.x0 || vx > o.x1 || vz < o.z0 || vz > o.z1) continue;
-        const [x, z] = s.ew ? [(along + 0.5) * V, (across + 0.5) * V] : [(across + 0.5) * V, (along + 0.5) * V];
-        // the arm reaches out over the road: +X is turns 0, -Z turns 1, -X turns 2, +Z turns 3
-        const turns = s.ew ? (side ? 1 : 3) : (side ? 2 : 0);
-        // only the pole's foot stands on the pavement
-        const foot: [number, number, number, number] = [x - 0.2, z - 0.2, x + 0.2, z + 0.2];
-        if (!d.space.free(foot, 0.1) || d.onPath(foot, 0.5)) continue;
-        placeBy(b, trafficLight(k, n++), [1.5, 1.5], x, z, turns);
-        d.take(foot);
-        b.block(foot[0], foot[1], foot[2], foot[3]);
-      }
+  // one pole per direction of traffic at every crossing with lights (world/roads.ts), its arm over the lane;
+  // the lit lenses are drawn live by game/traffic.ts on top of the dark lamps
+  for (const p of signalPoles()) {
+    b.place(signalPole(k), p.x, p.y, p.z, p.turns);
+    const foot: [number, number, number, number] = [p.fx - 0.2, p.fz - 0.2, p.fx + 0.2, p.fz + 0.2];
+    d.take(foot);
+    b.block(foot[0], foot[1], foot[2], foot[3]);
+  }
+}
+
+/**
+ * White guard fences along the avenues' kerbs, open at the crosswalks: the pavement is for people, the road for
+ * the traffic, and everyone crosses at the zebras.
+ */
+export function rails(d: Dresser): void {
+  const b = d.b, k = b.k;
+  for (const r of railRuns()) {
+    const a = r.av, across = r.high ? ROAD1 + 1 : PAVE;
+    // two-metre panels, each at the height of the ground under it (up over Neon-dori's bridge)
+    for (let u = r.lo; u <= r.hi; u += 8) {
+      const u1 = Math.min(r.hi, u + 7);
+      let len = u1 - u + 1;
+      if (a === NEON && bridgeRise(u) !== bridgeRise(u1)) len = [...Array(len).keys()].findIndex((i) => bridgeRise(u + i) !== bridgeRise(u)) || len;
+      const end = u + len - 1;
+      const y = a === NEON ? bridgeRise(u) * V : 0;
+      const mid = ((u + end + 1) / 2) * V, cr = (( a.ew ? a.z0 : a.x0) + across + 0.5) * V;
+      const [x, z] = a.ew ? [mid, cr] : [cr, mid];
+      b.place(guardRail(k, len * V - 0.02), x, y, z, a.ew ? 0 : 1);
+      const rect: [number, number, number, number] = a.ew ? [u * V, cr - 0.12, (end + 1) * V, cr + 0.12] : [cr - 0.12, u * V, cr + 0.12, (end + 1) * V];
+      d.take(rect);
+      b.block(rect[0], rect[1], rect[2], rect[3]);
+      u = end - 7;
     }
   }
 }
 
-/** Place a prop turned by `turns` so that its local point `at` (prop voxels, x and z) lands on (x, z) metres. */
-function placeBy(b: Builder, p: Prop, at: [number, number], x: number, z: number, turns: number): void {
-  let [px, pz] = at, sx = p.sx, sz = p.sz;
-  for (let t = 0; t < ((turns % 4) + 4) % 4; t++) { [px, pz] = [pz, sx - px]; [sx, sz] = [sz, sx]; }
-  b.place(p, x + (sx / 2 - px) * p.scale, 0, z + (sz / 2 - pz) * p.scale, turns);
-}
 
 // ---------------------------------------------------------------------------------------------
 // Lanes: convex mirrors at the blind corners, and the cables strung every which way between the houses

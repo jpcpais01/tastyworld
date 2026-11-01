@@ -11,7 +11,7 @@ import {
   Prop, rotateProp, potCluster, plantPot, bicycle, umbrellaStand, gasTanks, crateStack, binCorner, hangingSign, furin, aFrame, stool, cafeTable, scooter, nobori,
   lantern, wire, bunting, streetPlanter, bannerPole, utilityBox, workBarrier, trafficCone, bench, bush, grassTuft, laundryRack, swingSet, slide, vendingMachine,
 } from './props';
-import { roadMarks, signals, lanes, paper } from './details';
+import { roadMarks, signals, rails, lanes, paper } from './details';
 import { STREETS, Street, streetAt, tree, hillAt, INARI_PATH, CityResult } from './city';
 
 // ---------------------------------------------------------------------------------------------
@@ -142,6 +142,7 @@ export function dress(b: Builder, city: CityResult): void {
   }
   roadMarks(b);
   signals(d);
+  rails(d);
   pedestrianStreets(d);
   plaza(d);
   for (const f of n.fronts) { front(d, f); paper(b, f); }

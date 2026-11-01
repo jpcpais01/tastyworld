@@ -680,6 +680,15 @@ class Game {
       prompt: () => ['door', TEXT.hidden.exit, HILLSIDE ? 'Push the door open' : 'Slide the door open'],
       act: () => void this.teleport(false),
     });
+    if (NEO) {
+      // the Greenhouse's first soil bed, where the old seed lines go in (First Harvest)
+      const [gx, , gz] = INTERIOR_ORIGIN;
+      this.interactables.push({
+        key: 'seedbed', x: gx + 3.25, z: gz + 10.75, stand: [gx + 3.25, gz + 10.75], pick: [gx + 3.25, 0.9, gz + 9.3], r: 1.4, inside: true,
+        prompt: () => this.lifeSys.bedPrompt(),
+        act: () => this.lifeSys.seedBed(),
+      });
+    }
 
     // idlers with stories
     for (const id of a.idlers) {
@@ -2905,7 +2914,8 @@ class Game {
         // the player puts one up too, unless sheltered, riding the cable car or carrying food
         const pl0 = this.player, self = this;
         const me = { actor: pl0, key: 0, always: true, onFoot: !this.upstairs && !this.roomHere && pl0.hold === 'none' && (pl0.anim === 'walk' || pl0.anim === 'idle' || pl0.anim === 'run') };
-        this.umbrellas.update((function* () { yield me; yield* self.crowd.holders(); })(), this.rain?.amount ?? 0);
+        this.crowd.rain = this.rain?.amount ?? 0;
+        this.umbrellas.update((function* () { yield me; yield* self.crowd.holders(); })(), this.crowd.rain);
       }
       // cats only near enough to be seen: Istanbul has thirty of them spread over the whole map
       const catR = 40 + this.cam.zoom * 1.6, pp0 = this.player.position;

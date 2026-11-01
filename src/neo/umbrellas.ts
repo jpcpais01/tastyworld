@@ -59,18 +59,13 @@ export class Umbrellas {
     }
   }
 
-  /** Who shelters under one at this much rain: more of the crowd the harder it falls. */
-  private wants(key: number, rain: number): boolean {
-    const h = ((key * 2654435761) >>> 0) / 4294967296;
-    return rain > 0.15 && h < Math.min(0.75, (rain - 0.15) * 1.4);
-  }
-
   update(holders: Iterable<UmbrellaHolder>, rain: number): void {
     const counts = this.meshes.map(() => 0);
     const now = new Set<Actor>();
     for (const h of holders) {
       const a = h.actor;
-      const on = h.onFoot && (h.always ? rain > 0.15 : this.wants(h.key, rain));
+      // `always`: the crowd has already decided who carries one (see Crowd.brolly); the player always does
+      const on = h.onFoot && !!h.always && rain > 0.15;
       const r = a.reach[1];
       if (!on) {
         if (this.held.has(a)) r.on = false;

@@ -26,6 +26,7 @@ export const NEO_MISSIONS: Mission[] = [
   { id: 'n-seeds', name: 'Seeds of the Past', desc: 'Find the three seed capsules hidden in Halcyon.', progress: (s) => [s.manekis.length, 3], reward: { item: 'neoseed' } },
   { id: 'n-secret', name: 'The Greenhouse', desc: 'Eat at the hidden table where food still grows in soil.', progress: (s) => [s.tasted['realsteak'] || s.tasted['gardensalad'] ? 1 : 0, 1], reward: { yen: 500, item: 'neochef' } },
   { id: 'n-helix', name: 'Terminal Seven', desc: 'Wren says Helix Dynamics hides something on its top floor.', progress: (s) => [life(s).secrets.includes('helix') ? 1 : 0, 1], reward: { yen: 2000, title: 'Ghost in the Spire' } },
+  { id: 'n-harvest', name: 'First Harvest', desc: 'Plant the old seed capsules in the Greenhouse and see them grow.', progress: (s) => [(life(s).quests.harvest ?? 0) >= 2 ? 1 : 0, 1], reward: { yen: 1000, title: 'Seedkeeper' } },
   { id: 'n-secrets', name: 'Under the Neon', desc: 'Uncover five of the city\'s secrets.', progress: (s) => [Math.min(5, life(s).secrets.length), 5], reward: { yen: 800, title: 'Urban Legend' } },
   { id: 'n-master', name: 'Halcyon Gourmet', desc: `Fill your food log with all ${NEO_DISHES.length} dishes.`, progress: (s) => [ate(s), NEO_DISHES.length], reward: { yen: 3000, title: 'Halcyon Gourmet', item: 'neogold' } },
 ];

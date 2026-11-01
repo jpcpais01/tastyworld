@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.2',
+    date: '2026-11-01',
+    title: '2040: Helix Dynamics and Orbit Mall',
+    items: [
+      'Helix Dynamics in the Spire now has four floors to get into: an open-plan office, the security room with its wall of camera feeds, Dr. Vey\'s executive office, and a restricted floor where Terminal Seven glows between rows of blinking servers.',
+      'A new quest, Terminal Seven. Wren, the netrunner by the Halo, wants someone to walk into Helix and plug her in. Dress the part to get a visitor pass, crack the security console for the lift override, find the executive keycard, and pull the file off Terminal Seven without setting off the alarm. What Helix is hiding changes how Halcyon eats.',
+      'Orbit Mall on the Neon Mile: take the lift to a fashion floor, a food court with twelve counters, and an arcade where Neon Racer\'s high score has stood since 2037. Beat it, try the claw machine, or just get the curry fries.',
+      'Lifts in Halcyon\'s towers now show a floor list, with the floors you cannot get into yet marked as locked. Every upper floor you visit counts towards Going Up.',
+      'Two new secrets to find, listed in the life panel.',
+    ],
+  },
+  {
     version: '0.20.1',
     date: '2026-11-01',
     title: '2040: work, clothes and a place to live',

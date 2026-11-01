@@ -435,6 +435,17 @@ export const NEO_HOTELS: HotelInfo[] = [
     lot: [0, 0], style: 'modern', floors: 4, rooms: [{ floor: 1, type: 'double', price: 480, buy: 32000 }, { floor: 2, type: 'king', price: 700, buy: 48000 }, { floor: 3, type: 'king', price: 950, buy: 75000 }],
     keeper: 'Doorman Ezekiel', keeperLook: { ...DESK, top: 0x16161c, accent: 0xc8a040, skin: 0x6a4630, hair: 0x6b6b70 },
     lines: ['Good evening. Residents and their guests only. Are you a resident? Not yet, perhaps.', 'The penthouse faces the bay. The sunrise comes in gold through the smog.', 'Helix pays for half these flats. They never come home to them.'] },
+  // public buildings with upper floors reached by the lift (main.ts venue floors; world/hotels.ts furnishes them)
+  { id: 'helix', name: 'Helix Dynamics', jp: 'HELIX', street: 'The Spire District', theme: 'office', venue: 'office', stairs: false,
+    blurb: 'The tallest tower in the Spire. Helix grows half the city\'s food in vats, and it does not like visitors.',
+    lot: [0, 0], style: 'modern', floors: 13, rooms: [{ floor: 1, type: 'double', price: 0 }, { floor: 2, type: 'double', price: 0 }, { floor: 3, type: 'king', price: 0 }, { floor: 4, type: 'king', price: 0 }],
+    keeper: 'Receptionist Imani', keeperLook: { ...DESK, top: 0x16161c, accent: 0x2ad8ff, hair: 0x16161c, hairStyle: 'bun', skin: 0x8a5a3c },
+    lines: ['Welcome to Helix Dynamics. Feeding Halcyon, one vat at a time.', 'Visitors are escorted at all times. Staff, badge in at the lift.', 'The upper floors are not open to the public. Is there something I can help you with?'] },
+  { id: 'orbitmall', name: 'Orbit Mall', jp: 'ORBIT', street: 'Neon Mile', theme: 'mall', venue: 'mall', stairs: false,
+    blurb: 'Four floors of shopping on the Mile: fashion, a food court under a glowing ceiling, and the loudest arcade in the city.',
+    lot: [0, 0], style: 'modern', floors: 6, rooms: [{ floor: 1, type: 'double', price: 0 }, { floor: 2, type: 'double', price: 0 }, { floor: 3, type: 'double', price: 0 }],
+    keeper: 'Info desk', keeperLook: { ...DESK, topStyle: 'vest', top: 0xff5fb4, accent: 0x16161c, hair: 0xa47bff, hairStyle: 'ponytail' },
+    lines: ['Welcome to Orbit! Fashion on one, food court on two, arcade on three.', 'The arcade high score on Neon Racer has stood since 2037. Nobody knows who TRN is.', 'Lifts are by the desk. Mind the drones, they are just cleaning.'] },
 ];
 
 export const NEO_ROOM_TYPE = {

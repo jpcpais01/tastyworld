@@ -229,6 +229,21 @@ export class LifeUI {
     draw();
   }
 
+  // ------------------------------------------------------------------ lift
+  lift(building: string, floors: { label: string; sub: string; locked: string | null; here: boolean; go: () => void }[]): void {
+    const p = this.kit.panel('panel n-lift');
+    this.kit.head(p, esc(building), '', 'Lift · choose a floor', icon('lift'));
+    const body = h('div', 'panel-body');
+    const list = h('div', 'n-floors');
+    for (const f of [...floors].reverse()) {
+      const b = h('button', 'n-floor' + (f.locked ? ' locked' : '') + (f.here ? ' here' : ''), `<b>${esc(f.label)}</b><span>${f.here ? 'You are here' : f.locked ? `${G.lock}${esc(f.locked)}` : esc(f.sub)}</span>`);
+      b.onclick = () => { if (f.here) return; this.kit.play('click'); if (!f.locked) this.kit.close(); f.go(); };
+      list.appendChild(b);
+    }
+    body.appendChild(list);
+    p.appendChild(body);
+  }
+
   // ------------------------------------------------------------------ data jack minigame
   /** Three bands sweep up and down; stop each inside its window. done(score 0..3), or -1 when abandoned. */
   tune(done: (score: number) => void): void {

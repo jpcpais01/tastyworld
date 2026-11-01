@@ -213,7 +213,7 @@ function assign(lots: Plan[]) {
   put('stacks', [{ hotel: H('stackshostel') }, { hotel: H('kowaflats') }], hotelOk);
   put('stacks', [{ restaurant: { id: 'myco', kind: 'izakaya' } }], roomOk);
   put('stacks', [{ hidden: true }], (p) => widthOf(p) >= 32 && depthOf(p) >= 20 && p.x0 > M(-150));
-  put('neonmile', [{ hotel: H('neonnest') }], hotelOk);
+  put('neonmile', [{ hotel: H('neonnest') }, { hotel: H('orbitmall') }], hotelOk);
   put('neonmile', [{ stall: 'boba' }, { stall: 'takoyard' }], stallOk);
   put('neonmile', [{ restaurant: { id: 'greenbun', kind: 'cafe' } }, { restaurant: { id: 'mochi', kind: 'bakery' } }, { restaurant: { id: 'crepe', kind: 'kissa' } }, { restaurant: { id: 'ion', kind: 'izakaya' } }], roomOk);
   put('docks', [{ stall: 'krillking' }, { stall: 'cricket' }], (p) => depthOf(p) >= 12 && widthOf(p) >= 16);
@@ -298,7 +298,7 @@ function helixTower(lot: Lot, n: NC, seed: number) {
   const b = lot.b;
   const w = lot.width, dep = lot.depth;
   const floors = 13;
-  const { H } = building(lot, { floors, style: 'modern', ground: 'shop', seed, wall: n.blackGlass, signs: false });
+  const { H } = building(lot, { floors, style: 'modern', ground: 'hotel', hotel: HOTEL.helix, seed, wall: n.blackGlass, signs: false, roof: 'flat' });
   // the double helix in light up the middle of the face
   const mid = w / 2;
   for (let y = 16; y < H - 2; y++) {

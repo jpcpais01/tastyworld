@@ -14,7 +14,7 @@ import { eur, lira } from './money';
 
 export type RoomType = 'single' | 'twin' | 'double' | 'king' | 'tatami';
 /** Furnishing and colours of the rooms and the lobby. */
-export type HotelTheme = 'inn' | 'ryokan' | 'business' | 'boutique' | 'guesthouse' | 'park' | 'sky' | 'pensione' | 'locanda' | 'palazzo' | 'marina';
+export type HotelTheme = 'office' | 'mall' | 'inn' | 'ryokan' | 'business' | 'boutique' | 'guesthouse' | 'park' | 'sky' | 'pensione' | 'locanda' | 'palazzo' | 'marina';
 
 export interface HotelRoomSpec {
   /** Floor above the lobby (1..4). In Japan the lobby is the first floor, so floor 1 holds room 201. */
@@ -45,6 +45,8 @@ export interface HotelInfo {
   stairs?: boolean;
   /** 2040: a residence letting flats by the week (room price), some for sale outright. */
   residence?: boolean;
+  /** 2040: a public building whose upper floors are offices or mall levels, reached by its lift (not a hotel). */
+  venue?: 'office' | 'mall';
 }
 
 const DESK: Partial<Look> = { topStyle: 'suit', top: 0x2b3a62, accent: 0xf2efe7, bottom: 0x2b3a62, hat: 'none', backpack: undefined };
@@ -346,7 +348,7 @@ const AMALFI_HOTELS: HotelInfo[] = [
 /** Every building with a front desk and rooms upstairs: the hotels, and in 2040 the residences that let flats. */
 const ALL_HOTELS: HotelInfo[] = perCity({ tokyo: TOKYO_HOTELS, amalfi: AMALFI_HOTELS, istanbul: ISTANBUL_HOTELS, madeira: MADEIRA_HOTELS, neo: NEO_HOTELS });
 /** The hotels of the city on this trip. */
-export const HOTELS: HotelInfo[] = ALL_HOTELS.filter((h) => !h.residence);
+export const HOTELS: HotelInfo[] = ALL_HOTELS.filter((h) => !h.residence && !h.venue);
 export { ISTANBUL_HOTELS };
 
 /** Whether guests climb the stairs to their rooms (a ryokan, every house on the coast) rather than take a lift. */

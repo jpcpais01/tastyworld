@@ -37,6 +37,12 @@ export interface LifeHost {
   vitals(): Vitals | null;
   hour(): number;
   flash(): void;
+  /** Ride the lift to a floor of a building (null: back down to the lobby). */
+  goFloor(ha: HotelAnchor, rm: HotelRoomAnchor | null): void;
+  /** Which floor of which building the player is on, if upstairs. */
+  upstairs(): HotelRoomAnchor | null;
+  dialogue(name: string, lines: string[], done?: () => void): void;
+  shake(): void;
 }
 
 /** The city's secrets as the life panel lists them. */
@@ -45,6 +51,8 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'greenhouse', name: 'The Greenhouse', text: 'Behind a rusted door in the Stacks, food still grows in real soil.', found: (s) => !!s.hiddenFound },
   { id: 'shelfseeds', name: 'Shop-shelf capsules', text: 'Seed capsules tucked away on the shelves of the city\'s shops.', found: (s) => s.darumas.length >= 3 },
   { id: 'helix', name: 'Terminal Seven', text: 'What Helix Dynamics keeps on its top floor.', found: (_s, L) => L.secrets.includes('helix') },
+  { id: 'mail', name: 'Do not put this in writing', text: 'An open email on a Helix workstation.', found: (_s, L) => L.secrets.includes('helix-mail') },
+  { id: 'trn', name: 'Beat TRN', text: 'The Neon Racer high score at Orbit Mall has stood since 2037.', found: (_s, L) => L.secrets.includes('trn') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 
@@ -292,6 +300,186 @@ export class NeoLifeSys {
       homeName: this.homeValid() ? this.homeName() : null,
       runner: this.gigs,
       quit: () => this.quit(),
+    });
+  }
+
+  // ------------------------------------------------------------------ venues: Helix Dynamics and Orbit Mall
+  private get helix(): number { return this.life.quests.helix ?? 0; }
+  private set helix(v: number) { this.life.quests.helix = v; this.h.save(); }
+
+  /** Floor names, and whether the lift will take you there. */
+  private floors(ha: HotelAnchor): { rm: HotelRoomAnchor; label: string; sub: string; locked: string | null }[] {
+    const office = HOTEL[ha.id]?.venue === 'office';
+    return ha.rooms.map((rm) => {
+      const f = rm.floor;
+      if (!office) return { rm, label: `Level ${f}`, sub: ['', 'Fashion', 'Food court', 'Arcade'][f] ?? 'Shops', locked: null };
+      const need = f <= 2 ? 2 : f === 3 ? 3 : 4;
+      const label = ['', 'Open plan', 'Security', 'Executive', 'Restricted'][f];
+      const sub = ['', 'Vat research, floor 1', 'Building security', 'Dr. Vey\'s office', 'Terminal Seven'][f];
+      const locked = this.helix >= need ? null : f <= 2 ? 'Visitor pass needed' : f === 3 ? 'Override code needed' : 'Executive keycard needed';
+      return { rm, label: `${f + 1}F · ${label}`, sub: this.helix >= need ? sub : '', locked };
+    });
+  }
+
+  /** The lift: a floor list. */
+  lift(ha: HotelAnchor): void {
+    const info = HOTEL[ha.id];
+    const here = this.h.upstairs();
+    this.ui.lift(info.name, [
+      { label: 'Lobby', sub: info.venue === 'office' ? 'Reception' : 'Information desk', locked: null, here: !here, go: () => this.h.goFloor(ha, null) },
+      ...this.floors(ha).map((f) => ({ label: f.label, sub: f.sub, locked: f.locked, here: here?.id === f.rm.id, go: () => {
+        if (f.locked) { this.h.play('fail'); this.h.ui.toast('lock', f.locked, info.venue === 'office' ? 'The lift reader blinks red. Helix keeps its floors locked.' : ''); return; }
+        this.h.goFloor(ha, f.rm);
+      } })),
+    ]);
+  }
+
+  /** The front desk downstairs. */
+  desk(ha: HotelAnchor, line: string): void {
+    const info = HOTEL[ha.id];
+    if (info.venue === 'mall') { this.h.dialogue(info.keeper, [line, 'Take the lift by the desk: fashion on 1, the food court on 2, the arcade on 3.']); return; }
+    const suit = this.life.look?.topStyle === 'suit';
+    if (this.helix === 0) { this.h.dialogue(info.keeper, [line]); return; }
+    if (this.helix === 1) {
+      if (!suit) { this.h.dialogue(info.keeper, ['Do you have an appointment?', 'No? Then I am afraid I cannot let you upstairs. Helix staff only.', '(She looks you up and down. Maybe if you looked like you worked here...)']); return; }
+      this.h.dialogue(info.keeper, ['Oh! Sorry, I did not recognise you. New in Compliance?', 'Here is a visitor pass for floors two and three. Do not lose it, they charge us for every one.'], () => {
+        this.helix = 2;
+        this.h.play('ding');
+        this.h.ui.toast('key', 'Visitor pass', 'The lift now goes to the open-plan floor and to Security. Wren said the code would be on a security console.', true);
+      });
+      return;
+    }
+    this.h.dialogue(info.keeper, [this.helix >= 5 ? 'There has been a... data incident. Not that you would know anything about that.' : 'Good to see you again. Badge in at the lift as usual.']);
+  }
+
+  /** Wren, the netrunner by the Halo, who starts the Helix job and pays for it. */
+  wren(name: string): boolean {
+    const q = this.helix;
+    if (q === 0) {
+      this.h.dialogue(name, [
+        'Hey. You are new. Good, nobody knows your face yet.',
+        'Helix Dynamics, the black tower in the Spire. Their top floor runs a machine called Terminal Seven. Something on it scares the people who built it.',
+        'I need someone to walk in and plug me in. Look like you belong, and the receptionist will give you a pass. Corpos only trust a suit.',
+        'Get to Terminal Seven and I will make it worth two thousand credits. Deal?',
+      ], () => { this.helix = 1; this.h.play('chime'); this.h.ui.toast('signal', 'Terminal Seven', 'Get a visitor pass at Helix Dynamics in the Spire. A suit from a tailor would help.', true); });
+      return true;
+    }
+    if (q < 5) {
+      const hint = q === 1 ? 'A suit. Atelier Vanta or Zenith Bespoke, both in the shops round the city. Then smile at reception.'
+        : q === 2 ? 'Security is on the third floor. Their console has the lift override for the executive floor. Lock the bands and it is yours.'
+          : q === 3 ? 'Dr. Vey runs the vat project. Her keycard opens the restricted floor. She leaves it on her desk; corpos always do.'
+            : 'You have the keycard. Top floor, Terminal Seven. Plug in, lock the signal, and get out before the alarm.';
+      this.h.dialogue(name, [hint]);
+      return true;
+    }
+    if (q === 5) {
+      this.h.dialogue(name, [
+        'You did it. I have the file. Project SEEDVAULT.',
+        'Helix bought the last seed bank in the hills ten years ago. They did not save it. They have been letting it die, so the vats are the only food left.',
+        'Whoever runs the Greenhouse in the Stacks should see this. Here, your two thousand. You earned every credit.',
+      ], () => { this.helix = 6; this.earn(2000); this.h.play('coin'); this.h.flash(); this.h.ui.toast('coin', `Paid ${TEXT.money(2000)}`, 'Wren is already uploading SEEDVAULT to every screen in the Mile.', true); });
+      return true;
+    }
+    this.h.dialogue(name, ['The feeds are full of SEEDVAULT. Helix shares fell off a cliff. Somebody said the hills are planting again.', 'Ghost in the Spire. That is what they call you on the net now.']);
+    return true;
+  }
+
+  /** The main spot (bed) or the second spot (tea) on a venue floor. */
+  spot(ha: HotelAnchor, rm: HotelRoomAnchor, which: 'main' | 'second'): void {
+    const info = HOTEL[ha.id];
+    if (info.venue === 'mall') return this.mallSpot(rm.floor, which);
+    const f = rm.floor;
+    if (which === 'second') {
+      if (f === 4) { this.h.ui.toast('lock', 'Fuse panel', 'Somebody has written HELP in marker on the inside of the cover.'); return; }
+      this.h.vitals()?.rested(6);
+      this.h.ui.toast('coffee', 'Free corp coffee', 'Synth beans, but free. Your eyes open a little wider.');
+      return;
+    }
+    if (f === 1) {
+      this.h.dialogue('Open workstation', ['An email is open on the screen: "RE: RE: SEEDVAULT timeline. Do not put this in writing."', 'Another: "Reminder: the hills are off limits. Again. Stop asking."', 'A sticky note on the monitor: "Vey keeps her card on her desk. Every night. Every. Night."']);
+      if (!this.life.secrets.includes('helix-mail')) this.life.secrets.push('helix-mail');
+      return;
+    }
+    if (f === 2) {
+      if (this.helix >= 3) { this.h.ui.toast('signal', 'Security console', 'Camera feeds loop over and over. Nobody is watching them anyway.'); return; }
+      if (this.helix < 2) return;
+      this.h.ui.toast('signal', 'Security console', 'Lock all three bands to pull the lift override.');
+      this.ui.tune((sc) => {
+        if (sc < 0) return;
+        if (sc >= 2) { this.helix = 3; this.h.play('chime'); this.h.ui.toast('key', 'Override code: 7-7-0-4', 'The lift will now take you to the executive floor.', true); }
+        else { this.h.play('fail'); this.h.ui.toast('lock', 'Signal lost', 'The console locks you out for a moment. Try again.'); }
+      });
+      return;
+    }
+    if (f === 3) {
+      if (this.helix >= 4) { this.h.dialogue('Dr. Vey\'s desk', ['A framed photo: a young woman in a green field, holding a seedling. On the back: "Before. E.V."']); return; }
+      this.h.dialogue('Dr. Vey\'s desk', ['A handwritten note: "Seven is not a terminal. It is a confession."', 'Under it, a keycard on a Helix lanyard: DR. E. VEY, EXECUTIVE.', 'You pocket it.'], () => {
+        this.helix = 4; this.h.play('ding'); this.h.ui.toast('key', 'Executive keycard', 'The lift will take you to the restricted floor: Terminal Seven.', true);
+      });
+      return;
+    }
+    // Terminal Seven
+    if (this.helix >= 5) { this.h.dialogue('Terminal Seven', ['FILE ALREADY COPIED. SESSION CLOSED.', 'A last line blinks on the screen: "Thank you."']); return; }
+    this.h.ui.toast('signal', 'Terminal Seven', 'Plug Wren in: lock all three bands. Miss twice and the alarm goes.');
+    this.ui.tune((sc) => {
+      if (sc < 0) return;
+      if (sc >= 2) {
+        this.helix = 5;
+        if (!this.life.secrets.includes('helix')) this.life.secrets.push('helix');
+        this.h.play('chime');
+        this.h.flash();
+        this.h.dialogue('Terminal Seven', [
+          'PROJECT SEEDVAULT. CLASSIFICATION: BLACK.',
+          'Seed bank acquired 2030. Viability programme cancelled 2031. Remaining stock: 312 species. Decline: 40% per year.',
+          'Objective: no food supply outside licensed vats by 2042.',
+          'The download bar fills. Wren\'s voice in your ear: "Got it. Now walk out slowly."',
+        ], () => this.h.ui.toast('signal', 'Get out and find Wren', 'Wren waits by the Halo for the file.', true));
+      } else {
+        this.h.play('fail');
+        this.h.shake();
+        this.h.dialogue('Terminal Seven', ['ALARM. UNAUTHORISED ACCESS.', 'Two guards walk you to the lift and down to the lobby. Next time, lock the signal faster.'], () => {
+          this.h.goFloor(ha, null);
+        });
+      }
+    });
+  }
+
+  private mallSpot(f: number, which: 'main' | 'second'): void {
+    if (f === 1) {
+      if (which === 'second') { this.h.ui.toast('coat', 'The mirror', 'Looking good. Halcyon agrees.'); this.openLife('wardrobe'); return; }
+      const all: (keyof typeof BOUTIQUES)[] = ['street', 'tech', 'corpo', 'thrift'];
+      const b = BOUTIQUES[all[this.life.day % all.length]];
+      this.ui.boutique({ ...b, stock: [...new Set([...BOUTIQUES.street.stock.slice(0, 3), ...b.stock])] }, 'Orbit Fashion', 'Kiosk AI', 'Today\'s edit, chosen by an algorithm that has never been outside.');
+      return;
+    }
+    if (f === 2) {
+      if (which === 'second') {
+        if (!this.spend(6)) { this.h.play('fail'); return; }
+        this.h.vitals()?.ate(12, 1);
+        this.h.ui.toast('drop', 'Glow boba', 'The pearls light up when you bite them.');
+        return;
+      }
+      this.h.ui.shop('Orbit Food Court', 'FOOD COURT', 'Level 2 · twelve counters', 'Counter 4', 'Noodles, bao or the curry fries? Everybody gets the curry fries.', [
+        { icon: 'ramen', name: 'Kelp noodles', price: 11, text: 'Hand-pulled at counter 2, in a broth that has been going since the mall opened.', snack: true },
+        { icon: 'nikuman', name: 'Vat bao, two', price: 8, text: 'Fluffy, glossy, and only slightly suspicious.', snack: true },
+        { icon: 'corn', name: 'Curry fries', price: 7, text: 'The Orbit classic. Do not ask what is in the curry.', snack: true },
+      ], (it) => { if (!this.spend(it.price)) return false; this.h.vitals()?.ate(26, 2); this.h.play('coin'); return true; });
+      return;
+    }
+    if (which === 'second') {
+      if (!this.spend(3)) { this.h.play('fail'); return; }
+      const won = Math.random() < 0.25;
+      this.h.ui.toast(won ? 'cat' : 'chat', won ? 'You won a plush krill!' : 'So close', won ? 'The claw actually held on. A first in recorded history.' : 'The claw lets go at the very top. Of course it does.');
+      return;
+    }
+    if (!this.spend(4)) { this.h.play('fail'); this.h.ui.toast('purse', 'Insert credits', 'Neon Racer takes 4 credits a go.'); return; }
+    this.h.ui.toast('signal', 'Neon Racer', 'Lock the three bands to hit the boost gates.');
+    this.ui.tune((sc) => {
+      if (sc < 0) return;
+      const prize = [0, 2, 6, 25][sc];
+      if (prize) this.earn(prize);
+      this.h.ui.toast('trophy', sc === 3 ? 'New high score!' : sc ? 'Not bad' : 'Crashed', sc === 3 ? `TRN is dethroned. The machine pays out ${TEXT.money(prize)}.` : prize ? `${TEXT.money(prize)} in tickets.` : 'Your car is a fireball. The crowd cheers anyway.');
+      if (sc === 3 && !this.life.secrets.includes('trn')) { this.life.secrets.push('trn'); this.h.save(); }
     });
   }
 

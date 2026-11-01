@@ -2586,9 +2586,15 @@ const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank
   cha: { floor: 'marble', wall: 'white', wain: 'shutterGreen', cloth: ['white', 'cream'], front: 'shutterGreen', awning: ['hullGreen', 'white'] },
   gelataria: { floor: 'check', wall: 'white', wain: 'ochre', cloth: ['majolicaYellow', 'white'], front: 'ochre', awning: ['majolicaYellow', 'white'] },
   snack: { floor: 'tile', wall: 'cream', wain: 'hullRed', cloth: ['hullRed', 'white'], front: 'hullRed', awning: ['hullRed', 'white'] },
+  pasto: { floor: 'cotto', wall: 'whiteWarm', wain: 'shutterBrown', cloth: ['hullGreen', 'white'], front: 'shutterBrown', awning: ['hullGreen', 'cream'] },
+  bacalhoeiro: { floor: 'plank', wall: 'cream', wain: 'azulejo', cloth: ['ferryBlue', 'white'], front: 'shutterBlue', awning: ['ferryBlue', 'cream'] },
+  ilheu: { floor: 'majolica', wall: 'white', wain: 'shutterBlue', cloth: ['white', 'umbrellaC'], front: 'shutterBlue', awning: ['umbrellaC', 'white'] },
+  confeitaria: { floor: 'check', wall: 'pink', wain: 'white', cloth: ['pink', 'white'], front: 'shutterGreen', awning: ['pink', 'white'] },
+  castanha: { floor: 'plank', wall: 'plasterOld', wain: 'cantaria', cloth: ['stripeDark', 'cream'], front: 'door', awning: ['door', 'cream'] },
+  teatro: { floor: 'marble', wall: 'cream', wain: 'door', cloth: ['white', 'white'], front: 'door', awning: ['hullRed', 'cream'] },
 };
 /** Which of the Amalfi rooms each Funchal place furnishes itself like: the coffee bar, the pastry case, the hearth, the fish on ice... */
-const EAT_LOOK: Record<string, string> = { cafe: 'duomo', pastelaria: 'dolceria', espetada: 'masseria', espada: 'saraceno', atum: 'colatura', tasca: 'gemma', adega: 'cantina', picado: 'ruocco', mercado: 'andrea', churrasqueira: 'forno', taberna: 'chiostro', cha: 'terrazza', gelataria: 'duomo', snack: 'ruocco' };
+const EAT_LOOK: Record<string, string> = { cafe: 'duomo', pastelaria: 'dolceria', espetada: 'masseria', espada: 'saraceno', atum: 'colatura', tasca: 'gemma', adega: 'cantina', picado: 'ruocco', mercado: 'andrea', churrasqueira: 'forno', taberna: 'chiostro', cha: 'terrazza', gelataria: 'duomo', snack: 'ruocco', pasto: 'gemma', bacalhoeiro: 'colatura', ilheu: 'saraceno', confeitaria: 'dolceria', castanha: 'masseria', teatro: 'duomo' };
 
 /**
  * A restaurant's ground floor: a room on the level of the path, its door open, windows either side, a majolica

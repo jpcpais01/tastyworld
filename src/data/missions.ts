@@ -22,7 +22,7 @@ export interface Mission {
 
 const tasted = (s: SaveState) => Object.keys(s.tasted);
 const AMALFI_COUNT = DISHES.length;
-const AMALFI_STALL_IDS = ['pansa', 'cuoppo', 'portafoglio', 'gelato', 'limonaia', 'duomo', 'gemma', 'saraceno', 'forno', 'cantina', 'ruocco', 'andrea', 'dolceria', 'colatura', 'masseria', 'chiostro', 'terrazza'];
+const AMALFI_STALL_IDS = ['pansa', 'cuoppo', 'portafoglio', 'gelato', 'limonaia', 'duomo', 'gemma', 'saraceno', 'forno', 'cantina', 'ruocco', 'andrea', 'dolceria', 'colatura', 'masseria', 'chiostro', 'terrazza', 'salumeria', 'marinella', 'osteria', 'graffe', 'chiosco', 'scogliera', 'titina', 'caseificio'];
 /** Amalfi's sit-down restaurants (the hidden grotta has its own mission). */
 const AMALFI_TABLES = STALLS.filter((st) => st.restaurant && !st.hidden).map((st) => st.id);
 const dinedAt = (s: SaveState) => AMALFI_TABLES.filter((st) => Object.keys(s.tasted).some((d) => DISH[d as keyof typeof DISH]?.stall === st));
@@ -100,7 +100,7 @@ const ISTANBUL_MISSIONS: Mission[] = [
   { id: 'i-master', name: 'Master of Istanbul', desc: `Collect all ${AMALFI_COUNT} Istanbul passport stamps.`, progress: (s) => [AMALFI_TASTED(s), AMALFI_COUNT], reward: { yen: lira(2500), title: 'Istanbul Gourmet', item: 'goldtulip' } },
 ];
 
-const MADEIRA_STALL_IDS = ['caco', 'poncha', 'frutas', 'malasadas', 'espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack'];
+const MADEIRA_STALL_IDS = ['caco', 'poncha', 'frutas', 'malasadas', 'espetada', 'espada', 'atum', 'tasca', 'pastelaria', 'adega', 'cafe', 'picado', 'mercado', 'churrasqueira', 'taberna', 'cha', 'gelataria', 'snack', 'pasto', 'bacalhoeiro', 'ilheu', 'confeitaria', 'castanha', 'teatro'];
 const MADEIRA_MISSIONS: Mission[] = [
   { id: 'm-first-bite', name: 'Bom Apetite', desc: 'Taste your first dish in Funchal.', progress: (s) => [Math.min(1, AMALFI_TASTED(s)), 1], reward: { yen: eur(20) } },
   { id: 'm-trio', name: 'Três Sabores', desc: 'Discover three foods of the island.', progress: (s) => [Math.min(3, AMALFI_TASTED(s)), 3], reward: { yen: eur(30), item: 'carapuca' } },

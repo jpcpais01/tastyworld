@@ -3,6 +3,8 @@ import type { FoodId } from '../world/food';
 import type { Look } from '../world/characters';
 import { perCity } from '../world/cityId';
 import { MADEIRA_STALLS } from './madeira';
+import { AMALFI_MORE_STALLS } from './amalfiMenu';
+import { MADEIRA_MORE_STALLS } from './madeiraMenu';
 import { ISTANBUL_MORE_STALLS } from './istanbulMenu';
 import { TOKYO_MORE_STALLS } from './tokyoMenu';
 
@@ -527,5 +529,5 @@ const ISTANBUL_STALLS: StallInfo[] = [
   },
 ];
 
-export const STALLS: StallInfo[] = perCity({ tokyo: [...TOKYO_STALLS, ...TOKYO_MORE_STALLS], amalfi: AMALFI_STALLS, istanbul: [...ISTANBUL_STALLS, ...ISTANBUL_MORE_STALLS], madeira: MADEIRA_STALLS });
+export const STALLS: StallInfo[] = perCity({ tokyo: [...TOKYO_STALLS, ...TOKYO_MORE_STALLS], amalfi: [...AMALFI_STALLS, ...AMALFI_MORE_STALLS], istanbul: [...ISTANBUL_STALLS, ...ISTANBUL_MORE_STALLS], madeira: [...MADEIRA_STALLS, ...MADEIRA_MORE_STALLS] });
 export const STALL = Object.fromEntries(STALLS.map((s) => [s.id, s])) as Record<string, StallInfo>;

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
-import { farHouses, type FarLot, type FarTower } from './farhouses';
+import { farHouses, type FarTower } from './farhouses';
+import type { FarLot } from '../world/farTiles';
 import { hillY, shoreY, ribZ, ROAD_X0, PROM_X1 } from '../world/madeiraPlan';
 
 /**
@@ -142,7 +143,7 @@ const TREE_BOXES: [number, number, number, number, number, number][][] = [
   [[0, 0, 0, 0.5, 1.7, 0.5], [0, 1.4, 0, 3.4, 1.3, 3.0], [1.0, 2.2, 0.4, 2.0, 0.9, 1.9], [-1.1, 1.7, -0.7, 1.9, 1.0, 1.6], [0.3, 0.8, 0.0, 0.45, 0.9, 0.45]],
 ];
 
-export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh } {
+export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh; lots: FarLot[] } {
   const [x0, z0, x1, z1] = rect;
   const outside = (x: number, z: number) => Math.max(x0 - x, x - x1, z0 - z, z - z1, 0);
   // height where the far ground meets the map: what the map itself has at its edge, so the seam is a step at most
@@ -527,7 +528,11 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
   for (const v of VILLAGES) {
     let seed = v.seed * 7919;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const first = lots.length;
     for (let i = 0; i < v.n * 7 && lots.length < 1400; i++) {
+      // (each is a real voxel house baked before the game starts: about 450 in all keeps that to the time the town
+      // takes, shared out over the villages)
+      if (lots.length - first >= Math.round(v.n * 0.3)) break;
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * v.r;
       const x = v.x + Math.cos(a) * r, z = v.z + Math.sin(a) * r;
       const w = 4.5 + rnd() * 4.5, dd = 4 + rnd() * 4, sd = rnd();
@@ -562,7 +567,8 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
       steps.push([sx - 0.625, g[i] - 0.3, sz - 0.625, sx + 0.625, y[i] + 0.12, sz + 0.625, c]);
     });
   }
-  const houses = farHouses(u, SQUASH, HAZE, lots, towers, steps, 'funchal');
+  // (the houses themselves are the town's own, in voxels: engine/fartown.ts)
+  const houses = farHouses(u, SQUASH, HAZE, towers, steps);
 
   // ---- trees: on the scrub and in the woods near town, lemons in rows on the terraces, an olive or a cypress by
   // the villages; none on a path or in a house
@@ -712,5 +718,5 @@ export function farMadeira(shared: SharedUniforms, rect: Rect): { ground: THREE.
   floor.frustumCulled = false;
   floor.renderOrder = 11;
   ground.add(floor);
-  return { ground, houses };
+  return { ground, houses, lots };
 }

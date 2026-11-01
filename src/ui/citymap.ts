@@ -2,6 +2,7 @@ import { TEXT, localName } from '../data/cityText';
 import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, CITY } from '../world/cityId';
 import type { NavData } from '../world/bake';
 import type { Occluder, StallAnchor } from '../world/tokyo';
+import { NON_FOOD_ROOMS, type RoomAnchor } from '../world/interiors';
 import { V, G as STREET, WX0, WZ0, WX1, WZ1, WORLD_W, WORLD_D, ZONES, zoneAt } from '../world/layout';
 import { STALLS, type StallInfo } from '../data/stalls';
 import { DISHES } from '../data/dishes';
@@ -25,6 +26,8 @@ export interface MapWorld {
   stalls: StallAnchor[];
   /** Where the hidden restaurant is on the street (its interior lives off the map). */
   hiddenDoor: [number, number];
+  /** Walk-in rooms (shops, food rooms, restaurant interiors, hotel lobbies). */
+  rooms: Pick<RoomAnchor, 'id' | 'kind' | 'stall' | 'hotel'>[];
   /** Each hotel's front door (just inside it), by hotel id. */
   hotels: { id: string; entrance: [number, number] }[];
 }
@@ -302,7 +305,7 @@ export class CityMap {
       <div class="cm-sheet">
         <canvas class="cm-view" aria-label="Map of the city"></canvas>
         <div class="cm-folds" aria-hidden="true"></div>
-        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>${TEXT.district[0]} <span class="jp">${TEXT.district[1]}</span></h2><small>${TEXT.region}</small></div>
+        <div class="cm-title"><span class="eyebrow">Pocket map</span><h2>${TEXT.district[0]} <span class="jp">${TEXT.district[1]}</span></h2><small>${TEXT.region}</small>${this.foundPill()}</div>
         <button class="cm-btn cm-close" data-a="close" aria-label="Fold the map away">${G.close}</button>
         <div class="cm-tools">
           <button class="cm-btn" data-a="in" aria-label="Zoom in">${G.plus}</button>
@@ -365,6 +368,34 @@ export class CityMap {
   }
 
   // ------------------------------------------------------------------ data
+  /** Food places found in this city: stalls and restaurants walked past or tasted at, the hidden one once discovered,
+   *  and food rooms (cafés, izakaya, bakeries, lokantas...) once walked into. Counted from the city's own stall data and
+   *  baked rooms, so every city (and any new one) gets its own total. */
+  foodTally(): { found: number; total: number } {
+    const s = this.s;
+    let found = 0, total = 0;
+    for (const st of STALLS) {
+      // the hidden place has no street stall anchor (its door is placed on its own), but it counts
+      if (!st.hidden && !this.world.stalls.some((x) => x.id === st.id)) continue;
+      total++;
+      const tasted = DISHES.some((d) => d.stall === st.id && s.tasted[d.id]);
+      if (st.hidden ? s.hiddenFound || tasted : s.seen.includes(st.id) || tasted) found++;
+    }
+    // restaurant interiors are already counted through their passport vendor's stall
+    for (const r of this.world.rooms) {
+      if (r.stall || r.hotel || NON_FOOD_ROOMS.has(r.kind)) continue;
+      total++;
+      if (s.rooms.includes(r.id)) found++;
+    }
+    return { found, total };
+  }
+
+  private foundPill(): string {
+    const { found, total } = this.foodTally();
+    const all = total > 0 && found >= total;
+    return `<span class="cm-found${all ? ' ok' : ''}" aria-label="${found} of ${total} food places found">${all ? G.check : G.bowl}<b>${found}</b>/${total} food places found</span>`;
+  }
+
   private buildMarkers(): Marker[] {
     const s = this.s;
     const { next } = trackedMission(s);
@@ -372,12 +403,12 @@ export class CityMap {
     const out: Marker[] = [];
     for (const st of STALLS) {
       const a = this.world.stalls.find((x) => x.id === st.id);
-      if (!a) continue;
+      if (!a && !st.hidden) continue;
       const dishes = DISHES.filter((d) => d.stall === st.id);
       const done = dishes.filter((d) => s.tasted[d.id]).length;
       const seen = s.seen.includes(st.id) || done > 0;
       if (st.hidden && !s.hiddenFound) continue;
-      const [x, z] = st.hidden ? this.world.hiddenDoor : [a.vendor[0], a.vendor[2]];
+      const [x, z] = st.hidden || !a ? this.world.hiddenDoor : [a.vendor[0], a.vendor[2]];
       const kind: Marker['kind'] = !seen ? 'unknown' : st.hidden ? 'hidden' : st.restaurant ? 'resto' : 'stall';
       out.push({ id: st.id, kind, st, x, z, sx: 0, sy: 0, target: targets.has(st.id), done, total: dishes.length });
       const icon = dishes[0] && this.icons[dishes[0].id];

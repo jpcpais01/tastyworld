@@ -21,7 +21,7 @@ import { paintColors, picture, hangIn, type PaintColors } from './paintings';
  * The ground plan (heights, paths, lots) comes from world/madeiraPlan.ts; this fills it with voxels.
  */
 
-function madeiraColors(b: Builder) {
+export function madeiraColors(b: Builder) {
   const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
   const F = { leaf: true };
   const c = {
@@ -81,7 +81,7 @@ function madeiraColors(b: Builder) {
   return { ...c, dirt, damp };
 }
 
-type AC = ReturnType<typeof madeiraColors>;
+export type AC = ReturnType<typeof madeiraColors>;
 /** A plain colour of the town (not one of the shade tables). */
 type ACol = { [K in keyof AC]: AC[K] extends number ? K : never }[keyof AC];
 
@@ -547,7 +547,7 @@ function secretDoor(b: Builder, c: AC, plan: Plan): Anchors['hiddenDoor'] {
 }
 
 /** Material of a stone wall course (vertical faces of terraces, parapets, quays): dry basalt, or whitewashed. */
-function masonry(c: AC, x: number, y: number, z: number, white: boolean): number {
+export function masonry(c: AC, x: number, y: number, z: number, white: boolean): number {
   if (white) return hash3(x >> 1, y >> 2, z >> 1) < 0.06 ? c.plasterOld : c.whiteWarm;
   const course = y >> 1, off = course & 1 ? 1 : 0;
   const bx = (x + off * 2) / 3 | 0, bz = (z + off * 2) / 3 | 0;
@@ -749,7 +749,8 @@ function overPassage(plan: Plan, lt: LotPlan): boolean {
 }
 
 /** One Amalfi house: stucco cube on its terrace, shuttered windows, balconies, and a vault, dome or terrace on top. */
-function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
+/** One Funchal house; `ground` stands in for the plan outside the map (the villages on the slopes, world/amalfiFar.ts). */
+export function house(b: Builder, c: AC, plan: Plan | null, lt: LotPlan, ground?: (x: number, z: number) => number): void {
   const g = b.grid;
   const { x0, z0, x1, z1, base, top } = lt;
   b.occlude(x0, z0, x1, z1, (top - G) * V + 2.6, (base - G) * V + 0.95, 'building');
@@ -762,21 +763,21 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   const trim = r() < 0.6 ? c.white : c.sill;
   const roof = r();
   g.box(x0, base, z0, x1, top - 1, z1, (_x, y) => (y < base + 2 ? c.plinth : wall));
-  if (lt.hotel) hotelHouse(b, c, plan, lt);
+  if (lt.hotel && plan) hotelHouse(b, c, plan, lt);
   else if (lt.food) eatery(b, c, lt);
   // (a house built over a covered passage keeps its ground floor solid: the passage is carved through it, and a
   // hollow room there would open onto the vault, tiles, table and all)
-  else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14 && !overPassage(plan, lt)) room(b, c, lt);
+  else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14 && !(plan && overPassage(plan, lt))) room(b, c, lt);
   // a cornice under the roof, flush; the finish below picks out the rest
   g.box(x0, top - 1, z0, x1, top - 1, z1, trim);
   // what stands outside a facade cell: the ground level and whether a neighbour's wall is there
-  const outside = (x: number, z: number): number => {
-    if (x < VX0 || z < VZ0 || x >= VX0 + SX || z >= VZ0 + SZ) return 255;
+  const outside = ground ?? ((x: number, z: number): number => {
+    if (!plan || x < VX0 || z < VZ0 || x >= VX0 + SX || z >= VZ0 + SZ) return 255;
     const ci = col(x, z), id = plan.lot[ci];
     if (id) return plan.lots[id - 1].top;
     if (plan.kind[ci] === K.Church) return 255;
     return plan.walk[ci];
-  };
+  });
   const faces: { side: 'n' | 's' | 'e' | 'w'; n: number; at: (a: number) => [number, number]; out: (a: number) => [number, number] }[] = [
     { side: 'n', n: x1 - x0 + 1, at: (a) => [x0 + a, z0], out: (a) => [x0 + a, z0 - 1] },
     { side: 's', n: x1 - x0 + 1, at: (a) => [x1 - a, z1], out: (a) => [x1 - a, z1 + 1] },
@@ -785,7 +786,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   ];
   const floors = Math.floor((top - base) / 12);
   // a hotel's guest rooms open their own French windows on the view
-  const view = lt.hotel ? viewSide(plan, lt) : null;
+  const view = lt.hotel && plan ? viewSide(plan, lt) : null;
   // this house's own finish, hashed from its seed so the lot's rng (and the roof, chimney and climbers drawn
   // from it below) stays as it was
   const H = (k: number) => hash3(lt.seed, 41, k);
@@ -823,7 +824,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
         const [ox, oz] = f.out(a + 1);
         const ground = outside(ox, oz);
         if (ground > yb + 3) continue; // buried in the hill or against the neighbour
-        if (ox >= VX0 && oz >= VZ0 && ox < VX0 + SX && oz < VZ0 + SZ && plan.kind[col(ox, oz)] === K.Covered) continue; // onto a covered passage: its vault and the house over it
+        if (plan && ox >= VX0 && oz >= VZ0 && ox < VX0 + SX && oz < VZ0 + SZ && plan.kind[col(ox, oz)] === K.Covered) continue; // onto a covered passage: its vault and the house over it
         const [wx, wz] = f.at(a);
         const groundFloor = fl === 0 || ground > yb - 6;
         // shops on the piazza and the main street open arches at street level instead

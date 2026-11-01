@@ -8,6 +8,35 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.17',
+    date: '2026-11-01',
+    title: 'Real houses on the hills round Amalfi',
+    items: [
+      'The 268 houses in the villages on the slopes round Amalfi (Atrani, Ravello, Pontone, Pogerola and the town\'s own outskirts) are now built exactly like the houses in town, voxel by voxel: real windows set into the wall, louvred shutters, sills, balconies with iron rails and geraniums, stone door frames, cornices, rain streaks and patches of bare tufa, barrel vaults, domes, tiled roofs and roof terraces with pergolas.',
+      'Each one stands on its own dry-stone terrace wall with a little tiled terrace and a parapet in front of its door, and lit windows glow at night like the town\'s.',
+      'Houses close to you are drawn in full detail and the ones further up the mountain in coarser voxels, so the whole coast costs less to draw than the old simplified houses did.',
+    ],
+  },
+  {
+    version: '0.17.16',
+    date: '2026-11-01',
+    title: 'Every place to eat counts',
+    items: [
+      'The pocket map\'s food places counter now includes every café, izakaya, bakery, kissaten, soba shop, lokanta, kahve, börek and pide shop, sweet shop and spice stall you can walk into, not only the passport stalls and restaurants. A food room counts as found the first time you step inside.',
+      'Tokyo now has 142 places to find, Istanbul 31 and Amalfi 18.',
+    ],
+  },
+  {
+    version: '0.17.15',
+    date: '2026-11-01',
+    title: 'Food places found',
+    items: [
+      'The pocket map now shows how many of the city\'s food places you have found, under the city name: every stall, restaurant and the hidden place counts. A place is found once you have walked past it or eaten there, and the hidden one once you have discovered it.',
+      'Find them all and the counter turns green with a tick.',
+      'Once you have found the hidden place, it now has its own marker on the pocket map.',
+    ],
+  },
+  {
     version: '0.17.14',
     date: '2026-10-31',
     title: 'Light through stained glass',

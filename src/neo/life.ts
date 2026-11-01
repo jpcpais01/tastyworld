@@ -53,6 +53,7 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'helix', name: 'Terminal Seven', text: 'What Helix Dynamics keeps on its top floor.', found: (_s, L) => L.secrets.includes('helix') },
   { id: 'mail', name: 'Do not put this in writing', text: 'An open email on a Helix workstation.', found: (_s, L) => L.secrets.includes('helix-mail') },
   { id: 'trn', name: 'Beat TRN', text: 'The Neon Racer high score at Orbit Mall has stood since 2037.', found: (_s, L) => L.secrets.includes('trn') },
+  { id: 'harvest', name: 'First harvest', text: 'Plant the old seed lines in the Greenhouse and see them through to the table.', found: (_s, L) => L.secrets.includes('harvest') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 
@@ -352,6 +353,84 @@ export class NeoLifeSys {
     this.h.dialogue(info.keeper, [this.helix >= 5 ? 'There has been a... data incident. Not that you would know anything about that.' : 'Good to see you again. Badge in at the lift as usual.']);
   }
 
+  // ------------------------------------------------------------------ the Greenhouse seed bed: First Harvest
+
+  private q(k: string): number { return this.life.quests[k] ?? 0; }
+  private setQ(k: string, v: number): void { this.life.quests[k] = v; this.h.save(); }
+
+  /** What the seed bed in the Greenhouse offers right now. */
+  bedPrompt(): [string, string, string] {
+    const st = this.q('harvest'), grow = this.q('hGrow');
+    if (st === 0) return ['leek', 'Seed bed', this.h.s.manekis.length >= 3 ? 'Plant the old seeds' : 'Look at the empty bed'];
+    if (st >= 2) return ['tomato', 'Seed bed', 'Look at the bed'];
+    if (grow >= 3) return ['tomato', 'Seed bed', 'Harvest'];
+    return this.q('hWater') === this.life.day ? ['leek', 'Seed bed', 'Look at the shoots'] : ['drop', 'Seed bed', 'Water the bed'];
+  }
+
+  /**
+   * First Harvest: bring Ines the three seed capsules from the city's edges, plant them, water the bed on three
+   * different days, and she cooks what comes up. With SEEDVAULT out, the seeds go on to the hills.
+   */
+  seedBed(): void {
+    const MORA = 'Dr. Ines Mora', st = this.q('harvest'), day = this.life.day;
+    if (st === 0) {
+      if (this.h.s.manekis.length < 3) {
+        this.h.dialogue(MORA, this.helix >= 6 ? [
+          'You are the one who pulled SEEDVAULT out of the Spire. Wren told me. Sit, sit.',
+          'Helix let the seed bank in the hills die. But before the vats came, a few of us hid capsules of the old lines at the edges of the city.',
+          'Find all three and bring them to this bed. We start again here.',
+        ] : [
+          'This bed is kept for the old lines: seeds from before the vats, the ones nobody sells any more.',
+          'Years ago, a few of us hid capsules of them at the edges of the city. If you ever find all three, bring them here.',
+        ]);
+        return;
+      }
+      this.h.dialogue(MORA, [
+        'All three capsules. You found all three.',
+        'Tomato, runner bean, and a squash my grandmother grew. Kneel down, push them in a finger deep. Like that.',
+        'Real seeds are slow. Water the bed once a day, three days, and come back hungry.',
+      ], () => {
+        this.life.quests.harvest = 1; this.life.quests.hWater = day; this.setQ('hGrow', 1);
+        this.h.play('pop');
+        this.h.ui.toast('leek', 'Planted', 'Water the bed on two more days and it is ready.', true);
+      });
+      return;
+    }
+    if (st >= 2) {
+      this.h.dialogue(MORA, ['The bed is full of runners and fat green squash. Half of what grows here goes north to the hills now.', 'Come and eat whenever you like. You planted it.']);
+      return;
+    }
+    const grow = this.q('hGrow');
+    if (grow >= 3) {
+      this.h.dialogue(MORA, [
+        'Look at it. Tomatoes splitting with sun they have never seen. Beans. A squash the size of your head.',
+        'Pick it with me, then sit. I am cooking.',
+        'She roasts the squash in the wood oven, blisters the tomatoes, and tips the beans in with butter and salt. It tastes of something you did not know you had forgotten.',
+        ...(this.helix >= 6 ? ['"With SEEDVAULT on every screen, the farms in the hills are asking for seed. These will be theirs. Your seeds."'] : []),
+      ], () => {
+        this.setQ('harvest', 2);
+        if (!this.life.secrets.includes('harvest')) this.life.secrets.push('harvest');
+        this.h.vitals()?.ate(100, 40);
+        this.h.vitals()?.rested(15);
+        this.h.play('chime');
+        this.h.flash();
+        this.h.ui.toast('tomato', 'First Harvest', 'A meal grown from the old seeds. Hunger full, health restored.', true);
+        this.h.changed();
+      });
+      return;
+    }
+    if (this.q('hWater') === day) {
+      const look = grow <= 1 ? 'Pale shoots, barely out of the soil. The squash has two round leaves like a pair of hands.'
+        : 'Real leaves now, and the first yellow flowers on the squash. The beans have found the strings.';
+      this.h.ui.toast('leek', 'Seed bed', `${look} Water it again tomorrow.`);
+      return;
+    }
+    this.life.quests.hWater = day;
+    this.setQ('hGrow', grow + 1);
+    this.h.play('pop');
+    this.h.ui.toast('drop', 'Watered', grow + 1 >= 3 ? 'Something is ready to pick. Ines is watching the bed.' : 'One more day of water and it is ready.', grow + 1 >= 3);
+  }
+
   /** Wren, the netrunner by the Halo, who starts the Helix job and pays for it. */
   wren(name: string): boolean {
     const q = this.helix;
@@ -380,6 +459,7 @@ export class NeoLifeSys {
       ], () => { this.helix = 6; this.earn(2000); this.h.play('coin'); this.h.flash(); this.h.ui.toast('coin', `Paid ${TEXT.money(2000)}`, 'Wren is already uploading SEEDVAULT to every screen in the Mile.', true); });
       return true;
     }
+    if (this.q('harvest') >= 2) { this.h.dialogue(name, ['Ines sent me a tomato. A real one. I did not eat it for a day, I just looked at it.', 'Ghost in the Spire, and now a farmer. The net does not know what to call you.']); return true; }
     this.h.dialogue(name, ['The feeds are full of SEEDVAULT. Helix shares fell off a cliff. Somebody said the hills are planting again.', 'Ghost in the Spire. That is what they call you on the net now.']);
     return true;
   }

@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.5',
+    date: '2026-11-01',
+    title: '2040: First Harvest',
+    items: [
+      'A new quest, First Harvest. Dr. Ines Mora keeps a seed bed in the Greenhouse for the old lines, the seeds from before the vats. Bring her the three hidden seed capsules, plant them, water the bed on three different days, and she cooks what comes up.',
+      'Finish Terminal Seven first and the story runs on: the seeds go north to the hills, and Wren has something to say about it.',
+      'Caught in a downpour without an umbrella, people in Halcyon now run for it.',
+      'New mission and secret: First Harvest.',
+    ],
+  },
+  {
     version: '0.20.4',
     date: '2026-11-01',
     title: '2040: umbrellas',

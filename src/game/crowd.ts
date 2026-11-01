@@ -581,16 +581,31 @@ export class Crowd {
   }
 
   /** Bodies on foot drawn this frame, for things they carry (2040's umbrellas): a stable key per walker. */
-  *holders(): Generator<{ actor: Actor; onFoot: boolean; key: number }> {
-    const out = { actor: null as unknown as Actor, onFoot: false, key: 0 };
+  *holders(): Generator<{ actor: Actor; onFoot: boolean; key: number; always?: boolean }> {
+    const out = { actor: null as unknown as Actor, onFoot: false, key: 0, always: false };
     for (let i = 0; i < this.walkers.length; i++) {
       const w = this.walkers[i];
       if (w.hidden || !w.actor.root.visible) continue;
       const a = w.actor;
       out.actor = a; out.key = i;
-      out.onFoot = w.mode === 'foot' && !w.ride && a.hold === 'none' && (a.anim === 'walk' || a.anim === 'idle' || a.anim === 'talk' || a.anim === 'listen');
+      out.always = this.brolly(w);
+      out.onFoot = out.always && w.mode === 'foot' && !w.ride && a.hold === 'none' && (a.anim === 'walk' || a.anim === 'idle' || a.anim === 'talk' || a.anim === 'listen');
       yield out;
     }
+  }
+
+  /** How hard it is raining (2040's showers, 0..1): some put up umbrellas, the rest hurry for cover. */
+  rain = 0;
+
+  /** Whether this walker has an umbrella up in this much rain: more of them the harder it falls. */
+  private brolly(w: Walker): boolean {
+    const h = (w.laneR * 7.31 + w.out * 3.17) % 1;
+    return this.rain > 0.15 && h < Math.min(0.75, (this.rain - 0.15) * 1.4);
+  }
+
+  /** Caught in a downpour without one: a brisk run, except with a dog or a friend in tow. */
+  private dash(w: Walker): boolean {
+    return this.rain > 0.35 && w.mode === 'foot' && !w.mate && !w.lead && !w.pet && !this.brolly(w);
   }
 
   private release(w: Walker): void {
@@ -1191,7 +1206,7 @@ export class Crowd {
     }
     a.speed = w.v;
     if (w.ride) a.anim = 'idle';
-    else a.anim = w.v < 0.06 ? 'idle' : w.run && w.v > 1.9 ? 'run' : 'walk';
+    else a.anim = w.v < 0.06 ? 'idle' : (w.run || this.dash(w)) && w.v > 1.9 ? 'run' : 'walk';
     if (!near) a.facing = a.targetFacing;
     return Math.hypot(tx - p.x, tz - p.z);
   }
@@ -1255,7 +1270,7 @@ export class Crowd {
       }
     }
     const last = w.path.length <= 1;
-    const speed = w.run ? (w.mode === 'jog' ? w.pace : 2.7) : w.pace;
+    const speed = w.run ? (w.mode === 'jog' ? w.pace : 2.7) : this.dash(w) ? 2.3 : w.pace;
     const left = this.steer(w, w.tgt[0], w.tgt[1], speed * (last && w.goal.k !== 'node' ? Math.min(1, 0.45 + Math.hypot(w.tgt[0] - p.x, w.tgt[1] - p.z)) : 1), dt, pl, w.mate, near);
     if (left < (last ? 0.12 : w.mode === 'ride' ? 0.8 : 0.35)) {
       w.path.shift();

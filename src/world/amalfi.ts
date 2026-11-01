@@ -2724,6 +2724,20 @@ const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank
   masseria: { floor: 'cotto', wall: 'plasterOld', wain: 'shutterBrown', cloth: ['hullGreen', 'cream'], front: 'shutterBrown', awning: ['hullGreen', 'cream'] },
   chiostro: { floor: 'marble', wall: 'whiteWarm', wain: 'stripeTufa', cloth: ['marble', 'marbleGrey'], front: 'shutterDeep', awning: ['majolicaGreen', 'majolicaYellow'] },
   terrazza: { floor: 'marble', wall: 'white', wain: 'sky', cloth: ['white', 'white'], front: 'shutterBlue', awning: ['sky', 'white'] },
+  salumeria: { floor: 'plank', wall: 'cream', wain: 'shutterBrown', cloth: ['stripeDark', 'cream'], front: 'shutterBrown', awning: ['hullRed', 'cream'] },
+  marinella: { floor: 'tile', wall: 'white', wain: 'hullBlue', cloth: ['hullBlue', 'white'], front: 'shutterBlue', awning: ['hullBlue', 'white'] },
+  osteria: { floor: 'cotto', wall: 'plasterOld', wain: 'ochre', cloth: ['hullGreen', 'white'], front: 'doorGreen', awning: ['ochre', 'cream'] },
+  graffe: { floor: 'check', wall: 'cream', wain: 'majolicaYellow', cloth: ['majolicaYellow', 'white'], front: 'shutterGreen', awning: ['majolicaYellow', 'white'] },
+  chiosco: { floor: 'majolica', wall: 'whiteWarm', wain: 'majolicaGreen', cloth: ['lemonWall', 'white'], front: 'shutterGreen', awning: ['lemonWall', 'white'] },
+  scogliera: { floor: 'majolica', wall: 'white', wain: 'shutterBlue', cloth: ['white', 'umbrellaC'], front: 'shutterDeep', awning: ['shutterBlue', 'white'] },
+  titina: { floor: 'cotto', wall: 'whiteWarm', wain: 'rose', cloth: ['rose', 'white'], front: 'door', awning: ['rose', 'cream'] },
+  caseificio: { floor: 'tile', wall: 'white', wain: 'hullGreen', cloth: ['white', 'hullGreen'], front: 'hullGreen', awning: ['hullGreen', 'white'] },
+};
+
+/** The later places borrow the counter specials and dining kit of an older one (their own colours stay theirs). */
+const EAT_LOOK: Record<string, string> = {
+  salumeria: 'cantina', marinella: 'colatura', osteria: 'gemma', graffe: 'dolceria',
+  chiosco: 'duomo', scogliera: 'saraceno', titina: 'masseria', caseificio: 'ruocco',
 };
 
 /**
@@ -2736,8 +2750,9 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
   const g = b.grid;
   const L = eateryLayout(lt);
   const { W, D, mid, ca0, ca1, cd0, cd1 } = L;
-  const id = lt.food!;
-  const th = EAT_THEME[id];
+  const own = lt.food!;
+  const id = EAT_LOOK[own] ?? own;
+  const th = EAT_THEME[own];
   const ic = b.ic;
   const F = lt.base;
   const at = (a: number, d: number): [number, number] => {
@@ -2814,7 +2829,7 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
   const counterTop = id === 'cantina' || id === 'masseria' || id === 'colatura' ? c.door : c.marble;
   box(ca0, 1, cd0, ca1, 3, cd1, (a, y) => (y === 1 ? c.plinth : id === 'dolceria' || id === 'andrea' || id === 'duomo' ? (y === 3 ? c.sill : ic.case) : (a % 3 === 0 ? c.sill : front)));
   box(ca0, 4, cd0, ca1, 4, cd1, counterTop);
-  const dishes = STALL[id]?.dishes as FoodId[] | undefined;
+  const dishes = STALL[own]?.dishes as FoodId[] | undefined;
   if (dishes) dishes.forEach((f, i) => { const [x, z] = L.P(ca0 + 2.5 + i * 3.5, cd0 + 1); b.place(buildFood(f, b.pal), x, L.floorY + 1.0, z, faceTurn(L.out[0], L.out[1])); });
   // shelves on the back wall
   for (const y of [5, 7, 9]) box(2, y, D - 2, W - 3, y, D - 2, c.door);
@@ -2957,7 +2972,7 @@ const EAT_DRESS: Record<string, { goods: Goods[]; pics?: PictureKind[]; plates?:
  * a mat inside the door and a moulding under the ceiling.
  */
 function eateryDress(b: Builder, c: AC, lt: LotPlan, L: ReturnType<typeof eateryLayout>, get: Dine['get'], set: Dine['set']): void {
-  const id = lt.food!;
+  const id = EAT_LOOK[lt.food!] ?? lt.food!;
   const dr = EAT_DRESS[id];
   if (!dr) return;
   const { W, D, mid, ca0, ca1, cd0 } = L;

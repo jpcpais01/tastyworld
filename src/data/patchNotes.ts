@@ -8,6 +8,17 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.19.2',
+    date: '2026-11-01',
+    title: 'Amalfi and Funchal: fourteen new places to eat',
+    items: [
+      'Amalfi now has 26 places to eat, up from 18, and 52 passport dishes. Funchal has 25, up from 19, and 50 dishes.',
+      'In Amalfi: hot graffe and honeyed struffoli by the Duomo; a salumeria with a shared board and panini sliced to order; frittura di paranza and peppered mussels at a trattoria up the stairs; ziti alla genovese and pasta e fagioli at the osteria; lemon sorbet served in the lemon at a kiosk high above the harbour; spaghetti allo scoglio and stuffed squid by the sea; pasta e patate and a spaghetti frittata at Titina\'s; and buffalo mozzarella and provola grilled on a lemon leaf at the caseificio.',
+      'In Funchal: açorda and the island\'s own cuscuz at a casa de pasto; bacalhau à Gomes de Sá and cod fritters in the old town; seafood rice and sea snails at a marisqueira; sonhos with sugarcane honey and fennel candies at a confeitaria by the Sé; chestnut soup and chestnut liqueur up the hill; and a galão with a bolo de arroz at a café with a view of the whole bay.',
+      'Every new place has its own cook, its own colours, a cooking challenge and a pin on the map. The rest of both towns is exactly as it was.',
+    ],
+  },
+  {
     version: '0.19.1',
     date: '2026-11-01',
     title: 'Lo-fi for every city',

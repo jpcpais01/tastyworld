@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.10',
+    date: '2026-11-01',
+    title: 'Window glass you can feel',
+    items: [
+      'Looking out of a hotel room window, the glass is no longer invisible: it carries a faint cool tint, light catches along its edges where it meets the frame, and a soft wiped smear shows when you look closely, while the view out stays clear.',
+      'The pane now faintly mirrors the room behind you, a hint by day and a warm half reflection after dark when the lamps are on, and it grows more reflective as you look along it at an angle.',
+      'Looking toward the sun through a window gives a gentle glare on the glass.',
+    ],
+  },
+  {
     version: '0.18.9',
     date: '2026-11-01',
     title: 'Every place to eat on the map',

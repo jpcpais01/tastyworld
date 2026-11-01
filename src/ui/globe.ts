@@ -420,6 +420,14 @@ export function landmarkGeometry(id: string): THREE.BufferGeometry | null {
       b(0.5, 0.45, 0.35, 0.06, 0.45, 0.06, 0xe6c86a);
       b(0.5, 0.95, 0.35, 0.035, 0.06, 0.035, 0x5d9a6a, 600);
       break;
+    case 'madeira': // white houses with red roofs up a green island, the Sé's tiled spire, a cable car cabin on its wire
+      b(-0.15, 0.4, -0.15, 0.6, 0.4, 0.45, 0x4f8a3e);
+      b(-0.3, 1.0, -0.3, 0.38, 0.25, 0.28, 0x5f9a4a);
+      for (const [x, y, z] of [[0.35, 0.1, 0.3], [0.05, 0.1, 0.35], [-0.25, 0.1, 0.32], [0.25, 0.45, 0.05], [-0.1, 0.45, 0.1], [-0.35, 0.82, -0.05]] as const) { b(x, y, z, 0.11, 0.1, 0.09, 0xf6f1e8, LIT); b(x, y + 0.13, z, 0.12, 0.03, 0.1, 0xc4583a); }
+      b(0.52, 0.4, 0.2, 0.06, 0.4, 0.06, 0xf6f1e8);
+      b(0.52, 0.88, 0.2, 0.045, 0.08, 0.045, 0x2a5aa8, 600);
+      b(0.1, 1.15, 0.45, 0.07, 0.06, 0.07, 0xd83a2a);
+      break;
     case 'lisbon': // the Belém tower
       b(0, 0.3, 0, 0.32, 0.3, 0.32, 0xeee4cf, LIT);
       b(0, 0.85, 0, 0.2, 0.3, 0.2, 0xeee4cf, LIT);

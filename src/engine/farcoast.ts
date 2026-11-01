@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { COMMON } from './shaders';
 import type { SharedUniforms } from './renderer';
-import { farHouses, type FarLot, type FarTower } from './farhouses';
+import { farHouses, type FarTower } from './farhouses';
+import type { FarLot } from '../world/farTiles';
 import { hillY, footY, shoreY, headlandY, valleyZ, ROAD_X0, ROAD_X1 } from '../world/amalfiPlan';
 
 /**
@@ -155,7 +156,7 @@ const TREE_BOXES: [number, number, number, number, number, number][][] = [
   [[0, 0, 0, 0.5, 1.7, 0.5], [0, 1.4, 0, 3.4, 1.3, 3.0], [1.0, 2.2, 0.4, 2.0, 0.9, 1.9], [-1.1, 1.7, -0.7, 1.9, 1.0, 1.6], [0.3, 0.8, 0.0, 0.45, 0.9, 0.45]],
 ];
 
-export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh } {
+export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Group; houses: THREE.Mesh; lots: FarLot[] } {
   const [x0, z0, x1, z1] = rect;
   const outside = (x: number, z: number) => Math.max(x0 - x, x - x1, z0 - z, z - z1, 0);
   // height where the far ground meets the map: what the map itself has at its edge, so the seam is a step at most
@@ -578,7 +579,8 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
       steps.push([sx - 0.625, g[i] - 0.3, sz - 0.625, sx + 0.625, y[i] + 0.12, sz + 0.625, c]);
     });
   }
-  const houses = farHouses(u, SQUASH, HAZE, lots, towers, steps);
+  // (the houses themselves are the town's own, in voxels: engine/fartown.ts)
+  const houses = farHouses(u, SQUASH, HAZE, towers, steps);
 
   // ---- trees: on the scrub and in the woods near town, lemons in rows on the terraces, an olive or a cypress by
   // the villages; none on a path or in a house
@@ -728,5 +730,5 @@ export function farCoast(shared: SharedUniforms, rect: Rect): { ground: THREE.Gr
   floor.frustumCulled = false;
   floor.renderOrder = 11;
   ground.add(floor);
-  return { ground, houses };
+  return { ground, houses, lots };
 }

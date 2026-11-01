@@ -10,7 +10,7 @@
  */
 
 import { FLOORS, SOUND_SPOTS, Floor } from '../data/soundscape';
-import { AMALFI, ISTANBUL, HILLSIDE, perCity } from '../world/cityId';
+import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, perCity } from '../world/cityId';
 
 export type SfxName = 'click' | 'coin' | 'stamp' | 'success' | 'fail' | 'sizzle' | 'chop' | 'pop' | 'chime' | 'door' | 'meow' | 'whoosh' | 'jet'
   | 'bite' | 'crunch' | 'slurp' | 'sip' | 'drip' | 'blow' | 'clink' | 'rustle' | 'yum' | 'ding' | 'shutter';
@@ -150,6 +150,57 @@ const RIVIERA: Song = (() => {
       { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 1 },
       { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
       { prog: A, arp: true, lead: 'mando', bass: true, drums: 2 },
+      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 2 },
+      { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
+      { prog: B, arp: true, lead: 'nylon', bass: true, drums: 0 },
+    ],
+  };
+})();
+
+/**
+ * Funchal's tune: A minor with a turn to the major in the chorus, the mood of a fado sung at a café table rather than in
+ * a dark tavern. A nylon guitar (the viola) fingerpicks and sings the verse, the bright plucked string of the guitarra
+ * portuguesa takes the chorus and the break, upright bass and brushes keep it slow.
+ */
+const ATLANTICO: Song = (() => {
+  const A = [0, 1, 2, 3, 0, 1, 4, 3], B = [5, 6, 2, 3, 5, 6, 7, 0];
+  const m1: Phrase = [
+    [[0, 76, 2], [2, 77, 1], [3, 76, 1], [4, 72, 4]],
+    [[0, 74, 3], [3, 72, 1], [4, 71, 4]],
+    [[0, 69, 2], [2, 72, 2], [4, 76, 3], [7, 74, 1]],
+    [[0, 71, 6]],
+    [[0, 76, 2], [2, 77, 1], [3, 79, 1], [4, 81, 4]],
+    [[0, 79, 3], [3, 77, 1], [4, 76, 2], [6, 74, 2]],
+    [[0, 72, 2], [2, 71, 2], [4, 69, 2], [6, 71, 2]],
+    [[0, 69, 6]],
+  ];
+  const m2: Phrase = [
+    [[0, 81, 4], [4, 79, 2], [6, 77, 2]],
+    [[0, 76, 3], [3, 77, 1], [4, 79, 4]],
+    [[0, 77, 2], [2, 76, 2], [4, 74, 2], [6, 72, 2]],
+    [[0, 71, 4], [4, 72, 2], [6, 74, 2]],
+    [[0, 81, 3], [3, 83, 1], [4, 84, 4]],
+    [[0, 83, 2], [2, 81, 2], [4, 79, 2], [6, 77, 2]],
+    [[0, 76, 2], [2, 74, 2], [4, 72, 2], [6, 71, 2]],
+    [[0, 69, 6]],
+  ];
+  return {
+    chords: [
+      [45, 57, 60, 64, 67], // Am7
+      [38, 53, 57, 60, 65], // Dm7
+      [43, 53, 55, 59, 62], // G7
+      [40, 52, 56, 59, 62], // E7
+      [41, 53, 57, 60, 64], // Fmaj7
+      [36, 52, 55, 59, 64], // Cmaj7
+      [41, 53, 57, 60, 65], // F6
+      [40, 52, 55, 59, 64], // Em7
+    ],
+    bpm: 74, swing: 0.55, loopFrom: 1, style: 'riviera',
+    sections: [
+      { prog: A, bass: false, drums: 0 },
+      { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 1 },
+      { prog: B, mel: m2, lead: 'mando', bass: true, drums: 2 },
+      { prog: A, arp: true, lead: 'mando', bass: true, drums: 1 },
       { prog: A, mel: m1, lead: 'nylon', bass: true, drums: 2 },
       { prog: B, mel: m2, lead: 'flute', bass: true, drums: 2 },
       { prog: B, arp: true, lead: 'nylon', bass: true, drums: 0 },
@@ -313,7 +364,7 @@ export class Audio {
     this.setVolumes(this.vol.music, this.vol.amb, this.vol.sfx);
 
     const now = ctx.currentTime;
-    const song = perCity({ tokyo: BGM, amalfi: RIVIERA, istanbul: BOSPHORUS });
+    const song = perCity({ tokyo: BGM, amalfi: RIVIERA, istanbul: BOSPHORUS, madeira: ATLANTICO });
     this.bgm = { song, t: now + 0.4, sec: 0, bar: 0, step: 0, out: this.bgmOut, bpm: song.bpm };
     this.timers.bird = now + rand(15, 40);
     this.timers.cricket = now + rand(5, 12);
@@ -321,7 +372,7 @@ export class Audio {
 
     // queue the tune's notes and footsteps so they're rendered a couple per frame before they're needed
     this.queueSong(song);
-    if (AMALFI) this.warm.push('gull', 'toll');
+    if (AMALFI || MADEIRA) this.warm.push('gull', 'toll');
     if (ISTANBUL) this.warm.push('gull', 'horn', 'ezan');
     for (const s of ['stone', 'wood', 'tile', 'gravel', 'grass']) for (let i = 0; i < 3; i++) this.warm.push(`step-${s}-${i}`);
     for (const k of ['bite', 'chew', 'crunch', 'slurp', 'gulp', 'blow', 'rustle', 'drop']) this.warm.push(k);

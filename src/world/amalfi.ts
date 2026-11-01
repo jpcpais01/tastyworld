@@ -11,7 +11,8 @@ import { paneOf, type HotelAnchor } from './hotels';
 import { SWAY } from './sway';
 import { amalfiPlan, K, col, layerOf, hillY, headlandY, isFoot, isPath, LotPlan, PIAZZA_Y, DUOMO_Y, ROAD_X0, ROAD_X1, TUNNEL_Z, PORTAL_Y, LIDOS, lidoUmbrellas, freeBeachTowels, PIER_Y, PIER_HALF, PIER_END, PIER_R, BELV_X0, BELV_X1, GATE_X, type Plan, type PathSeg } from './amalfiPlan';
 import { duomoInterior, HALL_ROOM, DUOMO_WALLS } from './sacred';
-import { paintColors, picture, hangIn, type PaintColors } from './paintings';
+import { paintColors, picture, hangIn, type PaintColors, type PictureKind } from './paintings';
+import { dineColors, dressWalls, kitchenLine, tableTop, pendants, counterPiece, cornerPlant, rug, cornice, hangRail, windowBench, hiddenKitchenDress, onWall, bare, walls, put, type Dine, type Goods, type TableStyle, type WallLook } from './dining';
 
 /**
  * Amalfi: a town poured down a ravine to the sea. Houses stand on terraces cut into both flanks of the valley,
@@ -20,7 +21,7 @@ import { paintColors, picture, hangIn, type PaintColors } from './paintings';
  * The ground plan (heights, paths, lots) comes from world/amalfiPlan.ts; this fills it with voxels.
  */
 
-function amalfiColors(b: Builder) {
+export function amalfiColors(b: Builder) {
   const a = (hex: number, vary = 0.06, o: { emit?: number; night?: boolean; leaf?: boolean; glass?: boolean } = {}) => b.pal.add(hex, { vary, ...o });
   const F = { leaf: true };
   const c = {
@@ -70,7 +71,7 @@ function amalfiColors(b: Builder) {
   return { ...c, dirt, damp };
 }
 
-type AC = ReturnType<typeof amalfiColors>;
+export type AC = ReturnType<typeof amalfiColors>;
 /** A plain colour of the town (not one of the shade tables). */
 type ACol = { [K in keyof AC]: AC[K] extends number ? K : never }[keyof AC];
 
@@ -138,7 +139,7 @@ function lemonTree(c: AC, seed: number, big = false): Prop {
   return p;
 }
 
-function potLemon(c: AC, seed: number): Prop {
+export function potLemon(c: AC, seed: number): Prop {
   const p = new Prop(9, 14, 9);
   p.box(2, 0, 2, 6, 3, 6, c.terracotta);
   p.box(1, 3, 1, 7, 3, 7, c.terracotta);
@@ -637,7 +638,7 @@ function grottaDoorway(b: Builder, c: AC): void {
 }
 
 /** Material of a stone wall course (vertical faces of terraces, parapets, quays). */
-function masonry(c: AC, x: number, y: number, z: number, white: boolean): number {
+export function masonry(c: AC, x: number, y: number, z: number, white: boolean): number {
   if (white) return hash3(x >> 1, y >> 2, z >> 1) < 0.06 ? c.plasterOld : c.whiteWarm;
   const course = y >> 1, off = course & 1 ? 1 : 0;
   const bx = (x + off * 2) / 3 | 0, bz = (z + off * 2) / 3 | 0;
@@ -877,8 +878,12 @@ function overPassage(plan: Plan, lt: LotPlan): boolean {
   return false;
 }
 
-/** One Amalfi house: stucco cube on its terrace, shuttered windows, balconies, and a vault, dome or terrace on top. */
-function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
+/**
+ * One Amalfi house: stucco cube on its terrace, shuttered windows, balconies, and a vault, dome or terrace on top.
+ * `ground` stands in for the town plan outside the map (the villages on the slopes, world/amalfiFar.ts): the
+ * standing layer in front of any cell, which decides which windows are buried and where things may jut out.
+ */
+export function house(b: Builder, c: AC, plan: Plan | null, lt: LotPlan, ground?: (x: number, z: number) => number): void {
   const g = b.grid;
   const { x0, z0, x1, z1, base, top } = lt;
   b.occlude(x0, z0, x1, z1, (top - G) * V + 2.6, (base - G) * V + 0.95, 'building');
@@ -891,21 +896,21 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   const trim = r() < 0.6 ? c.white : c.sill;
   const roof = r();
   g.box(x0, base, z0, x1, top - 1, z1, (_x, y) => (y < base + 2 ? c.plinth : wall));
-  if (lt.hotel) hotelHouse(b, c, plan, lt);
+  if (lt.hotel && plan) hotelHouse(b, c, plan, lt);
   else if (lt.food) eatery(b, c, lt);
   // (a house built over a covered passage keeps its ground floor solid: the passage is carved through it, and a
   // hollow room there would open onto the vault, tiles, table and all)
-  else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14 && !overPassage(plan, lt)) room(b, c, lt);
+  else if (x1 - x0 >= 7 && z1 - z0 >= 7 && top - base >= 14 && !(plan && overPassage(plan, lt))) room(b, c, lt);
   // a cornice under the roof, flush; the finish below picks out the rest
   g.box(x0, top - 1, z0, x1, top - 1, z1, trim);
   // what stands outside a facade cell: the ground level and whether a neighbour's wall is there
-  const outside = (x: number, z: number): number => {
-    if (x < VX0 || z < VZ0 || x >= VX0 + SX || z >= VZ0 + SZ) return 255;
+  const outside = ground ?? ((x: number, z: number): number => {
+    if (!plan || x < VX0 || z < VZ0 || x >= VX0 + SX || z >= VZ0 + SZ) return 255;
     const ci = col(x, z), id = plan.lot[ci];
     if (id) return plan.lots[id - 1].top;
     if (plan.kind[ci] === K.Church) return 255;
     return plan.walk[ci];
-  };
+  });
   const faces: { side: 'n' | 's' | 'e' | 'w'; n: number; at: (a: number) => [number, number]; out: (a: number) => [number, number] }[] = [
     { side: 'n', n: x1 - x0 + 1, at: (a) => [x0 + a, z0], out: (a) => [x0 + a, z0 - 1] },
     { side: 's', n: x1 - x0 + 1, at: (a) => [x1 - a, z1], out: (a) => [x1 - a, z1 + 1] },
@@ -914,7 +919,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
   ];
   const floors = Math.floor((top - base) / 12);
   // a hotel's guest rooms open their own French windows on the view
-  const view = lt.hotel ? viewSide(plan, lt) : null;
+  const view = lt.hotel && plan ? viewSide(plan, lt) : null;
   // this house's own finish, hashed from its seed so the lot's rng (and the roof, chimney and climbers drawn
   // from it below) stays as it was
   const H = (k: number) => hash3(lt.seed, 41, k);
@@ -951,7 +956,7 @@ function house(b: Builder, c: AC, plan: Plan, lt: LotPlan): void {
         const [ox, oz] = f.out(a + 1);
         const ground = outside(ox, oz);
         if (ground > yb + 3) continue; // buried in the hill or against the neighbour
-        if (ox >= VX0 && oz >= VZ0 && ox < VX0 + SX && oz < VZ0 + SZ && plan.kind[col(ox, oz)] === K.Covered) continue; // onto a covered passage: its vault and the house over it
+        if (plan && ox >= VX0 && oz >= VZ0 && ox < VX0 + SX && oz < VZ0 + SZ && plan.kind[col(ox, oz)] === K.Covered) continue; // onto a covered passage: its vault and the house over it
         const [wx, wz] = f.at(a);
         const groundFloor = fl === 0 || ground > yb - 6;
         // shops on the piazza and the main street open arches at street level instead
@@ -2579,6 +2584,7 @@ function grotta(b: Builder, c: AC, anchors: Anchors): BuildResult['interior'] {
   lamp(50 * V, 1.5, 9 * V, [1, 0.55, 0.25], 6, 1.4);
   lamp(30 * V, 2.0, 8 * V, WHITEWARM, 6, 0.7);
   lamp(4 * V, 2.2, 30 * V, WARM, 4, 0.6);
+  hiddenKitchenDress({ pal: b.pal, g, place, lamp, G, style: 'it', wood: c.door, top: c.majolicaWhite, cushion: [c.hullRed, c.shutterBlue], seed: 2538 });
   // the way out: a low door at the front corner
   g.box(56, G, 44, 63, G + 12, 47, c.tufa);
   g.box(58, G, 44, 61, G + 9, 44, c.door);
@@ -2670,14 +2676,13 @@ function chair(c: AC, wood: number): Prop {
 }
 
 /** A small square table under a cloth that hangs over its edges. */
-function eatTable(c: AC, cloth: number, cloth2: number, wood: number): Prop {
+function eatTable(_c: AC, cloth: number, cloth2: number, wood: number): Prop {
   const p = new Prop(5, 6, 5);
   p.box(2, 0, 2, 2, 4, 2, wood);
   p.box(1, 0, 1, 3, 0, 3, wood);
   p.box(0, 5, 0, 4, 5, 4, (x, _y, z) => ((x + z) % 2 ? cloth : cloth2));
   for (const [x, z] of [[0, 0], [4, 0], [0, 4], [4, 4], [2, 0], [0, 2], [4, 2], [2, 4]]) p.set(x, 4, z, (x + z) % 2 ? cloth : cloth2);
-  p.set(2, 6, 2, c.white); // a little vase or a candle
-  return p;
+  return p; // (what is laid on it comes from the dining kit: see eateryDress)
 }
 
 const EAT_THEME: Record<string, { floor: 'cotto' | 'check' | 'majolica' | 'plank' | 'marble' | 'tile'; wall: ACol; wain: ACol; cloth: [ACol, ACol]; front: ACol; awning: [ACol, ACol] }> = {
@@ -2900,6 +2905,69 @@ function eatery(b: Builder, c: AC, lt: LotPlan): void {
   }
   lamp(mid + 0.5, D * 0.4, 2.5, WARM, 6, 1.0);
   lamp((ca0 + ca1) / 2, cd0 - 0.5, 2.5, WARM, 4.5, 0.8);
+  eateryDress(b, c, lt, L, (a, y, d) => { const [x, z] = at(a, d); return g.get(x, F + 1 + y, z); }, (a, y, d, v) => { const [x, z] = at(a, d); g.set(x, F + 1 + y, z, v); });
+}
+
+/** Each restaurant's look in the dining kit: what is on its shelves, its walls, over its tables and on its counter. */
+const EAT_DRESS: Record<string, { goods: Goods[]; pics?: PictureKind[]; plates?: 'blue' | 'yellow' | 'green' | 'mixed' | 'pink'; rail?: WallLook['rail']; pend: 'cone' | 'globe' | 'bell' | 'cage'; shade: 'W' | 'A' | 'G'; table: TableStyle; counter: ('register' | 'fruit' | 'cake' | 'bread' | 'menu' | 'vase' | 'jars' | 'machine')[]; plant: 'lemon' | 'olive' | 'fig' | 'palm' | 'monstera'; menu?: boolean; mirror?: boolean; kitchen?: boolean }> = {
+  duomo: { goods: ['cups', 'bottles', 'jars'], pics: ['coast'], plates: 'blue', pend: 'bell', shade: 'W', table: 'cafe', counter: ['machine', 'cake', 'register'], plant: 'palm', mirror: true },
+  gemma: { goods: ['wine', 'jars', 'plates'], pics: ['lemons', 'coast'], plates: 'mixed', rail: 'garland', pend: 'cone', shade: 'A', table: 'it', counter: ['bread', 'vase', 'register'], plant: 'lemon', kitchen: true },
+  saraceno: { goods: ['bottles', 'plates', 'wine'], pics: ['coast'], plates: 'blue', rail: 'pans', pend: 'globe', shade: 'W', table: 'it', counter: ['fruit', 'register'], plant: 'monstera', menu: true, kitchen: true },
+  forno: { goods: ['jars', 'bottles', 'tins'], pics: ['coast'], plates: 'yellow', rail: 'utensils', pend: 'cage', shade: 'A', table: 'it', counter: ['jars', 'menu', 'register'], plant: 'olive', menu: true, kitchen: true },
+  cantina: { goods: ['wine', 'wine', 'glasses'], pics: ['lemons'], rail: 'garland', pend: 'cage', shade: 'A', table: 'it', counter: ['bread', 'register'], plant: 'olive', menu: true },
+  ruocco: { goods: ['bread', 'jars', 'tins'], pics: ['coast'], plates: 'yellow', pend: 'bell', shade: 'W', table: 'cafe', counter: ['register', 'bread'], plant: 'fig', menu: true },
+  andrea: { goods: ['bottles', 'tins', 'jars'], pend: 'cone', shade: 'W', table: 'it', counter: ['register', 'jars'], plant: 'palm', menu: true },
+  dolceria: { goods: ['cups', 'jars', 'glasses'], pics: ['lemons'], plates: 'pink', pend: 'globe', shade: 'W', table: 'cafe', counter: ['cake', 'register', 'vase'], plant: 'fig', mirror: true },
+  chiostro: { goods: ['books', 'wine', 'plates'], pics: ['coast', 'lemons'], plates: 'green', pend: 'bell', shade: 'A', table: 'it', counter: ['vase', 'register', 'fruit'], plant: 'lemon' },
+  colatura: { goods: ['bottles', 'jars', 'plates'], pics: ['coast'], plates: 'blue', rail: 'garland', pend: 'globe', shade: 'W', table: 'it', counter: ['jars', 'register'], plant: 'monstera', kitchen: true },
+  masseria: { goods: ['copper', 'jars', 'wine'], pics: ['lemons'], plates: 'mixed', rail: 'herbs', pend: 'cage', shade: 'A', table: 'it', counter: ['bread', 'fruit', 'register'], plant: 'olive', kitchen: true },
+  terrazza: { goods: ['wine', 'glasses', 'plates'], pics: ['coast'], pend: 'bell', shade: 'W', table: 'it', counter: ['vase', 'register', 'fruit'], plant: 'palm', mirror: true },
+};
+
+/**
+ * The finish on a restaurant's room, from the dining kit: the walls dressed (a shelf high up, majolica plates,
+ * pictures of the coast and the lemon groves, a clock, a mirror or a menu board), a light over every table and the
+ * table laid, the counter's ends set out, the cook's line under the back shelves, a big plant in each front corner,
+ * a mat inside the door and a moulding under the ceiling.
+ */
+function eateryDress(b: Builder, c: AC, lt: LotPlan, L: ReturnType<typeof eateryLayout>, get: Dine['get'], set: Dine['set']): void {
+  const id = lt.food!;
+  const dr = EAT_DRESS[id];
+  if (!dr) return;
+  const { W, D, mid, ca0, ca1, cd0 } = L;
+  const R: Dine = { b, A0: 1, A1: W - 2, D0: 1, D1: D - 2, top: 10, floorY: L.floorY, seed: lt.seed, get, set, m: L.P };
+  const k = dineColors(b.pal);
+  const plates: [number, number][] = dr.plates === 'blue' ? [[c.majolicaBlue, c.majolicaYellow], [c.majolicaBlue, c.majolicaBlue]]
+    : dr.plates === 'yellow' ? [[c.majolicaYellow, c.majolicaBlue], [c.majolicaYellow, c.majolicaGreen]]
+      : dr.plates === 'green' ? [[c.majolicaGreen, c.majolicaYellow], [c.majolicaBlue, c.majolicaGreen]]
+        : dr.plates === 'pink' ? [[c.rose, c.majolicaYellow], [c.pink, c.majolicaWhite]]
+          : dr.plates ? [[c.majolicaBlue, c.majolicaYellow], [c.majolicaYellow, c.majolicaGreen], [c.majolicaGreen, c.majolicaBlue]] : [];
+  const shade = dr.shade === 'A' ? k.shadeA : dr.shade === 'G' ? k.shadeG : k.shadeW;
+  // the cook's line first, so the walls dress round it
+  if (dr.kitchen) kitchenLine(R, k, 2, Math.min(ca1 - 1, W - 7), { body: c.majolicaWhite, top: c.marble, hood: false, rail: false, plates: false, d: D - 2 });
+  dressWalls(R, k, { goods: dr.goods, board: k.wood, pictures: dr.pics, plates: plates.length ? plates : undefined, shade, menu: dr.menu, clock: !dr.menu, mirror: dr.mirror, rail: dr.rail, only: ['L', 'R'] });
+  // the back wall over the shelves: a rail of something hanging from the beam
+  if (dr.rail && bare(R, walls(R).L, 3, 8, 9, 10)) onWall(R, walls(R).L, hangRail(k, 20, dr.rail, lt.seed), 5.5, 2.0);
+  // the tables laid, a light over each
+  const spots: [number, number][] = [];
+  for (const t of L.tables) {
+    put(R, tableTop(k, dr.table, 10, 10, ['w', 'e'], lt.seed + t.a * 7 + t.d), t.a + 1, t.d + 1, 0.75, 2);
+    spots.push([t.a + 1, t.d + 1]);
+  }
+  pendants(R, k, spots, dr.pend, shade, 2.2);
+  // the counter's ends
+  dr.counter.forEach((kind, i) => {
+    const a = i === 0 ? ca1 - 0.6 : i === 1 ? ca0 + 0.7 : ca1 - 2.4;
+    put(R, counterPiece(k, kind, lt.seed + i), a, cd0 + 1, 1.0, 0);
+  });
+  // a big plant in each front corner, a mat inside the door, the moulding round the ceiling
+  cornerPlant(R, k, 1, 1, dr.plant, k.potTerra);
+  cornerPlant(R, k, W - 3, 1, dr.plant, k.potTerra);
+  rug(R, mid - 2, 1, mid + 2, 2, [k.rugR, k.rugO, k.rugC], 'border');
+  // a bench under each front window with pots of geraniums and herbs
+  windowBench(R, k, 3, mid - 5, c.door, c.marble);
+  windowBench(R, k, mid + 5, W - 4, c.door, c.marble);
+  cornice(R, c.sill);
 }
 
 // ---------------------------------------------------------------------------------------------- hotels

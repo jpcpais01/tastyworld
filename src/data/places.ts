@@ -1,4 +1,5 @@
 import type { IconName } from '../ui/emblems';
+import { MADEIRA_GUEST_LINES } from './madeira';
 import type { RoomKind } from '../world/interiors';
 import { randomLook, Look } from '../world/characters';
 import { HOTEL } from './hotels';
@@ -398,7 +399,7 @@ const AMALFI_GUEST_LINES: string[] = [
   'Never ask for cappuccino after lunch. The barista will serve it, but he will remember.',
   'The ferry is late again. Good. One more limoncello.',
 ];
-export const GUEST_LINES: string[] = perCity({ tokyo: TOKYO_GUEST_LINES, amalfi: AMALFI_GUEST_LINES, istanbul: ISTANBUL_GUEST_LINES });
+export const GUEST_LINES: string[] = perCity({ tokyo: TOKYO_GUEST_LINES, amalfi: AMALFI_GUEST_LINES, istanbul: ISTANBUL_GUEST_LINES, madeira: MADEIRA_GUEST_LINES });
 
 export interface Capsule { id: string; name: string; icon: IconName; rare?: boolean; }
 

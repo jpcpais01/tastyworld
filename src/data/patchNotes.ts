@@ -8,6 +8,42 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.0',
+    date: '2026-11-01',
+    title: 'New destination: Funchal, Madeira',
+    items: [
+      'Fly to Funchal on Madeira, in the middle of the Atlantic: a new city on the travel globe with its own arrival, passport stamp and flag.',
+      'Walk the old town and the seafront: the Sé cathedral in white plaster and black basalt (step inside under its carved ceiling), the Largo da Sé paved in black and white calçada, the Mercado dos Lavradores, the stone-walled ribeira running down to the sea under its bridges, the yellow fort, the curved breakwater and marina, and the black pebble beach.',
+      'Rua de Santa Maria in the Zona Velha has its painted doors, and the cable car station to Monte waits by the gardens.',
+      'The city climbs the hill behind you on basalt terrace walls: contour lanes and stairs, a levada with water running in its little channel, banana groves, vine pergolas, dragon trees, jacarandas in flower and bird-of-paradise flowers.',
+      'Eat your way through 26 Madeiran dishes: bolo do caco, espetada on its laurel skewer, black scabbardfish with banana, tuna steak, lapas, milho frito, picado, prego, malasadas, queijadas, broas, passion-fruit pudding, poncha, nikita and a glass of Madeira wine, from 8 restaurants, 4 street carts, cafés, and one hidden place for those who look closely.',
+      '6 hotels to stay in, prices in euros, and crowds of locals and visitors out at every hour.',
+      'Past the edge of town the whole amphitheatre of Funchal climbs to the mountains in voxels, its houses built one by one like the ones in town, with the open Atlantic to the horizon.',
+    ],
+  },
+  {
+    version: '0.17.18',
+    date: '2026-11-01',
+    title: 'Restaurants worth sitting down in',
+    items: [
+      'Every restaurant, café, izakaya, kissaten, soba shop, bakery, lokanta, kahve and sweet shop in Tokyo, Amalfi and Istanbul has been furnished from scratch to the same level: laid tables with plates, cutlery, glasses, bread, wine, tea or coffee, hanging lights over the tables, shelves of bottles and jars, menus, clocks, mirrors, pictures, plates on the walls, rugs, big potted plants and window seats.',
+      'Each kitchen behind the counter is now a working one, with hobs, sinks, hoods, pans on rails and stacks of plates, and the counters carry tills, cake stands, coffee machines, fruit and bread.',
+      'Tokyo izakayas have a tatami back room with low tables and cushions, cafés and kissatens open into a second seating room with a bookcase, and bakeries show their bakehouse with oven and bread racks.',
+      'Amalfi trattorias have majolica plates on the walls, garlands and hanging herbs; Istanbul\'s lokantas, kahves and pide shops have İznik tile bands, copper lanterns, kilims, tavla boards and nargiles; Tokyo has paper lanterns, beer crates and kamidana shrine shelves.',
+      'The three hidden places are fully laid too, with place settings at the counter, pendant lights and two small tables.',
+    ],
+  },
+  {
+    version: '0.17.17',
+    date: '2026-11-01',
+    title: 'Real houses on the hills round Amalfi',
+    items: [
+      'The 268 houses in the villages on the slopes round Amalfi (Atrani, Ravello, Pontone, Pogerola and the town\'s own outskirts) are now built exactly like the houses in town, voxel by voxel: real windows set into the wall, louvred shutters, sills, balconies with iron rails and geraniums, stone door frames, cornices, rain streaks and patches of bare tufa, barrel vaults, domes, tiled roofs and roof terraces with pergolas.',
+      'Each one stands on its own dry-stone terrace wall with a little tiled terrace and a parapet in front of its door, and lit windows glow at night like the town\'s.',
+      'Houses close to you are drawn in full detail and the ones further up the mountain in coarser voxels, so the whole coast costs less to draw than the old simplified houses did.',
+    ],
+  },
+  {
     version: '0.17.16',
     date: '2026-11-01',
     title: 'Every place to eat counts',

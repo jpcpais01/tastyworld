@@ -1,5 +1,5 @@
 // Shared world constants (metres unless noted).
-import { AMALFI, ISTANBUL } from './cityId';
+import { AMALFI, ISTANBUL, MADEIRA } from './cityId';
 
 export const V = 0.25; // coarse voxel size
 export const VPM = 4; // voxels per metre
@@ -9,16 +9,16 @@ export const G = 12; // voxel layer of street level (world y = 0 at the top of l
  * the original district keeps 0..72 x 0..56 m and the city grows around it, so the world's first voxel
  * column is at (VX0, VZ0) = (-72 m, -56 m).
  */
-export const VX0 = AMALFI ? -448 : ISTANBUL ? -640 : -288, VZ0 = AMALFI ? -320 : ISTANBUL ? -448 : -224;
+export const VX0 = AMALFI || MADEIRA ? -448 : ISTANBUL ? -640 : -288, VZ0 = AMALFI ? -320 : MADEIRA ? -352 : ISTANBUL ? -448 : -224;
 /** Amalfi climbs from the sea up its cliffs, so its world is taller: 56 m of voxels against Tokyo's 40. */
 /** Istanbul rolls over its hills more gently: 48 m of voxels, room for the minarets on the hilltop. */
-export const SX = AMALFI ? 768 : ISTANBUL ? 832 : 864, SY = AMALFI ? 224 : ISTANBUL ? 192 : 160, SZ = AMALFI ? 640 : ISTANBUL ? 704 : 672;
+export const SX = AMALFI || MADEIRA ? 768 : ISTANBUL ? 832 : 864, SY = AMALFI || MADEIRA ? 224 : ISTANBUL ? 192 : 160, SZ = AMALFI ? 640 : MADEIRA ? 704 : ISTANBUL ? 704 : 672;
 export const WX0 = VX0 * V, WZ0 = VZ0 * V;
 export const WX1 = (VX0 + SX) * V, WZ1 = (VZ0 + SZ) * V;
 export const WORLD_W = SX * V, WORLD_D = SZ * V;
 export const WATER_Y = -0.55;
 /** The Inari hill (inclusive voxel rect): the only ground above street level people walk on. */
-export const HILL: [number, number, number, number] = AMALFI || ISTANBUL ? [0, 0, -1, -1] : [-288, 260, -41, 447];
+export const HILL: [number, number, number, number] = AMALFI || ISTANBUL || MADEIRA ? [0, 0, -1, -1] : [-288, 260, -41, 447];
 export const CHUNK = 32; // voxel columns per chunk side
 export const CHUNKS_X = SX / CHUNK, CHUNKS_Z = SZ / CHUNK;
 
@@ -109,7 +109,31 @@ const ISTANBUL_ZONES: StreetZone[] = [
   { id: 'gizli', name: 'Gizli Mutfak · Hidden Kitchen', jp: 'gizli mutfak', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
 ];
 
-export const ZONES: StreetZone[] = AMALFI ? AMALFI_ZONES : ISTANBUL ? ISTANBUL_ZONES : TOKYO_ZONES;
+/** Funchal's quarters round the Sé and the seafront (see world/funchal.ts); `jp` holds the Portuguese name. */
+const MADEIRA_ZONES: StreetZone[] = [
+  { id: 'avenida', name: 'Avenida do Mar', jp: 'Avenida do Mar', rect: [27, -88, 35, 88] },
+  { id: 'promenade', name: 'The Seafront', jp: 'a marginal', rect: [35, -88, 60, 88] },
+  { id: 'marina', name: 'Marina do Funchal', jp: 'a marina', rect: [35, -72, 68, -20] },
+  { id: 'arriaga', name: 'Avenida Arriaga', jp: 'Avenida Arriaga', rect: [-1, -88, 9, -42] },
+  { id: 'alfandega', name: 'Rua da Alfândega', jp: 'Rua da Alfândega', rect: [17, -88, 22, 9] },
+  { id: 'largo', name: 'Largo da Sé', jp: 'Largo da Sé', rect: [-10, -42, 14, -12] },
+  { id: 'se', name: 'Sé do Funchal', jp: 'a Sé', rect: [-42, -38, -10, -18] },
+  { id: 'ferreiros', name: 'Rua dos Ferreiros', jp: 'Rua dos Ferreiros', rect: [-72, -15, -10, -4] },
+  { id: 'bispo', name: 'Rua do Bispo', jp: 'Rua do Bispo', rect: [-72, -53, -10, -40] },
+  { id: 'aljube', name: 'Rua do Aljube', jp: 'Rua do Aljube', rect: [-1, -12, 5, 23] },
+  { id: 'ribeira', name: 'Ribeira de João Gomes', jp: 'a ribeira', rect: [-112, 6, 40, 26] },
+  { id: 'lavradores', name: 'Largo dos Lavradores', jp: 'Largo dos Lavradores', rect: [-4, 23, 12, 34] },
+  { id: 'mercado', name: 'Mercado dos Lavradores', jp: 'o Mercado', rect: [-27, 23, -4, 45] },
+  { id: 'jardim', name: 'Jardim Almirante Reis', jp: 'o jardim', rect: [12, 23, 26, 50] },
+  { id: 'teleferico', name: 'Teleférico do Funchal', jp: 'o teleférico', rect: [14, 38, 23, 48] },
+  { id: 'santamaria', name: 'Rua de Santa Maria', jp: 'Rua de Santa Maria', rect: [6, 34, 12, 88] },
+  { id: 'zonavelha', name: 'Zona Velha', jp: 'a Zona Velha', rect: [-50, 46, 27, 88] },
+  { id: 'forte', name: 'Fortaleza de São Tiago', jp: 'o forte', rect: [39, 62, 60, 88] },
+  { id: 'socalcos', name: 'The Banana Terraces', jp: 'os socalcos', rect: [-112, -88, -46, 88] },
+  { id: 'segredo', name: 'A Porta Pintada · Hidden Kitchen', jp: 'a porta pintada', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
+];
+
+export const ZONES: StreetZone[] = AMALFI ? AMALFI_ZONES : ISTANBUL ? ISTANBUL_ZONES : MADEIRA ? MADEIRA_ZONES : TOKYO_ZONES;
 
 /** Districts and streets registered by the city builder (see world/city.ts), checked after ZONES. */
 export const CITY_ZONES: StreetZone[] = [];

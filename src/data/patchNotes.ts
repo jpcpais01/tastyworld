@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.21.2',
+    date: '2026-11-01',
+    title: 'Faster far views, in 2040 above all',
+    items: [
+      'Zoomed far out (or with the view distance at its farthest), the distant city is drawn in blocks of sixteen streets at a time instead of one by one: about a third as many draw calls in Halcyon City, with the same detail where you stand. Tokyo, Amalfi, Istanbul and Funchal get the same boost.',
+      'Sun shadows no longer redraw from scratch every time part of the city scrolls out of view.',
+    ],
+  },
+  {
     version: '0.21.1',
     date: '2026-11-01',
     title: '2040: neon shopfronts and a cyberpunk skyline',

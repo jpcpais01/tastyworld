@@ -12,7 +12,7 @@ declare const self: DedicatedWorkerGlobalScope;
 /** Messages a world worker understands. */
 export type WorkerIn =
   | { type: 'init'; part: number; parts: number }
-  | { type: 'mesh'; id: number; ix: number; iz: number; lod: number }
+  | { type: 'mesh'; id: number; ix: number; iz: number; lod: number; nx?: number; nz?: number }
   | { type: 'owners'; id: Uint16Array }
   /** The houses on the slopes outside the map: lay them out, then mesh tiles of them at a level of detail. */
   | { type: 'farInit'; lots: FarLot[] }
@@ -64,7 +64,7 @@ self.onmessage = async (e: MessageEvent<WorkerIn>) => {
   } else if (msg.type === 'owners' && part) {
     part.owners = msg.id;
   } else if (msg.type === 'mesh' && part) {
-    const mesh = part.mesh(msg.ix, msg.iz, msg.lod);
+    const mesh = part.mesh(msg.ix, msg.iz, msg.lod, msg.nx, msg.nz);
     const tr: Transferable[] = [];
     if (mesh) meshBuffers(mesh, tr);
     self.postMessage({ type: 'mesh', id: msg.id, ix: msg.ix, iz: msg.iz, lod: msg.lod, mesh } satisfies WorkerOut, tr);

@@ -108,7 +108,6 @@ export class SunShadows {
   private cached = new Map<THREE.Object3D, number>();
   private frame = 0;
   private added: THREE.Object3D[] = [];
-  private keys = new Set<unknown>();
   private frustum = new THREE.Frustum();
   private m4 = new THREE.Matrix4();
   private box = new THREE.Box3();
@@ -231,18 +230,16 @@ export class SunShadows {
 
     // Every visible static caster must be in the cache. Newcomers (chunks streaming in) are simply drawn
     // into it; only a caster leaving the area the cache covers needs a full redraw to erase its shadow.
-    // A caster that leaves while another with the same `userData.shadowKey` is present was replaced (a world
-    // chunk changing its level of detail): the newcomer is drawn over its shadow, which is near enough the
-    // same, and the cache is not redrawn for it.
-    const frame = ++this.frame, cached = this.cached, added = this.added, keys = this.keys;
+    // Casters marked `userData.shadowKeep` are pieces of the static world that are only streamed in and out (or
+    // swapped for another level of detail): the voxels they stand for are still there when they go, so their
+    // shadow stays right and the cache is not redrawn for them.
+    const frame = ++this.frame, cached = this.cached, added = this.added;
     added.length = 0;
     this.dyn.length = 0;
-    keys.clear();
     scene.traverseVisible((ob) => {
       if (ob.layers.isEnabled(SHADOW_STATIC)) {
         if (!cached.has(ob)) added.push(ob);
         cached.set(ob, frame);
-        if (ob.userData.shadowKey !== undefined) keys.add(ob.userData.shadowKey);
       }
       if (ob.layers.isEnabled(SHADOW_DYNAMIC) && (ob as THREE.Mesh).isMesh) this.dyn.push(ob as THREE.Mesh);
     });
@@ -250,7 +247,7 @@ export class SunShadows {
     for (const [ob, seen] of cached) {
       if (seen === frame) continue;
       cached.delete(ob);
-      gone ||= this.region !== null && !keys.has(ob.userData.shadowKey) && this.covers(ob);
+      gone ||= this.region !== null && !ob.userData.shadowKeep && this.covers(ob);
     }
 
     const r = this.region;

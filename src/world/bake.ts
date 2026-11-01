@@ -469,11 +469,14 @@ export class WorldPart {
     return iz >= this.rows[0] && iz < this.rows[1];
   }
 
-  /** Mesh of chunk (ix, iz): full detail with props (lod 0), or coarse at half (1) or quarter (2) resolution. */
-  mesh(ix: number, iz: number, lod: number): MeshData | null {
+  /**
+   * Mesh of chunk (ix, iz): full detail with props (lod 0), or coarse at half (1) or quarter (2) resolution.
+   * A coarse mesh can cover a block of nx x nz chunks (see engine/streamer.ts clusters): one draw for all of them.
+   */
+  mesh(ix: number, iz: number, lod: number, nx = 1, nz = 1): MeshData | null {
     const x0 = VX0 + ix * CHUNK, z0 = VZ0 + iz * CHUNK;
     if (lod) {
-      const md = meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, lod === 1 ? 2 : 4);
+      const md = meshLod(this.res.grid, this.res.pal, this.light, x0, z0, x0 + nx * CHUNK, z0 + nz * CHUNK, lod === 1 ? 2 : 4);
       return md && packAtlas(orderFaces(md));
     }
     const md = meshRegion(this.res.grid, this.res.pal, this.light, x0, z0, x0 + CHUNK, z0 + CHUNK, this.buckets[iz * CHUNKS_X + ix], this.res.swayCells, this.swayBase, this.owners);

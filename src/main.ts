@@ -3451,7 +3451,7 @@ class Game {
       this.chars.sync(); this.perf.lap('characters'); this.r.render();
       if (this.shot && --this.shot === 0) this.takePhoto();
     }
-    if (this.perf.on) this.perf.end({ chunks: this.streamer.resident.size, people: this.drawn.length, scale: this.r.renderScale, quality: this.r.quality });
+    if (this.perf.on) this.perf.end({ chunks: this.streamer.meshCount, people: this.drawn.length, scale: this.r.renderScale, quality: this.r.quality });
     this.r.adapt(raw, now);
   }
 }

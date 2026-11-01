@@ -289,6 +289,10 @@ class Game {
   private pinch: { d: number; a: number; twist: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
   /** First-person look drag (right side of a touch screen, or a mouse drag without pointer lock). */
+  /** The browser refused pointer lock (some laptops, touchpads, kiosk or embedded browsers): mouse look then follows the cursor without a held button. */
+  private lockFailed = false;
+  private unlockedAt = -1e9;
+  private hoverLook: { x: number; y: number; on: boolean } = { x: 0, y: 0, on: false };
   private lookPtr: { id: number; x: number; y: number; sx: number; sy: number; t: number; moved: boolean } | null = null;
   private wasInside = false;
   private photo!: PhotoUI;
@@ -2031,13 +2035,13 @@ class Game {
     if (!on) {
       this.player.facing = this.player.targetFacing = this.cam.fpYaw;
       if (document.pointerLockElement) document.exitPointerLock();
-    }
+    } else if (!quiet && !this.r.isMobile) this.requestLook();
     try { localStorage.setItem(VIEW_KEY, on ? 'fp' : 'iso'); } catch { /* storage blocked */ }
     if (!quiet) {
       this.audio.play('whoosh');
       if (on) this.ui.toast('eye', 'First-person view', this.r.isMobile
         ? 'Drag on the left to walk, on the right to look around. Tap the eye to switch back.'
-        : 'Click to look around with the mouse, WASD to walk. Press V to switch back.');
+        : 'Move the mouse to look around (click if it stops), WASD to walk. Press V to switch back.');
     }
   }
 
@@ -2104,7 +2108,26 @@ class Game {
   private requestLook(): void {
     if (this.ui.busy || this.photoOn) return;
     const canvas = this.r.gl.domElement;
-    try { void Promise.resolve(canvas.requestPointerLock()).catch(() => {}); } catch { /* unsupported */ }
+    if (document.pointerLockElement === canvas) return;
+    const fail = () => this.onLockError();
+    try { void Promise.resolve(canvas.requestPointerLock()).catch(fail); } catch { fail(); }
+  }
+
+  /** Pointer lock was refused: switch to cursor-follow look (no button needed), and tell the player once. */
+  private onLockError(): void {
+    // browsers refuse a re-lock for about a second after Esc released it; that is not a broken lock
+    if (!this.cam.fp || this.lockFailed || performance.now() - this.unlockedAt < 1600) return;
+    this.lockFailed = true;
+    this.ui.toast('eye', 'Mouse look without a click', 'Your browser would not lock the mouse, so the view follows the cursor instead. Push it to the screen edge to keep turning.');
+  }
+
+  /** Cursor-follow look (pointer lock refused): turn while the cursor rests near the left or right edge. */
+  private edgeLook(dt: number): void {
+    const h = this.hoverLook;
+    if (!this.lockFailed || !h.on || !this.cam.fp || this.ui.busy || this.meal || this.photoOn || this.lookPtr || document.pointerLockElement) return;
+    const w = window.innerWidth, edge = Math.max(24, w * 0.06);
+    const t = h.x < edge ? -(1 - h.x / edge) : h.x > w - edge ? (1 - (w - h.x) / edge) : 0;
+    if (t) this.cam.look(t * 2.2 * dt, 0);
   }
 
   private setHeightField(inside: boolean): void {
@@ -2526,8 +2549,18 @@ class Game {
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
     document.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement === canvas && this.cam.fp && !this.ui.busy && !this.meal) this.cam.look(e.movementX * 0.0022, e.movementY * 0.0022);
+      if (!this.cam.fp || this.ui.busy || this.meal) return;
+      if (document.pointerLockElement === canvas) { this.cam.look(e.movementX * 0.0022, e.movementY * 0.0022); return; }
+      // no lock available: the view follows the cursor (no held button), unless a drag-look is already steering it
+      if (this.lockFailed && !this.photoOn && !this.lookPtr && e.target === canvas) this.cam.look(e.movementX * 0.003, e.movementY * 0.003);
     });
+    canvas.addEventListener('mousemove', (e) => { this.hoverLook.x = e.clientX; this.hoverLook.y = e.clientY; this.hoverLook.on = true; });
+    canvas.addEventListener('mouseleave', () => { this.hoverLook.on = false; });
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement === canvas) this.lockFailed = false;
+      else this.unlockedAt = performance.now();
+    });
+    document.addEventListener('pointerlockerror', () => this.onLockError());
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.cam.zoomBy(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
     canvas.addEventListener('pointerdown', (e) => {
       this.audio.start();
@@ -2601,7 +2634,7 @@ class Game {
         this.lookPtr = null;
         if (!lp.moved && performance.now() - lp.t < 450 && e.type === 'pointerup') {
           // a mouse click grabs the pointer for mouse look, a touch tap walks or interacts like in the iso view
-          if (this.photoOn) { /* photo mode: a tap only frames the shot */ } else if (e.pointerType === 'mouse') this.requestLook();
+          if (this.photoOn) { /* photo mode: a tap only frames the shot */ } else if (e.pointerType === 'mouse') { if (this.lockFailed) this.fpUse(); /* otherwise the press already asked for the lock */ }
           else this.tap(e.clientX, e.clientY);
         }
         return;
@@ -2677,6 +2710,12 @@ class Game {
       if (document.pointerLockElement === canvas) {
         if (e.button === 0) this.fpUse();
         return;
+      }
+      // grab the mouse on the press itself (not only on a perfectly still quick click, which touchpads often miss);
+      // the drag-look below still works if the browser refuses the lock
+      if (e.button === 0 && !this.photoOn) {
+        try { canvas.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
+        this.requestLook();
       }
       this.lookPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: false };
       return;
@@ -3306,6 +3345,7 @@ class Game {
     // first-person haze, thick enough to hide the far edge of the view distance
     sh.uFog.value.set(eye.x, eye.y, eye.z, fp && !this.inside ? 2.15 / (this.viewDist - 18) : 0);
     if (document.pointerLockElement && (!fp || this.ui.busy)) document.exitPointerLock();
+    this.edgeLook(dt);
     this.koi?.update(sh.uTime.value);
     this.skyCars?.update(dt, sh.uTime.value);
     if (this.drones) {

@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.17.17',
+    date: '2026-11-01',
+    title: 'Real houses on the hills round Amalfi',
+    items: [
+      'The 268 houses in the villages on the slopes round Amalfi (Atrani, Ravello, Pontone, Pogerola and the town\'s own outskirts) are now built exactly like the houses in town, voxel by voxel: real windows set into the wall, louvred shutters, sills, balconies with iron rails and geraniums, stone door frames, cornices, rain streaks and patches of bare tufa, barrel vaults, domes, tiled roofs and roof terraces with pergolas.',
+      'Each one stands on its own dry-stone terrace wall with a little tiled terrace and a parapet in front of its door, and lit windows glow at night like the town\'s.',
+      'Houses close to you are drawn in full detail and the ones further up the mountain in coarser voxels, so the whole coast costs less to draw than the old simplified houses did.',
+    ],
+  },
+  {
     version: '0.17.16',
     date: '2026-11-01',
     title: 'Every place to eat counts',

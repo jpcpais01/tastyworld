@@ -146,6 +146,26 @@ const int PARENT[13] = int[13](-1, 0, 0, 0, 7, 7, -1, -1, 4, 5, 2, 3, 11);
 #ifdef SWAY
 ${SWAY_FN}
 #endif
+#ifdef FAR
+// the villages on the slopes past the map (engine/fartown.ts): each vertex knows its house's middle and its tile
+in vec3 aHome;
+uniform vec4 uFarRect; // the map (x0, z0, x1, z1), where the far coast begins
+uniform vec3 uCamFwd;
+#ifdef FARBASE
+uniform int uFine[4]; // tiles drawn by a finer mesh of their own, one bit each: the base mesh leaves them out
+#endif
+// the far coast's squat (engine/farcoast.ts SQUASH): in the iso view the slopes between the camera and the map
+// sink out of the way, and a house on them isn't drawn at all
+float farSquash(vec2 xz) {
+  if (projectionMatrix[3][3] != 1.0) return 1.0;
+  vec2 dir = xz - (uFarRect.xy + uFarRect.zw) * 0.5;
+  float l = length(dir);
+  if (l < 1.0) return 1.0;
+  float camSide = -dot(dir / l, normalize(uCamFwd.xz));
+  vec2 o = max(uFarRect.xy - xz, xz - uFarRect.zw);
+  return mix(1.0, 0.03, smoothstep(-0.3, 0.25, camSide) * smoothstep(0.0, 24.0, max(0.0, max(o.x, o.y))));
+}
+#endif
 ${VOXEL_SCALES}
 // What the fragment shader needs is packed tight: a voxel face is a few pixels across, so the city is
 // millions of vertices a frame and every value passed along costs. Per face: x = aPack.x (face | scale << 3 |
@@ -182,6 +202,16 @@ void main() {
   float seam = step(127.5, aPack.x);
 #ifndef CUTAWAY
   if (seam > 0.5) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
+#endif
+#ifdef FAR
+  float squat = farSquash(aHome.xy);
+#ifdef FARBASE
+  int ti = int(aHome.z + 0.5);
+  bool finer = ((uFine[ti >> 5] >> (ti & 31)) & 1) != 0;
+#else
+  bool finer = false;
+#endif
+  if (squat < 0.6 || finer) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
 #endif
   float pk = aPack.x - seam * 128.0;
   float face = mod(pk, 8.0);
@@ -244,6 +274,9 @@ void main() {
   vNormal = normalize(mat3(modelMatrix) * n);
 #endif
   vWorld = wp.xyz;
+#ifdef FAR
+  wp.y *= squat;
+#endif
   vQuad = aQuad;
 #ifndef ATLAS
   vLight = aLight;
@@ -288,6 +321,9 @@ float vnoiseT(vec2 p) {
   return texture(tNoise, (i + f * f * (3.0 - 2.0 * f) + 0.5) * (1.0 / 64.0)).r;
 }
 uniform vec4 uBounds; // x0, z0, x1, z1 of the playable map (fade outside)
+#ifdef FAR
+uniform vec4 uFarRect;
+#endif
 uniform vec4 uFog;    // first-person eye position and haze density (0 in the iso view)
 #ifndef ICON
 uniform highp sampler2DShadow tShadow;
@@ -557,6 +593,9 @@ void main() {
   // leafy bump into a speck of shadow
   bool lookup = ndl > 0.0 && uShadow.x > 0.0 && sun > 0.004 && abs(vColor.a * 255.0 - 128.0) > 0.5;
 #endif
+#ifdef FAR
+  lookup = false; // (far past the shadow map: the bake has the sun)
+#endif
   if (lookup) {
     float w;
     float v = sunShadow(n, w);
@@ -632,6 +671,19 @@ void main() {
 #ifdef CHARACTER
   col += albedo * uFlash;
 #endif
+#ifdef FAR
+  // the far coast's aerial perspective (engine/farcoast.ts HAZE), so the villages sit in the same air as their slopes
+  {
+    vec2 o = max(uFarRect.xy - vWorld.xz, vWorld.xz - uFarRect.zw);
+    float lift = mix(1.0, 0.7, smoothstep(20.0, 600.0, vWorld.y));
+    float a = (1.0 - exp(-max(0.0, max(o.x, o.y)) * 0.0016)) * lift;
+    if (uFog.w > 0.0) {
+      float fd = max(0.0, distance(vWorld, uFog.xyz) - FOG_START) * uFog.w * 0.12;
+      a = max(a, (1.0 - exp(-fd * fd)) * lift);
+    }
+    col = mix(col, uFogColor * mix(vec3(1.0), vec3(0.88, 0.95, 1.07), a), min(a, 0.92));
+  }
+#else
   // fade into the haze outside the playable map
   vec2 outside = max(uBounds.xy - vWorld.xz, vWorld.xz - uBounds.zw);
   float fo = smoothstep(0.0, 9.0, max(outside.x, outside.y));
@@ -640,6 +692,7 @@ void main() {
     float fd = max(0.0, distance(vWorld, uFog.xyz) - FOG_START) * uFog.w;
     col = mix(col, uFogColor, 1.0 - exp(-fd * fd));
   }
+#endif
 #ifdef CUTAWAY
   if (capped) {
     // section cap: warm cut stone with a darker rim where the wall ends

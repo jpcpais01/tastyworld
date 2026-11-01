@@ -141,6 +141,12 @@ export interface TrafficPeople {
 /** Makes that stop at the bus stops. */
 const STOPPING = new Set<CarKind>(['bus', 'tram']);
 
+/** The strip of a crossing (across the road) a car's body will sweep over it, with a little room either side. */
+const laneBand = (c: { x: number; z: number }, cross: Crosswalk, halfW: number): [number, number] => {
+  const v = cross.av.ew ? c.z : c.x;
+  return [v - halfW - 0.1, v + halfW + 0.1];
+};
+
 export class Traffic {
   readonly cars: Car[] = [];
   private shapes = new Map<string, Shape>();
@@ -363,8 +369,12 @@ export class Traffic {
     return true;
   }
 
-  /** Anyone on a zebra, or (unless the car has waited its turn) at its kerbs about to step out? */
-  private zebraBusy(c: Crosswalk, pl: V2, friends: V2[], people: TrafficPeople | null, kerbs: boolean): boolean {
+  /**
+   * Anyone on a zebra, or (unless the car has waited its turn) at its kerbs about to step out? A car that has waited
+   * its turn (`band`: its own lane, across the road) only waits for those in its way, not for someone lingering at
+   * the far edge of the road who is waiting for it to go.
+   */
+  private zebraBusy(c: Crosswalk, pl: V2, friends: V2[], people: TrafficPeople | null, kerbs: boolean, band?: [number, number]): boolean {
     let z = this.zebraPts.get(c);
     if (!z) {
       // rows of points across the carriageway every 80 cm down the zebra, and a point just past either kerb on each
@@ -385,9 +395,11 @@ export class Traffic {
       z = { road: Float32Array.from(road), kerb: Float32Array.from(kerb) };
       this.zebraPts.set(c, z);
     }
+    const ew = c.av.ew;
     const hit = (xs: Float32Array, r: number) => {
       for (let i = 0; i < xs.length; i += 2) {
         const x = xs[i], zz = xs[i + 1];
+        if (band) { const v = ew ? zz : x; if (v < band[0] - r || v > band[1] + r) continue; }
         if ((x - pl[0]) ** 2 + (zz - pl[1]) ** 2 < r * r) return true;
         for (const f of friends) if ((x - f[0]) ** 2 + (zz - f[1]) ** 2 < r * r) return true;
         // (a dog a step ahead of its owner at the kerb is not a reason to stop: its owner is)
@@ -547,7 +559,7 @@ export class Traffic {
       if (st.cross.signal) {
         const l = carLight(st.cross, this.clock, st.phase);
         if (l === 'red' || (l === 'amber' && d > (c.v * c.v) / (2 * BRAKE) + 0.5)) { stop = st.s - 0.3 - halfL; c.why = 1; break; }
-      } else if (d > (c.v * c.v) / (2 * BRAKE) - 0.4 && this.zebraBusy(st.cross, pl, friends, people, !patient)) {
+      } else if (d > (c.v * c.v) / (2 * BRAKE) - 0.4 && this.zebraBusy(st.cross, pl, friends, people, !patient, patient ? laneBand(c, st.cross, halfW) : undefined)) {
         // a zebra: give way to anyone on it or waiting at its kerb (once it has waited a while, only to those on it)
         stop = st.s - 0.3 - halfL; c.why = 8; break;
       }
@@ -617,7 +629,8 @@ export class Traffic {
       const s = front + d;
       if (s > p.len || s - 1.4 - halfL > stop) break;
       const [px, pz] = this.at(p, s);
-      const m = this.net.margin;
+      // (one that has waited its turn edges past someone lingering at the very edge of the road)
+      const m = patient ? Math.min(this.net.margin, 0.2) : this.net.margin;
       let hit = (px - pl[0]) ** 2 + (pz - pl[1]) ** 2 < (halfW + m + 0.05) ** 2;
       for (const f of friends) hit ||= (px - f[0]) ** 2 + (pz - f[1]) ** 2 < (halfW + m + 0.05) ** 2;
       if (!hit && people) hit = people.occupied(px, pz, halfW + m);

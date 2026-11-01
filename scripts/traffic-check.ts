@@ -87,6 +87,13 @@ for (let s = 0; s < STEPS; s++) {
     const st = c.v < 0.1 && !(c.path.hold >= 0 && !c.released) ? (stillT.get(c.id) ?? 0) + dt : 0;
     stillT.set(c.id, st);
     maxStill = Math.max(maxStill, st);
+    if (process.env.DUMP && st >= 100 && st - dt < 100) {
+      console.log('long wait', c.id, c.x.toFixed(1), c.z.toFixed(1), 'why', c.why, 'blocker', c.blocker?.id ?? '-', 'zebraT', c.zebraT.toFixed(0), 'stop in', (c.stopS - c.s).toFixed(1));
+      for (const wk of crowd.walkers as any[]) {
+        const p = wk.actor.position;
+        if (Math.abs(p.z - c.z) < 10 && Math.abs(p.x - c.x) < 6) console.log('  near', wk.mode, p.x.toFixed(1), p.z.toFixed(1), 'doing', wk.doing?.k, 'v', wk.v?.toFixed(2), 'path', wk.path.length);
+      }
+    }
   }
   for (const wk of crowd.walkers as any[]) {
     if (wk.hidden) continue;

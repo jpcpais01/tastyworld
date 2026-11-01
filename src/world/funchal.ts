@@ -555,7 +555,6 @@ export function buildMadeira(win?: Window): BuildResult {
   ribeira(b, c, plan);
   marina(b, c, plan);
   shore(b, c, plan);
-  const signals = avenue(b, c, plan);
   gardens(b, c, plan, inWin);
   levada(b, c, plan);
   lanes(b, c, plan);
@@ -573,6 +572,7 @@ export function buildMadeira(win?: Window): BuildResult {
   const tiles = TILE_SPOTS.map(([x, z]) => [x, groundY(x, z), z] as [number, number, number]);
   for (const [x, y, z] of tiles) { b.place(azulejoCharm(c), x, y, z); b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3); }
   const hidden = secretDoor(b, c, plan);
+  const signals = avenue(b, c, plan);
 
   const anchors: Anchors = {
     spawn: [6, 0, -27],
@@ -2227,7 +2227,7 @@ function shopfronts(b: Builder, c: AC, plan: Plan, out: Extra[]): void {
         // no house close by: the goods stand against the street's own wall
         const front = d <= 1.75;
         const lid = front ? plan.lot[col(Math.floor((ex + nx * side * d) / V), Math.floor((ez + nz * side * d) / V))] : 0;
-        if (lid && (plan.lots[lid - 1].food || plan.lots[lid - 1].hotel)) continue; // a restaurant's or a hotel's door, kept clear
+        if (lid && (plan.lots[lid - 1].food || plan.lots[lid - 1].hotel || plan.lots[lid - 1].secret)) continue; // a restaurant's, a hotel's or the hidden door, kept clear
         const back = front ? d - 0.4 : -0.4;
         const x = ex + nx * side * back, z = ez + nz * side * back;
         const fl = (plan.walk[col(Math.floor(x / V), Math.floor(z / V))] - G) * V;

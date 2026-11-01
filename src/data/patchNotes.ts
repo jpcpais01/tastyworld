@@ -8,6 +8,14 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.21.4',
+    date: '2026-11-01',
+    title: 'Friends face the right way',
+    items: [
+      'In co-op, a friend playing in first person now turns to face wherever they are looking when they stand still, instead of staying frozen facing the way they last walked. Same in 2040.',
+    ],
+  },
+  {
     version: '0.21.3',
     date: '2026-11-01',
     title: 'First-person mouse look fixed on more laptops',

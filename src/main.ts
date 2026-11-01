@@ -2433,7 +2433,7 @@ class Game {
     this.sendT = SEND_EVERY;
     const pl = this.player, p = pl.position;
     const r2 = (n: number) => Math.round(n * 100) / 100;
-    c.sendState([r2(p.x), r2(p.y), r2(p.z), r2(pl.targetFacing), Math.max(0, ANIMS.indexOf(this.meal ? 'eat' : pl.anim)), r2(pl.speed), this.inside ? 1 : 0, c.host ? r2(this.tod.hour) : -1]);
+    c.sendState([r2(p.x), r2(p.y), r2(p.z), r2(Math.atan2(Math.sin(pl.targetFacing), Math.cos(pl.targetFacing))), Math.max(0, ANIMS.indexOf(this.meal ? 'eat' : pl.anim)), r2(pl.speed), this.inside ? 1 : 0, c.host ? r2(this.tod.hour) : -1]);
   }
 
   /** Friends: glide toward their latest sample, and follow the trip leader's clock. */
@@ -2887,6 +2887,8 @@ class Game {
       }
     } else p.y += (floor - p.y) * Math.min(1, dt * 14);
     pl.speed = speed;
+    // in first person your body is hidden, but friends still see it: standing still, it turns to where you look
+    if (this.cam.fp && speed === 0 && !this.path.length && !this.meal && this.eatT <= 0) pl.targetFacing = this.cam.fpYaw;
     if (this.meal && speed > 0) this.endMeal();
     if (this.eatT > 0) { this.eatT -= dt; if (speed > 0) this.eatT = 0; }
     if (this.waveT > 0) { this.waveT -= dt; if (speed > 0) this.waveT = 0; }

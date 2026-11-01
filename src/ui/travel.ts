@@ -4,7 +4,7 @@ import type { Coop, Peer, Profile } from '../net/coop';
 import { DESTINATIONS, DEST, Destination, homeCity, Home } from '../data/destinations';
 import { TEXT } from '../data/cityText';
 import { saveNow } from '../game/state';
-import { CITY, isCity, goToCity, takeResume } from '../world/cityId';
+import { CITY, NEO, isCity, goToCity, takeResume } from '../world/cityId';
 import { DISHES } from '../data/dishes';
 import { PATCH_NOTES } from '../data/patchNotes';
 import { WorldMap } from './worldmap';
@@ -85,7 +85,17 @@ export class Travel {
   constructor(private s: SaveState, private audio: Audio, private hooks: TravelHooks) {}
 
   private profile(): Profile {
-    return { name: this.s.profile.name.trim() || 'Traveller', color: this.s.profile.color, wear: Object.keys(this.s.wear).filter((k) => this.s.wear[k]) };
+    // in 2040 friends see the character you made, not Tasty World's traveller
+    const life = NEO ? this.s.life : undefined;
+    return { name: (life?.name || this.s.profile.name).trim() || 'Traveller', color: this.s.profile.color, wear: Object.keys(this.s.wear).filter((k) => this.s.wear[k]), look: life?.look ?? undefined };
+  }
+
+  /** 2040: share or join a session straight from the title screen (no world map, no flight). */
+  coopHere(host: boolean): void {
+    const wrap = h('div', 'trip-plain coop2040');
+    this.hooks.overlay(wrap, () => {});
+    if (host) void this.hostPass(wrap, DEST[CITY]);
+    else this.joinPass(wrap);
   }
 
   // ------------------------------------------------------------------ home menu

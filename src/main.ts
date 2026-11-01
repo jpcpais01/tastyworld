@@ -43,8 +43,12 @@ import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
 import { TIP_PER_STAR } from './data/money';
-import { AMALFI, ISTANBUL, MADEIRA, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
-import { nightAt, dropLanding } from './ui/arrival';
+import { AMALFI, ISTANBUL, MADEIRA, NEO, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
+import { neoTitle } from './neo/title';
+import { openCreator } from './neo/creator';
+import { Vitals } from './neo/vitals';
+import { defaultLife } from './neo/state';
+import { nightAt, dropLanding, endLanding } from './ui/arrival';
 import { FarTown } from './engine/fartown';
 import { farCoast } from './engine/farcoast';
 import { farMadeira, type CableLine } from './engine/farMadeira';
@@ -136,7 +140,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Game {
   r: Renderer;
-  tod = new TimeOfDay();
+  tod = (() => { const t = new TimeOfDay(); if (NEO) t.hour = 20.6; return t; })();
   cam: IsoCamera;
   audio = new Audio();
   ui: UI;
@@ -479,6 +483,14 @@ class Game {
       // the iso camera sits 120 m back: let it see the ridges a kilometre and more behind the town
       this.r.camera.far = 1800;
       this.r.camera.updateProjectionMatrix();
+    } else if (NEO) {
+      // Halcyon's sprawl to the horizon on three sides, open water to the east past the docks
+      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [], 360, undefined, { open: [[WX1 - 13, -1e4, 1e4, 1e4]], green: [] });
+      this.worldGroup.add(far.ground, far.city);
+      this.r.camera.far = 1400;
+      this.r.camera.updateProjectionMatrix();
+      this.r.composite.uniforms.uWaterBounds.value.set(-4000, -4000, 4000, 4000);
+      this.r.composite.uniforms.uSea.value = 1;
     } else {
       // Tokyo Tower closes the view up the north-south avenue, 150 m past the north edge of the map
       // the ring road round the map is kept open only where a street carries on; elsewhere houses close it, and
@@ -644,7 +656,7 @@ class Game {
       });
     }
     // chef inside the hidden restaurant
-    const kak = STALL[perCity({ tokyo: 'kakurega', amalfi: 'grotta', istanbul: 'gizli', madeira: 'segredo' })];
+    const kak = STALL[perCity({ tokyo: 'kakurega', amalfi: 'grotta', istanbul: 'gizli', madeira: 'segredo', neo: 'greenhouse' })];
     this.chef = new Actor(buildPerson(kak.vendorLook), this.chars);
     this.chef.position.set(a.chef[0], 0, a.chef[2]);
     this.chef.facing = this.chef.targetFacing = 0;
@@ -652,7 +664,7 @@ class Game {
     this.insideGroup.add(this.chef.root);
     this.interactables.push({
       key: 'chef', x: a.counterStand[0], z: a.counterStand[1], stand: a.counterStand, pick: [a.chef[0], 1.6, a.chef[2]], r: 1.6, inside: true,
-      prompt: () => [perCity({ tokyo: 'sushi', amalfi: 'squid', istanbul: 'pot', madeira: 'fish' }), TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
+      prompt: () => [perCity({ tokyo: 'sushi', amalfi: 'squid', istanbul: 'pot', madeira: 'fish', neo: 'flower' }), TEXT.hidden.chef[0], TEXT.hidden.chef[1]],
       act: () => this.openStall(kak, this.chef, [a.chef[0], a.chef[2]]),
     });
     this.interactables.push({
@@ -749,6 +761,7 @@ class Game {
       amalfi: m ? { walkers: 80, joggers: 2, dogs: 4, cyclists: 0, couriers: 0, boats: 3, exercise: 0, bathers: 16 } : { walkers: 170, joggers: 4, dogs: 7, cyclists: 0, couriers: 0, boats: 4, exercise: 0, bathers: 30 },
       istanbul: m ? { walkers: 320, joggers: 3, dogs: 9, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 800, joggers: 6, dogs: 16, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
       madeira: m ? { walkers: 260, joggers: 4, dogs: 8, cyclists: 0, couriers: 0, boats: 3, exercise: 0 } : { walkers: 640, joggers: 8, dogs: 14, cyclists: 0, couriers: 0, boats: 4, exercise: 0 },
+      neo: m ? { walkers: 360, joggers: 4, dogs: 8, cyclists: 6, couriers: 10, boats: 2, exercise: 0 } : { walkers: 1100, joggers: 10, dogs: 16, cyclists: 14, couriers: 24, boats: 4, exercise: 0 },
     }));
     // the traffic: Tokyo's avenues with cars up out of the underpasses and live lights the crowd waits on; the
     // shore road of Funchal and Amalfi with its zebras and buses; Istanbul's trams through Sirkeci
@@ -1118,6 +1131,7 @@ class Game {
       ? follow ? 'Your trip leader keeps the clock, so the city kept its hour.' : 'The time of day is fixed in your settings, so the city kept its hour.'
       : night ? `${info?.name ?? 'The hotel'} · the city is waking up` : TEXT.nap;
     const first = night && !this.s.stays.includes(rm.hotel);
+    this.vitals?.rested(night ? 100 : 40);
     await this.ui.sleep(h, keep ? h : to, night ? 'Good morning!' : 'What a lovely nap', sub, () => {
       if (!keep) this.tod.hour = to;
       if (night) {
@@ -1252,6 +1266,7 @@ class Game {
     this.audio.play('coin');
     this.ui.toast(it.icon, it.name, it.text);
     if (it.snack) setTimeout(() => this.startMeal(it.icon, this.server, () => {}), 150);
+    if (it.snack) this.vitals?.ate(14, 1);
     this.afterChange();
     return true;
   }
@@ -1367,7 +1382,7 @@ class Game {
   rebuildPlayer(): void {
     const old = this.player;
     this.lookColor = this.s.profile.color;
-    this.player = new Actor(buildPerson(playerLook(this.s.wear, this.s.profile.color)), this.chars);
+    this.player = new Actor(buildPerson(NEO && this.s.life?.look ? { ...this.s.life.look } : playerLook(this.s.wear, this.s.profile.color)), this.chars);
     if (old) {
       this.player.position.copy(old.position);
       this.player.facing = this.player.targetFacing = old.facing;
@@ -1381,6 +1396,7 @@ class Game {
   // ------------------------------------------------------------------ start
   /** The slow orbit over the old town behind the title screen. */
   private titleView(): void {
+    if (NEO) { this.cam.target.set(0, 8, 0); this.cam.zoom = 46; this.cam.setOrbit(0.04); this.cam.snap(); return; }
     if (AMALFI) this.cam.target.set(6, 6, 6);
     else if (MADEIRA) this.cam.target.set(0, 4, -20);
     else if (ISTANBUL) this.cam.target.set(4, 4, 20);
@@ -1422,9 +1438,82 @@ class Game {
   title(): void {
     this.titleView();
     this.ui.loaded();
-    this.travel.title();
+    if (NEO) this.neoTitle(); else this.travel.title();
     this.bindInput();
     requestAnimationFrame((t) => this.frame(t));
+  }
+
+  // ------------------------------------------------------------------ 2040
+  private vitals: Vitals | null = null;
+  private closeCreator: (() => void) | null = null;
+
+  /** 2040's title: carry on, make a character, or share a session. */
+  private neoTitle(): void {
+    this.s.life ??= defaultLife();
+    const t = document.getElementById('title')!;
+    neoTitle(t, this.s, {
+      play: () => { t.classList.add('hidden'); this.start(DEST.neo, null); },
+      create: () => { t.classList.add('hidden'); this.neoCreator(); },
+      host: () => this.travel.coopHere(true),
+      join: () => this.travel.coopHere(false),
+      notes: () => this.ui.notes(),
+      click: () => { this.audio.start(); this.audio.play('click'); },
+    });
+    endLanding();
+  }
+
+  /** The mirror: a close-up of the body being made, the creator panel beside it. */
+  private neoCreator(): void {
+    const life = this.s.life!;
+    const a = this.w.anchors;
+    this.player.position.set(a.spawn[0], this.navWorld.heightAt(a.spawn[0], a.spawn[2]), a.spawn[2]);
+    this.player.facing = this.player.targetFacing = Math.PI * 0.25;
+    this.cam.setOrbit(0);
+    this.cam.target.set(a.spawn[0], 1.0, a.spawn[2]);
+    this.cam.zoom = this.r.isMobile ? 4.2 : 3.4;
+    this.cam.snap();
+    const restore = life.look;
+    this.closeCreator = openCreator(document.getElementById('app')!, { name: life.name, look: life.look }, {
+      preview: (look) => { life.look = look; this.rebuildPlayer(); this.player.flash = 0.6; },
+      done: (name, look) => {
+        life.name = name; life.look = look;
+        this.s.profile.name = name;
+        this.save();
+        this.closeCreator?.(); this.closeCreator = null;
+        this.start(DEST.neo, null);
+      },
+      back: () => {
+        life.look = restore; this.rebuildPlayer();
+        this.closeCreator?.(); this.closeCreator = null;
+        this.titleView();
+        this.neoTitle();
+      },
+      click: () => this.audio.play('click'),
+    });
+  }
+
+  /** You pass out: the screen goes dark, and you come to at the clinic on Spindle Avenue, lighter in the pocket. */
+  private async faint(): Promise<void> {
+    const life = this.s.life!;
+    this.path = []; this.pending = null; this.joy = null;
+    this.endMeal();
+    const fee = Math.min(this.s.yen, Math.max(20, Math.round(this.s.yen * 0.12)));
+    const fade = document.getElementById('fade')!;
+    fade.classList.add('on');
+    await sleep(900);
+    if (this.inside) await this.teleport(false);
+    const a = this.w.anchors;
+    this.player.position.set(a.spawn[0], this.navWorld.heightAt(a.spawn[0], a.spawn[2]), a.spawn[2]);
+    this.s.yen -= fee;
+    this.vitals?.revive();
+    this.boardView();
+    await sleep(500);
+    fade.classList.remove('on');
+    this.afterChange();
+    this.ui.dialogue('Halcyon General', [
+      life.hunger <= 36 ? 'You collapsed in the street from hunger. A courier drone dropped you at the clinic doors.' : 'You collapsed from exhaustion. Someone called a med drone.',
+      `The medics patched you up and billed you ${TEXT.money(fee)}. Eat, and sleep, and it will not happen again.`,
+    ]);
   }
 
   private start(dest: Destination, coop: Coop | null): void {
@@ -1456,6 +1545,15 @@ class Game {
     if (this.s.pin) this.setPin(this.s.pin);
     this.boardView();
     this.ui.showHud(true);
+    if (NEO && !this.vitals) {
+      this.s.life ??= defaultLife();
+      this.vitals = new Vitals(this.s.life, {
+        faint: () => void this.faint(),
+        warn: (k, text) => { this.audio.play('fail'); this.ui.toast(k === 'hunger' ? 'ramen' : k === 'sleep' ? 'bed' : 'plaster', k === 'hunger' ? 'Hungry' : k === 'sleep' ? 'Exhausted' : 'Feeling faint', text); },
+      });
+      const host = document.querySelector('#hud .hud-tl');
+      if (host) this.vitals.mount(host as HTMLElement);
+    }
     this.applySettings();
     let fp = false;
     try { fp = localStorage.getItem(VIEW_KEY) === 'fp'; } catch { /* storage blocked */ }
@@ -1605,6 +1703,7 @@ class Game {
     if (this.tod.isNight) this.s.flags.ateAtNight = true;
     this.eatT = 3.2;
     this.player.anim = 'eat';
+    this.vitals?.ate(38, 3);
     this.afterChange();
   }
 
@@ -2111,13 +2210,13 @@ class Game {
     for (const p of c.list) {
       const st = p.st;
       if (!st || !p.inWorld) { if (this.remotes.has(p.id)) this.dropRemote(p.id); continue; }
-      const lookKey = `${p.color}|${p.wear.join(',')}`;
+      const lookKey = p.look ? JSON.stringify(p.look) : `${p.color}|${p.wear.join(',')}`;
       let rm = this.remotes.get(p.id);
       if (rm && rm.look !== lookKey) { this.dropRemote(p.id); rm = undefined; }
       if (!rm) {
         const wear: Record<string, boolean> = {};
         for (const w of p.wear) wear[w] = true;
-        const actor = new Actor(buildPerson(playerLook(wear, p.color)), this.chars);
+        const actor = new Actor(buildPerson(p.look ? { ...p.look } : playerLook(wear, p.color)), this.chars);
         actor.position.set(st[0], st[1], st[2]);
         actor.facing = actor.targetFacing = st[3];
         actor.flash = 1;
@@ -2891,6 +2990,7 @@ class Game {
     this.tod.apply(this.r);
     if (this.inside) { sh.uLamp.value = Math.max(sh.uLamp.value, 0.95); sh.uSunColor.value.multiplyScalar(0.35); }
     if (this.started) this.s.playTime += dt;
+    if (this.vitals) this.vitals.update(dt, { active: this.started && !this.sleeping && !this.ui.busy, moving: this.player.anim === 'run' ? 2 : this.player.anim === 'walk' ? 1 : 0, resting: !!this.meal || this.player.anim === 'sit' });
     this.perf.lap('clock');
 
     this.meal?.update(dt);

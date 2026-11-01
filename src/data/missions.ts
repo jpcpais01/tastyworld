@@ -7,6 +7,8 @@ import { HOTEL, HOTELS } from './hotels';
 import { perCity } from '../world/cityId';
 import { eur, lira } from './money';
 import { MADEIRA_ITEMS } from './madeira';
+import { NEO_MISSIONS } from '../neo/missions';
+import { NEO_ITEMS } from './neo';
 import { CITY_SOUVENIRS } from './souvenirs';
 import { ISTANBUL_MORE_STALLS } from './istanbulMenu';
 import { TOKYO_MORE_STALLS } from './tokyoMenu';
@@ -136,9 +138,10 @@ export const MISSIONS: Mission[] = perCity({
   amalfi: [...AMALFI_MISSIONS, ...shopMissions('a-', 'Amalfi', eur(15), eur(40))],
   istanbul: [...ISTANBUL_MISSIONS, ...shopMissions('i-', 'Istanbul', lira(500), lira(1500))],
   madeira: [...MADEIRA_MISSIONS, ...shopMissions('m-', 'Madeira', eur(15), eur(40))],
+  neo: [...NEO_MISSIONS, ...shopMissions('n-', 'Halcyon', 40, 150)],
 });
 /** The mission for the hidden restaurant, which stays secret until its door is found. */
-export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret', madeira: 'm-secret' });
+export const SECRET_MISSION = perCity({ tokyo: 'secret', amalfi: 'a-secret', istanbul: 'i-secret', madeira: 'm-secret', neo: 'n-secret' });
 
 /** The one mission the HUD follows: a reward to claim first, otherwise the one closest to done. */
 export function trackedMission(s: SaveState): { next: Mission | null; ready: Mission[] } {
@@ -195,6 +198,7 @@ export const ITEMS: Record<string, { name: string; icon: IconName; desc: string 
   tespih: { name: 'Prayer beads', icon: 'chime', desc: 'Amber tespih beads from the terrace tea man. Old men click them for hours on every bench in the city.' },
   fisilti: { name: 'A whisper', icon: 'paw', desc: 'The three blue eyes all look up the lanes behind the Grand Bazaar, to a door with no sign...' },
   ...MADEIRA_ITEMS,
+  ...NEO_ITEMS,
   cezve: { name: 'Copper cezve', icon: 'coffee', desc: 'Hatice Hanım gave you her small copper coffee pot. "For your own kitchen. Boil it slowly."' },
   goldtulip: { name: 'Golden tulip', icon: 'medal', desc: 'Your Istanbul passport is complete. The ferry captains know your name.' },
   gold: { name: 'Gold stamp', icon: 'medal', desc: 'Your Japan passport is complete. Seoul is calling.' },

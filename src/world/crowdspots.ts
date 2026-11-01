@@ -3,7 +3,7 @@
 // the nav grid before using it, so a spot a later prop happens to cover is simply dropped.
 import { STREETS } from './city';
 import { V } from './layout';
-import { AMALFI, ISTANBUL, MADEIRA } from './cityId';
+import { AMALFI, ISTANBUL, MADEIRA, NEO } from './cityId';
 import { LIDOS, lidoUmbrellas, freeBeachTowels } from './amalfiPlan';
 
 type V2 = [number, number];
@@ -16,7 +16,7 @@ const N = Math.PI, S = 0, E = Math.PI / 2, W = -Math.PI / 2;
 
 /** The kind of new-city street at (x, z), with its centre line and direction, or null in the old district. */
 export function streetAt(x: number, z: number): { kind: StreetKind; ew: boolean; centre: number; half: number } | null {
-  if (AMALFI || ISTANBUL || MADEIRA) return null;
+  if (AMALFI || ISTANBUL || MADEIRA || NEO) return null;
   for (const s of STREETS) {
     if (x < s.x0 * V || x > (s.x1 + 1) * V || z < s.z0 * V || z > (s.z1 + 1) * V) continue;
     const a = s.ew ? s.z0 : s.x0, b = (s.ew ? s.z1 : s.x1) + 1;
@@ -156,7 +156,27 @@ function madeiraSpots(): CrowdSpots {
   };
 }
 
+/** Halcyon City (2040): friends meet under the Halo, runners take the canal walk, boats work the bay. */
+function neoSpots(): CrowdSpots {
+  const meet: Spot[] = [];
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2, r = 9 + (i % 3) * 1.4;
+    meet.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, face: Math.atan2(-Math.cos(a), -Math.sin(a)) + 0.4 });
+  }
+  const jog: V2[] = [];
+  for (let z = -150; z <= 150; z += 6) jog.push([114.4, z]);
+  for (let z = 150; z >= -150; z -= 6) jog.push([116.2, z]);
+  return {
+    pray: [], purify: [], gates: [], meet,
+    sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
+    windows: [], jog, exercise: [],
+    boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
+    sea: { cx: 210, cz: 0, rx: 3, rz: 28, y: -0.55 },
+  };
+}
+
 export function crowdSpots(): CrowdSpots {
+  if (NEO) return neoSpots();
   if (MADEIRA) return madeiraSpots();
   if (AMALFI) return amalfiSpots();
   if (ISTANBUL) return istanbulSpots();

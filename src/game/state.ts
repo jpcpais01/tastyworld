@@ -1,6 +1,7 @@
 import type { Quality } from '../engine/renderer';
 import { CITY } from '../world/cityId';
 import { ECONOMY, OLD_WALLET_SCALE, START_PURSE } from '../data/money';
+import { defaultLife, type NeoLife } from '../neo/state';
 
 export interface Settings {
   quality: Quality | 'auto';
@@ -74,6 +75,8 @@ export interface SaveState {
   trip?: TripLog | null;
   /** The city-bound parts of the save (see LOCAL) for every city but the one being played, by city id. */
   cities?: Record<string, Partial<SaveState>>;
+  /** 2040 only: the life sim (needs, work, wardrobe, home, quests). */
+  life?: NeoLife;
 }
 
 /** A snapshot taken on landing in a city, so the end of the trip can tell what it came to. */
@@ -96,12 +99,14 @@ function pickLocal(s: Partial<SaveState>): Partial<SaveState> {
   return o as Partial<SaveState>;
 }
 
-const KEY = 'tastyworld.save.v1';
+/** 2040 keeps a save of its own: a different game, a different person. */
+const KEY = CITY === 'neo' ? 'halcyon2040.save.v1' : 'tastyworld.save.v1';
 
 export function defaultState(): SaveState {
   return {
     v: 1, yen: START_PURSE, econ: ECONOMY, tasted: {}, cooked: {}, manekis: [], hiddenFound: false, claimed: [], items: [], wear: {}, flags: {}, darumas: [], capsules: [], souvenirs: {}, rooms: [], seen: [], stays: [], hotel: null,
     settings: { quality: 'auto', musicVol: 0.8, ambVol: 0.6, sfxVol: 0.8, tilt: true, dayLength: 720, timeOfDay: null, viewDist: null, veryFar: false, fov: 72, perf: false }, profile: { name: '', color: 0xe9573f }, playTime: 0, photos: 0,
+    ...(CITY === 'neo' ? { life: defaultLife() } : {}),
   };
 }
 
@@ -123,7 +128,8 @@ export function loadState(): SaveState {
       s.econ = ECONOMY;
       if (s.trip) s.trip = { ...s.trip, yen: s.yen };
     }
-    if (CITY !== 'tokyo') {
+    if (CITY === 'neo') s.life = { ...defaultLife(), ...(s.life ?? {}) };
+    else if (CITY !== 'tokyo') {
       home = pickLocal(s);
       const here = s.cities?.[CITY] ?? {};
       for (const k of LOCAL) delete s[k];
@@ -137,7 +143,7 @@ export function loadState(): SaveState {
 
 /** The save as it goes to storage: the city being played filed under `cities` unless it is Tokyo. */
 function stored(s: SaveState): SaveState {
-  if (CITY === 'tokyo') return s;
+  if (CITY === 'tokyo' || CITY === 'neo') return s;
   return { ...s, ...(home ?? {}), flags: { ...(home?.flags ?? {}), lastPatch: s.flags.lastPatch }, cities: { ...(s.cities ?? {}), [CITY]: pickLocal(s) } };
 }
 

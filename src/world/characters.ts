@@ -1,4 +1,4 @@
-import { AMALFI, ISTANBUL, MADEIRA, perCity } from './cityId';
+import { AMALFI, ISTANBUL, MADEIRA, NEO, perCity } from './cityId';
 import { Grid, rng } from './grid';
 import { Palette } from './palette';
 import { PART, PART_COUNT, CHAR_SCALE } from './charparts';
@@ -67,9 +67,9 @@ export function randomLook(seed: number): Look {
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
   const hairStyles: Look['hairStyle'][] = ['short', 'short', 'bob', 'bun', 'long', 'spiky', 'ponytail', 'bald'];
   // a summer coast dresses lighter than a Tokyo street: tees and linen, shorts, straw hats and sunglasses
-  const topStyles: Look['topStyle'][] = perCity({ tokyo: ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'], amalfi: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], istanbul: ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'], madeira: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'] });
+  const topStyles: Look['topStyle'][] = perCity({ tokyo: ['tee', 'tee', 'jacket', 'jacket', 'yukata', 'suit', 'sailor', 'vest', 'cardigan'], amalfi: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], istanbul: ['tee', 'tee', 'jacket', 'jacket', 'vest', 'cardigan', 'suit', 'tee', 'jacket'], madeira: ['tee', 'tee', 'tee', 'vest', 'jacket', 'cardigan', 'suit', 'tee'], neo: ['jacket', 'jacket', 'jacket', 'tee', 'suit', 'vest', 'jacket', 'cardigan', 'tee'] });
   const topStyle = pick(topStyles);
-  const hats: Look['hat'][] = perCity({ tokyo: ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'], amalfi: ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'], istanbul: ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'], madeira: ['none', 'none', 'none', 'none', 'cap', 'straw', 'bucket', 'cap'] });
+  const hats: Look['hat'][] = perCity({ tokyo: ['none', 'none', 'none', 'none', 'cap', 'beanie', 'bucket', 'straw'], amalfi: ['none', 'none', 'none', 'none', 'cap', 'straw', 'straw', 'bucket'], istanbul: ['none', 'none', 'none', 'none', 'none', 'cap', 'beanie', 'cap'], madeira: ['none', 'none', 'none', 'none', 'cap', 'straw', 'bucket', 'cap'], neo: ['none', 'none', 'none', 'none', 'cap', 'beanie', 'beanie', 'bucket'] });
   const look: Look = {
     skin: pick(SKINS), hair: pick(HAIRS), hairStyle: pick(hairStyles), top: pick(TOPS), topStyle,
     accent: pick(TOPS), bottom: pick(BOTTOMS), skirt: r() < 0.25, shoes: pick(SHOES), shorts: r() < (AMALFI ? 0.4 : MADEIRA ? 0.3 : 0.12),
@@ -81,8 +81,21 @@ export function randomLook(seed: number): Look {
     if (r() < 0.24) { look.hat = 'scarf'; look.hatColor = SCARVES[Math.floor(r() * SCARVES.length)]; look.hairStyle = 'short'; look.skirt = r() < 0.6; }
     else if (!look.skirt && r() < 0.3) look.moustache = true;
   }
+  if (NEO) {
+    // Halcyon dresses for the rain and the night: dark coats and boots, a neon trim, dyed hair, visors
+    look.top = pick(NEO_TOPS); look.bottom = pick(NEO_BOTTOMS); look.shoes = pick(NEO_SHOES); look.accent = pick(NEO_ACCENTS);
+    if (r() < 0.3) look.hair = pick(NEO_ACCENTS);
+    look.glasses = r() < 0.35; look.shorts = r() < 0.05;
+    if (look.backpack !== undefined) look.backpack = pick(NEO_ACCENTS);
+    if (look.hat !== 'none') look.hatColor = pick([...NEO_TOPS, ...NEO_ACCENTS]);
+  }
   return look;
 }
+
+const NEO_TOPS = [0x16161c, 0x1e1e26, 0x2a2a34, 0x2b3346, 0x3a2a3a, 0x4a3a2a, 0x2a3a3a, 0xd8d8dc, 0x8a1a2a, 0x2a4a3a, 0xf2c74a, 0x1a2a4a];
+const NEO_BOTTOMS = [0x16161c, 0x1e1e26, 0x2a2a34, 0x3a3a40, 0x2b3346, 0x4a3a2a];
+const NEO_SHOES = [0x16161c, 0x1a1a1e, 0xf2efe7, 0x2a2a34, 0xd8282e];
+const NEO_ACCENTS = [0x2ad8ff, 0xff5fb4, 0xa47bff, 0xffdc5a, 0x7dffa8, 0xff9a4a, 0xf2efe7, 0xd8282e];
 
 const SCARVES = [0xc9a9a6, 0x7a8fa8, 0xe8dcc8, 0x9a6a7a, 0x5a6e5a, 0xd8b88a, 0x3e4a6a, 0xb86a5a, 0xf0e6ea, 0x8a7aa8];
 

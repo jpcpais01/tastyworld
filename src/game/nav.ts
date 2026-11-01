@@ -1,5 +1,9 @@
 import type { NavData } from '../world/bake';
 import { G, V } from '../world/layout';
+import { NEO } from '../world/cityId';
+
+/** A* search budget: Tokyo is 216 x 168 m, Halcyon City (2040) twice that each way. */
+const ITER = NEO ? 2400000 : 400000;
 
 const BLOCKED = 255;
 const MAX_STEP = 2; // voxels a character can step up or down between neighbouring cells
@@ -315,7 +319,7 @@ export class Nav {
     const D = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
     let found = false;
     let iter = 0;
-    while (hs > 0 && iter++ < 400000) { // (the city is 216 x 168 m: room for routes across it)
+    while (hs > 0 && iter++ < ITER) { // (room for routes across the whole city)
       const cur = pop();
       if (cur === goal) { found = true; break; }
       if (mark[cur] === CLOSED) continue;

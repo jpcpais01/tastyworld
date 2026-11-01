@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" class="y2040">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07080d" />
+    <meta name="description" content="2040: live, work, eat and dig for secrets in Halcyon City, a rain-soaked voxel metropolis." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" href="/icons/icon-2040.svg" type="image/svg+xml" />
+    <title>2040 · Halcyon City</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="gl"></canvas>
+      <div id="labels"></div>
+      <div id="hud" class="hidden"></div>
+      <div id="prompt" class="hidden"></div>
+      <div id="toasts"></div>
+      <div id="panel-root"></div>
+      <div id="title" class="hidden"></div>
+      <div id="loading">
+        <div class="load-inner">
+          <div class="load-2040" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <h1 class="load-logo">20<span>40</span></h1>
+          <p class="load-sub">Halcyon City</p>
+          <div class="load-bar"><div class="load-fill" id="load-fill"></div></div>
+          <p class="load-stage" id="load-stage">Booting the city grid…</p>
+        </div>
+      </div>
+      <div id="fade"></div>
+    </div>
+    <script type="module" src="/src/boot.ts"></script>
+  </body>
+</html>

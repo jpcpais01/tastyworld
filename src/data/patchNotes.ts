@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.0',
+    date: '2026-11-01',
+    title: '2040: a new game in Halcyon City',
+    items: [
+      'A whole new game lives at /2040. It is set in Halcyon City in the year 2040: rain, neon and noodle steam, built in the same voxels as Tasty World and twice as wide as Tokyo each way.',
+      'Five districts to explore: the Lantern Market\'s night stalls, the glass towers of the Spire, the housing blocks of the Stacks, the bars of the Neon Mile, and the Rust Docks with cranes and container yards on the bay. The Black Canal runs between them under five bridges, and the Halo, a ring of light, hangs over the crossing in the middle.',
+      'Make your own character: twelve skin tones, seven hairstyles in natural or neon colours, shades, a moustache, and your pick of jackets, suits, vests, coats, trims, legwear, shoes, hats and bags. Start from six looks (Netrunner, Courier, Corpo, Street cook, Dock hand, Drifter) or roll a random one.',
+      'You have a body now: health, hunger and sleep bars beside the clock. Eat to stay fed, sleep in a bed to stay sharp, and do not let either run out, or you will pass out and wake up at the clinic with a bill.',
+      'More than six hundred shops, cafés, bars, bakeries and konbini to walk into, 21 named places to eat with 42 dishes of the future (kelp ramen, vat bao, krill skewers, glow boba, printed sushi, cultured steak), six hotels from capsule pods to corporate suites, and a hidden table behind an unmarked door somewhere in the Stacks.',
+      'Play with a friend: share a code from the title screen and explore Halcyon together.',
+      'Halcyon has its own lo-fi soundtrack, synthwave by day and late-night by night.',
+    ],
+  },
+  {
     version: '0.19.4',
     date: '2026-11-01',
     title: 'Traffic in Funchal, Amalfi and Istanbul',

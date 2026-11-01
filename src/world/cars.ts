@@ -90,7 +90,7 @@ const ISTANBUL_PAINTS: Partial<Record<CarKind, Paint[]>> = {
 };
 
 /** This city's paints per make (only the makes that drive here). */
-export const PAINTS = perCity({ tokyo: TOKYO_PAINTS, madeira: MADEIRA_PAINTS, amalfi: AMALFI_PAINTS, istanbul: ISTANBUL_PAINTS });
+export const PAINTS = perCity({ tokyo: TOKYO_PAINTS, madeira: MADEIRA_PAINTS, amalfi: AMALFI_PAINTS, istanbul: ISTANBUL_PAINTS, neo: {} });
 
 interface Body {
   L: number; W: number; roof: number; belt: number;

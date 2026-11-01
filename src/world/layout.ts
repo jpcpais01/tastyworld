@@ -1,5 +1,5 @@
 // Shared world constants (metres unless noted).
-import { AMALFI, ISTANBUL, MADEIRA } from './cityId';
+import { AMALFI, ISTANBUL, MADEIRA, NEO } from './cityId';
 
 export const V = 0.25; // coarse voxel size
 export const VPM = 4; // voxels per metre
@@ -9,21 +9,22 @@ export const G = 12; // voxel layer of street level (world y = 0 at the top of l
  * the original district keeps 0..72 x 0..56 m and the city grows around it, so the world's first voxel
  * column is at (VX0, VZ0) = (-72 m, -56 m).
  */
-export const VX0 = AMALFI || MADEIRA ? -448 : ISTANBUL ? -640 : -288, VZ0 = AMALFI ? -320 : MADEIRA ? -352 : ISTANBUL ? -448 : -224;
+/** Halcyon City (2040) is twice Tokyo's side: 432 x 336 m, centred on the Halo crossing. */
+export const VX0 = NEO ? -864 : AMALFI || MADEIRA ? -448 : ISTANBUL ? -640 : -288, VZ0 = NEO ? -672 : AMALFI ? -320 : MADEIRA ? -352 : ISTANBUL ? -448 : -224;
 /** Amalfi climbs from the sea up its cliffs, so its world is taller: 56 m of voxels against Tokyo's 40. */
 /** Istanbul rolls over its hills more gently: 48 m of voxels, room for the minarets on the hilltop. */
-export const SX = AMALFI || MADEIRA ? 768 : ISTANBUL ? 832 : 864, SY = AMALFI || MADEIRA ? 224 : ISTANBUL ? 192 : 160, SZ = AMALFI ? 640 : MADEIRA ? 704 : ISTANBUL ? 704 : 672;
+export const SX = NEO ? 1728 : AMALFI || MADEIRA ? 768 : ISTANBUL ? 832 : 864, SY = AMALFI || MADEIRA ? 224 : ISTANBUL || NEO ? 192 : 160, SZ = NEO ? 1344 : AMALFI ? 640 : MADEIRA ? 704 : ISTANBUL ? 704 : 672;
 export const WX0 = VX0 * V, WZ0 = VZ0 * V;
 export const WX1 = (VX0 + SX) * V, WZ1 = (VZ0 + SZ) * V;
 export const WORLD_W = SX * V, WORLD_D = SZ * V;
 export const WATER_Y = -0.55;
 /** The Inari hill (inclusive voxel rect): the only ground above street level people walk on. */
-export const HILL: [number, number, number, number] = AMALFI || ISTANBUL || MADEIRA ? [0, 0, -1, -1] : [-288, 260, -41, 447];
+export const HILL: [number, number, number, number] = AMALFI || ISTANBUL || MADEIRA || NEO ? [0, 0, -1, -1] : [-288, 260, -41, 447];
 export const CHUNK = 32; // voxel columns per chunk side
 export const CHUNKS_X = SX / CHUNK, CHUNKS_Z = SZ / CHUNK;
 
 // Interior diorama (hidden restaurant) lives far away from the street map.
-export const INTERIOR_ORIGIN: [number, number, number] = [320, 0, 10];
+export const INTERIOR_ORIGIN: [number, number, number] = NEO ? [600, 0, 10] : [320, 0, 10];
 export const ISX = 64, ISY = 40, ISZ = 48;
 
 export interface StreetZone {
@@ -56,6 +57,20 @@ const TOKYO_ZONES: StreetZone[] = [
   { id: 'park', name: 'Hikari Park', jp: '光公園', rect: [82, 65, 144, 112] },
   { id: 'inari', name: 'Inari Hill', jp: '稲荷山', rect: [-72, 65, -10, 112] },
   { id: 'kakurega', name: 'Kakurega · Hidden Counter', jp: '隠れ家', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
+];
+
+/** Halcyon City's districts (see world/neo.ts); `jp` holds the street-sign name. */
+const NEO_ZONES: StreetZone[] = [
+  { id: 'halo', name: 'Halo Crossing', jp: 'HALO ✕', rect: [-20, -20, 20, 20] },
+  { id: 'meridian', name: 'Meridian Boulevard', jp: 'MERIDIAN BLVD', rect: [-216, -8, 216, 8] },
+  { id: 'spindle', name: 'Spindle Avenue', jp: 'SPINDLE AVE', rect: [-8, -168, 8, 168] },
+  { id: 'lantern', name: 'Lantern Market', jp: '燈市 LANTERN MKT', rect: [-216, -168, -8, -8] },
+  { id: 'spire', name: 'The Spire District', jp: 'SPIRE DISTRICT', rect: [8, -168, 116, -8] },
+  { id: 'stacks', name: 'The Stacks', jp: 'STACKS 層', rect: [-216, 8, -8, 168] },
+  { id: 'neonmile', name: 'Neon Mile', jp: 'NEON MILE', rect: [8, 8, 116, 168] },
+  { id: 'canal', name: 'Black Canal', jp: '黒運河', rect: [116, -168, 132, 168] },
+  { id: 'docks', name: 'Rust Docks', jp: 'RUST DOCKS', rect: [132, -168, 216, 168] },
+  { id: 'greenhouse', name: 'The Greenhouse · Hidden Table', jp: 'greenhouse', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
 ];
 
 /** Amalfi's quarters, streets and stairways (see world/amalfi.ts); `jp` holds the Italian name. */
@@ -133,7 +148,7 @@ const MADEIRA_ZONES: StreetZone[] = [
   { id: 'segredo', name: 'A Porta Pintada · Hidden Kitchen', jp: 'a porta pintada', rect: [INTERIOR_ORIGIN[0] - 10, 0, INTERIOR_ORIGIN[0] + 30, 30] },
 ];
 
-export const ZONES: StreetZone[] = AMALFI ? AMALFI_ZONES : ISTANBUL ? ISTANBUL_ZONES : MADEIRA ? MADEIRA_ZONES : TOKYO_ZONES;
+export const ZONES: StreetZone[] = NEO ? NEO_ZONES : AMALFI ? AMALFI_ZONES : ISTANBUL ? ISTANBUL_ZONES : MADEIRA ? MADEIRA_ZONES : TOKYO_ZONES;
 
 /** Districts and streets registered by the city builder (see world/city.ts), checked after ZONES. */
 export const CITY_ZONES: StreetZone[] = [];

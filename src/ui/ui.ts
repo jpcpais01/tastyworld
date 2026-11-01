@@ -195,7 +195,7 @@ export class UI {
       </div>
       <div class="hud-tr">
         <div class="glass bar">
-          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${TEXT.money(START_PURSE).slice(1)}</span></div>
+          <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${TEXT.money(START_PURSE).replace(/[^\d.,-]/g, '')}</span></div>
           <span class="sep"></span>
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
@@ -358,7 +358,7 @@ export class UI {
 
   /** Re-render yen, the mission tracker and the passport notification dot. */
   refresh(): void {
-    this.yenEl.textContent = TEXT.money(this.s.yen).slice(1);
+    this.yenEl.textContent = TEXT.money(this.s.yen).replace(/[^\d.,-]/g, '');
     if (this.lastYen >= 0 && this.s.yen !== this.lastYen) {
       this.yenChip.classList.remove('bump');
       void this.yenChip.offsetWidth;

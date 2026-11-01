@@ -653,7 +653,40 @@ const MADEIRA: Trade[] = [
 ];
 
 /** Every trade in the world, by city. */
-export const TRADES: Record<CityId, Trade[]> = { tokyo: TOKYO, istanbul: ISTANBUL, amalfi: AMALFI, madeira: MADEIRA };
+/** Halcyon City's shops: gadgets, holo prints, street art and the black market (2040). */
+const NEO: Trade[] = [
+  trade('neo', 'gadget', {
+    label: 'Gadget shop', local: 'CHROME & JUNK', word: ['Chrome', 'CHROME'], wrap: 'sealed in an antistatic pouch',
+    keeperLook: { topStyle: 'jacket', top: 0x1e1e26, accent: 0x5ff0ff, bottom: 0x1e1e26, hat: 'none', glasses: true },
+    lines: ['Everything here works. Mostly. Ninety-day warranty, which I honour on Tuesdays.', 'That one fell off a delivery drone. Legally speaking, it is lost property.', 'Want an upgrade? I do not do surgery. Ask at the back alley clinics, not me.'],
+  }, [
+    ['cable', 'common', 40, 'box', [0x1e1e26, 0x5ff0ff, 0xf2f2f2], 'Glow cable', 'GLOW CABLE', 'A charging cable that glows the colour of your battery.'],
+    ['drone', 'fine', 220, 'box', [0x2a2a34, 0xff5fb4, 0xf2f2f2], 'Pocket drone', 'MICRO DRONE', 'A palm-sized drone that follows you and takes terrible photos.'],
+    ['visor', 'fine', 380, 'hat', [0x16161c, 0x2ad8ff, 0xa47bff], 'AR visor', 'AR VISOR', 'Overlays the city with tags, prices and the names of strangers.'],
+    ['chip', 'rare', 900, 'coin', [0xc8a040, 0x16161c, 0x5ff0ff], 'Vintage chip', 'MEMORY CHIP', 'A memory chip from 2019. Nobody knows what is on it.'],
+    ['robocat', 'treasure', 2400, 'cat', [0xd8dce0, 0x5ff0ff, 0x16161c], 'Robot cat', 'NEKO-UNIT', 'A refurbished companion cat. It purrs at 40 Hz and never needs feeding.'],
+  ]),
+  trade('neo', 'prints', {
+    label: 'Holo print shop', local: 'HOLO PRINTS', word: ['Holo', 'HOLO'], wrap: 'rolled into a tube',
+    keeperLook: { topStyle: 'tee', top: 0xff5fb4, accent: 0xf2efe7, bottom: 0x2a2a34, hat: 'beanie', hatColor: 0x16161c },
+    lines: ['Every print is the city on a different night. I shoot from the rooftops.', 'Turn it in the light. The rain moves.', 'The Halo at midnight is my best seller. Everybody wants the Halo.'],
+  }, [
+    ['postcard', 'common', 12, 'print', [0x2ad8ff, 0xff5fb4, 0x16161c], 'Holo postcard', 'POSTCARD', 'The Halo crossing in the rain. The rain moves when you tilt it.'],
+    ['poster', 'fine', 90, 'print', [0xa47bff, 0x16161c, 0xffdc5a], 'Neon Mile poster', 'POSTER', 'A metre of neon signs printed in light.'],
+    ['map', 'rare', 300, 'scroll', [0xd8c8a0, 0x2a2a34, 0xd8282e], 'Old city map', 'MAP 2019', 'Halcyon before the floods, when the bottom floor was the only floor.'],
+  ]),
+  trade('neo', 'curios', {
+    label: 'Curio stall', local: 'CURIOS', word: ['Lucky', 'LUCKY'], wrap: 'wrapped in old newspaper, the last paper in town',
+    keeperLook: { topStyle: 'cardigan', top: 0x8a6a4a, accent: 0xd8282e, bottom: 0x2a2a34, hat: 'none', glasses: true },
+    lines: ['Things from before. Real things. Touch nothing you cannot afford.', 'That cat waves its paw with a little motor now. Progress.', 'Paper books! Real paper! They smell of the past.'],
+  }, [
+    ['luckycat', 'common', 25, 'cat', [0xf2efe7, 0xd8282e, 0xc8a040], 'Motorised lucky cat', 'LUCKY CAT', 'It waves its paw forever, on a solar cell.'],
+    ['book', 'fine', 120, 'book', [0x8a2a2a, 0xe8d8b8, 0xc8a040], 'Paper novel', 'PAPER BOOK', 'A paperback from 2008. Somebody underlined all the sad parts.'],
+    ['seedpot', 'rare', 450, 'pot', [0x8a5a3a, 0x4a9a3a, 0x6ab84a], 'Potted basil', 'REAL BASIL', 'A real basil plant in real soil. Water it. Please water it.'],
+  ]),
+];
+
+export const TRADES: Record<CityId, Trade[]> = { tokyo: TOKYO, istanbul: ISTANBUL, amalfi: AMALFI, madeira: MADEIRA, neo: NEO };
 export const ALL_SOUVENIRS: Souvenir[] = Object.values(TRADES).flat().flatMap((t) => t.items);
 export const SOUVENIR: Record<string, Souvenir> = Object.fromEntries(ALL_SOUVENIRS.map((s) => [s.id, s]));
 export const tradeOf = (city: CityId, id: string): Trade | undefined => TRADES[city].find((t) => t.id === id);
@@ -705,12 +738,14 @@ const BRANDS: Record<CityId, [string, string][]> = {
   tokyo: [['Hinata', 'ひなた'], ['Tsubame', 'つばめ'], ['Kumo', 'くも'], ['Marumaru', 'まるまる'], ['Ginkgo', 'いちょう'], ['Komorebi', 'こもれび'], ['Kikuya', '菊屋'], ['Yamato', '大和'], ['Shirokane', '白金'], ['Asakusa', '浅草']],
   istanbul: [['Öztürk', 'Öztürk'], ['Kardeşler', 'Kardeşler'], ['Galata', 'Galata'], ['Sultan', 'Sultan'], ['Yıldız', 'Yıldız'], ['Lale', 'Lale'], ['Hacı Baba', 'Hacı Baba'], ['Deniz', 'Deniz'], ['Anadolu', 'Anadolu'], ['Topkapı', 'Topkapı'], ['Kapalı', 'Kapalı'], ['Hilal', 'Hilal']],
   amalfi: [['Esposito', 'Esposito'], ['Cuomo', 'Cuomo'], ['Amatruda', 'Amatruda'], ['Pansa', 'Pansa'], ['Del Pizzo', 'Del Pizzo'], ['Ruocco', 'Ruocco'], ['Milano', 'Milano']],
+  neo: [['Neon', 'NEON'], ['Kowa', 'KOWA'], ['Vanta', 'VANTA'], ['Zenith', 'ZENITH'], ['Halo', 'HALO'], ['Rook', 'ROOK']],
   madeira: [['Freitas', 'Freitas'], ['Gouveia', 'Gouveia'], ['Teixeira', 'Teixeira'], ['Abreu', 'Abreu'], ['Camacha', 'Camacha'], ['Sousa', 'Sousa'], ['Vieira', 'Vieira']],
 };
 const KEEPERS: Record<CityId, string[]> = {
   tokyo: ['Mrs. Aoki', 'Kenta', 'Mr. Maeda', 'Sachiko', 'Old Mr. Hori', 'Yumi', 'Mr. Takeda', 'Ms. Ishii', 'Haruto', 'Mrs. Endō'],
   istanbul: ['Mehmet Bey', 'Ahmet Usta', 'Ayşe Hanım', 'Murat', 'Selim Bey', 'Hasan Amca', 'Zeynep', 'Kemal Usta', 'Emre', 'Fatma Teyze', 'Orhan Bey', 'Cem', 'Hüseyin Efendi', 'Elif'],
   amalfi: ['Signora Rosa', 'Gennaro', 'Antonella', 'Don Peppe', 'Carmela', 'Salvatore', 'Lucia'],
+  neo: ['Rix', 'Mama Teo', 'Static', 'Old Wen', 'Juno', 'Pike'],
   madeira: ['Dona Graça', 'Senhor Manuel', 'Fátima', 'João', 'Dona Lurdes', 'Rui', 'Conceição'],
 };
 

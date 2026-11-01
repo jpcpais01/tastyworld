@@ -23,6 +23,7 @@ import type { HallAnchor } from './sacred';
 import { shopFloor, closedRoom, interiorColors, daruma, IC, RoomAnchor, RoomKind, SecretAnchor, DarumaSpot, RestaurantSpec } from './interiors';
 import { hotelFloors, type HotelAnchor } from './hotels';
 import { hotelAt, type HotelInfo } from '../data/hotels';
+import { NEO } from './cityId';
 
 export interface PlacedProp {
   prop: Prop;
@@ -288,6 +289,8 @@ export class Builder {
     const sc = p.scale;
     const origin: [number, number, number] = [Math.round(o[0] / sc) * sc, Math.round(o[1] / sc) * sc, Math.round(o[2] / sc) * sc];
     if (!p.bodies.length) { this.lastSway = []; return { prop: p, origin, tag }; }
+    // Halcyon is too big for every worker to number the whole city's bodies: only those in its own strip count
+    if (NEO && !this.grid.touches(Math.floor(origin[0] / V) - 4, Math.floor(origin[2] / V) - 4, Math.ceil((origin[0] + p.sx * sc) / V) + 4, Math.ceil((origin[2] + p.sz * sc) / V) + 4)) { this.lastSway = []; return { prop: p, origin, tag }; }
     this.lastSway = p.bodies.map((bd) => {
       const pivot: [number, number, number] = [origin[0] + bd.pivot[0] * sc, origin[1] + bd.pivot[1] * sc, origin[2] + bd.pivot[2] * sc];
       return this.addSway({ ...bd, pivot, parent: this.swayParent });
@@ -381,6 +384,8 @@ export class Lot {
   /** Cells (a, y0..y1, d) hanging from a line at layer `top` swing on it as one piece, like a shirt on a laundry line. */
   hang(a: number, y0: number, y1: number, d: number, top: number): void {
     const [px, pz] = this.m(a + 0.5, d + 0.5);
+    // (and its laundry mostly hangs still: a city this size would run out of sway bodies)
+    if (NEO && (hash3(Math.floor(px * 4), y0, Math.floor(pz * 4)) > 0.12 || !this.b.grid.touches(Math.floor(px / V), Math.floor(pz / V), Math.floor(px / V), Math.floor(pz / V)))) return;
     const [ax0, az0] = this.m(0, 0), [ax1, az1] = this.m(1, 0);
     const len = Math.hypot(ax1 - ax0, az1 - az0);
     const id = this.b.addSway({ ...SWAY.laundry, pivot: [px, (top + 0.5) * V, pz], axis: [(ax1 - ax0) / len, 0, (az1 - az0) / len], reach: 0 });
@@ -438,8 +443,9 @@ const TOKYO_RESTAURANTS: Record<string, RestaurantSpec> = {
 };
 
 export function hotelize(lot: Lot, o: BuildingOpts): BuildingOpts {
-  const hi = hotelAt(lot.x0, lot.z0);
-  const menu = !hi && !o.restaurant ? TOKYO_RESTAURANTS[`${lot.x0},${lot.z0}`] : undefined;
+  // (Halcyon City hands out its own hotels and menus: world/neo.ts)
+  const hi = NEO ? undefined : hotelAt(lot.x0, lot.z0);
+  const menu = !NEO && !hi && !o.restaurant ? TOKYO_RESTAURANTS[`${lot.x0},${lot.z0}`] : undefined;
   if (menu) o = { ...o, restaurant: menu };
   return hi && !o.hotel ? { ...o, was: o.ground, ground: 'hotel', style: hi.style, floors: hi.floors, hotel: hi, awning: undefined, restaurant: undefined, secret: undefined, doorA: undefined, roof: 'flat' } : o;
 }
@@ -838,7 +844,7 @@ export function tiledRoof(lot: Lot, H: number, eave = 2, run = 2) {
 
 // ---------------------------------------------------------------------------------------------
 
-interface StallSpec {
+export interface StallSpec {
   id: string;
   foods: [FoodId, FoodId];
   awning: [number, number];
@@ -847,7 +853,7 @@ interface StallSpec {
   equip: 'griddle' | 'grill' | 'pot' | 'mold';
 }
 
-function stall(lot: Lot, spec: StallSpec, floors: number, seed: number, wall: number): StallAnchor {
+export function stall(lot: Lot, spec: StallSpec, floors: number, seed: number, wall: number): StallAnchor {
   const b = lot.b, c = b.c, k = b.k;
   const w = lot.width;
   building(lot, { floors, style: 'showa', ground: 'stall', seed, wall, awning: spec.awning, signs: true });

@@ -461,7 +461,7 @@ const madeira: Theme = (v, night) => {
 };
 
 /** Every city chooses its own arrival; destinations without a city yet get the clouds. */
-const THEMES: Record<CityId, Theme> = { tokyo, amalfi, istanbul, madeira };
+const THEMES: Record<CityId, Theme> = { tokyo, amalfi, istanbul, madeira, neo: tokyo };
 
 const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 

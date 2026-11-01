@@ -1,6 +1,7 @@
 import { perCity } from '../world/cityId';
 import { YEN_PER_EURO, YEN_PER_LIRA } from './money';
 import { MADEIRA_TEXT } from './madeira';
+import { NEO_TEXT } from './neo';
 
 /** The words that change from city to city: names, the diary, the hidden restaurant's riddle and the till. */
 export interface CityText {
@@ -174,7 +175,7 @@ const ISTANBUL_TEXT: CityText = {
   currency: '₺',
 };
 
-export const TEXT: CityText = perCity({ tokyo: TOKYO, amalfi: AMALFI_TEXT, istanbul: ISTANBUL_TEXT, madeira: MADEIRA_TEXT });
+export const TEXT: CityText = perCity({ tokyo: TOKYO, amalfi: AMALFI_TEXT, istanbul: ISTANBUL_TEXT, madeira: MADEIRA_TEXT, neo: NEO_TEXT });
 
 /** A place's local name, or nothing when it only repeats the English one (Piazza dei Dogi needs no “i Dogi”). */
 export function localName(name: string, local: string): string {

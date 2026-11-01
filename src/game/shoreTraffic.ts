@@ -13,10 +13,19 @@ import { Builder, cityDensity, crossingZone, dropQueuedLines, pick, type LensPol
  * two trams run up and down the avenue, calling at Sirkeci, and run back the other way at each end of the line.
  */
 export function shoreNet(signals: Anchors['signals'] = []): Network {
-  const r = shoreRoad()!;
+  const r = shoreRoad();
+  if (!r) return quietNet();
   // the lenses go where the builder put up the poles (world/funchal.ts): mirrored poles, for keeping right
   const poles: LensPole[] = (signals ?? []).map((p) => ({ ...p, phase: 'mid', mirror: true }));
   return r.tram ? tramNet(r) : roadNet(r, poles);
+}
+
+/** A city with no road traffic of its own yet (Halcyon's streets belong to the crowd). */
+function quietNet(): Network {
+  return {
+    max: { desktop: 0, mobile: 0 }, crossings: [], routes: () => ({}), planes: () => [], poles: () => [], arms: [],
+    every: () => 1e9, next: () => null, populate: () => {}, density: () => 1, kerbM: 0, pace: 1, margin: 0, rank: false,
+  };
 }
 
 /**

@@ -166,7 +166,32 @@ const MADEIRA: DiningCustom = {
   waiterLook: { topStyle: 'vest', top: 0xf4f1ea, accent: 0x2b2b30, bottom: 0x2b2b30, hat: 'none' },
 };
 
-export const DINING: DiningCustom = perCity({ tokyo: TOKYO, amalfi: AMALFI, istanbul: ISTANBUL, madeira: MADEIRA });
+const NEO: DiningCustom = {
+  menu: ['Menu', 'MENU//2040'],
+  sections: { food: ['FOOD', 'Dishes'], sweet: ['SWEET', 'Sweets'], drink: ['DRINK', 'Drinks'] },
+  call: 'Hey, over here!',
+  hello: ['Welcome in. Menu is on the table glass, tap what you like.', 'Sit anywhere dry. I will be right back with water.'],
+  taken: ['Got it. Kitchen\'s on it.', 'Order in. Two minutes, maybe three.'],
+  serve: ['Here you go. Careful, it\'s hot.', 'Fresh off the line. Enjoy.'],
+  bill: ['Tap your chip on the table when you\'re ready.', 'Here\'s the total. Thanks for eating with us.'],
+  bye: ['Stay dry out there!', 'See you next shift!'],
+  billName: ['Bill', 'TOTAL'],
+  cover: { name: 'Table fee', local: 'SEAT', price: 3, icon: 'drop', optional: true, text: 'Filtered water and a warm towel: three credits a seat, if you keep them.' },
+  tips: [{ label: 'No tip', add: () => 0 }, { label: 'Round up', add: roundUp(5) }, { label: '10%', add: pct(10, 1) }],
+  tipNote: 'Tips go straight to the cooks\' accounts in Halcyon. Nobody expects one; everybody remembers one.',
+  menuNote: 'The water is filtered twice. The rain is not. Drink the water.',
+  payNote: 'Tap your chip on the table to pay. Credits leave your balance instantly.',
+  drinks: [
+    { icon: 'water', name: 'Filtered water', price: 0, snack: true, text: 'Free, cold, and filtered twice.' },
+    { icon: 'can', name: 'Ion Soda', price: 9, snack: true, text: 'Mint-glowing electrolyte soda.' },
+    { icon: 'beer', name: 'Algae lager', price: 12, snack: true, text: 'A green-tinted lager brewed in the docks. Better than it sounds.' },
+    { icon: 'tea', name: 'Hot jasmine', price: 6, snack: true, text: 'A pot of jasmine tea, refilled while you sit.' },
+  ],
+  waiters: ['Ash', 'Nova', 'Kai', 'Juno', 'Rook', 'Mika', 'Sol', 'Echo'],
+  waiterLook: { topStyle: 'apron', top: 0x16161c, accent: 0x2ad8ff, bottom: 0x16161c, hat: 'none' },
+};
+
+export const DINING: DiningCustom = perCity({ tokyo: TOKYO, amalfi: AMALFI, istanbul: ISTANBUL, madeira: MADEIRA, neo: NEO });
 
 /** Menu icons that are drunk, and the ones that are sweets (for the menu's sections). */
 export const DRINK_ICONS: ReadonlySet<string> = new Set(['coffee', 'latte', 'tea', 'can', 'vitamin', 'milk', 'drop', 'water', 'wine', 'beer', 'juice', 'yunomi']);

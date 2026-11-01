@@ -1,6 +1,8 @@
 /** The cities a trip can land in. Each page load builds exactly one of them. */
-export type CityId = 'tokyo' | 'amalfi' | 'istanbul' | 'madeira';
-export const CITIES: readonly CityId[] = ['tokyo', 'amalfi', 'istanbul', 'madeira'];
+export type CityId = 'tokyo' | 'amalfi' | 'istanbul' | 'madeira' | 'neo';
+export const CITIES: readonly CityId[] = ['tokyo', 'amalfi', 'istanbul', 'madeira', 'neo'];
+/** The cities Tasty World's planes fly to. 'neo' is Halcyon City, the world of 2040, a separate game served at /2040. */
+export const TRAVEL_CITIES: readonly CityId[] = ['tokyo', 'amalfi', 'istanbul', 'madeira'];
 export const CITY_KEY = 'tastyworld.city';
 
 const known = (v: unknown): CityId | null => (CITIES as readonly unknown[]).includes(v) ? v as CityId : null;
@@ -14,10 +16,13 @@ export const CITY: CityId = (() => {
   const g = globalThis as unknown as { document?: unknown; name?: string; location?: { search: string }; localStorage?: Storage; process?: { env: Record<string, string | undefined> } };
   if (g.process?.env) return known(g.process.env.CITY) ?? 'tokyo';
   if (!g.document) return known(g.name?.startsWith('city:') ? g.name.slice(5) : null) ?? 'tokyo';
+  // 2040 is its own game on its own page: its city is always Halcyon, whatever Tasty World last visited
+  if ((g as { location?: { pathname?: string } }).location?.pathname?.startsWith('/2040')) return 'neo';
   try {
     const q = known(new URLSearchParams(g.location?.search ?? '').get('city'));
-    if (q) return q;
-    return known(g.localStorage?.getItem(CITY_KEY)) ?? 'tokyo';
+    if (q && q !== 'neo') return q;
+    const last = known(g.localStorage?.getItem(CITY_KEY));
+    return last && last !== 'neo' ? last : 'tokyo';
   } catch {
     return 'tokyo';
   }
@@ -26,6 +31,8 @@ export const CITY: CityId = (() => {
 export const AMALFI = CITY === 'amalfi';
 export const ISTANBUL = CITY === 'istanbul';
 export const MADEIRA = CITY === 'madeira';
+/** Halcyon City, 2040: the cyberpunk game built on Tasty World's engine (see src/neo/). */
+export const NEO = CITY === 'neo';
 /** Cities built on a heightfield (streets climb, labels and seats follow the ground), not on Tokyo's flat street level. */
 export const HILLSIDE = AMALFI || ISTANBUL || MADEIRA;
 /** Cities on an open sea to the east (+x), built on the coast engine Amalfi started: the shore road, the far coast. */
@@ -37,7 +44,7 @@ export const COAST = AMALFI || MADEIRA;
  */
 export const perCity = <T>(m: Record<CityId, T>): T => m[CITY];
 
-export const isCity = (id: string): id is CityId => known(id) !== null;
+export const isCity = (id: string): id is CityId => known(id) !== null && id !== 'neo';
 
 /**
  * What to pick up after the page reloads into another city: board straight away (the plane has landed and the

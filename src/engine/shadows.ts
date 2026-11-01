@@ -121,6 +121,8 @@ export class SunShadows {
   private o = new THREE.Vector3();
   private d = new THREE.Vector3();
   private bias = new THREE.Matrix4().set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1);
+  /** The map last made to exist on the GPU (so an unused one is set up once). */
+  private blank: THREE.WebGLRenderTarget | null = null;
   /** Full static redraws so far (for the debug readout). */
   redraws = 0;
   /** Static casters added to the cache without a redraw. */
@@ -188,7 +190,21 @@ export class SunShadows {
 
   update(gl: THREE.WebGLRenderer, scene: THREE.Scene, view: THREE.Camera, firstPerson: boolean, sun: THREE.Vector3, strength: number): void {
     const u = this.uniforms.uShadow.value;
-    if (strength <= 0.001 || !this.rtStatic || !this.rtMap) { u.x = 0; return; }
+    if (!this.rtStatic || !this.rtMap) { u.x = 0; return; }
+    if (strength <= 0.001) {
+      // the map is still bound to every voxel shader's shadow sampler: it must exist on the GPU even if it has
+      // never been drawn (low quality never draws it), or every draw call fails
+      if (this.blank !== this.rtMap) {
+        this.blank = this.rtMap;
+        const prev = gl.getRenderTarget();
+        gl.setRenderTarget(this.rtMap);
+        gl.clear(false, true, false);
+        gl.setRenderTarget(prev);
+      }
+      u.x = 0;
+      return;
+    }
+    this.blank = this.rtMap;
     if (!sun.equals(this.sunDir)) this.basis(sun);
 
     // what the camera can see, as an AABB in light space (a, b) plus the mean depth along the sun (c)

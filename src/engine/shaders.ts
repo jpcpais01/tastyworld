@@ -896,6 +896,9 @@ vec3 waterNormal(vec2 p, float t, float fw) {
   float m1 = 0.35 + 1.3 * vnoise(p * 0.07 + vec2(-9.1, t * 0.017));
   vec2 g = vec2(0.0);
   for (int i = 0; i < WAVES; i++) {
+#ifdef LITE
+    if (i >= 4) break; // low quality: the four longest waves carry the look
+#endif
     vec4 wv = WAVE[i];
     float bl = bandLimit(wv.z, fw);
     if (bl <= 0.0) break; // sorted long to short: the rest are finer still
@@ -905,7 +908,11 @@ vec3 waterNormal(vec2 p, float t, float fw) {
   // chop and capillary ripples: rotated octaves of noise drifting with the wind. Noise has no period and no
   // single direction, so the short scales (where sines would beat into a lattice) stay irregular
   float f = 0.9, amp = 0.085;
+#ifdef LITE
+  for (int o = 0; o < 2; o++) {
+#else
   for (int o = 0; o < 4; o++) {
+#endif
     float r = bandLimit(f * 5.0, fw);
     if (r <= 0.0) break;
     float c = OCT_ROT[o].x, sn = OCT_ROT[o].y;
@@ -942,6 +949,9 @@ float caustic(vec2 p, float t) {
 vec3 skyColor(vec3 dir) {
   dir.y = max(dir.y, 0.004);
   vec3 s = skyLut(dir);
+#ifdef LITE
+  return s; // low quality: the sky alone in the water, not the far mountains
+#endif
   float tf;
   vec4 far = farBackdrop(dir, s, tf);
   return mix(s, far.rgb, far.a);
@@ -1016,8 +1026,10 @@ void main() {
     float vDepth = max(0.0, uWaterY - rpos.y);
     // caustics on the floor
     vec2 cpos = rpos.xz + uSunDir.xz / max(uSunDir.y, 0.2) * vDepth;
+#ifndef LITE
     float cs = caustic(cpos, uTime) * exp(-vDepth * 0.9) * length(uSunColor) * 0.55;
     floorCol *= 1.0 + cs;
+#endif
     // absorption + scattering
     // the canal is green and murky; the Tyrrhenian is clear and turns ultramarine as it deepens
     vec3 absorb = mix(vec3(0.55, 0.16, 0.10) * 1.15, vec3(0.5, 0.12, 0.055), uSea);
@@ -1029,6 +1041,7 @@ void main() {
     deep *= 1.0 + uSea * (vnoise(sp.xz * 0.018 + vec2(uTime * 0.004, 0.0)) - 0.5) * 0.35;
     under = mix(under, deep, 1.0 - exp(-pathLen * mix(0.45, 0.3, uSea)));
     // volumetric light shafts: march through the water column
+#ifndef LITE
     if (uShafts > 0.0) {
       float shaft = 0.0;
       for (int i = 0; i < 6; i++) {
@@ -1040,10 +1053,12 @@ void main() {
       }
       under += uSunColor * uWaterScatter * shaft / 6.0 * min(pathLen, 2.0) * 0.6 * uShafts;
     }
+#endif
     // reflection
     vec3 refl = reflect(rd, nrm);
     vec3 rcol = skyColor(refl);
     float hitW = 0.0;
+#ifndef LITE
     if (uSSR > 0.0) {
       float stepLen = 0.25;
       vec3 rp = sp;
@@ -1066,6 +1081,7 @@ void main() {
         }
       }
     }
+#endif
     float cosT = clamp(dot(-rd, nrm), 0.0, 1.0);
     float fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
     fres = clamp(fres * 2.2 + 0.18 + hitW * 0.25, 0.0, 0.85);
@@ -1110,6 +1126,7 @@ void main() {
     vec3 refl = reflect(rd, nrm);
     vec3 rcol = skyColor(refl) * 0.5;
     float hitW = 0.0;
+#ifndef LITE
     if (uSSR > 0.0) {
       float stepLen = 0.15;
       vec3 rp = wpos + nrm * 0.02, prev = rp;
@@ -1146,6 +1163,7 @@ void main() {
         }
       }
     }
+#endif
     float cosT = clamp(dot(-rd, nrm), 0.0, 1.0);
     float fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
     float k = uWet * mix(0.16, 0.55, pud) * clamp(fres * 2.5 + 0.35, 0.0, 1.0);

@@ -2,6 +2,7 @@ import './styles.css';
 import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
 import { Renderer, voxelMaterial, Quality } from './engine/renderer';
+import { autoTier, lower, rememberTier } from './engine/gpu';
 import { farCity } from './engine/farcity';
 import { SHADOW_STATIC } from './engine/shadows';
 import { TimeOfDay } from './engine/timeOfDay';
@@ -292,9 +293,8 @@ class Game {
   private photo!: PhotoUI;
   /** Photo mode is up: the HUD steps aside, the traveller stands still and the camera is free. */
   private photoOn = false;
-  /** Frames left until the shutter reads the canvas (0 = no photo waiting), and the render scale to go back to. */
+  /** Frames left until the shutter reads the canvas (0 = no photo waiting). */
   private shot = 0;
-  private shotScale = 1;
   private photoPtr: { id: number; x: number; y: number; pan: boolean } | null = null;
   private placeName = TEXT.name;
   private last = performance.now();
@@ -307,8 +307,16 @@ class Game {
     this.s = loadState();
     const canvas = document.getElementById('gl') as HTMLCanvasElement;
     const mobile = matchMedia('(pointer: coarse)').matches;
-    const q: Quality = this.s.settings.quality === 'auto' ? (mobile ? 'medium' : 'high') : this.s.settings.quality;
+    const q: Quality = this.s.settings.quality === 'auto' ? autoTier(mobile) : this.s.settings.quality;
     this.r = new Renderer(canvas, q);
+    // auto quality that can't hold the frame rate even at its lowest render scale steps a tier down, for good on this GPU
+    this.r.onSlow = () => {
+      if (this.s.settings.quality !== 'auto') return;
+      const t = lower(this.r.quality);
+      rememberTier(t);
+      this.r.setQuality(t);
+      this.applySettings();
+    };
     this.perf = new Perf(this.r.gl, () => this.r.shadows.redraws, () => {
       this.s.settings.perf = !this.s.settings.perf;
       this.applySettings();
@@ -780,7 +788,8 @@ class Game {
     for (const id of a.idlers) this.crowd.addObstacle(id.pos[0], id.pos[2]);
     for (const ex of a.extras ?? []) if (!ex.indoor) this.crowd.addObstacle(ex.pos[0], ex.pos[2]);
     for (const h of a.halls ?? []) for (const hp of h.people) if (hp.pose !== 'sit') this.crowd.addObstacle(hp.pos[0], hp.pos[2]);
-    const m = this.r.isMobile;
+    // phones and low quality get the lighter crowd (fewer bodies to animate, step and draw)
+    const m = this.r.isMobile || this.r.quality === 'low';
     // Amalfi's streets are stairs: nobody rides them, and the dawn exercises stay in Tokyo; its boats are gozzi out in the bay, and bathers lie on the beach
     // Istanbul's lanes climb in steps and the bazaars are packed: everyone walks, and fishing boats work the strait
     this.crowd.populate(perCity({
@@ -1442,7 +1451,7 @@ class Game {
     let far: number;
     if (this.cam.fp) far = CHAR_FINE * h / (2 * Math.tan(this.r.persp.fov * Math.PI / 360) * FINE_PX);
     else far = CHAR_FINE * h / this.cam.zoom >= FINE_PX ? Infinity : 0;
-    const max = this.r.quality === 'low' ? 24 : this.r.quality === 'medium' ? 56 : 96;
+    const max = this.r.quality === 'low' ? 12 : this.r.quality === 'medium' ? 56 : 96;
     const ds = this.fineD2;
     let n = 0;
     for (const a of all) {
@@ -1810,7 +1819,7 @@ class Game {
   applySettings(): void {
     const st = this.s.settings;
     const mobile = matchMedia('(pointer: coarse)').matches;
-    if (st.quality === 'auto') { this.r.autoQuality = true; this.r.setQuality(mobile ? 'medium' : 'high'); }
+    if (st.quality === 'auto') { this.r.autoQuality = true; this.r.setQuality(autoTier(mobile)); }
     else { this.r.autoQuality = false; this.r.renderScale = 1; this.r.setQuality(st.quality); this.r.resize(); }
     this.audio.setVolumes(st.musicVol, st.ambVol, st.sfxVol);
     if (st.perf || !new URLSearchParams(location.search).has('perf')) this.perf.toggle(st.perf);
@@ -1818,7 +1827,7 @@ class Game {
     this.tod.dayLength = st.dayLength;
     this.tod.setTarget(st.timeOfDay);
     // view distance: how far first person draws (the haze thickens to meet it) and how far out the iso view zooms
-    const tier: Quality = st.quality === 'auto' ? (mobile ? 'medium' : 'high') : st.quality;
+    const tier: Quality = st.quality === 'auto' ? autoTier(mobile) : st.quality;
     const dist = viewSetting(st, tier);
     this.viewDist = dist;
     if (this.streamer) this.streamer.dist = dist;
@@ -2064,8 +2073,7 @@ class Game {
     if (!this.photoOn || this.shot) return;
     this.audio.play('shutter');
     this.photo.flash();
-    this.shotScale = this.r.renderScale;
-    if (this.r.renderScale < 1) { this.r.renderScale = 1; this.r.resize(); }
+    if (this.r.scaled) { this.r.fullRes = true; this.r.resize(); }
     this.shot = 1;
   }
 
@@ -2074,7 +2082,7 @@ class Game {
     const stamp = this.photo.opts.stamp ? { place: this.placeName, clock: this.tod.label() } : null;
     const meta = { t: Date.now(), place: this.placeName, clock: this.tod.label() };
     const shot = capture(this.r.gl.domElement, stamp);
-    if (this.shotScale < 1) { this.r.renderScale = this.shotScale; this.r.resize(); }
+    if (this.r.fullRes) { this.r.fullRes = false; this.r.resize(); }
     void shot.then(async (img) => {
       if (await album.count() >= ALBUM_MAX) {
         this.ui.toast('camera', 'Your album is full', `It holds ${ALBUM_MAX} photos. Delete a few in the passport's Album to make room.`);

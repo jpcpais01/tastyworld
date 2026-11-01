@@ -19,6 +19,7 @@ import { landing } from './arrival';
 import type { DineKit } from './dining';
 import { ShopView, souvenirPages, type ShopHost, type ShopVisit } from './shop';
 import type { Souvenir } from '../data/souvenirs';
+import { autoTier } from '../engine/gpu';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -1092,7 +1093,7 @@ export class UI {
 
     const gfx = pages.graphics!;
     row(gfx, G.monitor, 'Quality', 'Auto picks for this device', seg2([['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], st.quality, (v) => { st.quality = v as typeof st.quality; }));
-    const tier = st.quality === 'auto' ? (matchMedia('(pointer: coarse)').matches ? 'medium' : 'high') : st.quality;
+    const tier = st.quality === 'auto' ? autoTier(matchMedia('(pointer: coarse)').matches) : st.quality;
     const vd = ranged(gfx, G.map, 'View distance', 'How far the city draws', st.viewDist ?? VIEW_DEFAULT[tier], (v) => `${viewMetres(v)} m`, (v) => { st.viewDist = v; });
     // very far: a small pill beside the slider pins the distance past its top end; off, the slider's own value comes back
     const far = h('button', 'far-pill', `${G.horizon}<span>${VERY_FAR} m</span>`);

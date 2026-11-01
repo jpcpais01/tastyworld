@@ -684,7 +684,7 @@ export function buildNeo(win?: Window): BuildResult {
   stalls.push(...b.stallAnchors);
   const graph = neoGraph();
   const anchors: Anchors = {
-    spawn: [6, 0, 14.5],
+    spawn: [4, 0, 4],
     stalls,
     hiddenDoor: hd,
     interiorExit: [0, 0], interiorSpawn: [0, 0, 0], chef: [0, 0, 0], counterStand: [0, 0],

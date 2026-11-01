@@ -110,6 +110,8 @@ export class Rain {
 
   /** How hard it should be raining at this hour of this day (0 dry .. 1 a downpour). */
   static weather(hour: number, day: number): number {
+    // the first evening always brings a shower: Halcyon introduces itself wet, umbrellas up
+    if (day === 1 && hour >= 20.3 && hour < 22.5) return 0.7;
     // a shower roughly every few hours, longer and heavier at night; each day keeps its own pattern
     const t = hour + day * 24;
     const w = Math.sin(t * 0.9 + day * 1.7) * 0.6 + Math.sin(t * 0.37 + 2.1) * 0.5 + (hour >= 19 || hour < 4 ? 0.35 : 0);

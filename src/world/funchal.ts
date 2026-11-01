@@ -1612,6 +1612,42 @@ function strelitzia(c: AC, seed: number, pot = false): Prop {
   return p;
 }
 
+/** The Jardim's lily pond: a basalt rim, water lilies and goldfish, a two-tier fountain splashing in the middle. */
+function lilyPond(c: AC): Prop {
+  const R = 13, N = 27, p = new Prop(N, 16, N);
+  const m = (N - 1) / 2;
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+    const d = Math.hypot(x - m, z - m);
+    if (d > R) continue;
+    if (d > R - 1.6) { p.box(x, 0, z, x, 2, z, hash3(x, 1, z) < 0.25 ? c.basaltB : c.basalt); p.set(x, 3, z, c.cantaria); continue; }
+    p.set(x, 0, z, c.levadaWater); p.set(x, 1, z, c.levadaWater);
+    const h = hash3(x, 7, z);
+    if (d > 4 && h < 0.09) p.set(x, 2, z, c.leaf);
+    else if (d > 4 && h < 0.11) p.set(x, 2, z, c.rose);
+    else if (d > 3 && h < 0.13) p.set(x, 1, z, c.lemonDeep);
+  }
+  // the fountain: a basin on a column, a smaller one above, the jet and the water falling back
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++) {
+    const d = Math.hypot(x - m, z - m);
+    if (d <= 1.2) p.box(x, 2, z, x, 7, z, c.cantaria);
+    if (d <= 3.6 && d > 2.6) p.set(x, 8, z, c.cantaria);
+    if (d <= 2.6) p.set(x, 8, z, d > 1.2 ? c.levadaWater : c.cantaria);
+    if (d <= 2.2 && d > 1.4) p.set(x, 12, z, c.cantaria);
+    if (d <= 1.4) p.box(x, 9, z, x, 12, z, d > 0.8 ? c.cantaria : c.cantariaB);
+    if (d <= 0.6) p.box(x, 13, z, x, 15, z, c.white);
+    if (d <= 3.8 && d > 3.4 && hash3(x, 3, z) < 0.5) p.box(x, 3, z, x, 6 + Math.floor(hash3(x, 4, z) * 2), z, c.white);
+  }
+  return p;
+}
+
+/** A clump of hydrangeas or agapanthus for the garden beds. */
+function flowerClump(c: AC, seed: number): Prop {
+  const p = new Prop(8, 7, 8), blue = seed % 2 ? c.hydrangea : c.agapanthus;
+  p.ellipsoid(3.5, 0, 3.5, 3.6, 3.2, 3.6, (x, y, z) => (y < 2 ? c.leafDark : hash3(x + seed, y, z) < 0.55 ? blue : y > 4 && hash3(x, y + seed, z) < 0.3 ? c.white : c.leaf));
+  if (seed % 2 === 0) for (let i = 0; i < 5; i++) { const x = 1 + Math.floor(hash3(i, seed, 1) * 6), z = 1 + Math.floor(hash3(i, seed, 2) * 6); p.box(x, 3, z, x, 5, z, c.leafDark); p.set(x, 6, z, blue); }
+  return p;
+}
+
 /** A zinc bucket of cut flowers for the market gate: strelitzias, anthuriums, proteas. */
 function flowerBucket(c: AC, seed: number): Prop {
   const p = new Prop(6, 9, 6);
@@ -1648,9 +1684,38 @@ function largo(b: Builder, c: AC, plan: Plan): void {
     b.place(jacaranda(c, (z * 5 + x * 3) | 0), x, layerY(y), z); b.block(x - 0.4, z - 0.4, x + 0.4, z + 0.4);
   }
   for (let z = -82; z <= -50; z += 8) { const y = floorAt(plan, 4, z); b.place(ironLamp(c), 4, layerY(y), z); b.lamp(4, y + 3.4, z, WARM, 7, 0.85); b.block(3.7, z - 0.3, 4.3, z + 0.3); }
+  // café terraces under the jacarandas on the east side, as along the Avenida Arriaga: little tables in pairs of
+  // iron chairs, a parasol over every other one, a light on each table at night
+  const free = (x0: number, z0: number, x1: number, z1: number) => !b.blockers.some(([a0, c0, a1, c1]) => a0 < x1 && a1 > x0 && c0 < z1 && c1 > z0);
+  const cloths = [b.k.c.white, c.majolicaYellow, c.umbrellaC];
+  let ti = 0;
+  for (const z0 of [-80, -72, -64, -56]) for (const dz of [0, 1.9]) {
+    const x = 6.6, z = z0 + dz, y = floorAt(plan, x, z);
+    if (Math.abs(floorAt(plan, x - 0.6, z) - y) > 0.05 || Math.abs(floorAt(plan, x + 0.6, z) - y) > 0.05 || !free(x - 0.9, z - 0.5, x + 0.9, z + 0.5)) continue;
+    b.place(cafeTable(k(b), cloths[(z0 / 8) & 1 ? 0 : (ti % 3)]), x, y, z);
+    b.place(stool(k(b), c.iron), x - 0.55, y, z); b.place(stool(k(b), c.iron), x + 0.55, y, z);
+    b.stools.push([x - 0.55, z, Math.PI / 2, y], [x + 0.55, z, -Math.PI / 2, y]);
+    if (ti % 2 === 0) b.place(umbrella(c, ti + 5), x, y, z);
+    b.block(x - 0.9, z - 0.45, x + 0.9, z + 0.45);
+    b.lamp(x, y + 1.1, z, WARM, 2.5, 0.5);
+    ti++;
+  }
   // the seafront garden: palms, a dragon tree, strelitzia and benches
   for (const [x, z] of [[14, 26], [24, 27], [15.5, 35], [24.5, 49]] as const) { b.place(palmTree(c, (x * 11 + z) | 0), x, floorAt(plan, x, z), z); b.block(x - 0.3, z - 0.3, x + 0.3, z + 0.3); }
-  for (const [x, z] of [[18, 25], [21, 33], [13, 31], [20, 49]] as const) b.place(strelitzia(c, (x + z) | 0), x, floorAt(plan, x, z), z);
+  for (const [x, z] of [[18, 25], [25, 33], [13, 31], [20, 49]] as const) b.place(strelitzia(c, (x + z) | 0), x, floorAt(plan, x, z), z);
+  // the Jardim Municipal: a lily pond with its fountain, beds of hydrangea and agapanthus, benches round the pond
+  // (the garden steps down to the sea in terraces 3.5 m wide: the pond fills one, the beds sit on the others)
+  const py = floorAt(plan, 22.6, 35);
+  b.place(lilyPond(c), 22.6, py, 35); b.block(21.0, 33.4, 24.2, 36.6);
+  b.lamp(22.6, py + 1.2, 35, WHITEWARM, 3, 0.35);
+  for (const [x, z, i] of [[12.9, 26.5, 0], [12.9, 33.5, 1], [19.25, 33, 2], [19.25, 27.5, 3], [25.1, 25.5, 4], [25.1, 36.5, 5], [15.75, 36.8, 6], [22.75, 25, 7]] as const) {
+    b.place(flowerClump(c, 61 + i), x, floorAt(plan, x, z), z); b.block(x - 0.5, z - 0.5, x + 0.5, z + 0.5);
+  }
+  for (const [z, t, f] of [[32.7, 0, 0], [37.3, 2, Math.PI]] as const) {
+    const y = floorAt(plan, 22.6, z);
+    if (Math.abs(y - py) > 0.1) continue;
+    b.place(bench(k(b)), 22.6, y, z, t); b.benches.push([22.6, z, f, y]);
+  }
 }
 
 /** The ribeira's bed: a trickle between boulders inland, bougainvillea spilling over the parapets. */

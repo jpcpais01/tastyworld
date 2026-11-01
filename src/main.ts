@@ -739,7 +739,7 @@ class Game {
         this.sleds.runs.push({ t: i / 3, sled, men });
       }
       // and one waiting at the foot of the cable car for customers, its two carreiros chatting beside it
-      const px = 24.6, pz = 34.5, py = this.navWorld.heightAt(px, pz);
+      const px = 24.6, pz = 42.5, py = this.navWorld.heightAt(px, pz);
       const parked = new Actor(tobogganModel(90), this.chars, true);
       parked.position.set(px, py, pz); parked.facing = parked.targetFacing = Math.PI;
       const men = [0, 1].map((k) => { const m = new Actor(buildPerson(carreiro(7 + k)), this.chars); const mx = px + (k ? 0.9 : -0.9), mz = pz + 0.6; m.position.set(mx, this.navWorld.heightAt(mx, mz), mz); m.facing = m.targetFacing = k ? -2.2 : 2.2; m.anim = 'talk'; return m; });

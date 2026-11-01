@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.18.5',
+    date: '2026-11-01',
+    title: 'Funchal: the Jardim Municipal in bloom, cafés under the jacarandas',
+    items: [
+      'The municipal garden by the cable car station has a lily pond on one of its terraces, with water lilies, goldfish and a two-tier fountain splashing in the middle, benches either side, and beds of blue hydrangeas and agapanthus on the terraces round it.',
+      'Café terraces now line the east side of the jacaranda boulevard: little tables with pairs of iron chairs, parasols, a light on each table at night, and people sitting out over a coffee.',
+    ],
+  },
+  {
     version: '0.18.4',
     date: '2026-11-01',
     title: 'Funchal: the market at work, and anglers on the harbour',

@@ -37,6 +37,8 @@ export const MADEIRA = CITY === 'madeira';
 export const NEO = CITY === 'neo';
 /** Cities built on a heightfield (streets climb, labels and seats follow the ground), not on Tokyo's flat street level. */
 export const HILLSIDE = AMALFI || ISTANBUL || MADEIRA;
+/** Cities whose walkable ground is a heightfield of many levels (the hillside towns, and Halcyon's stacked terraces). */
+export const TERRAIN = HILLSIDE || NEO;
 /** Cities on an open sea to the east (+x), built on the coast engine Amalfi started: the shore road, the far coast. */
 export const COAST = AMALFI || MADEIRA;
 

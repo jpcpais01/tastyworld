@@ -164,14 +164,15 @@ function neoSpots(): CrowdSpots {
     meet.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, face: Math.atan2(-Math.cos(a), -Math.sin(a)) + 0.4 });
   }
   const jog: V2[] = [];
-  for (let z = -150; z <= 150; z += 6) jog.push([114.4, z]);
-  for (let z = 150; z >= -150; z -= 6) jog.push([116.2, z]);
+  // up and down Crane Street on the dock island, clear of the canal and the cranes
+  for (let z = -120; z <= 120; z += 6) jog.push([95.2, z]);
+  for (let z = 120; z >= -120; z -= 6) jog.push([96.8, z]);
   return {
     pray: [], purify: [], gates: [], meet,
     sento: { door: [1e4, 1e4], front: [1e4, 1e4] },
     windows: [], jog, exercise: [],
     boats: { cx: 1e4, cz: 1e4, rx: 1, rz: 1, y: -0.55, dock: [1e4, 1e4] },
-    sea: { cx: 210, cz: 0, rx: 3, rz: 28, y: -0.55 },
+    sea: { cx: 132, cz: -10, rx: 6, rz: 24, y: -0.55 },
   };
 }
 

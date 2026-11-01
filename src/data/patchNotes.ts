@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.9',
+    date: '2026-11-01',
+    title: '2040: the mirror and the rain',
+    items: [
+      'Character creation: a building could stand between the camera and the body you were making. Anything in the way now lowers out of sight, and a soft mirror light shows every skin tone, hair colour and piece of clothing as it really is.',
+      'You can hear the rain now: a hiss of fine drops and a patter on the awnings, muffled to a drum on the roof when you step inside.',
+    ],
+  },
+  {
     version: '0.20.8',
     date: '2026-11-01',
     title: '2040: the dock warehouses open up',

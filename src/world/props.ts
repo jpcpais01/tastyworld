@@ -1193,3 +1193,54 @@ export function utilityBox(k: PropKit, seed = 1): Prop {
   p.box(2, 13, 5, 4, 15, 5, (seed & 1) ? c.signYellow : c.white); // warning sticker
   return p;
 }
+
+/**
+ * A traffic signal pole for the live lights (see world/roads.ts POLE and game/traffic.ts): the pole at (1, 1), its
+ * arm out along +X over the lane, a horizontal three-lamp head facing +Z with a visor over each lamp, and a walk
+ * light on the pole facing +X across the road. The lamps are dark recesses: the traffic system draws the lit
+ * lens into whichever one is on.
+ */
+export function signalPole(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(16, 40, 4);
+  p.box(0, 0, 0, 2, 1, 2, c.poleGray);
+  p.box(1, 2, 1, 1, 37, 1, c.poleGray);
+  p.box(1, 36, 1, 14, 36, 1, c.poleGray);
+  p.box(1, 35, 1, 3, 35, 1, c.poleGray); // a brace under the arm
+  // head: dark housing, lamps green (x 8..9), amber (10..11), red (12..13) as recesses in the front face
+  p.box(7, 32, 0, 14, 35, 1, c.charcoal);
+  p.box(7, 32, 2, 14, 35, 2, (x, y) => (y === 32 || y === 35 || x === 7 || x === 14 ? c.charcoal : 0));
+  for (const x0 of [8, 10, 12]) { p.box(x0, 35, 3, x0 + 1, 35, 3, c.charcoal); } // visors
+  p.box(7, 31, 1, 14, 31, 1, c.signBlue); // the blue name plate under the head
+  // walk light: housing on the pole, red figure over green figure, recessed into the +X face
+  p.box(2, 19, 0, 3, 27, 2, c.charcoal);
+  p.box(4, 19, 0, 4, 27, 2, (_x, y) => (y === 19 || y === 23 || y === 27 ? c.charcoal : 0));
+  // push button for the walk light
+  p.box(2, 10, 1, 2, 12, 2, c.signYellow);
+  return p;
+}
+
+/** Lit lens cells of a signalPole (prop voxels): car lamps and the two walk figures. */
+export const SIGNAL_LENS = {
+  green: [[8, 33, 2], [9, 33, 2], [8, 34, 2], [9, 34, 2]],
+  amber: [[10, 33, 2], [11, 33, 2], [10, 34, 2], [11, 34, 2]],
+  red: [[12, 33, 2], [13, 33, 2], [12, 34, 2], [13, 34, 2]],
+  stop: [[4, 24, 1], [4, 25, 1], [4, 26, 1], [4, 25, 0], [4, 25, 2]],
+  walk: [[4, 20, 1], [4, 21, 1], [4, 22, 1], [4, 21, 0], [4, 20, 2]],
+} as const;
+
+/** A round "no pedestrians" sign on a grey pole, facing +Z: red ring, a walking figure, the red bar across. */
+export function noWalkSign(k: PropKit): Prop {
+  const { c } = k;
+  const p = new Prop(9, 23, 2);
+  p.box(4, 0, 0, 4, 14, 0, c.poleGray);
+  // the figure: head, body, a stride (sign voxels, centre 4, 18)
+  const fig = new Set(['4,21', '4,20', '4,19', '3,19', '5,19', '4,18', '4,17', '3,16', '5,16', '2,15', '6,15']);
+  for (let y = 14; y < 23; y++) for (let x = 0; x < 9; x++) {
+    const d = Math.hypot(x - 4, y - 18);
+    if (d > 4.4) continue;
+    const bar = Math.abs((x - 4) + (y - 18)) < 0.8 && d < 3.6;
+    p.set(x, y, 1, d > 3.5 || bar ? c.signRed : fig.has(`${x},${y}`) ? c.signBlack : c.white);
+  }
+  return p;
+}

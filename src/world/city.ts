@@ -10,10 +10,11 @@ import { SWAY } from './sway';
 import { dress, noteFront, noteGarden, noteTree } from './dressing';
 import { wrapLot } from './facades';
 import { tokyoEdge } from './tokyoEdge';
+import { crosswalksOf, HIKARI, NEON, UNDERPASSES, ROAD0, ROAD1, rampDrop, BRIDGE, bridgeRise, type Underpass } from './roads';
 import { Builder, Lot, building, tiledRoof, sakuraTree, bridge, boat, surface, RED, WARM, WHITEWARM, COOL, Ground, Style, Side, BuildingOpts, hotelize } from './tokyo';
 import {
   glyph, lantern, streetLamp, bench, vendingMachine, bicycle, stoneLantern, plantPot, postBox, boardSign, noren, nobori,
-  scooter, binCorner, acUnit, crateStack, stool, wire, bollard, jizo,
+  scooter, binCorner, acUnit, crateStack, stool, wire, bollard, jizo, noWalkSign,
 } from './props';
 
 const XW = VX0, XE = VX0 + SX - 1, ZN = VZ0, ZS = VZ0 + SZ - 1;
@@ -83,13 +84,11 @@ function paintStreet(b: Builder, s: Street, x: number, z: number): number {
         return hash3(along >> 1, across, 41) < 0.5 ? c.paveA : c.paveC;
       }
       if (fromEdge === 7) return c.curb;
-      // zebra crossings where other streets meet the road
-      for (const o of STREETS) {
-        if (o === s || o.ew === s.ew) continue;
-        const lo = s.ew ? o.x0 : o.z0, hi = s.ew ? o.x1 : o.z1;
-        const cs = s.ew ? o.z0 <= s.z1 && o.z1 >= s.z0 : o.x0 <= s.x1 && o.x1 >= s.x0;
-        if (!cs || along < lo - 6 || along > hi + 6) continue;
-        if (o.kind === 'avenue') {
+      // zebra crossings: where other streets meet the road, and the marked crossings between (see world/roads.ts)
+      for (const cw of avenueCrossings(s)) {
+        const { lo, hi } = cw;
+        if (along < lo - 6 || along > hi + 6) continue;
+        if (cw.scramble) {
           // scramble crossing: stripes on all four sides and two diagonals across the middle
           const u = along - lo, n = hi - lo;
           if (u < 0 || u > n) return along % 4 < 2 ? c.whiteLine : c.asphalt;
@@ -139,11 +138,19 @@ function paintStreet(b: Builder, s: Street, x: number, z: number): number {
   }
 }
 
+/** Crosswalks drawn across an avenue: the scramble on both, and each one's own marked crossings. */
+function avenueCrossings(s: Street): { lo: number; hi: number; scramble: boolean }[] {
+  const out = crosswalksOf(s.name).map((c) => ({ lo: c.lo, hi: c.hi, scramble: c.scramble }));
+  if (s.name === NEON.name) out.push({ lo: HIKARI.z0, hi: HIKARI.z1, scramble: true });
+  return out;
+}
+
 function ground(b: Builder, x: number, z: number): number {
   const c = b.c;
   if ((z >= 152 && z <= 170) || (z >= 201 && z <= 223)) {
     const s = streetAt(x, z);
-    if (s && z >= 201) return paintStreet(b, s, x, z);
+    // Neon-dori carries on across the promenade to its bridge
+    if (s && (z >= 201 || s.kind === 'avenue')) return paintStreet(b, s, x, z);
     return surface(b, x, z);
   }
   const s = streetAt(x, z);
@@ -1028,8 +1035,12 @@ function furnish(b: Builder) {
       if (STREETS.some((o) => o !== s && o.ew !== s.ew && along >= (s.ew ? o.x0 : o.z0) - 8 && along <= (s.ew ? o.x1 : o.z1) + 8)) continue;
       if (!s.ew && along >= 160 && along <= 210) continue;
       if (s.ew && inOld(along, s.z0)) continue;
+      // and of the avenues' own crosswalks, whose signal poles stand at their corners
+      if (s.kind === 'avenue' && crosswalksOf(s.name).some((cw) => along >= cw.lo - 10 && along <= cw.hi + 10)) continue;
       const side = (t / step) % 2 ? 1 : 0;
-      const across = side ? (s.ew ? s.z1 : s.x1) - 3 : (s.ew ? s.z0 : s.x0) + 3;
+      // on the avenues the lamps and bike racks stand at the kerb, by the guard rail, leaving the pavement clear
+      const inset = s.kind === 'avenue' ? 6 : 3;
+      const across = side ? (s.ew ? s.z1 : s.x1) - inset : (s.ew ? s.z0 : s.x0) + inset;
       // slide along the kerb until neither the post nor its clutter (2.4 m on) stands in front of a door
       let a = along * V;
       const xzAt = (u: number): [number, number] => (s.ew ? [u, across * V] : [across * V, u]);
@@ -1040,6 +1051,7 @@ function furnish(b: Builder) {
       const u0 = a / V - 4, u1 = a / V + 18;
       if (u1 > (s.ew ? s.x1 : s.z1) - 2) continue;
       if (STREETS.some((o) => o !== s && o.ew !== s.ew && u1 >= (s.ew ? o.x0 : o.z0) - 4 && u0 <= (s.ew ? o.x1 : o.z1) + 4)) continue;
+      if (s.kind === 'avenue' && crosswalksOf(s.name).some((cw) => u1 >= cw.lo - 6 && u0 <= cw.hi + 6)) continue;
       if (!s.ew && u1 >= 156 && u0 <= 214) continue;
       const [x, z] = xzAt(a);
       if (s.kind === 'avenue' || s.kind === 'street') {
@@ -1149,12 +1161,121 @@ function canal(b: Builder) {
     }
   }
   // keep walkers out of the water except on the bridges (the old district blocks its own stretch)
-  for (const [x0, x1] of [[XW, -39], [-2, -1], [288, 290], [325, XE]] as [number, number][]) b.block(x0 * V, 172 * V, (x1 + 1) * V, 200 * V - 0.01);
+  for (const [x0, x1] of [[XW, -39], [-2, -1], [328, XE]] as [number, number][]) b.block(x0 * V, 172 * V, (x1 + 1) * V, 200 * V - 0.01);
   bridge(b, -38, -3, 'stone');
-  bridge(b, 291, 324, 'stone');
+  // (Neon-dori crosses on its car bridge, built once the street is dressed: see carBridge)
   boat(b, -140, 176, 20, 11);
   boat(b, 400, 190, 22, 12);
   boat(b, -250, 186, 18, 13);
+}
+
+
+// ---------------------------------------------------------------------------------------------
+// Neon-dori's canal bridge: a two-lane road deck with pavements, humped a little over the water, a granite
+// plinth and green steel balustrade along both sides, steel girders under the deck and a stone newel post
+// with a lamp at each corner. Built after the street is dressed, so it overwrites whatever was painted here.
+
+function carBridge(b: Builder) {
+  const g = b.grid, c = b.c;
+  const s = STREETS.find((q) => q.name === NEON.name)!;
+  const { x0, x1, z0, z1, zA, zB } = BRIDGE;
+  for (let z = z0; z <= z1; z++) {
+    const rise = bridgeRise(z), top = G - 1 + rise;
+    const water = z >= 171 && z <= 200;
+    for (let x = x0; x <= x1; x++) {
+      const edge = x === x0 || x === x1;
+      // over the water: a two-voxel slab on girders; on the banks: a solid ramp up to it
+      if (water) g.box(x, G - 2, z, x, top - 1, z, (_x, y) => (y === top - 1 ? c.concrete : 0));
+      else g.box(x, G - 1, z, x, top - 1, z, c.concrete);
+      g.box(x, top + 1, z, x, top + 6, z, 0);
+      g.set(x, top, z, edge ? c.stoneStep : paintStreet(b, s, x, z));
+      if (water && (edge || (x - x0) % 8 === 4)) g.set(x, top - 2, z, edge ? c.awnGreen : c.steelDark);
+      if (water && edge) g.set(x, top - 1, z, c.awnGreen); // the painted fascia beam
+    }
+    // balustrade: a granite plinth, green balusters, a steel handrail
+    for (const xr of [x0, x1]) {
+      g.set(xr, top + 1, z, c.stoneStep);
+      if (z % 3 === 0) g.box(xr, top + 2, z, xr, top + 3, z, c.awnGreen);
+      g.set(xr, top + 4, z, c.steel);
+    }
+  }
+  // newel posts where the bridge meets the banks, a bronze name plate facing the road, a lamp on top
+  for (const zp of [zA - 1, zB]) for (const xp of [x0, x1 - 1]) {
+    const top = G - 1 + bridgeRise(zp);
+    g.box(xp, top + 1, zp, xp + 1, top + 7, zp + 1, c.stoneStep);
+    g.box(xp, top + 8, zp, xp + 1, top + 8, zp + 1, c.granite);
+    g.box(xp, top + 9, zp, xp + 1, top + 10, zp + 1, c.shopGlow);
+    g.box(xp, top + 11, zp, xp + 1, top + 11, zp + 1, c.granite);
+    const face = xp === x0 ? xp + 1 : xp;
+    g.box(face, top + 4, zp, face, top + 6, zp + 1, c.woodDark);
+    b.lamp((xp + 1) * V, (rise(zp) + 10) * V, (zp + 1) * V, WARM, 6, 0.8);
+  }
+  b.block(x0 * V, zA * V, (x0 + 2) * V, (zA + 1) * V); b.block((x1 - 1) * V, zA * V, (x1 + 1) * V, (zA + 1) * V);
+  b.block(x0 * V, zB * V, (x0 + 2) * V, (zB + 2) * V); b.block((x1 - 1) * V, zB * V, (x1 + 1) * V, (zB + 2) * V);
+  function rise(z: number) { return bridgeRise(z); }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Underpasses: where an avenue meets the edge of town its carriageway ramps down between concrete retaining
+// walls and on under the street, out of the map. The pavements carry on beside it behind parapets; orange
+// lamps line the tunnel; a portal wall with the underpass's name plate stands over the mouth.
+
+function underpass(b: Builder, u: Underpass) {
+  const g = b.grid, c = b.c, k = b.k;
+  const a = u.av, ew = a.ew;
+  const edge = u.dir > 0 ? (ew ? XE : ZS) : (ew ? XW : ZN);
+  const set = (along: number, across: number, y: number, v: number) => (ew ? g.set(along, y, a.z0 + across, v) : g.set(a.x0 + across, y, along, v));
+  const box = (al0: number, ac0: number, y0: number, al1: number, ac1: number, y1: number, v: number) =>
+    ew ? g.box(Math.min(al0, al1), y0, a.z0 + ac0, Math.max(al0, al1), y1, a.z0 + ac1, v) : g.box(a.x0 + ac0, y0, Math.min(al0, al1), a.x0 + ac1, y1, Math.max(al0, al1), v);
+  const mid = (ROAD0 + ROAD1) / 2;
+  for (let along = u.top + u.dir; (edge - along) * u.dir >= 0; along += u.dir) {
+    const drop = rampDrop(u, along), floor = G - 1 - drop;
+    const under = (along - u.mouth) * u.dir > 0; // under the street, past the mouth
+    // carriageway: dig it out, lay the road with its centre line and edge lines
+    box(along, ROAD0, floor + 1, along, ROAD1, under ? G - 2 : G + 14, 0);
+    box(along, ROAD0, floor - 1, along, ROAD1, floor - 1, c.concrete);
+    for (let ac = ROAD0; ac <= ROAD1; ac++) {
+      const line = Math.abs(ac + 0.5 - (mid + 0.5)) < 0.6 ? c.lineYellow : ac === ROAD0 + 1 || ac === ROAD1 - 1 ? c.whiteLine : hash3(along, ac, 5) < 0.04 ? c.stain : c.asphalt;
+      set(along, ac, floor, line);
+    }
+    // retaining walls on the kerb lines, from the road up to the street, with a parapet above in the open
+    for (const ac of [ROAD0 - 1, ROAD1 + 1]) {
+      box(along, ac, floor, along, ac, G - 1, c.concreteWall);
+      if (!under) {
+        box(along, ac, G, along, ac, G + 1, c.concrete);
+        if (along % 4 === 0) set(along, ac, G + 2, c.steel);
+        set(along, ac, G + 3, c.steel);
+      } else {
+        // sodium lamps along the tunnel walls
+        if ((along - u.mouth) % 6 === 0) set(along, ac, G - 4, c.neonOrange);
+        // a darker band along the tunnel walls, scuffed by the traffic
+        set(along, ac, floor + 1, c.concreteDark);
+      }
+    }
+    // the tunnel's ceiling: dark concrete under the street
+    if (under) box(along, ROAD0, G - 1, along, ROAD1, G - 1, c.concreteDark);
+  }
+  // the portal: a wall across the top of the mouth with a name plate and a height-limit sign
+  const m = u.mouth + u.dir;
+  box(m, ROAD0 - 1, G, m + u.dir, ROAD1 + 1, G + 4, c.concreteWall);
+  box(m, ROAD0 - 1, G + 5, m + u.dir, ROAD1 + 1, G + 5, c.concreteDark);
+  for (let ac = ROAD0 + 6; ac <= ROAD1 - 6; ac++) set(m, ac, G + 2, ac % 2 ? c.signLit : c.trimDark);
+  for (const ac of [ROAD0 + 2, ROAD1 - 2]) { set(m, ac, G + 2, c.awnBlue); set(m, ac, G + 3, c.awnBlue); }
+  // the lamps inside, for the bake
+  const [lx, lz] = ew ? [(u.mouth + u.dir * 6) * V, (a.z0 + mid) * V] : [(a.x0 + mid) * V, (u.mouth + u.dir * 6) * V];
+  b.lamp(lx, -1.2, lz, [1.0, 0.55, 0.18], 5, 0.9);
+  // nobody walks down the ramp: a sign at the top, and the trench is off limits
+  const t0 = u.top + u.dir, t1 = edge;
+  const [rx0, rz0, rx1, rz1] = ew ? [Math.min(t0, t1) * V, (a.z0 + ROAD0 - 1) * V, (Math.max(t0, t1) + 1) * V, (a.z0 + ROAD1 + 2) * V] : [(a.x0 + ROAD0 - 1) * V, Math.min(t0, t1) * V, (a.x0 + ROAD1 + 2) * V, (Math.max(t0, t1) + 1) * V];
+  b.block(rx0, rz0, rx1, rz1);
+  for (const ac of [ROAD0 - 2, ROAD1 + 2]) {
+    const along = u.top - u.dir * 1;
+    const [sx, sz] = ew ? [(along + 0.5) * V, (a.z0 + ac + 0.5) * V] : [(a.x0 + ac + 0.5) * V, (along + 0.5) * V];
+    // facing back up the avenue, at the traffic and anyone thinking of following it
+    const turns = ew ? (u.dir > 0 ? 3 : 1) : (u.dir > 0 ? 2 : 0);
+    b.place(noWalkSign(k), sx, 0, sz, turns);
+    b.block(sx - 0.12, sz - 0.12, sx + 0.12, sz + 0.12);
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1232,6 +1353,8 @@ export function buildCity(b: Builder): CityResult {
   const res = graph();
   dress(b, res);
   tokyoEdge(b);
+  carBridge(b);
+  for (const u of UNDERPASSES) underpass(b, u);
   return res;
 }
 
@@ -1241,38 +1364,57 @@ function graph(): CityResult {
   const edges: [number, number][] = [];
   const at = (x: number, z: number) => { nodes.push([x, z]); return nodes.length - 1; };
   const link = (a: number, b: number) => edges.push([a, b]);
+  const chain = (...ns: number[]) => { for (let i = 1; i < ns.length; i++) link(ns[i - 1], ns[i]); };
   const old = (i: number) => -(i + 1);
-  // Nishi-dori (x -5) and Neon-dori (x 76.9), north to south
-  const nx = -5.1, ex = 76.9;
-  const nN = at(nx, -23.1), nAlley = at(nx, -3.1), nPlaza = at(nx, 4.3), nKita = at(nx, -6.1), nYan = at(nx, 16.9), nProm = at(nx, 40), nFar = at(nx, 52), nMin = at(nx, 60.4), nS = at(nx, 92);
-  const eN = at(ex, -23.1), eAlley = at(ex, -3.1), eKam = at(ex, 12.5), eProm = at(ex, 40), eFar = at(ex, 52), eMin = at(ex, 60.4), eS = at(ex, 92), eGado = at(ex, -48.1);
-  for (const [a, bb] of [[nN, nKita], [nKita, nAlley], [nAlley, nPlaza], [nPlaza, nYan], [nYan, nProm], [nProm, nFar], [nFar, nMin], [nMin, nS], [eGado, eN], [eN, eAlley], [eAlley, eKam], [eKam, eProm], [eProm, eFar], [eFar, eMin], [eMin, eS]]) link(a, bb);
+  // The two avenues are walked along their pavements, behind the guard rails, and crossed only at the
+  // crosswalks (see world/roads.ts): each avenue has a line of nodes down each pavement, joined across at
+  // every crossing. Hikari-dori's pavements are z -27.1 (station side) and -18.9 (shop side); Neon-dori's
+  // x 72.9 (old town side) and 81.1 (neon quarter side).
+  const hn = -27.1, hs = -18.9, ew = 72.9, ee = 81.1;
+  // Nishi-dori (x -5.1), north to south from its crossing over Hikari-dori
+  const nx = -5.1;
+  const nN = at(nx, hs), nNn = at(nx, hn), nAlley = at(nx, -3.1), nPlaza = at(nx, 4.3), nKita = at(nx, -6.1), nYan = at(nx, 16.9), nProm = at(nx, 40), nFar = at(nx, 52), nMin = at(nx, 60.4), nS = at(nx, 92);
+  chain(nN, nKita, nAlley, nPlaza, nYan, nProm, nFar, nMin, nS);
+  // Neon-dori: the two pavements, north (under the tracks) to south, crossed at every crosswalk
+  const zs = { gado: -48.1, alley: -3.1, kam: 12.5, prom: 38.6, far: 53.1, min: 60.4, s: 92 };
+  const W = { gado: at(ew, zs.gado), n: at(ew, hn), s: at(ew, hs), alley: at(ew, zs.alley), kam: at(ew, zs.kam), prom: at(ew, zs.prom), far: at(ew, zs.far), min: at(ew, zs.min), so: at(ew, zs.s) };
+  const E = { gado: at(ee, zs.gado), n: at(ee, hn), s: at(ee, hs), alley: at(ee, zs.alley), kam: at(ee, zs.kam), prom: at(ee, zs.prom), far: at(ee, zs.far), min: at(ee, zs.min), so: at(ee, zs.s) };
+  for (const P of [W, E]) chain(P.gado, P.n, P.s, P.alley, P.kam, P.prom, P.far, P.min, P.so);
+  for (const k of ['gado', 'alley', 'kam', 'prom', 'far', 'min', 'so'] as const) link(W[k], E[k]);
+  // the scramble: its four corners joined along every arm and across both diagonals
+  link(W.n, E.n); link(W.s, E.s); link(W.n, E.s); link(E.n, W.s);
   // to the old district: the plaza, Kaminari Lane's east end, the promenade and far bank ends
-  link(nPlaza, old(19)); link(eKam, old(2)); link(nProm, old(5)); link(nFar, old(12)); link(eProm, old(9)); link(eFar, old(13));
-  // Hikari-dori and the station square
-  const hW = at(-60, -23.1), hShrine = at(-40, -23.1), hSt = at(36, -23.1), hE = at(120, -23.1), sq = at(29, -33), stIn = at(36, -41.5), gado = at(36, -48.1), gadoW = at(-40, -48.1), gadoE = at(120, -48.1);
-  for (const [a, bb] of [[hW, hShrine], [hShrine, nN], [nN, hSt], [hSt, eN], [eN, hE], [hSt, sq], [sq, stIn], [gado, gadoW], [gado, eGado], [eGado, gadoE]]) link(a, bb);
+  link(nPlaza, old(19)); link(W.kam, old(2)); link(nProm, old(5)); link(nFar, old(12)); link(W.prom, old(9)); link(W.far, old(13));
+  // Hikari-dori: the shop-side pavement, the station-side pavement, their crossings, the station square
+  const hW = at(-60, hs), hShrine = at(-40, hs), hShrineN = at(-40, hn), hSt = at(36, hs), hStN = at(36, hn);
+  const gl3 = at(114, hs), gl3n = at(114, hn), hE = at(124, hs), hEn = at(124, hn);
+  chain(hW, hShrine, nN, hSt, W.s); chain(E.s, gl3, hE);
+  chain(hShrineN, nNn, hStN, W.n); chain(E.n, gl3n, hEn);
+  link(hShrine, hShrineN); link(nN, nNn); link(hSt, hStN); link(gl3, gl3n);
+  const sq = at(29, -33), stIn = at(36, -41.5), gado = at(36, -48.1), gadoW = at(-40, -48.1), gadoE = at(120, -48.1);
+  chain(hStN, sq, stIn); chain(gadoW, gado, W.gado); link(E.gado, gadoE);
   const shrine = at(-40, -34), hall = at(-40, -38.5);
-  link(hShrine, shrine); link(shrine, hall);
+  link(hShrineN, shrine); link(shrine, hall);
   // the back alley
   const ua = at(36, -3.1);
-  link(nAlley, ua); link(ua, eAlley);
+  link(nAlley, ua); link(ua, W.alley);
   // west lanes
   const kW = at(-60, -6.1), yW = at(-60, 16.9), kiN = at(-40, -6.1), kiY = at(-40, 16.9), kiP = at(-40, 40);
   for (const [a, bb] of [[nKita, kiN], [kiN, kW], [nYan, kiY], [kiY, yW], [kiN, kiY], [kiY, kiP], [kiP, nProm], [hShrine, kiN]]) link(a, bb);
   // the neon quarter: Center-gai and Golden lane
-  const cg1 = at(100, 12.5), cg2 = at(114, 12.5), cg3 = at(135, 12.5), gl1 = at(114, -10), gl2 = at(114, 30), gl3 = at(114, -23.1);
-  for (const [a, bb] of [[eKam, cg1], [cg1, cg2], [cg2, cg3], [cg2, gl1], [gl1, gl3], [gl3, hE], [cg2, gl2], [gl2, at(114, 40)]]) link(a, bb);
-  link(nodes.length - 1, eProm);
+  const cg1 = at(100, 12.5), cg2 = at(114, 12.5), cg3 = at(135, 12.5), gl1 = at(114, -10), gl2 = at(114, 30);
+  for (const [a, bb] of [[E.kam, cg1], [cg1, cg2], [cg2, cg3], [cg2, gl1], [gl1, gl3], [cg2, gl2], [gl2, at(114, 40)]]) link(a, bb);
+  link(nodes.length - 1, E.prom);
+  const eMin = W.min, eS = W.so;
   // Minami-dori, the arcade, the park and the hill
   const mA = at(36, 60.4), mPark = at(111, 60.4), mHill = at(-40, 60.4);
-  link(nMin, mA); link(mA, eMin); link(eMin, mPark); link(nMin, mHill);
+  link(nMin, mA); link(mA, eMin); link(E.min, mPark); link(nMin, mHill);
   const ar1 = at(35.9, 70), ar2 = at(35.9, 91.9), ar3 = at(35.9, 105);
   link(mA, ar1); link(ar1, ar2); link(ar2, ar3);
   const sk = at(10, 91.9);
   link(ar2, sk); link(sk, nS); link(ar2, at(64, 91.9)); link(nodes.length - 1, eS);
   const pk1 = at(111, 70), pk2 = at(95, 89), pk3 = at(124, 99), pkW = at(84, 89.4);
-  link(mPark, pk1); link(pk1, pk2); link(pk2, pk3); link(pkW, pk2); link(pkW, eS);
+  link(mPark, pk1); link(pk1, pk2); link(pk2, pk3); link(pkW, pk2); link(pkW, E.so);
   const hill1 = at(-35, 66), hill2 = at(-49, 95);
   link(mHill, hill1); link(hill1, hill2);
   return {

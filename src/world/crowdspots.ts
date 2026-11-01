@@ -32,7 +32,7 @@ export function streetAt(x: number, z: number): { kind: StreetKind; ew: boolean;
 export function laneFor(kind: StreetKind | null, r: number): number {
   const side = r < 0.5 ? -1 : 1, u = (r * 2) % 1;
   switch (kind) {
-    case 'avenue': return side * (3.0 + u * 0.7);
+    case 'avenue': return side * (3.55 + u * 0.6); // on the pavement, clear of the guard rail
     case 'street': return u < 0.8 ? side * u * 1.7 : side * (3.0 + (u - 0.8) * 3);
     case 'arcade': return side * u * 2.6;
     default: return side * u * 0.6;

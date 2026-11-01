@@ -1,3 +1,4 @@
+import { neoShop } from '../neo/roles';
 import type { CityId } from '../world/cityId';
 import { CITY } from '../world/cityId';
 import type { Look } from '../world/characters';
@@ -727,6 +728,7 @@ const ISTANBUL_SHOP_TRADE: Record<string, string> = {
 const TOKYO_SHOP_TRADES = ['zakka', 'toki', 'hamono', 'omocha', 'washi'];
 /** The trade a Tokyo walk-in room sells, if it sells souvenirs. */
 export function roomTrade(kind: string, nth: number): string | null {
+  if (CITY === 'neo') { const s = kind === 'shop' ? neoShop(nth) : null; return s?.role === 'trade' ? s.trade : null; }
   if (kind === 'shop') return TOKYO_SHOP_TRADES[nth % TOKYO_SHOP_TRADES.length];
   if (kind === 'books') return 'books';
   if (kind === 'florist') return 'hana';

@@ -419,6 +419,22 @@ export const NEO_HOTELS: HotelInfo[] = [
     lot: [0, 0], style: 'modern', floors: 4, rooms: [{ floor: 1, type: 'double', price: 260 }, { floor: 2, type: 'twin', price: 280 }, { floor: 3, type: 'king', price: 520 }],
     keeper: 'Concierge ARIA', keeperLook: { ...DESK, top: 0xf2efe7, accent: 0x2ad8ff, hair: 0xf2efe7, hairStyle: 'bob' },
     lines: ['Good evening. Your biometric key is being generated.', 'The suite on the top floor faces the Halo hologram. Guests report it waves.', 'Helix Dynamics executives stay here often. Discretion is included in the price.'] },
+  // residences: flats let by the week, a few for sale (see neo/lifeui.ts lettings)
+  { id: 'kowaflats', name: 'Kowa Flats', jp: 'KOWA FLATS', street: 'The Stacks', theme: 'locanda', stairs: true, residence: true,
+    blurb: 'A Stacks tower of small flats with laundry on every balcony and a noodle stand in the lobby. Cheap, loud, home.',
+    lot: [0, 0], style: 'apartment', floors: 4, rooms: [{ floor: 1, type: 'single', price: 90 }, { floor: 2, type: 'twin', price: 130 }, { floor: 3, type: 'double', price: 180, buy: 6500 }],
+    keeper: 'Landlady Oyelaran', keeperLook: { topStyle: 'cardigan', top: 0x6a3a7a, accent: 0xffdc5a, bottom: 0x2a2a34, hat: 'scarf', hatColor: 0xffdc5a, backpack: undefined, skin: 0x8a5a3c, glasses: true },
+    lines: ['Rent on time and I bring you soup. Rent late and I bring you my nephew.', 'Every flat has a kitchen, a bed and a window. Some windows even open.', 'The lift has been broken since the flood. Stairs build character.'] },
+  { id: 'lanternlofts', name: 'Lantern Lofts', jp: 'ランタン・ロフト', street: 'Lantern Market', theme: 'boutique', stairs: false, residence: true,
+    blurb: 'Lofts over the night market, red lanterns at every window and the smell of five-spice in the stairwell.',
+    lot: [0, 0], style: 'modern', floors: 4, rooms: [{ floor: 1, type: 'double', price: 220 }, { floor: 2, type: 'double', price: 250, buy: 15000 }, { floor: 3, type: 'king', price: 420, buy: 24000 }],
+    keeper: 'Mr. Lau', keeperLook: { ...DESK, top: 0x8a1a2a, accent: 0xf2c74a, hair: 0xb9b6b0, glasses: true },
+    lines: ['My father built these lofts with his own hands. The wiring, I had redone.', 'You will never cook again. The market is right downstairs. But the kitchen is very nice.', 'Top loft looks over every lantern in the market. People propose up there.'] },
+  { id: 'zenithres', name: 'Zenith Residences', jp: 'ZENITH', street: 'The Spire District', theme: 'sky', stairs: false, residence: true,
+    blurb: 'Glass apartments in the Spire for people who made it. Doormen, quiet lifts and the whole city under your feet.',
+    lot: [0, 0], style: 'modern', floors: 4, rooms: [{ floor: 1, type: 'double', price: 480, buy: 32000 }, { floor: 2, type: 'king', price: 700, buy: 48000 }, { floor: 3, type: 'king', price: 950, buy: 75000 }],
+    keeper: 'Doorman Ezekiel', keeperLook: { ...DESK, top: 0x16161c, accent: 0xc8a040, skin: 0x6a4630, hair: 0x6b6b70 },
+    lines: ['Good evening. Residents and their guests only. Are you a resident? Not yet, perhaps.', 'The penthouse faces the bay. The sunrise comes in gold through the smog.', 'Helix pays for half these flats. They never come home to them.'] },
 ];
 
 export const NEO_ROOM_TYPE = {

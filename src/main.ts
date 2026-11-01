@@ -47,6 +47,8 @@ import { AMALFI, ISTANBUL, MADEIRA, NEO, HILLSIDE, CITY, isCity, goToCity, perCi
 import { neoTitle } from './neo/title';
 import { openCreator } from './neo/creator';
 import { Vitals } from './neo/vitals';
+import { NeoLifeSys } from './neo/life';
+import { neoShop } from './neo/roles';
 import { defaultLife } from './neo/state';
 import { nightAt, dropLanding, endLanding } from './ui/arrival';
 import { FarTown } from './engine/fartown';
@@ -140,7 +142,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Game {
   r: Renderer;
-  tod = (() => { const t = new TimeOfDay(); if (NEO) t.hour = 20.6; return t; })();
+  tod = new TimeOfDay();
+  /** Halcyon opens at night, but the renderer's caches (shadow map, sky table) want a few frames of afternoon first. */
+  private nightIn = NEO ? 8 : 0;
   cam: IsoCamera;
   audio = new Audio();
   ui: UI;
@@ -925,6 +929,19 @@ class Game {
             this.frontDesk(hid, entry);
           },
         });
+      } else if (NEO && keeper && buy && !rm.stall && (rm.kind === 'pharmacy' || (rm.kind === 'shop' && ['boutique', 'gig'].includes(neoShop(rm.nth).role)))) {
+        // Halcyon's counters with a life of their own: boutiques, gig boards, street clinics (neo/life.ts)
+        this.interactables.push({
+          key: `room-${rm.id}`, x: buy.pos[0], z: buy.pos[2], stand: buy.stand, pick: [n.pos[0], 1.6, n.pos[2]], r: 1.7, inside: false,
+          prompt: () => [rm.kind === 'pharmacy' ? 'plaster' : neoShop(rm.nth).role === 'gig' ? 'signal' : 'coat', name, `Talk to ${info.name}`],
+          act: () => {
+            this.faceEachOther(act, n.sit);
+            act.anim = 'bow';
+            setTimeout(() => { if (act.anim === 'bow') act.anim = anim; }, 1200);
+            this.audio.play('pop');
+            this.lifeSys.roomAct(rm, info.name, () => place.lines[entry.talk++ % Math.max(1, place.lines.length)] ?? '')?.();
+          },
+        });
       } else if (keeper && buy && roomTrade(rm.kind, rm.nth) && tradeOf(CITY, roomTrade(rm.kind, rm.nth)!)) {
         // a souvenir shop: the keeper's counter opens the shelf
         this.addShop(`room-${rm.id}`, tradeOf(CITY, roomTrade(rm.kind, rm.nth)!)!, n.seed, act, [n.pos[0], n.pos[2]], buy.stand, n.facing, anim, { name, local: jp, keeper: info.name }, [buy.pos[0], buy.pos[2]]);
@@ -986,12 +1003,12 @@ class Game {
         key: `lift-${ha.id}`, x: lift.pick[0], z: lift.pick[2], stand: lift.stand, pick: lift.pick, r: 1.5, inside: false,
         prompt: () => {
           const rm = this.booking(ha.id);
-          return rm ? [icon, `Room ${roomNo(rm.floor)}`, stairs ? 'Up the stairs' : 'Take the lift up'] : [icon, stairs ? 'Stairs' : 'Lift', 'Guests only'];
+          return rm ? [icon, info.residence ? 'Home' : `Room ${roomNo(rm.floor)}`, stairs ? 'Up the stairs' : 'Take the lift up'] : [icon, stairs ? 'Stairs' : 'Lift', info.residence ? 'Residents only' : 'Guests only'];
         },
         act: () => {
           const rm = this.booking(ha.id);
           if (rm) void this.goUpstairs(ha, rm);
-          else { this.audio.play('click'); this.ui.toast('bell', 'Guests only', `Check in at the front desk with ${info.keeper} first.`); }
+          else { this.audio.play('click'); this.ui.toast('bell', info.residence ? 'Residents only' : 'Guests only', info.residence ? `Rent or buy a flat from ${info.keeper} at the front desk first.` : `Check in at the front desk with ${info.keeper} first.`); }
         },
       });
       for (const rm of ha.rooms) {
@@ -1005,6 +1022,10 @@ class Game {
           return [rm.type === 'tatami' ? 'futon' : 'bed', ROOM_TYPE[rm.type].name, h >= 17 || h < 6 ? 'Sleep until morning' : 'Take a nap'];
         }, () => { this.player.targetFacing = rm.bed.facing; void this.sleepIn(rm); });
         it('win', rm.window.stand, rm.window.pick, () => ['skyline', 'The window', TEXT.tea.view], () => this.lookOut(rm));
+        if (info.residence) {
+          it('tea', rm.tea.stand, rm.tea.pick, () => ['knife', 'Your kitchen', 'Cook a meal'], () => { this.player.targetFacing = rm.tea.facing; this.lifeSys.kitchen(); });
+          continue;
+        }
         it('tea', rm.tea.stand, rm.tea.pick, () => [TEXT.tea.icon, rm.type === 'tatami' ? 'Tea set' : TEXT.tea.name, TEXT.tea.act], () => {
           this.player.targetFacing = rm.tea.facing;
           this.audio.play('pop');
@@ -1017,6 +1038,7 @@ class Game {
 
   /** Tonight's room at a hotel, if the booking is there. */
   private booking(hotel: string): HotelRoomAnchor | null {
+    if (NEO && HOTEL[hotel]?.residence) return this.lifeSys.homeIn(hotel);
     const b = this.s.hotel;
     if (!b || b.id !== hotel) return null;
     return this.w.anchors.hotels.find((h) => h.id === hotel)?.rooms.find((r) => r.id === b.room) ?? null;
@@ -1026,6 +1048,7 @@ class Game {
     const info = HOTEL[id], ha = this.w.anchors.hotels.find((h) => h.id === id);
     if (!info || !ha) return;
     const line = info.lines[entry.talk++ % info.lines.length];
+    if (NEO && info.residence) { this.lifeSys.lettings(ha, line); return; }
     const b = this.s.hotel;
     this.ui.hotel(info, line, ha.rooms.map((r) => ({ id: r.id, floor: r.floor, type: r.type, price: r.price })),
       b?.id === id ? b.room : null, b && b.id !== id ? HOTEL[b.id]?.name ?? null : null, (rid) => this.checkIn(ha, rid));
@@ -1445,6 +1468,24 @@ class Game {
 
   // ------------------------------------------------------------------ 2040
   private vitals: Vitals | null = null;
+  private lifeSysV: NeoLifeSys | null = null;
+  /** 2040's life sim (built on first use, once the world's anchors exist). */
+  private get lifeSys(): NeoLifeSys {
+    return (this.lifeSysV ??= new NeoLifeSys({
+      s: this.s, ui: this.ui, anchors: this.w.anchors,
+      play: (n) => this.audio.play(n),
+      pos: () => this.player.position,
+      outdoors: () => !this.inside && !this.upstairs,
+      setPin: (p) => this.setPin(p),
+      pinId: () => this.s.pin?.id,
+      dressed: () => { this.rebuildPlayer(); this.player.flash = 0.6; },
+      save: () => this.save(),
+      changed: () => this.afterChange(),
+      vitals: () => this.vitals,
+      hour: () => this.tod.hour,
+      flash: () => { this.player.flash = 1; },
+    }));
+  }
   private closeCreator: (() => void) | null = null;
 
   /** 2040's title: carry on, make a character, or share a session. */
@@ -1473,6 +1514,10 @@ class Game {
     this.cam.zoom = this.r.isMobile ? 4.2 : 3.4;
     this.cam.snap();
     const restore = life.look;
+    // the mirror wants light: hold the sky at the last of the sunset, neon already on, until you step out
+    this.nightIn = 0;
+    this.tod.hour = 18.2; this.tod.frozen = true;
+    const night = () => { this.tod.frozen = false; this.tod.hour = 20.6; };
     this.closeCreator = openCreator(document.getElementById('app')!, { name: life.name, look: life.look }, {
       preview: (look) => { life.look = look; this.rebuildPlayer(); this.player.flash = 0.6; },
       done: (name, look) => {
@@ -1480,11 +1525,13 @@ class Game {
         this.s.profile.name = name;
         this.save();
         this.closeCreator?.(); this.closeCreator = null;
+        night();
         this.start(DEST.neo, null);
       },
       back: () => {
         life.look = restore; this.rebuildPlayer();
         this.closeCreator?.(); this.closeCreator = null;
+        night();
         this.titleView();
         this.neoTitle();
       },
@@ -1552,7 +1599,8 @@ class Game {
         warn: (k, text) => { this.audio.play('fail'); this.ui.toast(k === 'hunger' ? 'ramen' : k === 'sleep' ? 'bed' : 'plaster', k === 'hunger' ? 'Hungry' : k === 'sleep' ? 'Exhausted' : 'Feeling faint', text); },
       });
       const host = document.querySelector('#hud .hud-tl');
-      if (host) this.vitals.mount(host as HTMLElement);
+      if (host) { this.vitals.mount(host as HTMLElement); this.lifeSys.mount(host as HTMLElement); }
+      this.ui.onLife = () => this.lifeSys.openLife();
     }
     this.applySettings();
     let fp = false;
@@ -2304,6 +2352,7 @@ class Game {
         case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
         case 'KeyG': if (!this.ui.busy) this.wave(); break;
         case 'KeyB': this.ui.open ? this.ui.close() : this.dine.openBag(); break;
+        case 'KeyL': if (NEO) { if (this.ui.open) this.ui.close(); else this.lifeSys.openLife(); } break;
         case 'ShiftLeft': case 'ShiftRight': if (!this.ui.busy) this.cyclePace(); break;
         case 'KeyC': this.setPhoto(true); break;
         case 'Escape': this.ui.endDialogue(); this.ui.close(); break;
@@ -2988,8 +3037,10 @@ class Game {
     sh.uWind.value.set(Math.cos(wa), Math.sin(wa), 0.55 + 0.25 * Math.sin(t * 0.045 + 1) + 0.12 * Math.sin(t * 0.13), 0);
     this.tod.update(dt);
     this.tod.apply(this.r);
+    if (this.nightIn > 0 && --this.nightIn === 0) this.tod.hour = 20.6;
     if (this.inside) { sh.uLamp.value = Math.max(sh.uLamp.value, 0.95); sh.uSunColor.value.multiplyScalar(0.35); }
     if (this.started) this.s.playTime += dt;
+    if (NEO && this.started) this.lifeSys.frame(dt, this.ui.busy || this.sleeping);
     if (this.vitals) this.vitals.update(dt, { active: this.started && !this.sleeping && !this.ui.busy, moving: this.player.anim === 'run' ? 2 : this.player.anim === 'walk' ? 1 : 0, resting: !!this.meal || this.player.anim === 'sit' });
     this.perf.lap('clock');
 

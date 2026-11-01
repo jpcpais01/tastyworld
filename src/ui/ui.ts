@@ -1,5 +1,6 @@
 import { SaveState, viewMetres, VIEW_DEFAULT, VERY_FAR } from '../game/state';
 import type { Audio } from '../game/audio';
+import { NEO } from '../world/cityId';
 import type { FoodId } from '../world/food';
 import type { StallInfo } from '../data/stalls';
 import { DISHES, DISH, OTHER_MENUS } from '../data/dishes';
@@ -153,6 +154,8 @@ export class UI {
   onPace: (() => void) | null = null;
   onEndTrip: (() => void) | null = null;
   onBag: (() => void) | null = null;
+  /** 2040: the life panel (you, wardrobe, work, secrets). */
+  onLife: (() => void) | null = null;
   onStand: (() => void) | null = null;
   open: string | null = null;
   /** On a co-op trip as a guest: the leader's sky is shared, so the time of day setting waits. */
@@ -197,6 +200,7 @@ export class UI {
         <div class="glass bar">
           <div class="yen" id="h-yenchip" title="Your money"><span class="coin">${TEXT.currency}</span><span id="h-yen">${TEXT.money(START_PURSE).replace(/[^\d.,-]/g, '')}</span></div>
           <span class="sep"></span>
+          ${NEO ? `<button id="h-life" title="Your life (L)" aria-label="Your life">${G.person}</button>` : ''}
           <button id="h-pass" title="Food Passport (P)" aria-label="Food Passport">${G.passport}<span class="dot hidden" id="h-dot"></span></button>
           <button id="h-map" title="City map (M)" aria-label="City map">${G.map}</button>
           <button id="h-set" title="Settings" aria-label="Settings">${G.gear}</button>
@@ -210,7 +214,7 @@ export class UI {
       <div class="hud-bl">
         <div class="controls" id="h-keys">
           <button class="glass kb" id="h-kb" title="Controls" aria-label="Show controls">${G.keyboard}</button>
-          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> pace</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span><span><kbd>B</kbd> snacks</span></div>
+          <div class="glass keys"><span><kbd>WASD</kbd> walk</span><span><kbd>Shift</kbd> pace</span><span><kbd>Space</kbd> interact</span><span><b><kbd>Q</kbd><kbd>E</kbd></b> rotate</span><span><kbd>V</kbd> view</span><span><kbd>C</kbd> photo</span><span><kbd>P</kbd> passport</span><span><kbd>M</kbd> map</span><span><kbd>B</kbd> snacks</span>${NEO ? '<span><kbd>L</kbd> life</span>' : ''}</div>
         </div>
       </div>
       <div class="hud-br">
@@ -230,6 +234,7 @@ export class UI {
     this.yenEl = $('h-yen'); this.yenChip = $('h-yenchip'); this.trackerEl = $('h-track'); this.ppDot = $('h-dot'); this.partyEl = $('h-party');
     const tap = (id: string, fn: () => void) => $(id).addEventListener('click', (e) => { e.stopPropagation(); this.audio.play('click'); fn(); });
     tap('h-pass', () => this.passport());
+    if (NEO) tap('h-life', () => this.onLife?.());
     tap('h-map', () => this.map());
     tap('h-compass', () => this.map());
     tap('h-party', () => this.onParty?.());
@@ -676,6 +681,16 @@ export class UI {
         };
         requestAnimationFrame(run);
       }, 900);
+    });
+  }
+
+  /** Cook a recipe on its own (2040's kitchens: shifts and home cooking). done(stars), or -1 when abandoned. */
+  cookRecipe(recipe: StallInfo['recipe'], done: (stars: number) => void): void {
+    const p = this.panel('panel cook');
+    this.cooking = new CookingGame(p, recipe, this.audio, this.icons[recipe.dish] ?? '', (stars) => {
+      this.cooking = null;
+      this.close();
+      done(stars);
     });
   }
 

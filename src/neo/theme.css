@@ -114,3 +114,63 @@ html.y2040 .glass { --glass: rgba(9, 12, 20, 0.78); --on-glass: #e6f6ff; --glass
 .cc-foot .btn-hero { flex: 1; padding: 14px 16px; font-size: 16px; border-radius: 6px; }
 .cc-foot .btn-ghost { padding: 0 14px; border-radius: 6px; color: #e6f1fa; }
 @media (max-width: 700px) { .cc2040 { top: auto; height: 58vh; left: 10px; right: 10px; width: auto; } }
+
+/* ---------------------------------------------------------------- life panels (neo/lifeui.ts) */
+.n-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.n-grid.small { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-bottom: 4px; }
+.n-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--r-m); background: var(--cream-2); box-shadow: inset 0 0 0 1px var(--line); }
+.n-card.on { box-shadow: inset 0 0 0 2px var(--sun); }
+.n-card h3 { margin: 0; font-size: 15px; }
+.n-card p { margin: 0; font-size: 12.5px; color: var(--ink-2); flex: 1; }
+.n-card .btn { padding: 8px 10px; font-size: 13px; }
+.n-sw { position: relative; height: 54px; border-radius: 4px; background: linear-gradient(135deg, var(--a) 0 62%, var(--b) 62% 70%, var(--a) 70%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); overflow: hidden; }
+.n-sw i { position: absolute; inset: auto 8px 8px auto; width: 16px; height: 16px; border-radius: 50%; background: var(--b); box-shadow: 0 0 10px var(--b); }
+.n-sw b { position: absolute; left: 8px; top: 6px; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 2px #000; }
+.n-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+.n-meta span { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 800; padding: 3px 7px; border-radius: 3px; background: var(--sun-soft); color: var(--sun); }
+.n-meta span svg { width: 12px; height: 12px; }
+.n-active { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; margin-bottom: 10px; border-radius: var(--r-m); background: var(--tomato-soft); box-shadow: inset 0 0 0 1px rgba(255, 79, 168, 0.4); }
+.n-active span { font-size: 13px; color: var(--ink-2); }
+.n-active .btn { align-self: flex-start; margin-top: 4px; padding: 6px 12px; font-size: 13px; }
+.n-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0 16px 6px; background: var(--lacquer-2); padding: 4px; border-radius: var(--r-m); }
+.n-tabs button { padding: 8px 4px; font-weight: 800; font-size: 13px; border-radius: 4px; color: var(--ink-2); }
+.n-tabs button.on { background: var(--cream-3); color: var(--sun); box-shadow: inset 0 0 0 1px var(--line-2); }
+.n-bars { display: flex; flex-direction: column; gap: 9px; margin: 6px 0 14px; }
+.n-bars .vit { gap: 10px; }
+.n-bars .nb-l { width: 62px; font-size: 13px; font-weight: 800; }
+.n-bars .vb { height: 10px; }
+.n-bars b { width: 28px; text-align: right; font-size: 13px; color: var(--ink); }
+.n-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.n-stats div { display: flex; flex-direction: column; gap: 2px; padding: 9px 10px; border-radius: var(--r-s); background: var(--cream-2); box-shadow: inset 0 0 0 1px var(--line); }
+.n-stats b { font-family: var(--display); font-size: 18px; color: var(--ink); }
+.n-stats span { font-size: 11px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.08em; }
+.n-empty { color: var(--ink-2); font-size: 14px; }
+.n-h { margin: 12px 0 6px; font-size: 11px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.n-chip { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 4px; background: var(--cream-2); color: var(--ink); font-size: 13px; font-weight: 700; text-align: left; box-shadow: inset 0 0 0 1px var(--line); }
+.n-chip i { width: 16px; height: 16px; flex: none; border-radius: 3px; background: linear-gradient(135deg, var(--a) 60%, var(--b) 60%); }
+.n-chip.on { box-shadow: inset 0 0 0 2px var(--sun); color: var(--sun); }
+.n-secrets { display: flex; flex-direction: column; gap: 6px; }
+.n-secrets div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--r-s); background: var(--cream-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-3); }
+.n-secrets div.found { box-shadow: inset 0 0 0 1px rgba(109, 255, 154, 0.5); color: var(--ink-2); }
+.n-secrets div.found b { color: var(--matcha); }
+.n-secrets span { font-size: 13px; }
+/* data jack tuning */
+.tn { display: flex; flex-direction: column; gap: 14px; margin: 8px 0 16px; }
+.tn-band { position: relative; height: 26px; border-radius: 3px; background: repeating-linear-gradient(90deg, #0b0e16 0 6px, #111622 6px 12px); box-shadow: inset 0 0 0 1px var(--line-2); }
+.tn-win { position: absolute; top: 0; bottom: 0; background: rgba(70, 232, 255, 0.22); box-shadow: inset 0 0 0 1px var(--sun), 0 0 14px rgba(70, 232, 255, 0.35); }
+.tn-cur { position: absolute; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; background: var(--tomato); box-shadow: 0 0 10px var(--tomato); border-radius: 2px; }
+.tn-band.hit .tn-win { background: rgba(109, 255, 154, 0.35); box-shadow: inset 0 0 0 1px var(--matcha), 0 0 16px rgba(109, 255, 154, 0.5); }
+.tn-band.miss .tn-cur { background: #666; box-shadow: none; }
+.tn-go { width: 100%; padding: 14px; font-size: 16px; }
+/* the gig card under the vitals */
+.gigchip { display: flex; align-items: center; gap: 9px; padding: 8px 10px; width: 210px; text-align: left; color: var(--on-glass, #e6f6ff); pointer-events: auto; }
+.gigchip.hidden { display: none; }
+.gigchip i { width: 20px; height: 20px; flex: none; color: var(--tomato); }
+.gigchip i svg { width: 20px; height: 20px; }
+.gigchip span { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.gigchip b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gigchip small { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gigchip em { font-style: normal; font-family: var(--display); font-weight: 700; color: var(--sun); }
+.gigchip em.late { color: var(--tomato); }
+html.y2040 .dish-card .dimg { background: radial-gradient(circle at 50% 62%, #232c3e 0 30%, #121826 78%); box-shadow: inset 0 0 0 1px var(--line-2); color: var(--tomato); }
+html.y2040 .dish-card .dimg img { filter: drop-shadow(0 0 10px rgba(70, 232, 255, 0.25)); }

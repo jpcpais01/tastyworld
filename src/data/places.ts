@@ -8,6 +8,8 @@ import { perCity } from '../world/cityId';
 import { lira } from './money';
 import { roomTrade, tradeOf, shopIdentity } from './souvenirs';
 import { CITY } from '../world/cityId';
+import { NEO_PLACES } from './neoPlaces';
+import { neoShopIdentity } from '../neo/roles';
 
 /** Something small a shop sells over the counter. */
 export interface Buyable { icon: IconName; name: string; price: number; text: string; snack?: boolean; }
@@ -366,6 +368,8 @@ export const PLACES: Record<RoomKind, PlaceKind> = {
   },
   hotel: { label: 'Hotel', names: [['Hotel', 'ホテル']], keepers: ['Receptionist'], keeperLook: {}, lines: [], buy: [] },
 };
+// Halcyon's rooms are its own (data/neoPlaces.ts)
+if (CITY === 'neo') Object.assign(PLACES, NEO_PLACES);
 
 /** People sitting in cafés and bars have opinions, and the odd hint. */
 const TOKYO_GUEST_LINES: string[] = [
@@ -429,6 +433,8 @@ export const VENDING_PRICE = 160;
 export function roomName(kind: RoomKind, nth: number, hotel?: string): [string, string] {
   const h = hotel ? HOTEL[hotel] : undefined;
   if (h) return [h.name, h.jp];
+  const ns = CITY === 'neo' && kind === 'shop' ? neoShopIdentity(nth) : null;
+  if (ns) return [ns.name, ns.local];
   const t = tradeRoom(kind, nth);
   if (t) { const id = shopIdentity(t.trade, t.k, 0); return [id.name, id.local]; }
   const n = PLACES[kind].names;
@@ -448,6 +454,8 @@ export function keeperOf(kind: RoomKind, nth: number, seed: number, hotel?: stri
   if (h) return { name: h.keeper, look: { ...randomLook(seed), backpack: undefined, ...h.keeperLook } as Look };
   const p = PLACES[kind];
   const look = { ...randomLook(seed), backpack: undefined, ...p.keeperLook } as Look;
+  const ns = CITY === 'neo' && kind === 'shop' ? neoShopIdentity(nth) : null;
+  if (ns) return { name: ns.keeper, look: { ...look, ...ns.look } as Look };
   const t = tradeRoom(kind, nth);
   if (t) return { name: shopIdentity(t.trade, t.k, 0).keeper, look: { ...look, ...t.trade.keeperLook } as Look };
   return { name: p.keepers[nth % p.keepers.length], look };

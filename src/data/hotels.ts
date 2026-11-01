@@ -21,6 +21,8 @@ export interface HotelRoomSpec {
   floor: number;
   type: RoomType;
   price: number;
+  /** A residence's flat that can be bought outright, for this much. */
+  buy?: number;
 }
 
 export interface HotelInfo {
@@ -41,6 +43,8 @@ export interface HotelInfo {
   lines: string[];
   /** Guests go up by the stairs rather than a lift. */
   stairs?: boolean;
+  /** 2040: a residence letting flats by the week (room price), some for sale outright. */
+  residence?: boolean;
 }
 
 const DESK: Partial<Look> = { topStyle: 'suit', top: 0x2b3a62, accent: 0xf2efe7, bottom: 0x2b3a62, hat: 'none', backpack: undefined };
@@ -339,14 +343,16 @@ const AMALFI_HOTELS: HotelInfo[] = [
   },
 ];
 
+/** Every building with a front desk and rooms upstairs: the hotels, and in 2040 the residences that let flats. */
+const ALL_HOTELS: HotelInfo[] = perCity({ tokyo: TOKYO_HOTELS, amalfi: AMALFI_HOTELS, istanbul: ISTANBUL_HOTELS, madeira: MADEIRA_HOTELS, neo: NEO_HOTELS });
 /** The hotels of the city on this trip. */
-export const HOTELS: HotelInfo[] = perCity({ tokyo: TOKYO_HOTELS, amalfi: AMALFI_HOTELS, istanbul: ISTANBUL_HOTELS, madeira: MADEIRA_HOTELS, neo: NEO_HOTELS });
+export const HOTELS: HotelInfo[] = ALL_HOTELS.filter((h) => !h.residence);
 export { ISTANBUL_HOTELS };
 
 /** Whether guests climb the stairs to their rooms (a ryokan, every house on the coast) rather than take a lift. */
 export const byStairs = (h: HotelInfo): boolean => !!h.stairs || h.theme === 'ryokan';
 
-export const HOTEL: Record<string, HotelInfo> = Object.fromEntries(HOTELS.map((h) => [h.id, h]));
+export const HOTEL: Record<string, HotelInfo> = Object.fromEntries(ALL_HOTELS.map((h) => [h.id, h]));
 
 /** The hotel whose building stands on a lot, by the lot's corner. */
 export function hotelAt(x0: number, z0: number): HotelInfo | undefined {

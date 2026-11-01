@@ -11,7 +11,7 @@ import { dressBlock } from './facades';
 import { Prop, rotateProp, streetLamp, bench, vendingMachine, wire, acUnit, crateStack, scooter, stool, plantPot, binCorner, utilityBox, hangingSign, lantern, glyph } from './props';
 import { buildFood } from './food';
 import { hiddenKitchenDress } from './dining';
-import { HOTELS } from '../data/hotels';
+import { HOTEL } from '../data/hotels';
 import type { HotelInfo } from '../data/hotels';
 import { SEGS, BLOCKS, BRIDGES, CANAL, BAY_X, neoGraph, type District, type Seg } from './neoPlan';
 
@@ -197,7 +197,7 @@ function assign(lots: Plan[]) {
       if (p) p.use = u;
     });
   };
-  const H = (id: string) => HOTELS.find((h) => h.id === id);
+  const H = (id: string) => HOTEL[id];
   // the Boulevard's own: the grand old hotel and the 24-hour konbini, facing Meridian
   const onMeridian = (p: Plan) => (p.side === 's' && Math.abs(p.z1 + 1 - M(-8)) <= 1) || (p.side === 'n' && Math.abs(p.z0 - M(8)) <= 1);
   put('lantern', [{ hotel: H('meridian') }], (p) => onMeridian(p) && hotelOk(p));
@@ -205,12 +205,12 @@ function assign(lots: Plan[]) {
   // the Eel Den on the canal walk
   put('spire', [{ restaurant: { id: 'eelden', kind: 'izakaya' } }], (p) => p.side === 'e' && p.x1 + 1 === M(112) && roomOk(p));
   put('lantern', [{ stall: 'mamalin' }, { stall: 'bao9' }], stallOk);
-  put('lantern', [{ hotel: H('capsule9') }], hotelOk);
+  put('lantern', [{ hotel: H('capsule9') }, { hotel: H('lanternlofts') }], hotelOk);
   put('lantern', [{ restaurant: { id: 'phosaigon', kind: 'soba' } }, { restaurant: { id: 'dumpling', kind: 'izakaya' } }, { restaurant: { id: 'tart', kind: 'bakery' } }], roomOk);
   put('spire', [{ helix: true }], (p) => widthOf(p) >= 56 && depthOf(p) >= 56);
-  put('spire', [{ hotel: H('spiresuites') }], hotelOk);
+  put('spire', [{ hotel: H('spiresuites') }, { hotel: H('zenithres') }], hotelOk);
   put('spire', [{ restaurant: { id: 'printbar', kind: 'izakaya' } }, { restaurant: { id: 'synth', kind: 'cafe' } }, { restaurant: { id: 'kopi', kind: 'kissa' } }], roomOk);
-  put('stacks', [{ hotel: H('stackshostel') }], hotelOk);
+  put('stacks', [{ hotel: H('stackshostel') }, { hotel: H('kowaflats') }], hotelOk);
   put('stacks', [{ restaurant: { id: 'myco', kind: 'izakaya' } }], roomOk);
   put('stacks', [{ hidden: true }], (p) => widthOf(p) >= 32 && depthOf(p) >= 20 && p.x0 > M(-150));
   put('neonmile', [{ hotel: H('neonnest') }], hotelOk);
@@ -673,7 +673,7 @@ export function buildNeo(win?: Window): BuildResult {
   stalls.push(...b.stallAnchors);
   const graph = neoGraph();
   const anchors: Anchors = {
-    spawn: [3, 0, 11],
+    spawn: [6, 0, 14.5],
     stalls,
     hiddenDoor: hd,
     interiorExit: [0, 0], interiorSpawn: [0, 0, 0], chef: [0, 0, 0], counterStand: [0, 0],

@@ -54,6 +54,7 @@ export const SECRETS: { id: string; name: string; text: string; found: (s: SaveS
   { id: 'mail', name: 'Do not put this in writing', text: 'An open email on a Helix workstation.', found: (_s, L) => L.secrets.includes('helix-mail') },
   { id: 'trn', name: 'Beat TRN', text: 'The Neon Racer high score at Orbit Mall has stood since 2037.', found: (_s, L) => L.secrets.includes('trn') },
   { id: 'harvest', name: 'First harvest', text: 'Plant the old seed lines in the Greenhouse and see them through to the table.', found: (_s, L) => L.secrets.includes('harvest') },
+  { id: 'midnight', name: 'The Halo sings', text: 'DJ Nyx swears the hologram over the crossing sings at midnight.', found: (_s, L) => L.secrets.includes('midnight') },
   { id: 'regular', name: 'A regular', text: 'Work ten gigs and the dispatchers start saving you the good ones.', found: (_s, L) => Object.values(L.shifts).reduce((a, b) => a + b, 0) >= 10 },
 ];
 
@@ -94,6 +95,15 @@ export class NeoLifeSys {
     this.h.s.yen -= n;
     this.h.changed();
     return true;
+  }
+
+  /** A secret found out in the city: recorded once, with a gold toast. */
+  discover(id: string, title: string, text: string): void {
+    if (this.life.secrets.includes(id)) return;
+    this.life.secrets.push(id);
+    this.h.play('chime');
+    this.h.ui.toast('signal', title, text, true);
+    this.h.changed();
   }
 
   private earn(n: number): void {

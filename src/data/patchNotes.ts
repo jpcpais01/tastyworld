@@ -8,6 +8,15 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.21.3',
+    date: '2026-11-01',
+    title: 'First-person mouse look fixed on more laptops',
+    items: [
+      'In first person the mouse is grabbed as soon as you press a button (or switch views), so moving it looks around without holding anything down. Before, some touchpads and laptops never caught the grab and only looked while the button was held.',
+      'If your browser will not grab the mouse at all, the view now follows the cursor instead, and resting it at the left or right edge keeps turning. Works in Tokyo, Amalfi, Istanbul, Funchal and 2040.',
+    ],
+  },
+  {
     version: '0.21.2',
     date: '2026-11-01',
     title: 'Faster far views, in 2040 above all',

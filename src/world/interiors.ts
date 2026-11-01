@@ -18,6 +18,10 @@ export type RoomKind = 'shop' | 'cafe' | 'izakaya' | 'konbini' | 'florist' | 'bo
   // Istanbul's food rooms
   | 'kahve' | 'cay' | 'lokanta' | 'kebap' | 'pide' | 'borek' | 'muhallebi' | 'lokum' | 'baharat' | 'firin' | 'balik';
 
+/** Room kinds that sell no food. Every other kind (cafés, izakaya, bakeries, Istanbul's food rooms, and any new city's)
+ *  counts as a place to eat on the pocket map's "food places found" tally. */
+export const NON_FOOD_ROOMS: ReadonlySet<RoomKind> = new Set<RoomKind>(['shop', 'florist', 'books', 'pharmacy', 'hotel']);
+
 export interface RoomNpc {
   role: 'keeper' | 'guest';
   pos: [number, number, number];

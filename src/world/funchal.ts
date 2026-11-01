@@ -248,6 +248,71 @@ function gozzo(c: AC, seed: number, len = 36): Prop {
  * waterline, a blue band and a row of portholes, a saloon deck with its windows and a promenade rail, a sun deck
  * above with benches and life-raft drums, the bridge forward, a funnel and a radar mast, and the stern ramp up.
  */
+/**
+ * The Santa Maria, Funchal's replica of Columbus's nao: a tarred hull with a high aftcastle and forecastle, three
+ * masts, square sails with the red cross of the Order of Christ, pennants at the mastheads. Its length runs along x,
+ * the bow at +x; the waterline sits 1 m over its base.
+ */
+function nao(c: AC): Prop {
+  const L = 76, W = 17, cz = 8, p = new Prop(L, 74, W, 0.25);
+  for (let x = 0; x < L; x++) {
+    const u = x / (L - 1);
+    // the beam swells amidships; the bow narrows to a stem, the stern stays broad and square
+    const half = 7.6 * Math.min(1, Math.pow(Math.sin(Math.PI * Math.min(1, u * 0.9 + 0.1)), 0.45)) * (u > 0.85 ? 1 - (u - 0.85) * 3.2 : 1);
+    const deck = 10 + (u < 0.22 ? 7 : 0) + (u > 0.84 ? 5 : 0) + Math.round(Math.abs(u - 0.5) * 4);
+    for (let z = 0; z < W; z++) {
+      const dz = Math.abs(z - cz);
+      for (let y = 0; y <= deck; y++) {
+        const hw = half * Math.min(1, 0.45 + y / 9);
+        if (dz > hw) continue;
+        const shell = dz > hw - 1.1 || y === 0 || x === 0;
+        const rail = y > deck - 2 && dz > hw - 1.1;
+        if (!shell && y < deck - 1) continue;
+        p.set(x, y, z, y === deck - 1 && !rail ? c.deckWood : y < 4 ? c.hullRed : y === 7 || y === deck - 2 ? c.ochre : y > deck - 2 ? c.trunk : c.door);
+      }
+    }
+  }
+  // the bowsprit
+  for (let i = 0; i < 12; i++) p.set(Math.min(L - 1, 66 + i), 16 + (i >> 1), cz, c.trunk);
+  // masts: main amidships, fore, and the mizzen with its lateen yard over the aftcastle
+  const masts: [number, number, number][] = [[38, 62, 18], [57, 50, 14], [14, 48, 0]];
+  for (const [mx, top, sail] of masts) {
+    p.box(mx, 8, cz, mx, top, cz, c.trunk);
+    p.box(mx - 1, top + 1, cz, mx + 1, top + 2, cz, c.trunk); // the top
+    p.box(mx, top + 3, cz, mx + 3, top + 4, cz, c.hullRed); // pennant
+    if (sail) {
+      // a square sail bellied a little forward, the red cross on it
+      const s0 = top - 6 - sail, s1 = top - 6, sw = sail >> 1;
+      for (let y = s0; y <= s1; y++) for (let z = cz - sw; z <= cz + sw; z++) {
+        const belly = Math.round(1.6 * Math.sin(Math.PI * (y - s0) / (s1 - s0)) * Math.cos((z - cz) / (sw + 1) * 1.4));
+        const arm = Math.max(1, Math.round(sail / 9));
+        const cross = (Math.abs(z - cz) <= arm && y > s0 + 1 && y < s1 - 1) || (Math.abs(y - (s0 + s1) / 2) <= arm && Math.abs(z - cz) < sw - 1);
+        p.set(mx + 1 + belly, y, z, cross ? c.hullRed : c.whiteWarm);
+      }
+      p.box(mx, s1 + 1, cz - sw - 1, mx, s1 + 1, cz + sw + 1, c.trunk); // the yard
+    } else {
+      // the lateen: a triangle on a slanting yard
+      for (let i = 0; i < 22; i++) {
+        const y = 22 + i, x0 = mx - 10 + Math.round(i * 0.9);
+        p.set(x0, y, cz, c.trunk);
+        for (let x = x0 + 1; x <= mx + 8 - Math.round(i * 0.4) && x < L; x++) if (y < 22 + (x - x0) * 1.3) p.set(x, y, cz + 1, c.whiteWarm);
+      }
+    }
+  }
+  // shrouds down to the rails, a lantern on the stern
+  // (each shroud a line of face-touching voxels from the rail up to the mast's top, so no rope floats in pieces)
+  for (const [mx, top] of masts) for (const sz of [-1, 1]) {
+    let pz = cz + sz * 6;
+    for (let y = 12; y < top - 4; y++) {
+      const z = cz + sz * Math.max(1, Math.round(6 - (5 * (y - 12)) / (top - 16)));
+      while (pz !== z) { p.set(mx - 2, y, pz, c.rope); pz += Math.sign(z - pz); }
+      p.set(mx - 2, y, z, c.rope);
+    }
+  }
+  p.box(1, 23, cz, 1, 24, cz, c.lampGlowAlways);
+  return p;
+}
+
 function ferry(c: AC): Prop {
   const L = 120, W = 36, cz = 17.5;
   const p = new Prop(L, 40, W, 0.25);
@@ -1264,6 +1329,8 @@ function shore(b: Builder, c: AC, plan: Plan): void {
   b.place(telescope(c), promX, 2.0, ribZ(39) + 6, 1); b.block(promX - 0.3, ribZ(39) + 5.7, promX + 0.3, ribZ(39) + 6.3);
   // a cruise ship at anchor in the bay, as there nearly always is
   b.place(ferry(c), 74, -1.3, 30, 1);
+  // and the Santa Maria at anchor off the promenade, waiting for its afternoon sail
+  b.place(nao(c), 61, SEA_Y - 1, -10, 0);
 }
 
 /** The marina: yachts and fishing boats inside the curved breakwater, its walls, bollards and the light at its end. */

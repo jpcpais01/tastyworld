@@ -671,6 +671,15 @@ void main() {
     col += mix(albedo * 2.0, uWindowColor, 0.75) * e * uNight * (0.8 + 0.4 * rnd);
   } else if (code > 0.5) {
     float e = code / 127.0;
+    // code 118 (emit 0.93) marks a tired neon tube: each sign (by its 4 m cell) buzzes and drops out on its own beat
+    if (abs(code - 118.0) < 0.5) {
+      vec2 cell = floor(vWorld.xz * 0.25);
+      float h = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+      float t = uTime * (0.7 + h * 0.6) + h * 40.0;
+      float burst = step(0.82, fract(t * 0.13));
+      float blink = step(0.5, fract(sin(floor(t * 14.0) * 91.7 + h * 13.0) * 4375.85));
+      e *= mix(1.0, mix(0.08, 1.0, blink), burst) * (0.94 + 0.06 * sin(uTime * 120.0));
+    }
     col += albedo * e * mix(uEmitDay, 2.4, uNight);
   }
 

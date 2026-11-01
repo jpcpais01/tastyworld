@@ -8,6 +8,20 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.20.1',
+    date: '2026-11-01',
+    title: '2040: work, clothes and a place to live',
+    items: [
+      'Halcyon\'s shops are its own now: every corner shop, bar, café, bakery, konbini and noodle bar has a Halcyon name, keeper and counter, priced in credits.',
+      'Work gigs. Twenty-five GigHub boards round the city post fresh jobs every hour: run hot food from a stall to someone\'s door against the clock, cook the rush at a kitchen, haul krill crates at the docks, tune street data jacks, or pin up holo-flyers. Your pin and compass lead to each stop, and a card under your bars shows the next one and the bonus clock.',
+      'Fifty-two boutiques in four styles (streetwear, tailoring, techwear and thrift) sell 28 named pieces. What you buy stays in your wardrobe for good, and you can change outfits from the new life panel.',
+      'Rent or buy a home. Kowa Flats in the Stacks, Lantern Lofts over the market and Zenith Residences in the Spire let flats by the week, and some are for sale. Your flat has a bed to sleep in and a kitchen to cook in, and cooking at home feeds you better than a snack.',
+      'Street clinics patch you up, sell nutri-gel for hunger and wake stims for long nights.',
+      'The life panel (the person button, or L) shows your bars, credits, gigs done, clothes, home meals, days lived and the secrets you have found. The days now turn at midnight, and rent comes due.',
+      'Fixed a black screen when 2040 started at night. The character creator now holds the last of the sunset so you can see who you are making.',
+    ],
+  },
+  {
     version: '0.20.0',
     date: '2026-11-01',
     title: '2040: a new game in Halcyon City',

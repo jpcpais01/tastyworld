@@ -509,7 +509,7 @@ class Game {
       this.r.camera.updateProjectionMatrix();
     } else if (NEO) {
       // Halcyon's sprawl to the horizon on three sides, open water to the east past the docks
-      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [], 360, undefined, { open: [[WX1 - 13, -1e4, 1e4, 1e4]], green: [] }, farLift);
+      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [], 360, undefined, { open: [[WX1 - 13, -1e4, 1e4, 1e4]], green: [] }, farLift, true);
       this.worldGroup.add(far.ground, far.city);
       this.r.camera.far = 1400;
       this.r.camera.updateProjectionMatrix();

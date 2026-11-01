@@ -265,8 +265,49 @@ function cyberDress(lot: Lot, n: NC, H: number, floors: number, seed: number, d:
   }
 }
 
+/**
+ * A Halcyon shopfront over what the builder made: a neon lip along the canopy's edge, a lit sign band across the
+ * fascia, tubes of light up both sides of the front, and inside a strip of coloured light under the ceiling along
+ * both walls, so every shop glows out into the rain.
+ */
+function cyberFront(lot: Lot, n: NC, o: BuildingOpts, d: District) {
+  const b = lot.b, w = lot.width, dep = lot.depth;
+  const r = rng(o.seed * 31 + 7);
+  const ni = Math.floor(r() * n.neon.length), tube = n.neon[ni], tube2 = n.neon[(ni + 1 + Math.floor(r() * 4)) % n.neon.length];
+  const rgb = NEON_RGB[ni];
+  // the canopy: its outermost row, lit along its lowest voxel
+  let dmin = 0;
+  for (let dd = -1; dd >= -6; dd--) { let any = false; for (let y = 8; y <= 13; y++) if (lot.get(w >> 1, y, dd)) any = true; if (any) dmin = dd; else break; }
+  if (dmin < 0)
+    for (let a = 0; a < w; a++)
+      for (let y = 8; y <= 13; y++) if (lot.get(a, y, dmin)) { lot.set(a, y, dmin, tube); break; }
+  // the sign band over the canopy (or over the door if there is none): dark ends, a lit field with a glyph rhythm
+  if (w >= 12) {
+    const a0 = 1, a1 = w - 2, y = 13;
+    let free = true;
+    for (let a = a0; a <= a1 && free; a++) if (lot.get(a, y, -1) || lot.get(a, y + 1, -1)) free = false;
+    if (free) {
+      const field = r() < 0.5 ? n.screen[Math.floor(r() * n.screen.length)] : tube2;
+      lot.box(a0, y, -1, a1, y + 1, -1, (a, yy) => (a === a0 || a === a1 ? n.screenDark : (a * 3 + yy + o.seed) % 7 === 0 ? n.screenDark : field));
+      const [sx, sz] = lot.front(w / 2, 0.9);
+      b.lamp(sx, 3.6, sz, rgb, 5, 0.6);
+    }
+  }
+  // tubes up both edges of the front, standing proud of the wall
+  for (const a of [0, w - 1]) for (let y = 1; y <= 11; y++) if (!lot.get(a, y, -1) && lot.get(a, y, 0)) lot.set(a, y, -1, y % 4 === 0 ? n.steelDark : tube);
+  // inside: a strip of light under the ceiling along each side wall of the front room
+  for (const [a, side] of [[1, 0], [2, 1], [w - 2, w - 1], [w - 3, w - 2]] as [number, number][])
+    for (let dd = 2; dd < Math.min(dep - 3, 20); dd++)
+      for (let y = 13; y >= 8; y--) {
+        if (lot.get(a, y, dd) !== 0) continue;
+        if (lot.get(a, y + 1, dd) && lot.get(side, y, dd)) lot.set(a, y, dd, (dd & 3) === 0 ? n.steelDark : d === 'lantern' ? tube : tube2);
+        break;
+      }
+}
+
 function neonBuilding(lot: Lot, n: NC, o: BuildingOpts, d: District) {
   const { H } = building(lot, o);
+  if (o.ground !== 'plain' && o.ground !== 'hotel') cyberFront(lot, n, o, d);
   if (o.floors >= 3) neonDress(lot, H, o.floors, o.seed, 0.22);
   cyberDress(lot, n, H, o.floors, o.seed, d);
   return H;
@@ -642,6 +683,10 @@ function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls
     }
     const lot = new Lot(b, l.x0, l.z0, l.x1, l.z1, l.side);
     const u = uses.get(l.id);
+    // the old market keeps its striped awnings and paper lanterns; everywhere else a shop has a steel canopy
+    const old = l.d === 'lantern' || l.d === 'sump';
+    const canopy = (): [number, number] => old ? pick(awn) : pick<[number, number]>([[n.steelDark, n.steelDark], [n.navy, n.steelDark], [n.blackGlass, n.steelDark], [n.plum, n.soot], [n.maroon, n.soot], [n.steel, n.steelDark]]);
+    const lamps = (a: number[]) => (old ? pick(a) : undefined);
     const wall = wallFor(n, l.d, r);
     let H = 0; // the height (voxels) of what the Tokyo builder put up, from the lot's floor
     if (u?.stall) {
@@ -658,7 +703,7 @@ function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls
       H = b.lifted(dy, box, () => neonBuilding(lot, n, { floors: h.floors, style: h.style, ground: 'hotel', seed, wall, hotel: h, roof: 'flat' }, l.d));
     } else if (u?.restaurant) {
       const foods = REST_FOODS[u.restaurant.id] as never;
-      H = b.lifted(dy, box, () => neonBuilding(lot, n, { floors: 3 + Math.floor(r() * 3), style: pick<Style>(['showa', 'modern']), ground: u.restaurant!.kind, seed, wall, awning: pick(awn), restaurant: { id: u.restaurant!.id, foods }, lanterns: pick([k.c.lanternRed, k.c.lanternWhite]) }, l.d));
+      H = b.lifted(dy, box, () => neonBuilding(lot, n, { floors: 3 + Math.floor(r() * 3), style: pick<Style>(['showa', 'modern']), ground: u.restaurant!.kind, seed, wall, awning: canopy(), restaurant: { id: u.restaurant!.id, foods }, lanterns: lamps([k.c.lanternRed, k.c.lanternWhite]) }, l.d));
     } else if (u?.hidden) {
       // a plain housing block front; the Greenhouse door is the unmarked one beside the entrance
       H = b.lifted(dy, box, () => neonBuilding(lot, n, { floors: 5, style: 'apartment', ground: 'plain', seed, wall: n.concreteDark }, l.d));
@@ -673,7 +718,7 @@ function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls
       if (widthOf(l) < 22 || depthOf(l) < 28 || l.on === K.Stair) ground = 'plain';
       const floors = l.d === 'lantern' ? 3 + Math.floor(r() * 4) : l.d === 'sump' ? 2 + Math.floor(r() * 3) : l.d === 'docks' ? 2 + Math.floor(r() * 2) : l.d === 'neonmile' ? 3 + Math.floor(r() * 5) : l.d === 'stacks' ? 4 + Math.floor(r() * 3) : 3;
       const style: Style = l.d === 'stacks' ? 'apartment' : l.d === 'spire' || l.d === 'halo' ? 'modern' : pick<Style>(['showa', 'modern', 'showa', 'apartment']);
-      const o: BuildingOpts = { floors, style, ground, seed, wall, awning: pick(awn), lanterns: pick([k.c.lanternRed, k.c.lanternRed, k.c.lanternWhite, k.c.lanternAmber]) };
+      const o: BuildingOpts = { floors, style, ground, seed, wall, awning: canopy(), lanterns: lamps([k.c.lanternRed, k.c.lanternRed, k.c.lanternWhite, k.c.lanternAmber]) };
       if (ground === 'konbini') o.signs = false;
       H = b.lifted(dy, box, () => neonBuilding(lot, n, o, l.d));
     }

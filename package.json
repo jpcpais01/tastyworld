@@ -1,7 +1,7 @@
 {
   "name": "tastyworld",
   "private": true,
-  "version": "0.19.0",
+  "version": "0.19.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,6 +19,8 @@
     "check:traffic": "tsx scripts/traffic-check.ts",
     "check:food": "tsx scripts/food-audit.ts && CITY=amalfi tsx scripts/food-audit.ts && CITY=istanbul tsx scripts/food-audit.ts && CITY=madeira tsx scripts/food-audit.ts",
     "check:far": "CITY=amalfi tsx scripts/amalfi-far-check.ts && CITY=madeira tsx scripts/madeira-far-check.ts",
+    "check:music": "tsx scripts/music-check.ts",
+    "music:preview": "tsx scripts/music-preview.ts music-preview",
     "check:lod": "tsx scripts/lod-top-check.ts && CITY=amalfi tsx scripts/lod-top-check.ts && CITY=istanbul tsx scripts/lod-top-check.ts"
   },
   "dependencies": {

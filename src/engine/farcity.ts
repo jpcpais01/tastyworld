@@ -80,7 +80,11 @@ const TREE = ['#5c8a4a', '#4f7a43', '#6a9550', '#e9b4c4'];
  */
 export interface Ring { open: Rect[]; green: Rect[] }
 
-export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300, tower?: [number, number], ring?: Ring): { city: THREE.Mesh; ground: THREE.Mesh } {
+/**
+ * `lift` raises the ground and every building on it to the height of a hilly city's surroundings (m at x, z); the
+ * apron is then a grid that follows it instead of four flat quads.
+ */
+export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], reach = 300, tower?: [number, number], ring?: Ring, lift?: (x: number, z: number) => number): { city: THREE.Mesh; ground: THREE.Mesh } {
   const [x0, z0, x1, z1] = rect;
   const parts: number[] = [];
   let seed = 9173;
@@ -89,9 +93,12 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
   const col = new THREE.Color();
   /** Parts made while `keep` is set never squat in the iso view (the low trees along the ring). */
   let keep = 0;
+  /** The ground under the building being made (see `lift`). */
+  let base = 0;
+  const at = (x: number, z: number) => (lift ? lift(x, z) : 0);
   const part = (cx: number, cz: number, w: number, d: number, y0: number, h: number, kind: number, c: string, s = rnd()) => {
     col.set(c);
-    parts.push(cx, cz, w, d, y0, h, kind, s, col.r, col.g, col.b, keep);
+    parts.push(cx, cz, w, d, y0 + base, h, kind, s, col.r, col.g, col.b, keep);
   };
   const outOf = (ax0: number, az0: number, ax1: number, az1: number) => Math.max(x0 - ax1, ax0 - x1, z0 - az1, az0 - z1);
   const site: Rect = tower ? [tower[0] - 52, tower[1] - 52, tower[0] + 52, tower[1] + 52] : [0, 0, 0, 0];
@@ -126,6 +133,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     const w = lx1 - lx0 - set * 2, d = lz1 - lz0 - set * 2;
     if (w < 3 || d < 3) return;
     const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2;
+    base = at(cx, cz);
     const r = rnd();
     const pTower = c > 0.25 && k > 0.45 && w > 9 ? c * 0.55 : 0;
     const pHouse = Math.max(0.08, 0.62 - k * 0.7 - c * 0.5);
@@ -210,6 +218,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         // a park: trees on grass (the ground shader greens the block)
         for (let i = 0; i < 9; i++) {
           const s = 3 + rnd() * 3.5, tx = bx0 + 3 + rnd() * (bx1 - bx0 - 6), tz = bz0 + 3 + rnd() * (bz1 - bz0 - 6);
+          base = at(tx, tz);
           part(tx, tz, 0.5, 0.5, 0, 2.2, 4, '#6b5240');
           part(tx, tz, s, s, 1.8 + rnd(), s * 0.8, 6, rnd() < 0.15 ? TREE[3] : pick(TREE.slice(0, 3)));
         }
@@ -241,6 +250,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         keep = 1;
         for (let i = 0; i < 2; i++) {
           const sz = 2.6 + rnd() * 1.8, tx = lx0 + 1 + rnd() * (lx1 - lx0 - 2), tz = lz0 + 1 + rnd() * (lz1 - lz0 - 2);
+          base = at(tx, tz);
           const y = 1.8 + rnd() * 0.8, leaf = rnd() < 0.08 ? TREE[3] : pick(TREE.slice(0, 3));
           part(tx, tz, 0.5, 0.5, 0, y + 0.3, 4, '#6b5240');
           // a crown stepped in like the town's voxel trees: a broad tier and a narrower one on top
@@ -448,6 +458,18 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     [X0 - 300, Z0 - 300, X1 + 300, Z1 + 300, -3.1],
   ];
   const pos: number[] = [];
+  if (lift) {
+    // the apron follows the hills: a grid of 8 m cells round the map, the fog plane far below as before
+    const C = 8;
+    for (let z = Z0; z < Z1; z += C)
+      for (let x = X0; x < X1; x += C) {
+        const xa = Math.min(x + C, X1), za = Math.min(z + C, Z1);
+        if (xa > x0 && x < x1 && za > z0 && z < z1) continue;
+        const y00 = lift(x, z), y01 = lift(x, za), y11 = lift(xa, za), y10 = lift(xa, z);
+        pos.push(x, y00, z, x, y01, za, xa, y11, za, x, y00, z, xa, y11, za, xa, y10, z);
+      }
+    quads.splice(0, 4);
+  }
   for (const [a, b, c, e, y] of quads) pos.push(a, y, b, a, y, e, c, y, e, a, y, b, c, y, e, c, y, b);
   const gg = new THREE.BufferGeometry();
   gg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));

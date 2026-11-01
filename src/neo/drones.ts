@@ -41,7 +41,7 @@ function bar(pal: Palette, col: number): Prop {
   return p;
 }
 
-interface Drone { seg: number; t: number; dir: 1 | -1; speed: number; y: number; off: number; bob: number; patrol: boolean; slot: number; pause: number; locked: number; passed: boolean }
+interface Drone { seg: number; t: number; dir: 1 | -1; speed: number; y: number; base: number; off: number; bob: number; patrol: boolean; slot: number; pause: number; locked: number; passed: boolean }
 
 const BEAM_VERT = /* glsl */ `
 uniform float uLen;
@@ -135,7 +135,7 @@ export class Drones {
       const patrol = i >= COURIERS;
       this.drones.push({
         seg: Math.floor(rnd() * this.segs.length), t: rnd(), dir: rnd() < 0.5 ? 1 : -1, speed: patrol ? 3 : 7 + rnd() * 4,
-        y: patrol ? 11 + rnd() * 2 : 8 + rnd() * 3, off: (rnd() - 0.5) * 4, bob: rnd() * 6.28, patrol, slot: patrol ? i - COURIERS : i, pause: 0, locked: 0, passed: false,
+        y: patrol ? 11 + rnd() * 2 : 8 + rnd() * 3, base: -1, off: (rnd() - 0.5) * 4, bob: rnd() * 6.28, patrol, slot: patrol ? i - COURIERS : i, pause: 0, locked: 0, passed: false,
       });
     }
   }
@@ -191,7 +191,9 @@ export class Drones {
         d.dir = Math.random() < 0.5 ? 1 : -1;
       }
       const o = this.segs[d.seg], a = o.a0 + d.t * (o.a1 - o.a0);
-      const y = d.y + Math.sin(this.t * 1.7 + d.bob) * 0.25;
+      // the city climbs: each street flies at its own height (the Spire's are 16 m up), eased between them
+      d.base = d.base < 0 ? o.y : d.base + (o.y - d.base) * Math.min(1, dt * 0.6);
+      const y = d.base + d.y + Math.sin(this.t * 1.7 + d.bob) * 0.25;
       if (o.ew) this.v.set(a, y, o.c + d.off); else this.v.set(o.c + d.off, y, a);
       const yaw = (o.ew ? (d.dir > 0 ? Math.PI / 2 : -Math.PI / 2) : d.dir > 0 ? 0 : Math.PI) + (d.pause > 0 ? Math.sin(this.t * 0.8 + d.bob) * 0.6 : 0);
       this.q.setFromAxisAngle(this.up, yaw);

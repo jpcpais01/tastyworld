@@ -306,8 +306,84 @@ export class Builder {
 
   /** Street-grid voxel (x, y, z) belongs to sway body `id`. */
   swayCell(x: number, y: number, z: number, id: number): void {
-    const g = this.grid;
+    const g = this.liftBase ?? this.grid;
+    y += this.liftDy;
     if (g.inside(x, y, z)) this.swayCells.set(swayKey(g, x, y, z), id);
+  }
+
+  /** While a lifted build runs: the city's own grid, and how many voxels up the build is moved. */
+  private liftBase: SparseGrid | null = null;
+  private liftDy = 0;
+
+  /**
+   * Build something written for street level (y = 0: a Tokyo building, a stall, a shop floor) standing `dy` voxels
+   * higher, on a terrace or a podium deck. The build runs on a scratch grid round its footprint (`rect`, inclusive
+   * voxels, plus `margin` for awnings, signs and props), which is then stamped into the city `dy` voxels up; every
+   * lamp, prop, room, hotel, seat and occluder it registered is raised by the same amount.
+   */
+  lifted<T>(dy: number, rect: [number, number, number, number], fn: () => T, margin = 20): T {
+    if (!dy) return fn();
+    if (this.liftBase) throw new Error('lifted builds do not nest');
+    const real = this.grid, dm = dy * V;
+    const x0 = Math.min(rect[0], rect[2]) - margin, z0 = Math.min(rect[1], rect[3]) - margin;
+    const x1 = Math.max(rect[0], rect[2]) + margin, z1 = Math.max(rect[1], rect[3]) + margin;
+    const tmp = new SparseGrid(x0, z0, x1 - x0 + 1, real.sy - dy, z1 - z0 + 1,
+      Math.max(x0, real.wx0), Math.max(z0, real.wz0), Math.max(Math.max(x0, real.wx0), Math.min(x1 + 1, real.wx1)), Math.max(Math.max(z0, real.wz0), Math.min(z1 + 1, real.wz1)));
+    const n = {
+      props: this.props.length, lamps: this.lamps.length, emitters: this.emitters.length, rooms: this.rooms.length, hotels: this.hotels.length,
+      daruma: this.darumaSpots.length, indoor: this.indoor.length, stalls: this.stallAnchors.length, occ: this.occluders.length,
+      benches: this.benches.length, stools: this.stools.length, tables: this.cafeTables.length, wires: this.wires.length, sway: this.sway.length,
+      shafts: this.shafts.length, secret: this.secret,
+    };
+    this.grid = tmp; this.liftBase = real; this.liftDy = dy;
+    let out: T;
+    try { out = fn(); } finally { this.grid = real; this.liftBase = null; this.liftDy = 0; }
+    // stamp the scratch grid in, brick by brick: uniform bricks as boxes, the rest voxel by voxel
+    for (let by = 0; by < tmp.by; by++)
+      for (let bz = 0; bz < tmp.bz; bz++)
+        for (let bx = 0; bx < tmp.bx; bx++) {
+          const t = tmp.table[(by * tmp.bz + bz) * tmp.bx + bx];
+          const gx = tmp.x0 + bx * 8, gz = tmp.z0 + bz * 8, gy = by * 8;
+          if (t < 0) {
+            const v = -t - 1;
+            if (v) real.box(gx, gy + dy, gz, gx + 7, Math.min(tmp.sy - 1, gy + 7) + dy, gz + 7, v);
+            continue;
+          }
+          const o = t << 9;
+          for (let i = 0; i < 512; i++) {
+            const v = tmp.pool[o + i];
+            if (v) real.set(gx + (i & 7), gy + (i >> 6) + dy, gz + ((i >> 3) & 7), v);
+          }
+        }
+    const up = (p: number[] | undefined, k = 1) => { if (p) p[k] += dm; };
+    for (let i = n.props; i < this.props.length; i++) { const p = this.props[i]; p.origin = [p.origin[0], p.origin[1] + dm, p.origin[2]]; }
+    for (let i = n.sway; i < this.sway.length; i++) { const s = this.sway[i]; s.pivot = [s.pivot[0], s.pivot[1] + dm, s.pivot[2]]; }
+    for (let i = n.lamps; i < this.lamps.length; i++) this.lamps[i].y += dy;
+    for (let i = n.emitters; i < this.emitters.length; i++) up(this.emitters[i].pos);
+    for (let i = n.rooms; i < this.rooms.length; i++) {
+      const r = this.rooms[i];
+      for (const p of r.npcs) up(p.pos);
+      for (const p of r.spots) up(p.pos);
+      for (const s of r.seats ?? []) { up(s.pos); up(s.table); }
+      if (r.lift) up(r.lift.pick);
+    }
+    for (let i = n.hotels; i < this.hotels.length; i++)
+      for (const rm of this.hotels[i].rooms) {
+        rm.y += dm; rm.layer += dy;
+        up(rm.door.pick); up(rm.bed.pick); up(rm.window.pick); up(rm.tea.pick);
+        for (const p of rm.panes ?? []) { p.y0 += dm; p.y1 += dm; }
+      }
+    for (let i = n.daruma; i < this.darumaSpots.length; i++) up(this.darumaSpots[i].pos);
+    for (let i = n.indoor; i < this.indoor.length; i++) { this.indoor[i][1] += dy; this.indoor[i][4] += dy; }
+    for (let i = n.stalls; i < this.stallAnchors.length; i++) up(this.stallAnchors[i].label);
+    for (let i = n.occ; i < this.occluders.length; i++) { const o = this.occluders[i]; o.top += dm; o.low += dm; o.floor = (o.floor ?? 0) + dm; }
+    for (let i = n.benches; i < this.benches.length; i++) this.benches[i][3] = (this.benches[i][3] ?? 0) + dm;
+    for (let i = n.stools; i < this.stools.length; i++) this.stools[i][3] = (this.stools[i][3] ?? 0) + dm;
+    for (let i = n.tables; i < this.cafeTables.length; i++) this.cafeTables[i][2] += dm;
+    for (let i = n.wires; i < this.wires.length; i++) this.wires[i][4] += dm;
+    for (let i = n.shafts; i < this.shafts.length; i++) { this.shafts[i][1] += dm; this.shafts[i][5] += dm; }
+    if (this.secret && this.secret !== n.secret) { up(this.secret.shelf); up(this.secret.note); }
+    return out;
   }
 
   /** Lamp at a world position in metres. */

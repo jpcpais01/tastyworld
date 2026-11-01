@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.21.0',
+    date: '2026-11-01',
+    title: '2040: Halcyon City rebuilt',
+    items: [
+      'Halcyon City is built on broken ground now: the Halo crossing sits in a bowl, the Spire\'s glass towers stand on a basalt ridge 16 m up, the Lantern Market climbs a long slope, the Stacks\' megablocks terrace up a steep hill, the Black Canal runs in its cut and the Rust Docks sit on their own island.',
+      'Real skyscrapers: towers up to about 100 m with setbacks, fins, lit floors and beacons, plus Kowloon-style megablocks with balcony cages, AC boxes and laundry.',
+      'More than one level to the city: stairways and steps between terraces, a podium deck over the docks, a skybridge across the canal from the ridge, cliff walks and rooftop clutter everywhere.',
+      'Streets wander with the ground instead of a grid: 61 named streets, lanes and stairways, each with its own sign.',
+      '123 places to eat and 11 hotels, all reachable on foot; every edge over a drop has a rail or a parapet.',
+      'The sprawl beyond the edge climbs the hills with the city, drones and flying cars keep to each street\'s height, and the rain sheen follows the street you stand on.',
+    ],
+  },
+  {
     version: '0.20.39',
     date: '2026-11-01',
     title: 'Smooth on laptops without a graphics card',

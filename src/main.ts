@@ -44,7 +44,7 @@ import { STALL, StallInfo } from './data/stalls';
 import { MISSIONS, ITEMS, Mission } from './data/missions';
 import { TEXT } from './data/cityText';
 import { TIP_PER_STAR } from './data/money';
-import { AMALFI, ISTANBUL, MADEIRA, NEO, HILLSIDE, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
+import { AMALFI, ISTANBUL, MADEIRA, NEO, HILLSIDE, TERRAIN, CITY, isCity, goToCity, perCity, peekResume } from './world/cityId';
 import { neoTitle } from './neo/title';
 import { openCreator } from './neo/creator';
 import { Vitals } from './neo/vitals';
@@ -53,6 +53,7 @@ import { Rain } from './neo/rain';
 import { SkyTraffic } from './neo/skytraffic';
 import { Drones } from './neo/drones';
 import { NEO_REMARKS, STRAY_NAMES } from './data/neo';
+import { farLift } from './world/neoPlan';
 import { Umbrellas } from './neo/umbrellas';
 import { Hologram, HALO_SONG } from './neo/hologram';
 import { neoShop } from './neo/roles';
@@ -508,7 +509,7 @@ class Game {
       this.r.camera.updateProjectionMatrix();
     } else if (NEO) {
       // Halcyon's sprawl to the horizon on three sides, open water to the east past the docks
-      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [], 360, undefined, { open: [[WX1 - 13, -1e4, 1e4, 1e4]], green: [] });
+      const far = farCity(sh, [WX0, WZ0, WX1, WZ1], [], 360, undefined, { open: [[WX1 - 13, -1e4, 1e4, 1e4]], green: [] }, farLift);
       this.worldGroup.add(far.ground, far.city);
       this.r.camera.far = 1400;
       this.r.camera.updateProjectionMatrix();
@@ -634,7 +635,7 @@ class Game {
       const st = STALL[sa.id];
       if (!st) continue;
       const act = new Actor(buildPerson(st.vendorLook), this.chars);
-      act.position.set(sa.vendor[0], HILLSIDE ? this.ground(sa.stand[0], sa.stand[1]) : this.navWorld.heightAt(sa.vendor[0], sa.vendor[1]), sa.vendor[1]);
+      act.position.set(sa.vendor[0], TERRAIN ? this.ground(sa.stand[0], sa.stand[1]) : this.navWorld.heightAt(sa.vendor[0], sa.vendor[1]), sa.vendor[1]);
       act.facing = act.targetFacing = sa.vendor[2];
       act.anim = 'cook';
       this.worldGroup.add(act.root);
@@ -927,7 +928,7 @@ class Game {
     });
 
     // on a hillside every label in the street sits above the ground under its stand, not above sea level
-    if (HILLSIDE) for (const it of this.interactables) if (!it.inside && !it.room && !it.key.startsWith('lift-')) it.pick = [it.pick[0], it.pick[1] + this.ground(it.stand[0], it.stand[1]), it.pick[2]];
+    if (TERRAIN) for (const it of this.interactables) if (!it.inside && !it.room && !it.key.startsWith('lift-')) it.pick = [it.pick[0], it.pick[1] + this.ground(it.stand[0], it.stand[1]), it.pick[2]];
 
     // every seat in town, the waiters, the terraces and the bag
     const game = this;
@@ -1473,7 +1474,7 @@ class Game {
 
   /** Height of the walkable ground (m) under a spot in the street: 0 in flat Tokyo. */
   private ground(x: number, z: number): number {
-    if (!HILLSIDE) return 0;
+    if (!TERRAIN) return 0;
     const n = this.navWorld;
     if (n.walkable(x, z)) return n.heightAt(x, z);
     // on a counter, a plinth or in a doorway: the nearest floor round it
@@ -1565,7 +1566,6 @@ class Game {
   private openingYaw = 0;
   private scanned = false;
   private wet = 0.3;
-  private wetY: number | null = null;
   private umbrellas: Umbrellas | null = null;
   private holo: Hologram | null = null;
   private songT = 0;
@@ -2737,7 +2737,7 @@ class Game {
       return;
     }
     const py0 = this.player.position.y;
-    const hit = HILLSIDE && !this.inside && !this.upstairs
+    const hit = TERRAIN && !this.inside && !this.upstairs
       ? this.cam.pick(x, y, this.nav, undefined, Math.min(50, py0 + 24), Math.max(-3, py0 - 24))
       : this.cam.pick(x, y, this.nav, undefined, this.upstairs ? this.upstairs.room.y + 3 : 12);
     if (!hit) return;
@@ -3250,7 +3250,7 @@ class Game {
       if (k >= 1 || this.cam.fp) this.openingT = -1;
     }
     this.cam.update(dt, window.innerWidth / Math.max(1, window.innerHeight), this.r.pixelHeight);
-    if (HILLSIDE) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
+    if (TERRAIN) this.r.shadows.focusY = this.inside ? 0 : Math.round(this.cam.target.y / 3) * 3;
   }
 
   private frame(now: number): void {
@@ -3361,7 +3361,8 @@ class Game {
       this.wet += (tgt - this.wet) * Math.min(1, dt * k);
       const cu = this.r.composite.uniforms, out = !this.inside && !this.upstairs && !this.roomHere;
       cu.uWet.value = out ? this.wet : 0;
-      cu.uWetY.value = this.wetY ??= this.navWorld.heightAt(this.w.anchors.spawn[0], this.w.anchors.spawn[2]);
+      // the city climbs its hills: the wet sheen follows the terrace or street the player stands on
+      if (out) cu.uWetY.value = this.player.position.y;
     }
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);

@@ -8,6 +8,19 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.23.0',
+    date: '2026-11-02',
+    title: 'Halcyon City grows up',
+    items: [
+      'Every building in 2040 has been rebuilt with real detail. Windows sit back in their frames, and each lit room is its own: a ceiling light, blinds half down, a curtain drawn, only a screen on, someone at the glass.',
+      'Towers now come in many shapes: chamfered, round, notched, twin towers joined by glass skybridges, some wrapped in a steel exoskeleton or with a glass lift running up the outside. Their tops differ too: helipads, lattice spires, rings of light, steel blades, billboards and stepped glass crowns.',
+      'The housing blocks look lived in: balconies, rooms bolted on over the street, AC units leaving rust stains, pipes, open walkways, laundry, rooftop shacks and stacks of neon signs at the corners.',
+      'New landmarks: the Halcyon Aquarium on the Halo\'s south avenue, a whole building of water with kelp, reefs, jellyfish and a whale shark. A golden stepped arcology now rises over the crossing.',
+      'Three megamalls now span whole blocks above the Neon Mile and the ridge: floors of lit stores and giant screens, lit undersides over the street, and garden plazas on their roofs.',
+      'The streets are busier too: ad kiosks, parked hover bikes, net booths, glowing planters, lit bollards, signs hanging from the wires, and neon blade signs above the shop fronts.',
+    ],
+  },
+  {
     version: '0.22.3',
     date: '2026-11-02',
     title: 'A tutorial notebook',

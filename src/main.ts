@@ -81,6 +81,8 @@ import { Beacon } from './game/guide';
 import { RoomGlass } from './game/roomglass';
 import { DEST, type Destination } from './data/destinations';
 import type { Coop, Peer } from './net/coop';
+import { G } from './ui/glyphs';
+import { handReach, followStep } from './game/couple';
 
 registerSW({ immediate: true });
 
@@ -181,6 +183,15 @@ class Game {
   private walkLeft = 0;
   private sendT = 0;
   private waveT = 0;
+  /** A couple's trip: hands held with the partner, which hand this side reaches with, and how long they have been apart. */
+  private hands = false;
+  private handSide = -1;
+  private handFar = 0;
+  private handsUi: boolean | null | undefined = undefined;
+  /** Walking hand in hand: easing into step beside the partner while they lead. */
+  private followOn = false;
+  /** A room the partner booked (or opened) for both of you, and whether you slept in it tonight. */
+  private sharedRoom: { hotel: string; room: string; slept?: boolean } | null = null;
   private lookColor = 0;
 
   private worldGroup = new THREE.Group();
@@ -370,6 +381,7 @@ class Game {
     this.ui.onParty = () => this.travel.ticket();
     this.ui.onEndTrip = () => this.endTrip();
     this.ui.onWave = () => this.wave();
+    this.ui.onHands = () => this.toggleHands();
     this.ui.onPhoto = () => this.setPhoto(true);
     this.ui.onPace = () => this.cyclePace();
     this.photo = new PhotoUI({
@@ -1118,6 +1130,11 @@ class Game {
 
   /** Tonight's room at a hotel, if the booking is there. */
   private booking(hotel: string): HotelRoomAnchor | null {
+    const sh = this.sharedRoom;
+    if (sh && sh.hotel === hotel && this.coop?.partner) {
+      const r = this.w.anchors.hotels.find((h) => h.id === hotel)?.rooms.find((x) => x.id === sh.room);
+      if (r) return r;
+    }
     if (NEO && HOTEL[hotel]?.residence) return this.lifeSys.homeIn(hotel);
     const b = this.s.hotel;
     if (!b || b.id !== hotel) return null;
@@ -1140,11 +1157,15 @@ class Game {
     if (!rm || this.s.yen < rm.price) return false;
     this.s.yen -= rm.price;
     this.s.hotel = { id: ha.id, room: rm.id };
+    this.shareRoom(ha.id, rm.id);
     this.audio.play('coin');
     setTimeout(() => this.audio.play('ding'), 380);
     const info = HOTEL[ha.id];
     const t = ROOM_TYPE[rm.type];
-    this.ui.toast('key', `${t.name} · Room ${roomNo(rm.floor)}`, `Checked in at ${info.name}. Take the ${byStairs(info) ? 'stairs' : 'lift'} up whenever you like, and sleep before it gets late.`, true);
+    const mate = this.coop?.partner;
+    this.ui.toast('key', `${t.name} · Room ${roomNo(rm.floor)}`, mate
+      ? `Checked in at ${info.name} for two. ${mate.name} has a key too: take the ${byStairs(info) ? 'stairs' : 'lift'} up together whenever you like.`
+      : `Checked in at ${info.name}. Take the ${byStairs(info) ? 'stairs' : 'lift'} up whenever you like, and sleep before it gets late.`, true);
     this.player.flash = 1;
     if (this.s.pin?.id === `hotel-${ha.id}`) this.setPin(null);
     this.afterChange();
@@ -1154,6 +1175,8 @@ class Game {
   private async goUpstairs(ha: HotelAnchor, rm: HotelRoomAnchor): Promise<void> {
     const hb = this.w.hotelRooms[rm.id];
     if (!hb || this.upstairs) return;
+    this.setHands(false, true);
+    if (!HOTEL[ha.id]?.venue) this.shareRoom(ha.id, rm.id);
     let nav = this.roomNavs.get(rm.id);
     if (!nav) this.roomNavs.set(rm.id, (nav = new Nav(hb.nav)));
     const fade = document.getElementById('fade')!;
@@ -1180,6 +1203,9 @@ class Game {
     if (NEO && ha.id === 'kowaflats' && this.tod.hour < 4) this.lifeSys.floorThirteen();
     if (!this.roomsSeen.has(rm.id)) {
       this.roomsSeen.add(rm.id);
+      const mate = this.coop?.partner;
+      if (mate && !info.venue && this.sharedRoom?.room === rm.id && this.s.hotel?.room !== rm.id) setTimeout(() => this.ui.toast('heart', `Room ${roomNo(rm.floor)} · ${info.name}`, `${mate.name}'s room, and yours tonight. The bed is big enough for two.`), 500);
+      else
       if (info.venue) { /* a venue floor speaks for itself (neo/life.ts) */ }
       else if (info.residence) setTimeout(() => this.ui.toast('home', `Home · ${info.name}`, 'Your own place. The bed is yours whenever you are tired, and the kitchen is by the window.'), 500);
       else setTimeout(() => this.ui.toast(ROOM_TYPE[rm.type].icon, `Room ${roomNo(rm.floor)} · ${info.name}`, 'Your room for the night. Try the window, put the kettle on, and the bed is yours whenever you are tired.'), 500);
@@ -1212,6 +1238,7 @@ class Game {
     this.audio.play('ding');
     fade.classList.remove('on');
     // the morning after: hand the key back
+    if (this.sharedRoom?.slept && this.sharedRoom.room === up.room.id) this.sharedRoom = null;
     const b = this.s.hotel;
     if (b?.slept) {
       this.s.hotel = null;
@@ -1222,9 +1249,14 @@ class Game {
   }
 
   /** Lie down: until seven in the morning after dark, or a two-hour nap in the day. */
-  private async sleepIn(rm: HotelRoomAnchor): Promise<void> {
+  private async sleepIn(rm: HotelRoomAnchor, withMate = false): Promise<void> {
     if (this.sleeping) return;
     this.sleeping = true;
+    this.setHands(false, true);
+    // on a couple's trip, lights out for both when your partner is in the room with you
+    const mate = this.coop?.partner, mr = mate ? this.remotes.get(mate.id) : undefined;
+    const together = withMate || (!!mr && mr.actor.root.visible && Math.hypot(mr.actor.position.x - this.player.position.x, mr.actor.position.z - this.player.position.z) < 6 && Math.abs(mr.actor.position.y - this.player.position.y) < 1.5);
+    if (together && !withMate) this.coop?.sendEvent({ k: 'sleep', room: rm.id });
     this.path = [];
     this.pending = null;
     this.endMeal();
@@ -1241,12 +1273,14 @@ class Game {
     // in 2040 the cat that follows you came up too, and slept on your feet
     const cat = NEO && this.s.life?.cat !== undefined && !this.cats[this.s.life.cat]?.wait ? STRAY_NAMES[this.s.life.cat % STRAY_NAMES.length] : null;
     if (cat) sub = `${sub} ${cat} slept curled up on your feet.`;
+    if (together && mate) sub = `${sub} You slept side by side with ${mate.name}.`;
     const first = night && !this.s.stays.includes(rm.hotel);
     this.vitals?.rested(night ? 100 : 40);
     await this.ui.sleep(h, keep ? h : to, night ? 'Good morning!' : 'What a lovely nap', sub, () => {
       if (!keep) this.tod.hour = to;
       if (night) {
         if (this.s.hotel?.room === rm.id) this.s.hotel.slept = true;
+        if (this.sharedRoom?.room === rm.id) this.sharedRoom.slept = true;
         if (first) this.s.stays.push(rm.hotel);
       }
     });
@@ -1285,7 +1319,8 @@ class Game {
   /** The HUD goal while the traveller still needs a bed tonight, and a nudge when the sun starts to set. */
   private hotelGoal(): void {
     if (!this.w.anchors.hotels.length) return;
-    const h = this.tod.hour, b = this.s.hotel;
+    const sh = this.sharedRoom && this.coop?.partner ? this.sharedRoom : null;
+    const h = this.tod.hour, b = this.s.hotel ?? (sh ? { id: sh.hotel, room: sh.room, slept: sh.slept } : null);
     let g: { icon: string; title: string; sub: string } | null = null;
     if (this.started && !this.inside) {
       if (!b && (h >= 13 || h < 5.5)) {
@@ -1862,6 +1897,7 @@ class Game {
    */
   private startMeal(id: string, server: Actor | null, done: () => void, table: THREE.Vector3 | null = null, serveLine?: string): Meal {
     this.endMeal();
+    this.setHands(false, true);
     for (const v of this.vendors) if (v.actor === server) v.waveT = 0;
     this.path = [];
     this.pending = null;
@@ -1896,6 +1932,12 @@ class Game {
 
   private eat(d: FoodId): void {
     if (!this.s.tasted[d]) this.coop?.sendEvent({ k: 'stamp', dish: d });
+    if (this.partnerNear(3)) {
+      // a couple shares: your partner gets a bite (and you a heart from them)
+      this.coop?.sendEvent({ k: 'share', dish: d });
+      const q = this.player.position;
+      this.ui.heart('heart-me', [q.x, q.y + 2.1, q.z]);
+    }
     this.s.tasted[d] = (this.s.tasted[d] ?? 0) + 1;
     if (this.tod.isNight) this.s.flags.ateAtNight = true;
     this.eatT = 3.2;
@@ -2204,6 +2246,8 @@ class Game {
     if (this.coop && this.coop !== coop) this.coop.leave();
     this.coop = coop;
     for (const id of [...this.remotes.keys()]) this.dropRemote(id);
+    this.setHands(false, false);
+    this.sharedRoom = null;
     this.tod.follower = false;
     this.ui.skyFromLeader = false;
     if (!coop) { this.ui.party('', null); return; }
@@ -2231,17 +2275,47 @@ class Game {
     const c = this.coop;
     if (!c) return;
     const code = `${c.code.slice(0, 3)}-${c.code.slice(3)}`;
-    this.ui.party(code, [{ name: this.s.profile.name.trim() || 'You', color: this.s.profile.color, here: true }, ...c.list.map((p) => ({ name: p.name, color: p.color, here: p.inWorld }))]);
+    this.ui.party(code, [{ name: this.s.profile.name.trim() || 'You', color: this.s.profile.color, here: true }, ...c.list.map((p) => ({ name: p.name, color: p.color, here: p.inWorld }))], c.bond === 'lover');
+    // a trip turned from a couple's back into friends' lets go
+    if (!c.partner) { this.setHands(false, false); this.sharedRoom = null; }
   }
 
   private coopEvent(p: Peer, e: Parameters<NonNullable<Coop['onEvent']>>[1]): void {
     if (!this.started) return;
     const rm = this.remotes.get(p.id);
+    const mate = this.coop?.partner === p;
     if (e.k === 'wave') {
       if (rm) {
         const q = rm.actor.position;
-        this.ui.bubble(`wave-${p.id}`, 'Hi!', [q.x, q.y + 2.05, q.z], 1.6, 'wave');
+        if (mate) this.ui.heart(`wave-${p.id}`, [q.x, q.y + 2.05, q.z], 1.8);
+        else this.ui.bubble(`wave-${p.id}`, 'Hi!', [q.x, q.y + 2.05, q.z], 1.6, 'wave');
       }
+      this.audio.play('pop');
+    } else if (e.k === 'hand') {
+      if (!mate || e.on === this.hands) return;
+      if (e.on && !this.partnerNear(3.2)) { this.coop?.sendEvent({ k: 'hand', on: false }); return; }
+      this.setHands(e.on, false);
+      if (e.on) this.ui.toast('hands', `${p.name} took your hand`, 'Walk on together: you keep in step while they lead. Press H to let go.');
+    } else if (e.k === 'room') {
+      if (!mate || (this.sharedRoom?.hotel === e.hotel && this.sharedRoom.room === e.room)) return;
+      const info = HOTEL[e.hotel], ha = this.w.anchors.hotels.find((h) => h.id === e.hotel), r = ha?.rooms.find((x) => x.id === e.room);
+      if (!info || !r) return;
+      this.sharedRoom = { hotel: e.hotel, room: e.room };
+      this.audio.play('ding');
+      this.ui.toast('key', info.residence ? `${p.name} gave you a key` : `${p.name} booked a room for two`, info.residence
+        ? `Their place at ${info.name} is yours too. Take the ${byStairs(info) ? 'stairs' : 'lift'} up whenever you like.`
+        : `${info.name} · Room ${roomNo(r.floor)}. Take the ${byStairs(info) ? 'stairs' : 'lift'} up together whenever you like.`, true);
+      this.afterChange();
+    } else if (e.k === 'sleep') {
+      const up = this.upstairs;
+      if (!mate || !up || up.room.id !== e.room || this.sleeping || this.ui.busy) return;
+      this.player.targetFacing = up.room.bed.facing;
+      void this.sleepIn(up.room, true);
+    } else if (e.k === 'share') {
+      if (!mate) return;
+      const d = DISHES.find((x) => x.id === e.dish);
+      if (d) this.ui.toast(this.ui.icons[d.id] ?? 'bowl', `${p.name} shared a bite of ${d.name}`, this.s.tasted[d.id] ? 'Just as good as you remember.' : 'A taste of it, from their plate. Order your own to stamp your passport.');
+      if (rm) { const q = rm.actor.position; this.ui.heart(`share-${p.id}`, [q.x, q.y + 2.1, q.z]); }
       this.audio.play('pop');
     } else if (e.k === 'stamp') {
       const d = DISHES.find((x) => x.id === e.dish);
@@ -2256,6 +2330,101 @@ class Game {
     this.waveT = 1.4;
     this.audio.play('pop');
     this.coop.sendEvent({ k: 'wave' });
+    if (this.partnerNear(8)) { const q = this.player.position; this.ui.heart('heart-me', [q.x, q.y + 2.05, q.z], 1.6); }
+  }
+
+  // ------------------------------------------------------------------ a couple's trip
+  /** The partner's figure when it is right here beside you (same floor, within r metres). */
+  private partnerNear(r: number): Remote | null {
+    const mate = this.coop?.partner, rm = mate ? this.remotes.get(mate.id) : undefined;
+    if (!rm || !rm.actor.root.visible || !this.started) return null;
+    const a = rm.actor.position, b = this.player.position;
+    return Math.hypot(a.x - b.x, a.z - b.z) < r && Math.abs(a.y - b.y) < 1.2 ? rm : null;
+  }
+
+  /** H or the HUD button: take your partner's hand, or let go. */
+  private toggleHands(): void {
+    const mate = this.coop?.partner;
+    if (!mate || !this.started) return;
+    if (this.hands) { this.audio.play('pop'); this.setHands(false, true); return; }
+    if (this.meal || this.dine?.seated || this.sleeping) return;
+    if (!this.partnerNear(2.6)) {
+      this.audio.play('fail');
+      this.ui.toast('hands', 'A little closer', `Walk up beside ${mate.name} to hold hands.`);
+      return;
+    }
+    this.setHands(true, true);
+  }
+
+  private setHands(on: boolean, send: boolean): void {
+    if (this.hands === on) return;
+    this.hands = on;
+    this.handFar = 0;
+    this.followOn = false;
+    if (send) this.coop?.sendEvent({ k: 'hand', on });
+    if (on) {
+      this.audio.play('chime');
+      const rm = this.partnerNear(4), q = this.player.position;
+      this.ui.heart('heart-me', [q.x, q.y + 2.1, q.z]);
+      if (rm) { const r = rm.actor.position; this.ui.heart('heart-mate', [(q.x + r.x) / 2, Math.max(q.y, r.y) + 2.4, (q.z + r.z) / 2], 2.6); }
+    } else this.letGo();
+  }
+
+  /** Both arms back to swinging free. */
+  private letGo(): void {
+    if (this.handSide >= 0 && !this.meal) this.player.reach[this.handSide].on = false;
+    this.handSide = -1;
+    for (const rm of this.remotes.values()) rm.actor.reach[0].on = rm.actor.reach[1].on = false;
+  }
+
+  /** Hand in hand: each of the two reaches for the point between them, on the side the other one is. Returns the side used. */
+  private reachFor(a: Actor, b: Actor): number {
+    const h = handReach(a.position.x, a.position.z, a.facing, b.position.x, b.position.z);
+    a.reach[h.side].on = true;
+    a.reach[h.side].pos.set(h.x, h.y, h.z);
+    a.reach[1 - h.side].on = false;
+    return h.side;
+  }
+
+  /** Keep the hands joined while the two of you are close; drifting apart (a door, a seat, a run) lets go. */
+  private updateHands(dt: number): void {
+    const mate = this.coop?.partner;
+    const ui = mate && mate.inWorld && this.started ? this.hands : null;
+    if (ui !== this.handsUi) { this.handsUi = ui; this.ui.hands(ui); }
+    if (!this.hands) return;
+    const rm = this.partnerNear(3);
+    if (!rm || this.meal || this.dine?.seated || this.sleeping) {
+      this.letGo();
+      this.handFar += dt;
+      if (this.handFar > 0.8 || !mate) this.setHands(false, true);
+      return;
+    }
+    this.handFar = 0;
+    const side = this.reachFor(this.player, rm.actor);
+    if (this.handSide >= 0 && this.handSide !== side) this.player.reach[this.handSide].on = false;
+    this.handSide = side;
+    this.reachFor(rm.actor, this.player);
+  }
+
+  /**
+   * Walking hand in hand with no keys pressed: step in beside the partner and keep pace while they lead (their
+   * client does the same for them, so whoever walks leads). Null when there is nothing to do.
+   */
+  private handFollow(): { dx: number; dz: number; speed: number } | null {
+    const rm = this.partnerNear(3);
+    if (!rm) { this.followOn = false; return null; }
+    const a = rm.actor;
+    const st = followStep(this.followOn, this.player.position, { x: a.position.x, z: a.position.z, facing: a.facing, speed: a.speed }, RUN_SPEED, PLAYER_SPEED);
+    this.followOn = st.on;
+    return st.speed > 0 ? st : null;
+  }
+
+  /** A couple's trip: the room you booked (or your 2040 home) is your partner's too. */
+  private shareRoom(hotel: string, room: string): void {
+    const mate = this.coop?.partner;
+    if (!mate) return;
+    this.sharedRoom = { hotel, room };
+    this.coop?.sendEvent({ k: 'room', hotel, room });
   }
 
   private dropRemote(id: string): void {
@@ -2458,12 +2627,13 @@ class Game {
         const tag = document.createElement('div');
         tag.className = 'buddy';
         tag.style.setProperty('--c', `#${p.color.toString(16).padStart(6, '0')}`);
-        tag.innerHTML = '<span class="bn"></span><span class="arr"></span>';
+        tag.innerHTML = `<span class="bh">${G.heart}</span><span class="bn"></span><span class="arr"></span>`;
         document.getElementById('labels')!.appendChild(tag);
         rm = { actor, look: lookKey, tag, name: '', tx: st[0], ty: st[1], tz: st[2] };
         this.remotes.set(p.id, rm);
       }
       if (rm.name !== p.name) { rm.name = p.name; (rm.tag.querySelector('.bn') as HTMLElement).textContent = p.name; }
+      rm.tag.classList.toggle('love', c.partner === p);
       const a = rm.actor, q = a.position;
       rm.tx = st[0]; rm.ty = st[1]; rm.tz = st[2];
       if (Math.hypot(rm.tx - q.x, rm.tz - q.z) > 4) q.set(rm.tx, rm.ty, rm.tz); // came through a door
@@ -2537,6 +2707,7 @@ class Game {
         case 'KeyM': this.ui.open ? this.ui.close() : this.ui.map(); break;
         case 'KeyV': if (!this.ui.busy) this.setFirstPerson(!this.cam.fp); break;
         case 'KeyG': if (!this.ui.busy) this.wave(); break;
+        case 'KeyH': if (!this.ui.busy) this.toggleHands(); break;
         case 'KeyB': this.ui.open ? this.ui.close() : this.dine.openBag(); break;
         case 'KeyL': if (NEO) { if (this.ui.open) this.ui.close(); else this.lifeSys.openLife(); } break;
         case 'ShiftLeft': case 'ShiftRight': if (!this.ui.busy) this.cyclePace(); break;
@@ -2849,6 +3020,10 @@ class Game {
           run = pace > PLAYER_SPEED;
           speed = pace * (this.path.length === 1 ? Math.min(1, 0.35 + d) : 1);
         }
+      } else if (this.hands && !mapOpen) {
+        // hand in hand: whoever walks leads, and the other keeps in step beside them
+        const fw = this.handFollow();
+        if (fw) { dx = fw.dx; dz = fw.dz; speed = fw.speed; run = speed > PLAYER_SPEED * 1.15; }
       }
     }
     if (!this.path.length) this.cam.endWalk(); // the next auto-walk starts facing its way again
@@ -3322,6 +3497,7 @@ class Game {
     this.meal?.update(dt);
     this.movePlayer(dt);
     this.updateRemotes(dt);
+    this.updateHands(dt);
     this.perf.lap('player');
     this.dine?.update(dt, this.player.position, this.inside);
     this.updateNPCs(dt);

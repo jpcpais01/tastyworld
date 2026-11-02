@@ -1454,3 +1454,23 @@ div.mc-cover { grid-template-columns: 52px 1fr auto; background: transparent; bo
   .sv-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .sv-stage img, .sv-detail.bought .sv-stage img, .sv-stamp { animation: none; } }
+
+/* ---- friends or a couple, on the boarding pass and over a partner's name tag */
+.bp-bond { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 20px 0; }
+.bp-bond small { display: block; font-size: 10px; font-weight: 900; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+.bp-bond .seg button .g { width: 15px; height: 15px; }
+.bp-bond .seg button[data-b="lover"].on { color: #d8436a; }
+.bp-bond .seg button[data-b="lover"].on .g { fill: currentColor; }
+.bond-tag { display: inline-flex; gap: 6px; align-items: center; font-weight: 800; font-size: 13px; color: var(--ink-2); }
+.bond-tag .g { width: 16px; height: 16px; }
+.bpass.love .bond-tag { color: #d8436a; }
+.bpass.love .bond-tag .g, .bpass.love .mate small .g { fill: currentColor; }
+.mate small .g { width: 11px; height: 11px; vertical-align: -1px; margin-right: 3px; color: #d8436a; }
+.buddy .bh { display: none; }
+.buddy.love .bh { display: grid; place-items: center; width: 22px; height: 22px; margin-right: -6px; z-index: 1; border-radius: 50%; background: #fff; color: #d8436a; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2); }
+.buddy.love .bh .g { width: 14px; height: 14px; fill: currentColor; }
+.buddy.edge .bh { display: none; }
+#h-hands.on { color: #d8436a; }
+#h-hands.on .g { fill: rgba(216, 67, 106, 0.18); }
+.bubble.icon.love { color: #d8436a; }
+.bubble.icon.love .g { fill: currentColor; }

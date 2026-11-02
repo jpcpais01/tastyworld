@@ -15,14 +15,24 @@ export interface Peer extends Profile {
   dest: string;
   seat: string;
   inWorld: boolean;
+  /** When they opened the ticket: two guests who picked the same seat at once settle it by who came first. */
+  since: number;
   /** Latest movement sample: x, y, z, facing, anim, speed, inside, hour. */
   st: number[] | null;
   at: number;
 }
 
-export type CoopEvent = { k: 'wave' } | { k: 'stamp'; dish: string } | { k: 'secret' } | { k: 'cat' };
+/**
+ * How the trip leader set up the trip: travelling with friends, or as a couple. On a couple's trip the leader and
+ * the passenger in seat 1B are partners (they can hold hands, share a room and a bite); anyone else is a friend.
+ */
+export type Bond = 'friend' | 'lover';
 
-interface Hello extends Profile { v: number; host: boolean; dest: string; seat: string; inWorld: boolean; }
+export type CoopEvent = { k: 'wave' } | { k: 'stamp'; dish: string } | { k: 'secret' } | { k: 'cat' }
+  /** Partners only: hands held (or let go), a room shared, lights out together, a bite offered. */
+  | { k: 'hand'; on: boolean } | { k: 'room'; hotel: string; room: string } | { k: 'sleep'; room: string } | { k: 'share'; dish: string };
+
+interface Hello extends Profile { v: number; host: boolean; dest: string; seat: string; inWorld: boolean; bond?: Bond; since?: number; }
 
 type Json = null | string | number | boolean | Json[] | { [k: string]: Json };
 
@@ -111,6 +121,9 @@ export class Coop {
   readonly peers = new Map<string, Peer>();
   inWorld = false;
   seat: string;
+  /** Friends or a couple: the leader's choice, which everyone else takes from the leader's hello. */
+  bond: Bond = 'friend';
+  private readonly since = Date.now() + Math.random();
   onPeers: (() => void) | null = null;
   onJoin: ((p: Peer) => void) | null = null;
   onLeave: ((p: Peer) => void) | null = null;
@@ -135,6 +148,15 @@ export class Coop {
 
   setProfile(me: Profile): void { this.me = me; this.hello(); }
   setInWorld(on: boolean): void { this.inWorld = on; this.hello(); }
+  /** Leader only: travel as friends or as a couple (sent to everyone straight away). */
+  setBond(b: Bond): void { if (!this.host || b === this.bond) return; this.bond = b; this.hello(); this.onPeers?.(); }
+
+  /** On a couple's trip, the other half of the couple (leader and seat 1B), if they are here. */
+  get partner(): Peer | undefined {
+    if (this.bond !== 'lover') return undefined;
+    if (this.host) return this.list.find((p) => p.seat === '1B');
+    return this.seat === '1B' ? this.hostPeer : undefined;
+  }
 
   /** Movement sample, sent ~10 times a second while in the world. */
   sendState(st: number[]): void { if (this.peers.size) this.t.send('st', st); }
@@ -153,7 +175,7 @@ export class Coop {
       const taken = new Set(this.list.map((p) => p.seat));
       for (const l of 'BCDEF') if (!taken.has(`1${l}`)) { this.seat = `1${l}`; break; }
     }
-    const hi: Hello = { v: PROTOCOL, ...this.me, host: this.host, dest: this.dest, seat: this.seat, inWorld: this.inWorld };
+    const hi: Hello = { v: PROTOCOL, ...this.me, host: this.host, dest: this.dest, seat: this.seat, inWorld: this.inWorld, bond: this.bond, since: this.since };
     this.t.send('hi', hi as unknown as Json, to);
   }
 
@@ -172,15 +194,19 @@ export class Coop {
       const old = this.peers.get(from);
       const p: Peer = {
         id: from, name: String(hi.name || 'Traveller').slice(0, 18), color: Number(hi.color) || 0xe9573f, wear: Array.isArray(hi.wear) ? hi.wear.slice(0, 8) : [],
-        host: !!hi.host, dest: String(hi.dest), seat: String(hi.seat || ''), inWorld: !!hi.inWorld, st: old?.st ?? null, at: performance.now(),
+        host: !!hi.host, dest: String(hi.dest), seat: String(hi.seat || ''), inWorld: !!hi.inWorld, since: Number(hi.since) || 0, st: old?.st ?? null, at: performance.now(),
         look: hi.look && typeof hi.look === 'object' ? hi.look : undefined,
       };
       this.peers.set(from, p);
-      if (p.host && !this.host) this.dest = p.dest;
+      if (p.host && !this.host) { this.dest = p.dest; this.bond = hi.bond === 'lover' ? 'lover' : 'friend'; }
+      // two guests took the same seat at once: whoever opened the ticket later moves along (seat 1B is the partner's)
+      const clash = !this.host && !p.host && !!this.seat && p.seat === this.seat && p.since < this.since;
+      if (clash) this.seat = '';
       if (!old) {
         this.hello(from); // make sure they know us too
         this.onJoin?.(p);
       } else if (!this.seat) this.hello();
+      if (clash && !old) this.hello();
       this.onPeers?.();
     } else if (kind === 'st') {
       const p = this.peers.get(from);

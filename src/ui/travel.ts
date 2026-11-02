@@ -26,6 +26,8 @@ const touch = () => matchMedia('(pointer: coarse)').matches;
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const D2R = Math.PI / 180;
+/** The leader's last choice of friends or a couple, kept between trips. */
+const lastBond = (): 'friend' | 'lover' => { try { return localStorage.getItem('tastyworld.bond') === 'lover' ? 'lover' : 'friend'; } catch { return 'friend'; } };
 
 /** Great-circle distance in km. */
 function km(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
@@ -315,6 +317,7 @@ export class Travel {
     if (!coop) {
       const { Coop, newCode } = await import('../net/coop');
       coop = await Coop.open(newCode(), true, d.id, this.profile());
+      coop.setBond(lastBond());
       coop.setInWorld(true);
       this.hooks.attach(coop);
     }
@@ -424,6 +427,7 @@ export class Travel {
     try {
       const { Coop, newCode } = await import('../net/coop');
       const coop = await Coop.open(newCode(), true, d.id, this.profile());
+      coop.setBond(lastBond());
       if (!wait.isConnected) { coop.leave(); return; }
       this.pending = coop;
       wait.remove();
@@ -537,6 +541,7 @@ export class Travel {
             <div class="bp-field"><small>Seat</small><b id="bp-seat">${coop.seat || '—'}</b></div>
           </div>
           <div class="bp-colors"><small>Your colour</small><div class="sw-row" id="bp-colors"></div></div>
+          <div class="bp-bond" id="bp-bond"></div>
           <div class="bp-crew"><small>Travelling together</small><div class="crew" id="bp-crew"></div></div>
         </div>
         <div class="bp-stub">
@@ -566,16 +571,42 @@ export class Travel {
           sw.appendChild(b);
         }
       };
-      const crewEl = bp.querySelector('#bp-crew')!, seatEl = bp.querySelector('#bp-seat')!;
+      const crewEl = bp.querySelector('#bp-crew')!, seatEl = bp.querySelector('#bp-seat')!, bondEl = bp.querySelector('#bp-bond') as HTMLElement;
+      // friends or a couple: the leader picks (and can change it any time), everyone else sees the choice
+      const bond = () => {
+        const love = coop.bond === 'lover';
+        bp.classList.toggle('love', love);
+        if (!coop.host) {
+          bondEl.innerHTML = `<small>Travelling as</small><span class="bond-tag">${love ? `${G.heart}A couple` : `${G.people}Friends`}</span>`;
+          return;
+        }
+        bondEl.innerHTML = `<small>Invite as</small><div class="seg" role="radiogroup" aria-label="Invite as"><button data-b="friend" role="radio">${G.people}Friend</button><button data-b="lover" role="radio">${G.heart}Lover</button></div>`;
+        for (const b of bondEl.querySelectorAll<HTMLButtonElement>('button')) {
+          const on = b.dataset.b === coop.bond;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-checked', String(on));
+          b.onclick = () => {
+            const v = b.dataset.b === 'lover' ? 'lover' : 'friend';
+            this.audio.play(v === 'lover' ? 'chime' : 'pop');
+            try { localStorage.setItem('tastyworld.bond', v); } catch { /* private window */ }
+            coop.setBond(v);
+          };
+        }
+      };
+      const role = (p: { seat: string }, host: boolean) => {
+        if (coop.bond === 'lover' && (host || p.seat === '1B')) return `${G.heart}${host ? 'Trip leader' : 'Partner'}`;
+        return host ? 'Trip leader' : 'Travel buddy';
+      };
       const chip = (p: { name: string; color: number; seat: string }, you: boolean, host: boolean) =>
-        `<span class="mate"><span class="ava" style="--c:${hex(p.color)}">${esc(p.name.charAt(0).toUpperCase())}</span><span><b>${esc(p.name)}${you ? ' <em>you</em>' : ''}</b><small>${host ? 'Trip leader' : 'Travel buddy'}${p.seat ? ` · ${p.seat}` : ''}</small></span></span>`;
+        `<span class="mate"><span class="ava" style="--c:${hex(p.color)}">${esc(p.name.charAt(0).toUpperCase())}</span><span><b>${esc(p.name)}${you ? ' <em>you</em>' : ''}</b><small>${role(p, host)}${p.seat ? ` · ${p.seat}` : ''}</small></span></span>`;
       const crew = () => {
         if (!bp.isConnected) return;
+        bond();
         seatEl.textContent = coop.seat || '—';
         const me = this.profile();
         const others = coop.list.sort((a: Peer, b: Peer) => Number(b.host) - Number(a.host));
         crewEl.innerHTML = chip({ ...me, seat: coop.seat }, true, coop.host) + others.map((p) => chip(p, false, p.host)).join('')
-          + (others.length ? '' : `<span class="mate waiting"><span class="ava">${G.plus}</span><span><b>Waiting for a friend<span class="dots"><i>.</i><i>.</i><i>.</i></span></b><small>Send them the ticket code</small></span></span>`);
+          + (others.length ? '' : `<span class="mate waiting"><span class="ava">${G.plus}</span><span><b>Waiting for ${coop.bond === 'lover' ? 'your partner' : 'a friend'}<span class="dots"><i>.</i><i>.</i><i>.</i></span></b><small>Send them the ticket code</small></span></span>`);
       };
       paint();
       crew();
@@ -588,7 +619,7 @@ export class Travel {
       (bp.querySelector('#bp-copy') as HTMLElement).onclick = () => { this.audio.play('click'); void copy(); };
       (bp.querySelector('#bp-send') as HTMLElement).onclick = async () => {
         this.audio.play('click');
-        const text = `Come eat your way through ${dest.city} with me in Tasty World! Ticket ${code}`;
+        const text = coop.bond === 'lover' ? `A trip for two: come eat your way through ${dest.city} with me in Tasty World! Ticket ${code}` : `Come eat your way through ${dest.city} with me in Tasty World! Ticket ${code}`;
         if (navigator.share) { try { await navigator.share({ title: 'Tasty World', text, url: link }); return; } catch (e) { if ((e as Error).name === 'AbortError') return; } }
         void copy();
       };

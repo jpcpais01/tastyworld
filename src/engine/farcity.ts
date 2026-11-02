@@ -57,7 +57,8 @@ vec3 farHaze(vec3 col, vec3 w, vec4 rect, vec3 fogColor, vec4 fog) {
 }
 `;
 
-// building parts: 0 plaster house wall, 1 shop / office block, 2 tower, 3 tile roof, 4 roof slab or
+// building parts: 11 a 2040 facade (seed picks lit channels, ribbons, megablock cells or a braced curtain wall),
+// 12 a neon tube or trim, 13 a holo screen; 0 plaster house wall, 1 shop / office block, 2 tower, 3 tile roof, 4 roof slab or
 // equipment, 5 sign, 6 tree crown, 7 apartment block (balconies on its long faces); 8-10 Tokyo Tower (tokyoTower.ts)
 const HOUSE = ['#ddd2bd', '#c8b39a', '#9e8670', '#b9bdc2', '#e8e2d6', '#cdbfa6', '#a7b2a6', '#d9c7b8'];
 const ROOF = ['#4c5561', '#6b4d42', '#5a6559', '#3f4652', '#7a6a5c'];
@@ -68,6 +69,10 @@ const DARK = ['#3a4048', '#4a4f55', '#5b6168', '#2e353d', '#47524f'];
 const STONE = ['#c9bda9', '#b0aaa0', '#d8d2c6', '#8f8a84', '#a99a88'];
 const SIGN = ['#e8473a', '#f2c230', '#36c6d8', '#e85aa8', '#5bd16a', '#f08a2e'];
 const TREE = ['#5c8a4a', '#4f7a43', '#6a9550', '#e9b4c4'];
+// 2040: Halcyon's own shells (graphite, navy, plum, gunmetal), bare concrete for the megablocks, and its neon
+const NSHELL = ['#232a36', '#2b303c', '#1d222c', '#363a46', '#2a3238', '#3a3442', '#41454c', '#2a3248'];
+const NCONC = ['#55585e', '#4a4d54', '#62656a', '#3e4148', '#5a5650'];
+const NEON = ['#ff4fa8', '#46e8ff', '#a070ff', '#ffd84a', '#6dff9a', '#ff7a3a'];
 
 /**
  * `tower` puts Tokyo Tower at that point (x, z), on a plaza with Foot Town under its legs; the blocks round it
@@ -129,12 +134,159 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
     part(cx + along, face === 0 ? cz - d / 2 - 0.5 : cz + d / 2 + 0.5, 0.25, 1.0, sy, sh, 5, pick(SIGN));
   };
 
+
+  // ---- 2040: the sprawl in Halcyon's own style (world/neoArch.ts): set-back stacks, twins on sky bridges,
+  // needles, halo-crowned towers and slab blades over concrete megablocks; neon on every edge and crown
+  const facade = (mode: number) => (mode + 0.02 + rnd() * 0.96) / 4;
+  const neonEdges = (x: number, z: number, tw: number, td: number, y0: number, h: number, c: string) => {
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(x + sx * (tw / 2 + 0.1), z + sz * (td / 2 + 0.1), 0.3, 0.3, y0, h, 12, c);
+  };
+  const trim = (x: number, z: number, tw: number, td: number, y: number, c: string) => part(x, z, tw + 0.4, td + 0.4, y, 0.35, 12, c);
+  const holo = (x: number, z: number, tw: number, td: number, face: number, y: number, h: number, c: string) => {
+    // a holo screen standing a little proud of the street face
+    part(x, face === 0 ? z - td / 2 - 0.35 : z + td / 2 + 0.35, tw, 0.25, y, h, 13, c);
+  };
+  const neoRoof = (x: number, z: number, tw: number, td: number, h: number, c: string) => {
+    part(x, z, tw + 0.2, td + 0.2, h, 0.6, 4, '#3a3d44');
+    if (rnd() < 0.5) part(x + (rnd() - 0.5) * (tw - 3), z + (rnd() - 0.5) * (td - 3), 2.4, 2.4, h + 0.6, 1.6 + rnd() * 1.6, 4, pick(['#4a4d54', '#5a5e66', '#6a5038']));
+    if (rnd() < 0.35) part(x + (rnd() - 0.5) * (tw - 2), z + (rnd() - 0.5) * (td - 2), 1.6, 1.0, h + 0.6, 0.9, 4, '#7a7c80');
+    if (rnd() < 0.45) { const mx = x + (rnd() - 0.5) * (tw - 2), mz = z + (rnd() - 0.5) * (td - 2), mh = 4 + rnd() * 7; part(mx, mz, 0.25, 0.25, h + 0.6, mh, 4, '#8a8e94'); part(mx, mz, 0.5, 0.5, h + 0.6 + mh, 0.5, 10, '#ff2020'); }
+    if (rnd() < 0.3 && tw > 6) { part(x, z, 0.3, 0.3, h + 0.6, 1.4, 4, '#2a2c30'); part(x, z, Math.min(tw - 1, 7), 0.3, h + 2, 2.6 + rnd() * 1.6, 13, c); }
+  };
+  // the tall part of a tower from y0 to y1: a shaft with its facade, sometimes neon up the corners
+  const shaft = (x: number, z: number, tw: number, td: number, y0: number, y1: number, shell: string, mode: number, c: string, edges: boolean) => {
+    part(x, z, tw, td, y0, y1 - y0, 11, shell, facade(mode));
+    if (edges) neonEdges(x, z, tw, td, y0, y1 - y0, c);
+  };
+  // a crown on top of a tower at `top`: lit cap, stepped pyramid, masts, a halo ring or a roof screen
+  const crown = (x: number, z: number, tw: number, td: number, top: number, shell: string, c: string, face: number) => {
+    part(x, z, tw + 0.2, td + 0.2, top, 0.7, 4, '#30333a');
+    const r = rnd();
+    if (r < 0.22) {
+      // a lit crown: a band of light under a dark cap
+      part(x, z, tw * 0.9, td * 0.9, top + 0.7, 2.4, 12, c);
+      part(x, z, tw * 0.94, td * 0.94, top + 3.1, 1.2, 4, shell);
+    } else if (r < 0.44) {
+      // stepped pyramid, each step edged in neon, a mast from the tip
+      let a = tw, b = td, y = top + 0.7;
+      for (let i = 0; i < 3; i++) { a *= 0.72; b *= 0.72; part(x, z, a, b, y, 2.6, 11, shell, facade(3)); trim(x, z, a, b, y + 2.6, c); y += 2.95; }
+      part(x, z, 0.4, 0.4, y, 8 + rnd() * 10, 4, '#c8ccd2');
+      part(x, z, 0.6, 0.6, y + 8, 0.6, 10, '#ff2020');
+    } else if (r < 0.64) {
+      // the halo: a square ring of light floating over the roof on four struts
+      const a = tw + 2.4, b = td + 2.4, y = top + 5 + rnd() * 3;
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(x + sx * tw * 0.3, z + sz * td * 0.3, 0.3, 0.3, top + 0.7, y - top - 0.7, 4, '#55585e');
+      part(x, z - b / 2, a, 0.4, y, 0.6, 12, c); part(x, z + b / 2, a, 0.4, y, 0.6, 12, c);
+      part(x - a / 2, z, 0.4, b, y, 0.6, 12, c); part(x + a / 2, z, 0.4, b, y, 0.6, 12, c);
+    } else if (r < 0.82) {
+      // a mast cluster with aviation lights
+      for (let i = 0; i < 2 + Math.floor(rnd() * 3); i++) {
+        const mx = x + (rnd() - 0.5) * tw * 0.6, mz = z + (rnd() - 0.5) * td * 0.6, mh = 6 + rnd() * 16;
+        part(mx, mz, 0.35, 0.35, top + 0.7, mh, 4, '#a8acb2');
+        part(mx, mz, 0.6, 0.6, top + 0.7 + mh, 0.6, 10, '#ff2020');
+      }
+      part(x, z, tw * 0.5, td * 0.5, top + 0.7, 2.5, 4, '#45484f');
+    } else {
+      // a screen on the roof facing the street
+      neoRoof(x, z, tw, td, top + 0.7, c);
+      holo(x, z, Math.min(tw * 0.9, 14), td * 0.2, face, top + 1.5, 5 + rnd() * 4, c);
+    }
+  };
+  const neoBuilding = (cx: number, cz: number, w: number, d: number, k: number, c: number, face: number) => {
+    const hue = pick(NEON), hue2 = pick(NEON);
+    const mode = Math.floor(rnd() * 4);
+    const shell = pick(NSHELL);
+    if (!(w > 7 && rnd() < 0.25 + 0.4 * k + c * 0.3)) {
+      // a megablock or a mid-rise: shop fronts under a neon awning, cells of lit rooms above, signs and screens
+      const floors = 6 + Math.floor(rnd() * (8 + k * 14));
+      const h = 4.2 + floors * 2.9;
+      part(cx, cz, w, d, 0, 4.2, 1, pick(NCONC));
+      if (rnd() < 0.75) part(cx, face === 0 ? cz - d / 2 - 0.25 : cz + d / 2 + 0.25, w * 0.95, 0.5, 3.9, 0.3, 12, hue);
+      const m = rnd() < 0.55 ? 2 : mode;
+      part(cx, cz, w, d, 4.2, h - 4.2, 11, m === 2 ? pick(NCONC) : shell, facade(m));
+      if (floors > 9 && rnd() < 0.4) {
+        // a stepped top: a few floors set back, a neon line on the ledge
+        const sd = d * 0.65, sz = cz + (face === 0 ? 1 : -1) * d * 0.17, sh = 2.9 * (2 + Math.floor(rnd() * 3));
+        trim(cx, cz, w, d, h, hue2);
+        part(cx, sz, w, sd, h, sh, 11, shell, facade(m));
+        neoRoof(cx, sz, w, sd, h + sh, hue2);
+      } else neoRoof(cx, cz, w, d, h, hue2);
+      if (rnd() < 0.9) blade(cx, cz, w, d, h, face);
+      if (rnd() < 0.3) blade(cx, cz, w, d, h, face);
+      if (rnd() < 0.35 && w > 8) holo(cx + (rnd() - 0.5) * (w - 6), cz, Math.min(w * 0.5, 8), d, face, 5 + rnd() * Math.max(1, h - 14), 3 + rnd() * 3, hue);
+      return;
+    }
+    const fl = 3.6;
+    const h = Math.round((50 + rnd() * 90 + k * 80 + c * 120) / fl) * fl;
+    const ph = (1 + Math.floor(rnd() * 3)) * 4.2;
+    // a podium of shops under every tower, its street face in neon
+    part(cx, cz, w, d, 0, ph, 1, pick(NCONC));
+    trim(cx, cz, w, d, ph, hue2);
+    const pw = w * 0.82, pd = d * 0.82;
+    const edges = rnd() < 0.5;
+    const form = rnd();
+    let tw = pw, td = pd, top = h;
+    if (form < 0.3) {
+      // a set-back stack: two to four tiers, each smaller, a neon line on every ledge
+      const n = 2 + Math.floor(rnd() * 3);
+      let y = ph;
+      for (let i = 0; i < n; i++) {
+        const y1 = i === n - 1 ? h : Math.round((ph + (h - ph) * (i + 1) * (0.9 / n + rnd() * 0.12)) / fl) * fl;
+        if (y1 <= y + fl) continue;
+        shaft(cx, cz, tw, td, y, y1, shell, mode, hue, edges && i === n - 1);
+        if (i < n - 1) { trim(cx, cz, tw, td, y1, hue); tw *= 0.78; td *= 0.78; }
+        y = y1;
+      }
+    } else if (form < 0.5 && w > 12) {
+      // twins on sky bridges: one a little shorter than the other
+      const a = pw * 0.4, h2 = Math.round((h * (0.7 + rnd() * 0.2)) / fl) * fl;
+      shaft(cx - pw * 0.3, cz, a, pd, ph, h, shell, mode, hue, edges);
+      shaft(cx + pw * 0.3, cz, a, pd, ph, h2, shell, mode, hue, edges);
+      for (let i = 0; i < 1 + Math.floor(rnd() * 2); i++) {
+        const by = Math.round((ph + (h2 - ph) * (0.35 + i * 0.3)) / fl) * fl;
+        part(cx, cz, pw * 0.2 + 0.4, pd * 0.4, by, 3.6, 11, shell, facade(1));
+        part(cx, cz, pw * 0.2 + 0.4, pd * 0.42, by - 0.35, 0.35, 12, hue2);
+      }
+      crown(cx + pw * 0.3, cz, a, pd, h2, shell, hue2, face);
+      tw = a; td = pd;
+      cx -= pw * 0.3;
+    } else if (form < 0.68) {
+      // a needle: five segments tapering to a spire with a light on the tip
+      let y = ph;
+      for (let i = 0; i < 5; i++) {
+        const y1 = Math.round((ph + ((h - ph) * (i + 1)) / 5) / fl) * fl;
+        shaft(cx, cz, tw, td, y, y1, shell, mode, hue, false);
+        if (i < 4) { tw *= 0.9; td *= 0.9; }
+        y = y1;
+      }
+      if (edges) neonEdges(cx, cz, tw, td, ph + (h - ph) * 0.6, (h - ph) * 0.4, hue);
+      part(cx, cz, 0.5, 0.5, h, 14 + rnd() * 20, 4, '#c8ccd2');
+      part(cx, cz, 0.3, 0.3, h + 4, 0.3 + rnd() * 6, 12, hue);
+      part(cx, cz, 0.7, 0.7, h + 14, 0.7, 10, '#ff2020');
+      top = -1;
+    } else if (form < 0.84) {
+      // a slab blade: thin, with a lit spine up its street face
+      td = pd * 0.5;
+      shaft(cx, cz, tw, td, ph, h, shell, mode, hue, false);
+      part(cx, face === 0 ? cz - td / 2 - 0.2 : cz + td / 2 + 0.2, 0.6, 0.4, ph, h - ph, 12, hue);
+      // and its far end, a cantilevered block of a few floors hanging over the podium
+      if (rnd() < 0.5) part(cx + (rnd() < 0.5 ? -1 : 1) * tw * 0.3, cz, tw * 0.5, pd, h * 0.55, fl * 3, 11, shell, facade((mode + 1) % 4));
+    } else {
+      // a plain shaft that leans on its signs
+      shaft(cx, cz, tw, td, ph, h, shell, mode, hue, edges);
+    }
+    if (top > 0) crown(cx, cz, tw, td, top, shell, hue2, face);
+    // a big screen or two up the street face
+    for (let i = 0; i < (rnd() < 0.6 ? 1 : 2); i++) holo(cx + (rnd() - 0.5) * tw * 0.3, cz, Math.min(tw * 0.7, 10), td, face, ph + 4 + rnd() * Math.max(4, h * 0.5 - ph), 5 + rnd() * 8, i ? hue2 : hue);
+  };
+
   const building = (lx0: number, lz0: number, lx1: number, lz1: number, k: number, c: number, face: number) => {
     const set = 0.3 + rnd() * 0.9;
     const w = lx1 - lx0 - set * 2, d = lz1 - lz0 - set * 2;
     if (w < 3 || d < 3) return;
     const cx = (lx0 + lx1) / 2, cz = (lz0 + lz1) / 2;
     base = at(cx, cz);
+    if (cyber) { neoBuilding(cx, cz, w, d, k, c, face); return; }
     const r = rnd();
     const pTower = cyber ? (w > 7 ? 0.25 + 0.4 * k + c * 0.3 : 0) : c > 0.25 && k > 0.45 && w > 9 ? c * 0.55 : 0;
     const pHouse = cyber ? 0 : Math.max(0.08, 0.62 - k * 0.7 - c * 0.5);
@@ -392,6 +544,35 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
             win = grid(u, y, 2.4, 100.0, vec4(0.12, 0.88, -1.0, 2.0), cell);
             vec3 refl = vec3(0.04, 0.06, 0.08) + uSkyColor * 0.22 + uFogColor * 0.06;
             albedo = mix(srgb2lin(vec3(0.9, 0.89, 0.86)), refl, win);
+          } else if (kind == 11) {
+            // 2040: the seed's quarter picks the facade, the rest of it varies the tint
+            int mode = int(seed * 4.0);
+            float faceLen = abs(n.x) > 0.5 ? vSize.z : vSize.x;
+            vec3 tint = mix(vec3(0.03, 0.05, 0.08), vec3(0.06, 0.05, 0.09), fract(seed * 17.3));
+            vec3 refl = tint + uSkyColor * mix(0.06, 0.15, smoothstep(0.0, 160.0, vWorld.y)) + uFogColor * 0.04;
+            if (mode == 0) {
+              // lit channels: deep vertical slots of glass between fins, room by room
+              win = grid(u + faceLen * 0.5, y, 2.4, 3.6, vec4(0.58, 0.92, 0.04, 1.0), cell);
+              albedo = mix(albedo * 0.8, refl, win);
+            } else if (mode == 1) {
+              // ribbons: long bands of glass under a slim spandrel, a light line every few floors
+              win = grid(u, y, 1.2, 3.6, vec4(0.02, 0.98, 0.34, 0.9), cell);
+              albedo = mix(albedo, refl, win);
+            } else if (mode == 2) {
+              // a megablock: rows of small punched rooms, lived in, every curtain its own colour
+              win = grid(u + faceLen * 0.5, y, 1.5, 2.9, vec4(0.22, 0.78, 0.3, 0.76), cell);
+              albedo = mix(albedo, refl * 0.8 + vec3(0.01), win);
+            } else {
+              // a curtain wall braced by a diagonal exoskeleton six floors to a bay
+              win = grid(u, y, 1.5, 3.8, vec4(0.04, 0.96, 0.08, 0.98), cell);
+              albedo = mix(albedo, refl, win);
+              float m = 22.8, bw = 0.55 / m;
+              float t1 = fract((u + y) / m), t2 = fract((u - y) / m);
+              float aa = smoothstep(0.3, 0.7, fwidth(y) / m * 12.0);
+              float brace = mix(max(step(t1, bw), step(t2, bw)), bw * 2.0, aa);
+              albedo = mix(albedo, srgb2lin(vec3(0.42, 0.44, 0.48)), brace);
+              win *= 1.0 - brace;
+            }
           } else if (kind == 5) {
             // a lit sign: a column of characters
             float c = step(0.2, fract(y / 1.1)) * step(fract(y / 1.1), 0.85) * step(0.2, fract(u * 3.0 + 0.5));
@@ -402,8 +583,9 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
           float r = fract((abs(vSize.x) >= abs(vSize.z) ? vLocal.z : vLocal.x) * 3.0);
           albedo *= mix(0.86 + 0.14 * step(0.5, r), 0.93, smoothstep(0.1, 0.3, fw));
         }
-        float glassy = (kind == 2 || kind == 9) && wall ? win : 0.0;
+        float glassy = (kind == 2 || kind == 9 || kind == 11) && wall ? win : 0.0;
         if (kind == 1 || kind == 2) { if (n.y > 0.5) albedo = srgb2lin(vec3(0.55, 0.55, 0.54)) * (0.9 + 0.1 * g); }
+        if (kind == 11 && n.y > 0.5) albedo = srgb2lin(vec3(0.2, 0.21, 0.24)) * (0.9 + 0.1 * g);
         if (kind == 6) albedo *= 0.85 + 0.3 * hash12(floor(vWorld.xz * 1.5) + floor(vWorld.y * 1.5) * 7.0);
 
         // light like the city: hemisphere sky, sun, darker at the foot of walls
@@ -424,7 +606,19 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         col *= 1.0 + (1.0 - smoothstep(0.0, 0.18 + fw * 0.7, d)) * 0.25;
 
         // night: a scatter of lit rooms, bright shop fronts, glowing signs
-        if (win > 0.0) {
+        if (win > 0.0 && kind == 11) {
+          // Halcyon never sleeps: far more rooms lit than Tokyo, cool offices, warm flats, the odd pink or TV blue
+          int mode = int(seed * 4.0);
+          float hsh = hash12(cell * vec2(1.7, 3.1) + seed * 91.0 + n.xz * 7.0);
+          float share = mode == 2 ? 0.34 : mode == 0 ? 0.42 : 0.24;
+          float on = step(hsh, share + 0.18 * uNight);
+          float pk = fract(hsh * 37.0 + cell.y * 0.13);
+          vec3 wc = mode == 2 ? (pk < 0.55 ? uWindowColor : pk < 0.7 ? vec3(1.0, 0.45, 0.75) : pk < 0.85 ? vec3(0.35, 0.45, 1.3) : vec3(1.2, 0.6, 0.3))
+                              : mix(vec3(1.2, 1.35, 1.6), uWindowColor, step(0.75, pk));
+          // ribbons: a lit floor runs the whole face
+          if (mode == 1) on = step(hash12(vec2(cell.y, seed * 53.0) + n.xz * 3.0), share + 0.2 * uNight);
+          col += win * on * wc * uNight * (0.35 + 0.3 * fract(seed * 13.7 + cell.y * 0.37));
+        } else if (win > 0.0) {
           float on = step(hash12(cell * vec2(1.7, 3.1) + seed * 91.0 + n.xz * 7.0), (kind == 1 && y < 3.2) ? 0.7 : kind == 2 ? 0.06 + 0.12 * uNight : 0.1 + 0.16 * uNight);
           vec3 wc = kind == 2 ? mix(uWindowColor, vec3(1.5, 1.7, 1.9), 0.3 * step(0.5, fract(seed * 31.0))) : uWindowColor;
           col += win * on * wc * uNight * (0.3 + 0.25 * fract(seed * 13.7 + cell.y * 0.37));
@@ -439,6 +633,20 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
           glow = mix(vec3(1.0, 0.42, 0.1), vec3(1.0, 0.62, 0.25), step(0.6, vCol.g)) * flood * uNight * 0.9;
         } else if (kind == 9) {
           glow = win * uWindowColor * uNight * 0.9 + (1.0 - win) * vec3(1.0, 0.8, 0.55) * uNight * 0.15;
+        } else if (kind == 12) {
+          // neon tube: lit by day, blazing by night, a slow breath so the skyline isn't still
+          float br = 0.85 + 0.15 * sin(uTime * (0.6 + seed) + seed * 40.0);
+          glow = albedo * br * mix(0.6, 3.0, uNight);
+        } else if (kind == 13) {
+          // a holo screen: blocks of an ad that change as they scroll, scanlines, a frame
+          float faceLen = abs(n.x) > 0.5 ? vSize.z : vSize.x;
+          vec2 q = vec2((u + faceLen * 0.5) / max(faceLen, 0.5), vLocal.y / max(vSize.y, 0.5));
+          float t = floor(uTime * 0.4 + seed * 9.0);
+          float blk = step(0.4, hash12(floor(vec2(q.x * 5.0, q.y * 3.0)) + t * 3.1 + seed * 7.0));
+          float scan = mix(0.75 + 0.25 * step(0.5, fract(vWorld.y * 2.0)), 0.875, smoothstep(0.2, 0.5, fw));
+          vec3 alt = albedo.gbr;
+          glow = mix(alt, albedo, blk) * scan * mix(0.55, 2.4, uNight) * (wall ? 1.0 : 0.3);
+          col *= 0.3;
         } else if (kind == 10) {
           // aviation lights: a slow red pulse, the tip a little brighter
           float b = 0.25 + 0.75 * smoothstep(0.55, 1.0, sin((uTime * 0.5 + seed) * 6.2832) * 0.5 + 0.5);
@@ -446,7 +654,7 @@ export function farCity(shared: SharedUniforms, rect: Rect, gaps: Rect[] = [], r
         }
         // the tower is the one landmark that has to read from anywhere in the city: half the haze on its
         // international orange, and its lights carry through further still
-        float haze = farHaze(vec3(0.0), vWorld, uRect, vec3(1.0), uFog).x * (kind >= 8 ? 0.5 : 1.0);
+        float haze = farHaze(vec3(0.0), vWorld, uRect, vec3(1.0), uFog).x * (kind >= 8 && kind <= 10 ? 0.5 : 1.0);
         col = mix(col, uFogColor, haze) + glow * (1.0 - 0.6 * haze);
         outColor = vec4(col, 1.0);
       }`,

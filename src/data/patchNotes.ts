@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.23.1',
+    date: '2026-11-02',
+    title: 'Halcyon to the horizon',
+    items: [
+      'The Halo\'s hologram koi no longer show through buildings from across the city. They are now hidden behind anything in front of them, like everything else.',
+      'The skyline beyond Halcyon\'s edge has been rebuilt in the city\'s own style: stepped towers edged in neon, twin towers on lit sky bridges, needles with spires, slab towers with glowing spines and halos of light over their roofs, on podiums of shops.',
+      'Distant facades now vary too: lit window channels, ribbon windows, crowded megablocks with every room a different colour, and glass towers braced by diagonal steel. Giant screens play ads up their faces and on the rooftops.',
+    ],
+  },
+  {
     version: '0.23.0',
     date: '2026-11-02',
     title: 'Halcyon City grows up',

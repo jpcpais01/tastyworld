@@ -89,7 +89,7 @@ void main() {
   vec2 suv = vClip.xy / vClip.w * 0.5 + 0.5;
   float sd = texture(tDepth, suv).r;
   float lz = linZ(vClip.z / vClip.w * 0.5 + 0.5, uClip);
-  a *= clamp((linZ(sd, uClip) - lz) * 0.8 + 0.25, 0.25, 1.0);
+  a *= clamp((linZ(sd, uClip) - lz) * 0.8, 0.0, 1.0);
   outColor = vec4(base * a * 0.6, 0.0);
 }
 `;

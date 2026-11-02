@@ -8,6 +8,18 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.22.0',
+    date: '2026-11-02',
+    title: 'Travel as a couple',
+    items: [
+      'When you invite someone on a co-op trip, the boarding pass now asks: Friend or Lover. Friend is the trip you know. You can change it from the ticket at any time.',
+      'On a couple\'s trip, walk up beside your partner and press H (or the new hands button) to hold hands. Whoever walks leads, and the other keeps in step beside them. Let go with H, or by wandering apart.',
+      'Book a hotel room and your partner gets a key too, so you can go up together. Go to sleep while they are in the room and you both sleep side by side until morning. In 2040, your home opens to them the same way.',
+      'Eat next to your partner and they get a bite, with a little heart. Waves between partners send a heart too, and their name tag wears one.',
+      'Fixed two friends joining at the same moment sometimes getting the same seat on the boarding pass.',
+    ],
+  },
+  {
     version: '0.21.5',
     date: '2026-11-01',
     title: 'Low quality looks better',

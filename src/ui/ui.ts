@@ -151,6 +151,7 @@ export class UI {
   onMap: (() => void) | null = null;
   onParty: (() => void) | null = null;
   onWave: (() => void) | null = null;
+  onHands: (() => void) | null = null;
   onPhoto: (() => void) | null = null;
   onPace: (() => void) | null = null;
   onEndTrip: (() => void) | null = null;
@@ -223,6 +224,7 @@ export class UI {
           <button id="h-stand" class="hidden" title="Stand up" aria-label="Stand up">${G.walk}</button>
           <button id="h-bag" class="hidden" title="Your paper bag of snacks (B)" aria-label="Your paper bag of snacks">${G.bag}<span class="count" id="h-bagn"></span></button>
           <button id="h-wave" class="hidden" title="Wave (G)" aria-label="Wave to your friends">${G.wave}</button>
+          <button id="h-hands" class="hidden" title="Hold hands (H)" aria-label="Hold hands" aria-pressed="false">${G.hands}</button>
           <button id="h-pace" title="Walking pace: normal (Shift)" aria-label="Walking pace: normal">${G.pace2}</button>
           <button id="h-photo" title="Photo mode (C)" aria-label="Photo mode">${G.camera}</button>
           <button id="h-view" title="First-person view (V)" aria-label="First-person view" aria-pressed="false">${G.eye}</button>
@@ -240,6 +242,7 @@ export class UI {
     tap('h-compass', () => this.map());
     tap('h-party', () => this.onParty?.());
     tap('h-wave', () => this.onWave?.());
+    tap('h-hands', () => this.onHands?.());
     tap('h-set', () => this.settings());
     tap('h-trip', () => this.onEndTrip?.());
     tap('h-rl', () => this.onRotate?.(-1));
@@ -272,13 +275,32 @@ export class UI {
   }
 
   /** The co-op chip: who is on this trip (null hides it). */
-  party(code: string, crew: { name: string; color: number; here: boolean }[] | null): void {
+  party(code: string, crew: { name: string; color: number; here: boolean }[] | null, love = false): void {
     $('h-wave').classList.toggle('hidden', !crew);
     this.partyEl.classList.toggle('hidden', !crew);
-    if (!crew) return;
+    if (!crew) { this.hands(null); return; }
     const n = crew.length;
+    const what = love ? (n > 1 ? (n === 2 ? 'Travelling as a couple' : `A couple and ${n - 2 === 1 ? 'a friend' : `${n - 2} friends`}`) : 'Waiting for your partner')
+      : n > 1 ? `${n} travelling together` : 'Waiting for a friend';
     this.partyEl.innerHTML = `<span class="avas">${crew.slice(0, 4).map((p) => `<span class="ava${p.here ? '' : ' away'}" style="--c:#${p.color.toString(16).padStart(6, '0')}">${esc(p.name.charAt(0).toUpperCase())}</span>`).join('')}</span>
-      <span class="pt"><b>${n > 1 ? `${n} travelling together` : 'Waiting for a friend'}</b><small>${G.ticket}${code}</small></span>`;
+      <span class="pt"><b>${what}</b><small>${love ? G.heart : G.ticket}${code}</small></span>`;
+  }
+
+  /** The hold-hands button on a couple's trip: null hides it, otherwise whether hands are held right now. */
+  hands(on: boolean | null): void {
+    const b = $('h-hands');
+    b.classList.toggle('hidden', on === null);
+    b.classList.toggle('on', !!on);
+    b.setAttribute('aria-pressed', String(!!on));
+    const t = on ? 'Let go of their hand (H)' : 'Hold hands (H)';
+    b.title = t;
+    b.setAttribute('aria-label', t);
+  }
+
+  /** A little heart over someone in the world. */
+  heart(key: string, pos: [number, number, number], seconds = 2.2): void {
+    this.label(key, icon('heart'), 'bubble icon love', pos);
+    this.labels.get(key)!.until = performance.now() + seconds * 1000;
   }
 
   /** The pocket city map (the world map is a button on it). */

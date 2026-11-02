@@ -876,8 +876,11 @@ uniform float uSaturation;
 uniform float uVignette;
 uniform float uFade;
 uniform vec4 uWaterBounds;
-uniform float uWet;         // 0..1: rain-wet streets at y = uWetY mirror what stands on them (2040)
-uniform float uWetY;
+uniform float uWet;         // 0..1: rain-wet ground (2040): every surface open to the sky mirrors what stands on it
+uniform float uRainFall;    // 0..1: how hard it is raining on it (drop rings)
+uniform sampler2D tHeight;  // the voxel columns (see the cutaway's): G is the layer tSolid starts at
+uniform highp usampler2D tSolid;
+uniform vec4 uHeightRect;
 uniform float uSea;         // 1: open sea (no current, long swell, foam on the beach), 0: Tokyo's canal
 uniform sampler2D tShore;   // signed distance to the water's edge (see computeShore)
 uniform vec4 uShoreRect;    // origin x, z and 1 / extent x, z (metres)
@@ -888,6 +891,48 @@ layout(location = 0) out vec4 outColor;
 vec3 worldAt(vec2 uv, float depth) {
   vec4 p = uInvViewProj * vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
   return p.xyz / p.w;
+}
+
+// Whether p lies on the top face of a voxel open to the sky: rain can only wet what it falls on. Voxel tops sit on
+// the 0.25 m layer planes; the column under p must be solid just below that plane and empty all the way up (an
+// awning, a balcony, a shop's upper floors keep the ground under them dry). Above a column's 64 known layers (a
+// tower roof) the face's own normal decides. 0 off the city's columns.
+float skyTop(vec3 p, vec3 rd, float up) {
+  float f = p.y * 4.0, k = floor(f + 0.5);
+  if (abs(f - k) > 0.14) return 0.0;
+  // a step back along the ray: a wall's face reads its open side, never the wall's own column
+  vec2 uv = (p.xz - rd.xz * 0.03 - uHeightRect.xy) * uHeightRect.zw;
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return 0.0;
+  int l = int(k) - int(texture(tHeight, uv).g * 255.0 + 0.5);
+  if (l < 1 || l >= 64) return l >= 64 ? up : 0.0;
+  uvec2 w = texelFetch(tSolid, ivec2(uv * vec2(textureSize(tSolid, 0))), 0).rg;
+  int b = l - 1;
+  if ((((b < 32 ? w.x : w.y) >> uint(b & 31)) & 1u) == 0u) return 0.0;
+  bool open = l < 32 ? (w.x >> uint(l)) == 0u && w.y == 0u : (w.y >> uint(l - 32)) == 0u;
+  return open ? 1.0 : 0.0;
+}
+
+// Rain drop rings on wet ground, fixed in the world: each cell takes one drop per cycle at a new spot, its ring
+// spreading and fading. xy = the ring's slope (bends the reflection), z = its brightness. fp = the pixel's
+// footprint (m): rings thinner than a pixel or two fade out rather than shimmer.
+vec3 dropRings(vec2 p, float t, float rain, float fp) {
+  vec3 o = vec3(0.0);
+  float vis = (1.0 - smoothstep(0.02, 0.06, fp)) * rain;
+  if (vis <= 0.0) return o;
+  for (int i = 0; i < 2; i++) {
+    float sz = i == 0 ? 0.7 : 0.53;
+    vec2 q = p / sz + float(i) * 17.3, c = floor(q);
+    float h = hash12(c), cyc = t * (1.3 + 0.4 * h) + h * 7.0, n = floor(cyc), age = fract(cyc);
+    // not every cell gets a drop every cycle: a light shower is sparse, a downpour fills the street
+    if (hash12(c + n * 0.37 + 11.0) > rain) continue;
+    vec2 ctr = c + 0.3 + 0.4 * vec2(hash12(c + n * 1.7), hash12(c - n * 2.3 + 5.0));
+    vec2 d = (q - ctr) * sz;
+    float r = age * 0.24, dl = length(d), wd = max(0.02, fp * 1.2);
+    float ring = exp(-((dl - r) * (dl - r)) / (wd * wd)) * (1.0 - age) * (1.0 - age);
+    o.xy += d / max(dl, 1e-3) * ring;
+    o.z += ring;
+  }
+  return o * vis;
 }
 
 // analytic water surface, band-limited against fw (the screen pixel's footprint in p units): each wave fades out
@@ -986,6 +1031,10 @@ void main() {
   // per-pixel view ray (constant for the iso camera, fans out in first person)
   vec3 near = worldAt(uv, 0.0);
   vec3 rd = normalize(worldAt(uv, 1.0) - near);
+  // the surface's own slope and the pixel's footprint, from the reconstructed positions (taken here, in uniform
+  // control flow; across a depth edge they come out steep and wide, which only keeps the rain off that pixel)
+  vec3 wdx = dFdx(wpos), wdy = dFdy(wpos), wn = cross(wdx, wdy);
+  float wetUp = step(0.95, abs(wn.y) / max(length(wn), 1e-6)), wetFp = max(length(wdx.xz), length(wdy.xz)), wetK = 0.0;
   if (depth >= 0.99999) {
     if (uClip.z > 0.5) {
       // eye-level sky (engine/sky.ts): the angle one pixel spans sizes the stars
@@ -1131,13 +1180,16 @@ void main() {
       water = mix(water, uFogColor, 1.0 - exp(-fd * fd));
     }
     col = water;
-  } else if (uWet > 0.0 && abs(wpos.y - uWetY) < 0.03) {
-    // a rain-wet street: the paving darkens, and in the puddles and the sheen the neon above is mirrored
+  } else if (uWet > 0.0 && (wetK = skyTop(wpos, rd, wetUp)) > 0.0) {
+    // a rain-wet surface: the paving darkens, and in the puddles and the sheen the neon above is mirrored
     // (screen-space, like the water: what is not on screen falls back to the night sky)
     float pud = smoothstep(0.45, 0.7, vnoise(wpos.xz * 0.32) * 0.7 + vnoise(wpos.xz * 1.1) * 0.3);
     // a slow, gentle unevenness (fine noise here would speckle the mirror image pixel by pixel)
     vec2 rip = vec2(vnoise(wpos.xz * 1.7 + uTime * 0.25), vnoise(wpos.zx * 1.7 - uTime * 0.2)) - 0.5;
-    vec3 nrm = normalize(vec3(rip.x * mix(0.05, 0.015, pud), 1.0, rip.y * mix(0.05, 0.015, pud)));
+    vec3 drop = uRainFall > 0.0 ? dropRings(wpos.xz, uTime, uRainFall, wetFp) : vec3(0.0);
+    rip = rip * mix(0.05, 0.015, pud) + drop.xy * 0.12;
+    vec3 nrm = normalize(vec3(rip.x, 1.0, rip.y));
+    float wetY = wpos.y;
     vec3 refl = reflect(rd, nrm);
     vec3 rcol = skyColor(refl) * 0.5;
     float hitW = 0.0;
@@ -1166,10 +1218,10 @@ void main() {
           vec4 hc = uViewProj * vec4(hi, 1.0);
           suv = hc.xy / hc.w * 0.5 + 0.5;
           vec3 hp = worldAt(suv, texture(tDepth, suv).r);
-          if (hp.y > uWetY + 0.05) {
+          if (hp.y > wetY + 0.05) {
             vec2 edgeF = smoothstep(vec2(0.0), vec2(0.08), suv) * smoothstep(vec2(0.0), vec2(0.08), 1.0 - suv);
             // tall things fade out of the puddle: a wet street mirrors what is near it most clearly
-            hitW = edgeF.x * edgeF.y * (1.0 - float(i) / 18.0) * mix(1.0, 0.45, smoothstep(1.0, 14.0, hp.y - uWetY));
+            hitW = edgeF.x * edgeF.y * (1.0 - float(i) / 18.0) * mix(1.0, 0.45, smoothstep(1.0, 14.0, hp.y - wetY));
             // bright neon reflects softer than it shines, so a lit sign makes a glow in the wet, not a second sign
             vec3 sc = texture(tScene, suv).rgb;
             rcol = mix(rcol, sc / (1.0 + max(max(sc.r, sc.g), sc.b) * 0.6), hitW);
@@ -1181,8 +1233,10 @@ void main() {
 #endif
     float cosT = clamp(dot(-rd, nrm), 0.0, 1.0);
     float fres = 0.04 + 0.96 * pow(1.0 - cosT, 5.0);
-    float k = uWet * mix(0.16, 0.55, pud) * clamp(fres * 2.5 + 0.35, 0.0, 1.0);
-    col = mix(col * mix(1.0, 0.7, uWet * (0.4 + 0.6 * pud)), rcol, k);
+    float k = uWet * wetK * mix(0.16, 0.55, pud) * clamp(fres * 2.5 + 0.35, 0.0, 1.0);
+    col = mix(col * mix(1.0, 0.7, uWet * wetK * (0.4 + 0.6 * pud)), rcol, k);
+    // each ring catches a little of the light around it
+    col += (rcol * 0.6 + col * 0.4) * drop.z * 0.35;
   } else if (wpos.y < uWaterY + 0.4 && wpos.x > uWaterBounds.x && wpos.x < uWaterBounds.z && wpos.z > uWaterBounds.y && wpos.z < uWaterBounds.w) {
     // wet stone just above the waterline, with a waterline that rises and falls with the lapping
     float sdw = shoreDist(wpos.xz);

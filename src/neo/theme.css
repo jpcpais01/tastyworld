@@ -184,3 +184,12 @@ html.y2040 .dish-card .dimg img { filter: drop-shadow(0 0 10px rgba(70, 232, 255
 .n-floor.here { background: var(--sun-soft); box-shadow: inset 0 0 0 2px var(--sun); }
 .n-floor.locked { opacity: 0.6; }
 .n-floor.locked span { color: var(--tomato); }
+
+/* tutorial notebook: a datapad, not paper (no spiral, cyan grid, neon accents) */
+html.y2040 .nb-rings { display: none; }
+html.y2040 .nb-book { background: linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 26px 26px, repeating-linear-gradient(to bottom, transparent 0 25px, var(--line) 25px 26px), var(--card); }
+html.y2040 .nb-book::before { background: var(--sun); opacity: 0.35; }
+html.y2040 .nb-art .a0 { background: var(--tomato-soft); color: var(--tomato); box-shadow: inset 0 0 0 1px var(--tomato), 0 0 22px rgba(255, 79, 168, 0.28); }
+html.y2040 .nb-art .a1 { color: var(--sun); }
+html.y2040 .nb-art .a2 { color: var(--matcha); }
+html.y2040 .nb-no { border-radius: 3px; color: var(--night); }

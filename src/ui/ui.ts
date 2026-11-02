@@ -20,6 +20,7 @@ import type { DineKit } from './dining';
 import { ShopView, souvenirPages, type ShopHost, type ShopVisit } from './shop';
 import type { Souvenir } from '../data/souvenirs';
 import { autoTier } from '../engine/gpu';
+import { notebook, notebookPages } from './tutorial';
 
 const $ = (id: string) => document.getElementById(id)!;
 const h = (tag: string, cls = '', html = ''): HTMLElement => {
@@ -1169,6 +1170,9 @@ export class UI {
     const game = pages.game!;
     const nb = h('button', 'btn btn-soft', `v${PATCH_NOTES[0].version}`);
     nb.onclick = () => { this.audio.play('click'); this.notes(); };
+    const tb = h('button', 'btn btn-soft', 'Open');
+    tb.onclick = () => { this.audio.play('click'); this.tutorial(); };
+    row(game, G.book, 'Tutorial', 'Everything to do and find', tb);
     row(game, G.sparkle, "What's new", 'Patch notes for every update', nb);
     row(game, G.gauge, 'Performance overlay', 'Frame rate in the corner', sw(st.perf, (v) => { st.perf = v; }));
     const rb = h('button', 'btn btn-soft', 'Reset');
@@ -1184,6 +1188,20 @@ export class UI {
     body.appendChild(h('p', 'set-foot', `Tasty World v${PATCH_NOTES[0].version} · Progress is saved on this device`));
     p.appendChild(body);
     show(this.setTab);
+  }
+
+  /** Last tutorial page read, so reopening the notebook lands on it. */
+  private tutPage = 0;
+
+  /** The tutorial notebook: flippable pages on everything to do and find (ui/tutorial.ts). Closing returns to settings. */
+  tutorial(): void {
+    // the close button and the backdrop go back to settings, once this panel has cleared
+    const back = () => { queueMicrotask(() => { if (!this.open) this.settings(); }); };
+    const p = this.panel('panel tutorial', back);
+    this.head(p, 'Tutorial', '', NEO ? 'Your field notes on Halcyon City.' : 'Your travel notebook. Flip through it.', G.book, back);
+    const pages = notebookPages(NEO);
+    const stop = notebook(p, pages, { play: (n) => this.audio.play(n) }, Math.min(this.tutPage, pages.length - 1), (i) => { this.tutPage = i; });
+    this.closeHook = stop;
   }
 
   notes(): void {

@@ -25,7 +25,7 @@ import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { Dining } from './game/dineout';
 import { CharacterBatch } from './game/charbatch';
-import { IsoCamera } from './game/camera';
+import { IsoCamera, EYE_H } from './game/camera';
 import { Particles, Blobs, Koi, SkylightBeams } from './game/fx';
 import { Birds, type Threat } from './game/birds';
 import { Traffic } from './game/traffic';
@@ -318,6 +318,8 @@ class Game {
   private callT = 6;
   private v2 = new THREE.Vector2();
   private v3 = new THREE.Vector3();
+  /** How much the first-person eye follows the bending waist (1 seated or eating). */
+  private eyeW = 0;
 
   constructor() {
     this.s = loadState();
@@ -3435,7 +3437,10 @@ class Game {
   private updateCamera(dt: number): void {
     const meal = this.meal;
     if (this.cam.fp) {
+      // seated or eating, the eye follows the head as the waist bends, so it never ends up behind it
+      this.eyeW += ((meal || this.dine?.seated ? 1 : 0) - this.eyeW) * (1 - Math.exp(-dt * 6));
       this.cam.target.copy(this.player.position);
+      if (this.eyeW > 0.001) this.cam.target.addScaledVector(this.player.eyeShift(EYE_H, this.v3), this.eyeW);
       this.cam.fpSpeed = this.player.speed;
       if (this.inside !== this.wasInside) this.cam.fpYaw = this.player.facing; // just came through a door
       this.cam.fpBack = meal ? 0.12 : 0;
@@ -3573,14 +3578,14 @@ class Game {
       this.audio.city(dt, out ? this.drones.nearest(this.player.position) : 1e9, h >= 20 || h < 5, out);
     }
     if (this.rain) {
-      this.rain.ground = this.player.position.y;
       // Halcyon's streets are never quite dry: a sheen always, puddles and mirrored neon in a shower, drying slowly after
       const tgt = Math.max(0.3, this.rain.amount), k = tgt > this.wet ? 0.3 : 0.01;
       this.wet += (tgt - this.wet) * Math.min(1, dt * k);
       const cu = this.r.composite.uniforms, out = !this.inside && !this.upstairs && !this.roomHere;
+      // every street, step and roof open to the sky is wet (the composite finds them in the voxel columns), so the
+      // sheen lies on the hills wherever they climb; drop rings dimple it while the rain is falling
       cu.uWet.value = out ? this.wet : 0;
-      // the city climbs its hills: the wet sheen follows the terrace or street the player stands on
-      if (out) cu.uWetY.value = this.player.position.y;
+      cu.uRainFall.value = out ? Math.min(1, this.rain.falling * 1.2) : 0;
     }
     if (this.rain) this.rain.update(dt, this.r.camera, this.cam.target, Rain.weather(this.tod.hour, this.s.life?.day ?? 1), !!(this.inside || this.upstairs || this.roomHere), this.tod.particleLight);
     this.beams.update(sh.uSunDir.value, sh.uSunColor.value, this.inside ? 1 : sh.uNight.value);

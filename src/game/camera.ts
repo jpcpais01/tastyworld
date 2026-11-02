@@ -5,7 +5,7 @@ const PITCH = THREE.MathUtils.degToRad(36);
 /** How far photo mode may tilt the iso camera (radians above the ground). */
 const PHOTO_PITCH: [number, number] = [THREE.MathUtils.degToRad(22), THREE.MathUtils.degToRad(68)];
 /** Eye height above the player's feet in first person (m). */
-const EYE_H = 1.4;
+export const EYE_H = 1.4;
 const MAX_PITCH = 1.3;
 
 /** Auto-walk free look: up to 90 degrees either side of the way you walk... */

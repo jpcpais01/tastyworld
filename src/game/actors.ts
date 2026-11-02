@@ -808,6 +808,18 @@ export class Actor {
     return out.add(vA.set(this.cur[OFF], this.cur[OFF + 1], this.cur[OFF + 2]));
   }
 
+  /**
+   * How far a point `h` metres over the feet has moved as the waist bends (leaning in to eat, settling back on
+   * a seat), in world space: the first-person eye rides along with the head instead of being left behind it.
+   */
+  eyeShift(h: number, out: THREE.Vector3): THREE.Vector3 {
+    out.set(0, h, 0);
+    this.chain(out, PART.body, 0, 8 * CHAR_SCALE);
+    out.y -= h;
+    const c = Math.cos(this.facing), s = Math.sin(this.facing);
+    return out.set(out.x * c + out.z * s, out.y, -out.x * s + out.z * c);
+  }
+
   /** Rotate a point about one part's pivot (pivots of people all sit on the x = pivot x, z = 0 line). */
   private chain(v: THREE.Vector3, part: number, px: number, py: number, yawAdd = 0): void {
     const c = this.cur;

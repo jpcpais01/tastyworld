@@ -585,6 +585,76 @@ kbd { display: inline-block; min-width: 20px; padding: 2px 5px; border-radius: 6
 .set-row .seg button { padding: 7px 11px; font-size: 12.5px; }
 .set-row.wide { flex-wrap: wrap; }
 .set-row.wide > .seg { width: 100%; }
+
+/* Tutorial notebook (Settings > Game > Tutorial): ruled paper on a spiral, pages turn in one grid cell */
+.tutorial.panel { width: min(580px, calc(var(--vw) - 32px)); scrollbar-width: none; }
+.tutorial.panel::-webkit-scrollbar { display: none; }
+.tutorial .panel-head { margin-bottom: 18px; }
+.nb { padding-bottom: 18px; }
+.nb-book { position: relative; margin-top: 4px; padding: 20px 18px 18px 34px; border-radius: var(--r-m); perspective: 1400px; overflow-x: clip; touch-action: pan-y; user-select: none; -webkit-user-select: none;
+  background: var(--card) repeating-linear-gradient(to bottom, transparent 0 25px, var(--line) 25px 26px) 0 14px / 100% calc(100% - 14px) no-repeat;
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-1); }
+.nb-book::before { content: ''; position: absolute; left: 22px; top: 0; bottom: 0; width: 2px; background: var(--tomato); opacity: 0.28; }
+.nb-rings { position: absolute; left: 22px; right: 22px; top: -8px; height: 16px; pointer-events: none;
+  background: radial-gradient(circle, transparent 0 3.5px, var(--ink-3) 3.5px 5px, transparent 5.5px) 0 0 / 24px 16px space no-repeat; }
+.nb-pages { display: grid; }
+.nb-page { grid-area: 1 / 1; display: grid; grid-template-columns: 136px 1fr; gap: 18px; align-items: start; visibility: hidden; opacity: 0; transform-origin: 0 50%; backface-visibility: hidden; }
+.nb-page.on { visibility: visible; opacity: 1; }
+.nb-page.on.fwd { animation: nbInF 0.42s var(--spring) both; }
+.nb-page.on.back { animation: nbInB 0.42s var(--spring) both; }
+.nb-page.out { animation: nbOut 0.3s ease-in both; }
+.nb-page.out.back { transform-origin: 100% 50%; }
+@keyframes nbInF { from { opacity: 0; transform: translateX(26px) rotateY(-14deg); visibility: visible; } to { opacity: 1; transform: none; visibility: visible; } }
+@keyframes nbInB { from { opacity: 0; transform: translateX(-26px) rotateY(14deg); visibility: visible; } to { opacity: 1; transform: none; visibility: visible; } }
+@keyframes nbOut { from { opacity: 1; transform: none; visibility: visible; } to { opacity: 0; transform: rotateY(-70deg); visibility: hidden; } }
+.nb-page.out.back { animation-name: nbOutB; }
+@keyframes nbOutB { from { opacity: 1; transform: none; visibility: visible; } to { opacity: 0; transform: rotateY(70deg); visibility: hidden; } }
+.nb-art { position: relative; height: 136px; }
+.nb-art i { position: absolute; display: grid; place-items: center; border-radius: 50%; }
+.nb-art .a0 { left: 8px; top: 14px; width: 108px; height: 108px; background: var(--sun-soft); color: var(--tomato-deep); box-shadow: inset 0 0 0 2px var(--cream-3), 0 3px 0 var(--cream-3); }
+.nb-art .a0 .g { width: 62px; height: 62px; stroke-width: 1.6; }
+.nb-art .a1, .nb-art .a2 { width: 44px; height: 44px; background: var(--cream); box-shadow: inset 0 0 0 1.5px var(--line-2), var(--shadow-1); }
+.nb-art .a1 { right: 0; top: 0; color: var(--matcha); transform: rotate(8deg); }
+.nb-art .a2 { left: 0; bottom: 0; color: var(--indigo); transform: rotate(-9deg); }
+.nb-art .a1 .g, .nb-art .a2 .g { width: 24px; height: 24px; }
+.nb-text h3 { display: flex; align-items: center; gap: 9px; margin: 2px 0 4px; font-family: var(--display); font-weight: 600; font-size: 20px; line-height: 1.15; color: var(--ink); }
+.nb-no { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--tomato); color: #fff; font-size: 13px; font-family: var(--body); font-weight: 800; }
+.nb-lead { margin: 0 0 10px; font-size: 13.5px; font-weight: 700; line-height: 1.4; color: var(--ink-2); }
+.nb-text ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.nb-text li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; font-weight: 600; line-height: 1.38; color: var(--ink); }
+.nb-text li i { flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-top: -2px; border-radius: 9px; background: var(--cream-2); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line); }
+.nb-text li i .g { width: 16px; height: 16px; }
+.nb kbd { background: var(--cream-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-2), inset 0 -1.5px 0 var(--line-2); }
+.nb-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.nb-nav .btn { width: 44px; height: 40px; padding: 0; justify-content: center; }
+.nb-nav .btn:disabled { opacity: 0.35; pointer-events: none; }
+.nb-nav .flip { display: grid; transform: scaleX(-1); }
+.nb-dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.nb-dots button { width: 8px; height: 8px; padding: 0; border-radius: 9px; background: var(--line-2); transition: width 0.25s var(--spring), background 0.2s; }
+.nb-dots button.on { width: 20px; background: var(--tomato); }
+/* tall phones: the drawing sits above the words */
+@media (max-width: 560px) and (orientation: portrait) {
+  .nb-book { padding: 18px 14px 16px 28px; }
+  .nb-book::before { left: 17px; }
+  .nb-page { grid-template-columns: 1fr; gap: 6px; }
+  .nb-art { height: 104px; width: 168px; margin: 0 auto; }
+  .nb-art .a0 { left: 38px; top: 6px; width: 92px; height: 92px; }
+  .nb-art .a0 .g { width: 52px; height: 52px; }
+}
+/* short landscape phones: a smaller drawing keeps the page inside the screen */
+@media (orientation: landscape) and (max-height: 520px) {
+  .tutorial .panel-head { margin-bottom: 12px; }
+  .nb-book { padding-top: 16px; padding-bottom: 14px; }
+  .nb-page { grid-template-columns: 112px 1fr; gap: 14px; }
+  .nb-art { height: 112px; }
+  .nb-art .a0 { left: 6px; top: 12px; width: 88px; height: 88px; }
+  .nb-art .a0 .g { width: 50px; height: 50px; }
+  .nb-art .a1, .nb-art .a2 { width: 38px; height: 38px; }
+  .nb-lead { margin-bottom: 7px; }
+  .nb-text ul { gap: 5px; }
+  .nb-nav { margin-top: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .nb-page.on.fwd, .nb-page.on.back, .nb-page.out { animation-duration: 0.01s; } }
 .set-row.wide > .seg button { flex: 1; justify-content: center; }
 .set-row .btn { flex: none; }
 .set-slide { display: flex; align-items: center; gap: 8px; flex: none; width: min(256px, calc(var(--vw) * 0.5)); }

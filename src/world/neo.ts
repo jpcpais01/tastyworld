@@ -7,7 +7,7 @@
 import { SparseGrid, rng, hash3 } from './grid';
 import type { Lamp } from './lighting';
 import { G, V, VX0, VZ0, SX, SZ, ISX, ISY, ISZ, INTERIOR_ORIGIN } from './layout';
-import { Builder, Lot, building, stall, WARM, COOL, WHITEWARM, RED, type BuildResult, type Window, type Anchors, type StallAnchor, type PlacedProp, type BuildingOpts, type Ground, type Style, type Side } from './tokyo';
+import { Builder, Lot, building, stall, WARM, COOL, WHITEWARM, RED, type BuildResult, type Window, type Anchors, type StallAnchor, type PlacedProp, type BuildingOpts, type Ground, type Style } from './tokyo';
 import { neonDress, tree } from './city';
 import { dressBlock } from './facades';
 import { shopFloor } from './interiors';
@@ -16,7 +16,8 @@ import { buildFood } from './food';
 import { hiddenKitchenDress } from './dining';
 import { HOTEL } from '../data/hotels';
 import type { HotelInfo } from '../data/hotels';
-import { neoPlan, K, isPath, col, layerOf, inMap, canalX, CANAL_HALF, BAY_X, PLAZA_R, PODIUM, SKYBRIDGE, SPIRE_Y, onSpire, type District, type LotPlan, type Plan, type PathSeg } from './neoPlan';
+import { tower, megablock, roofClutter, holoScreen, arcology, aquarium, megamall, bladeSign, NEON_RGB, type Box, type Foot } from './neoArch';
+import { neoPlan, districtAt, K, isPath, col, layerOf, inMap, canalX, CANAL_HALF, BAY_X, PLAZA_R, PODIUM, SKYBRIDGE, SPIRE_Y, onSpire, type District, type LotPlan, type Plan, type PathSeg } from './neoPlan';
 
 export { PLAZA_R };
 const M = (m: number) => Math.round(m / V); // metres -> voxels
@@ -54,10 +55,23 @@ function neoColors(b: Builder) {
     litWarm: a(0xffd49a, 0.06, { emit: 0.7, night: true, glass: true }), litCool: a(0xb8e0ff, 0.06, { emit: 0.7, night: true, glass: true }),
     sodiumWin: a(0xffa850, 0.06, { emit: 0.65, night: true, glass: true }), acGrey: a(0x9a9c9e, 0.05), tankRust: a(0x7a5038, 0.1),
     laundryA: a(0xd8d2c4, 0.06), laundryB: a(0xb04050, 0.06), laundryC: a(0x4a7ab0, 0.06),
+    // what is behind the windows at night: rooms dimming from their ceiling lights, office floors, blinds, curtains, screens
+    dimWarm: a(0x9a7650, 0.08, { emit: 0.36, night: true, glass: true }), dimCool: a(0x5a7896, 0.08, { emit: 0.34, night: true, glass: true }),
+    office: a(0xe4eeff, 0.04, { emit: 0.62, night: true, glass: true }), officeDim: a(0x8a9ab8, 0.06, { emit: 0.42, night: true, glass: true }),
+    tvBlue: a(0x4a66ff, 0.1, { emit: 0.6, night: true, glass: true }), pinkLit: a(0xff9ad0, 0.06, { emit: 0.62, night: true, glass: true }),
+    blind: a(0x6e6656, 0.05, { emit: 0.22, night: true }),
+    curtain: [a(0x8a3a34, 0.06, { emit: 0.3, night: true }), a(0x2f6a66, 0.06, { emit: 0.28, night: true }), a(0x9a7a3a, 0.06, { emit: 0.3, night: true }), a(0x5a3a7a, 0.06, { emit: 0.3, night: true })],
+    grime: a(0x34353a, 0.08), pvc: a(0x8c8f88, 0.04),
+    // the aquarium: water lit from above, sand, reef, kelp, fish, jellies, a whale shark
+    water: [a(0x0a2e58, 0.05, { emit: 0.42 }), a(0x0e4a7e, 0.05, { emit: 0.48 }), a(0x16689c, 0.05, { emit: 0.55 }), a(0x2488b8, 0.05, { emit: 0.6 })],
+    caustic: a(0x8ae4f4, 0.04, { emit: 0.85 }), sand: a(0x9a9070, 0.08, { emit: 0.3 }),
+    coral: a(0xff5a6a, 0.08, { emit: 0.55 }), coralB: a(0xff9a3a, 0.08, { emit: 0.55 }), kelp: a(0x2a7a4a, 0.08, { emit: 0.35 }), kelpB: a(0x4a9a3a, 0.08, { emit: 0.4 }),
+    fishO: a(0xff8a2a, 0.06, { emit: 0.7 }), fishY: a(0xffd84a, 0.06, { emit: 0.7 }), fishS: a(0xc8e0f0, 0.06, { emit: 0.7 }), fishB: a(0x3a8aff, 0.06, { emit: 0.7 }),
+    jelly: a(0xff8ae0, 0.04, { emit: 0.95 }), jellyB: a(0xc06ad8, 0.04, { emit: 0.8 }),
+    shark: a(0x1a2c44, 0.04, { emit: 0.25 }), sharkTop: a(0x24384f, 0.04, { emit: 0.25 }), spot: a(0xe0f0ff, 0.03, { emit: 0.75 }),
   };
 }
-type NC = ReturnType<typeof neoColors>;
-const NEON_RGB: [number, number, number][] = [[1, 0.35, 0.7], [0.3, 0.9, 1], [0.65, 0.45, 1], [1, 0.85, 0.35], [0.45, 1, 0.65], [1, 0.55, 0.3]];
+export type NC = ReturnType<typeof neoColors>;
 
 
 
@@ -259,6 +273,11 @@ function cyberDress(lot: Lot, n: NC, H: number, floors: number, seed: number, d:
       b.lamp(sx, ((y0 + y1) / 2) * V, sz, [0.6, 0.6, 1], 7, 0.55);
     }
   }
+  // a blade sign out over the pavement from the first floors, Hong Kong style
+  if (floors >= 3 && d !== 'docks' && hash3(seed, 5, 11) < (d === 'spire' ? 0.3 : 0.75)) {
+    const ya = G + 15, yb = Math.min(G + H - 3, ya + 12 + Math.floor(hash3(seed, 6, 11) * 18));
+    bladeSign(b, n, [lot.x0, lot.z0, lot.x1, lot.z1], ya, yb, lot.side, seed + 9, 5 + Math.floor(hash3(seed, 7, 11) * 3));
+  }
   if (d === 'lantern' && r() < 0.5) {
     const ci = Math.floor(r() * 6);
     lot.wallProp(hangingSign(k, [k.c.signRed, k.c.signBlack, k.c.signBlue][ci % 3], [k.c.neonPink, k.c.neonCyan, k.c.neonYellow, k.c.neonGreen, k.c.neonRed, k.c.neonWhite][ci], seed), r() < 0.5 ? 1.2 : w - 1.2, 3.6, 0.4);
@@ -383,212 +402,6 @@ function warehouse(lot: Lot, n: NC, seed: number) {
 // ---------------------------------------------------------------------------------------------
 // Halcyon's own buildings: glass towers, concrete megablocks, the rooftops' clutter
 
-type Box = [number, number, number, number]; // inclusive voxel rect x0, z0, x1, z1
-
-interface TowerLook { glass: number; dark: number; lit: number; fin: number; band: number; neon: number; litFrac: number; bay: number; floor: number }
-
-/** The register a tower is cut from: its glass, the fins between the bays, the spandrel bands, its light. */
-function towerLook(n: NC, r: () => number, d: District): TowerLook {
-  const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
-  const corp = d === 'spire' || d === 'halo';
-  return {
-    glass: pick(corp ? [n.blackGlass, n.blueGlass, n.tealGlass, n.blackGlass, n.bronzeGlass] : [n.blackGlass, n.blueGlass, n.greyGlass]),
-    dark: n.blackGlass,
-    lit: pick([n.litGlass, n.litGlass, n.litWarm, n.litCool]),
-    fin: pick(corp ? [n.steelDark, n.chrome, n.steel, n.navy] : [n.concreteDark, n.concrete, n.steelDark, n.soot]),
-    band: pick(corp ? [n.steelDark, n.navy, n.concreteDark, n.soot] : [n.concrete, n.concreteDark, n.tileGrey, n.soot]),
-    neon: n.neon[Math.floor(r() * n.neon.length)],
-    litFrac: 0.18 + r() * 0.3,
-    bay: pick([4, 5, 6, 8]),
-    floor: 14,
-  };
-}
-
-/**
- * A tower: a shaft of curtain wall from layer y0 up to y1, stepping in at one or two setbacks, its floors banded,
- * bays split by fins, a scatter of lit windows, light up its corners, a crown and a mast with a beacon on top.
- */
-function tower(b: Builder, n: NC, box: Box, y0: number, y1: number, seed: number, d: District, o: { screen?: Side; crown?: boolean; ribs?: boolean } = {}) {
-  const g = b.grid, r = rng(seed);
-  const L = towerLook(n, r, d);
-  let [x0, z0, x1, z1] = box;
-  const tiers = y1 - y0 > 220 ? 3 : y1 - y0 > 120 ? 2 : 1;
-  let y = y0;
-  const ribs = o.ribs ?? r() < 0.4;
-  const top = y1;
-  for (let t = 0; t < tiers; t++) {
-    const yt = t === tiers - 1 ? top : y + Math.round(((top - y0) * (0.45 + r() * 0.2)) / tiers) + (t === 0 ? 20 : 0);
-    if (x1 - x0 < 8 || z1 - z0 < 8) break;
-    // the inside of the shaft is never seen: one cheap fill
-    g.box(x0 + 1, y, z0 + 1, x1 - 1, yt - 1, z1 - 1, n.soot);
-    const face = (u: number, yy: number, fid: number, len: number) => {
-      const fl = Math.floor((yy - y0) / L.floor), fy = (yy - y0) % L.floor;
-      if (u === 0 || u === len) return ribs && (fl + fid) % 3 === 0 ? L.neon : L.fin; // the corners, lit on a ribbed tower
-      if (fy < 2) return L.band;
-      if (u % L.bay === 0) return L.fin;
-      const bay = Math.floor(u / L.bay);
-      return hash3(fl * 7 + fid, bay, seed) < L.litFrac ? L.lit : (fl + bay) % 5 === 0 ? L.dark : L.glass;
-    };
-    for (let yy = y; yy < yt; yy++) {
-      for (let x = x0; x <= x1; x++) { g.set(x, yy, z0, face(x - x0, yy, 0, x1 - x0)); g.set(x, yy, z1, face(x1 - x, yy, 2, x1 - x0)); }
-      for (let z = z0 + 1; z < z1; z++) { g.set(x0, yy, z, face(z1 - z, yy, 3, z1 - z0)); g.set(x1, yy, z, face(z - z0, yy, 1, z1 - z0)); }
-    }
-    // the setback's terrace: a lit parapet round the roof of the tier below
-    g.box(x0, yt, z0, x1, yt, z1, n.steelDark);
-    if (t < tiers - 1) {
-      g.box(x0, yt + 1, z0, x1, yt + 1, z0, L.neon); g.box(x0, yt + 1, z1, x1, yt + 1, z1, L.neon);
-      g.box(x0, yt + 1, z0, x0, yt + 1, z1, L.neon); g.box(x1, yt + 1, z0, x1, yt + 1, z1, L.neon);
-      const s = 3 + Math.floor(r() * 5);
-      x0 += s; z0 += s; x1 -= s; z1 -= s;
-      if (r() < 0.5) { x0 += Math.floor(r() * 6); } else { z1 -= Math.floor(r() * 6); }
-    }
-    y = yt + 1;
-  }
-  // the crown: plant boxes, a lit band, a mast and the red light for the sky lanes
-  const cx = (x0 + x1) >> 1, cz = (z0 + z1) >> 1;
-  if (o.crown ?? true) {
-    g.box(x0 + 2, y, z0 + 2, x1 - 2, y + 5, z1 - 2, n.steelDark);
-    g.box(x0 + 2, y + 3, z0 + 2, x1 - 2, y + 3, z1 - 2, L.neon);
-    const mh = 16 + Math.floor(r() * 30);
-    g.box(cx, y + 6, cz, cx, Math.min(g.sy - 2, y + 6 + mh), cz, n.steel);
-    g.set(cx, Math.min(g.sy - 1, y + 7 + mh), cz, n.beacon);
-    b.lamp(cx * V, Y(Math.min(g.sy - 1, y + 7 + mh)), cz * V, [1, 0.2, 0.2], 6, 0.6);
-  }
-  // a screen the height of several floors on one face
-  if (o.screen) holoScreen(b, n, box, o.screen, y0 + 20 + Math.floor(r() * 20), Math.min(top - 8, y0 + 70 + Math.floor(r() * 40)), seed);
-  b.occlude(box[0], box[1], box[2], box[3], Y(top) + 6, Y(y0) + 0.95, 'building');
-  b.occluders[b.occluders.length - 1].floor = Y(y0);
-}
-
-/** A great holo screen hung on a building's face, banded in slow colour, framed in black; it lights the street. */
-function holoScreen(b: Builder, n: NC, box: Box, side: Side, y0: number, y1: number, seed: number) {
-  if (y1 - y0 < 10) return;
-  const g = b.grid, r = rng(seed * 3 + 1);
-  const [x0, z0, x1, z1] = box;
-  const ns = side === 'n' || side === 's';
-  const len = ns ? x1 - x0 : z1 - z0;
-  const w = Math.min(len - 4, 18 + Math.floor(r() * 18));
-  if (w < 8) return;
-  const a0 = (ns ? x0 : z0) + Math.floor((len - w) / 2), a1 = a0 + w;
-  const e = side === 's' ? z1 + 1 : side === 'n' ? z0 - 1 : side === 'e' ? x1 + 1 : x0 - 1;
-  const ph = r() * 9, sc = n.screen, motif = Math.floor(r() * 3);
-  for (let a = a0; a <= a1; a++)
-    for (let y = y0; y <= y1; y++) {
-      let v: number;
-      if (a === a0 || a === a1 || y === y0 || y === y1) v = n.screenDark;
-      else if (motif === 0) { const t = Math.sin((a + ph) * 0.35 + y * 0.12) + Math.cos(y * 0.3 - ph); v = t > 1 ? sc[3] : t > 0 ? sc[seed & 1 ? 0 : 2] : sc[1]; }
-      else if (motif === 1) { const cy = (y0 + y1) / 2, ca = (a0 + a1) / 2; const rr = Math.hypot((a - ca) * 1.2, y - cy); v = rr < (y1 - y0) * 0.28 ? sc[3] : pm(Math.floor(rr), 4) < 2 ? sc[1] : sc[0]; }
-      else v = pm(Math.floor((y - y0) / 3) + Math.floor((a - a0) / 5), 3) === 0 ? sc[2] : (y - y0) % 3 === 0 ? n.screenDark : sc[seed % 4];
-      if (ns) g.set(a, y, e, v); else g.set(e, y, a, v);
-    }
-  const mid = (a0 + a1) / 2, ym = Y((y0 + y1) / 2);
-  const out = side === 's' ? 1 : side === 'n' ? -1 : side === 'e' ? 1 : -1;
-  if (ns) b.lamp(mid * V, ym, (e + out * 8) * V, [0.6, 0.55, 1], 14, 0.8); else b.lamp((e + out * 8) * V, ym, mid * V, [0.6, 0.55, 1], 14, 0.8);
-}
-
-/**
- * A concrete megablock: a slab of flats from layer y0 to y1, every floor a row of windows (some lit, some dark,
- * some boarded), balcony cages and AC units stuck all over it, laundry, a stair core up one end lit in sodium.
- */
-function megablock(b: Builder, n: NC, box: Box, y0: number, y1: number, seed: number, front: Side) {
-  const g = b.grid, r = rng(seed);
-  const [x0, z0, x1, z1] = box;
-  const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
-  const wall = pick([n.concrete, n.concreteDark, n.tileGrey, n.tileTeal, n.plum, n.soot, n.rustRed, n.navy]);
-  const trim = pick([n.concreteDark, n.soot, n.steelDark]);
-  g.box(x0 + 1, y0, z0 + 1, x1 - 1, y1 - 1, z1 - 1, n.soot);
-  const FH = 11, lit = pick([n.litWarm, n.litGlass, n.litCool]);
-  const face = (u: number, yy: number, fid: number, len: number) => {
-    const fl = Math.floor((yy - y0) / FH), fy = (yy - y0) % FH;
-    if (u <= 1 || u >= len - 1) return trim;
-    if (fy === 0) return trim;
-    const bay = Math.floor((u - 2) / 6), bu = (u - 2) % 6;
-    if (fy >= 3 && fy <= 8 && bu >= 1 && bu <= 4) {
-      const hv = hash3(fl * 13 + fid, bay, seed);
-      return hv < 0.3 ? lit : hv < 0.36 ? n.screen[Math.floor(hv * 100) % 4] : hv < 0.42 ? n.corrugated : n.blackGlass;
-    }
-    return hash3(u, yy, fid + seed) < 0.06 ? n.soot : wall;
-  };
-  for (let yy = y0; yy < y1; yy++) {
-    for (let x = x0; x <= x1; x++) { g.set(x, yy, z0, face(x - x0, yy, 0, x1 - x0)); g.set(x, yy, z1, face(x1 - x, yy, 2, x1 - x0)); }
-    for (let z = z0 + 1; z < z1; z++) { g.set(x0, yy, z, face(z1 - z, yy, 3, z1 - z0)); g.set(x1, yy, z, face(z - z0, yy, 1, z1 - z0)); }
-  }
-  // balcony cages and AC boxes stuck to the faces: a few per floor, more on the street front
-  const stick = (side: Side, a: number, yy: number, v: number, depth = 1) => {
-    for (let k = 1; k <= depth; k++) {
-      if (side === 's') g.set(a, yy, z1 + k, v); else if (side === 'n') g.set(a, yy, z0 - k, v);
-      else if (side === 'e') g.set(x1 + k, yy, a, v); else g.set(x0 - k, yy, a, v);
-    }
-  };
-  for (const side of ['s', 'n', 'e', 'w'] as Side[]) {
-    const ns = side === 's' || side === 'n', a0 = ns ? x0 : z0, a1 = ns ? x1 : z1;
-    const busy = side === front ? 0.5 : 0.22;
-    for (let fl = 1; (fl + 1) * FH + y0 < y1; fl++)
-      for (let a = a0 + 3; a + 5 < a1; a += 6) {
-        const hv = hash3(a, fl, seed + side.charCodeAt(0));
-        const yy = y0 + fl * FH;
-        if (hv < busy * 0.45) {
-          // a balcony cage: a floor slab, bars and a lit window behind
-          for (let u = a; u < a + 5; u++) { stick(side, u, yy, n.steelDark, 3); stick(side, u, yy + 6, n.steelDark, 3); }
-          for (const u of [a, a + 2, a + 4]) for (let q = 1; q < 6; q++) { if (side === 's') g.set(u, yy + q, z1 + 3, n.steel); else if (side === 'n') g.set(u, yy + q, z0 - 3, n.steel); else if (side === 'e') g.set(x1 + 3, yy + q, u, n.steel); else g.set(x0 - 3, yy + q, u, n.steel); }
-          if (hv < busy * 0.15) for (let u = a + 1; u < a + 4; u++) stick(side, u, yy + 1 + Math.floor(hash3(u, fl, 3) * 2), pick([n.laundryA, n.laundryB, n.laundryC]), 2);
-        } else if (hv < busy) {
-          // an AC box under the window
-          for (let u = a + 1; u < a + 4; u++) for (let q = 1; q <= 2; q++) stick(side, u, yy + q, n.acGrey, 2);
-        } else if (hv > 0.97) {
-          // a neon sign in a window
-          stick(side, a + 1, yy + 4, n.neon[Math.floor(hv * 600) % 6]); stick(side, a + 2, yy + 4, n.neon[Math.floor(hv * 600) % 6]);
-        }
-      }
-  }
-  // the stair core: a lit slot up the full height of one end
-  const sx = r() < 0.5 ? x0 : x1;
-  for (let yy = y0 + 2; yy < y1 - 2; yy++) if ((yy - y0) % FH > 1) for (let z = ((z0 + z1) >> 1) - 1; z <= ((z0 + z1) >> 1) + 1; z++) g.set(sx, yy, z, (yy & 3) === 0 ? n.steelDark : n.sodiumWin);
-  b.lamp(sx * V, Y((y0 + y1) >> 1), ((z0 + z1) >> 1) * V, [1, 0.7, 0.4], 8, 0.5);
-  b.occlude(x0, z0, x1, z1, Y(y1) + 4, Y(y0) + 0.95, 'building');
-  b.occluders[b.occluders.length - 1].floor = Y(y0);
-}
-
-/** The roof of a mass at layer y: parapet, water tanks, fans, dishes, an antenna farm, a rooftop sign. */
-function roofClutter(b: Builder, n: NC, box: Box, y: number, seed: number, d: District) {
-  const g = b.grid, r = rng(seed * 5 + 9);
-  const [x0, z0, x1, z1] = box;
-  if (x1 - x0 < 8 || z1 - z0 < 8) return;
-  g.box(x0, y, z0, x1, y, z0, n.parapet); g.box(x0, y, z1, x1, y, z1, n.parapet);
-  g.box(x0, y, z0, x0, y, z1, n.parapet); g.box(x1, y, z0, x1, y, z1, n.parapet);
-  const spot = () => [x0 + 2 + Math.floor(r() * Math.max(1, x1 - x0 - 10)), z0 + 2 + Math.floor(r() * Math.max(1, z1 - z0 - 10))];
-  // a water tank on legs
-  if (r() < 0.7) {
-    const [a, c] = spot();
-    for (const [dx, dz] of [[0, 0], [5, 0], [0, 5], [5, 5]]) g.box(a + dx, y, c + dz, a + dx, y + 3, c + dz, n.steelDark);
-    g.box(a, y + 4, c, a + 5, y + 10, c + 5, (xx, yy, zz) => ((xx === a || xx === a + 5) && (zz === c || zz === c + 5) ? 0 : yy % 3 === 0 ? n.rustBrown : n.tankRust));
-  }
-  // fan boxes and ducts
-  for (let i = 0; i < 2 + Math.floor(r() * 3); i++) {
-    const [a, c] = spot();
-    g.box(a, y, c, a + 3, y + 2, c + 3, n.acGrey);
-    g.set(a + 1, y + 3, c + 1, n.steelDark); g.set(a + 2, y + 3, c + 2, n.steelDark);
-  }
-  // an antenna farm and a dish
-  if (r() < 0.6) {
-    const [a, c] = spot();
-    for (let i = 0; i < 3; i++) g.box(a + i * 2, y, c + (i & 1), a + i * 2, y + 8 + Math.floor(r() * 14), c + (i & 1), n.steel);
-    if (r() < 0.5) g.box(a + 6, y + 1, c, a + 8, y + 3, c, n.chrome);
-  }
-  // a rooftop sign in big neon glyphs, facing the street below
-  if ((d === 'neonmile' || d === 'lantern' || d === 'halo') && r() < 0.45) {
-    const col = n.neon[Math.floor(r() * 6)], gr = rng(seed);
-    const cnt = Math.min(5, Math.floor((x1 - x0 - 4) / 7));
-    for (let i = 0; i < cnt; i++) {
-      const gl = glyph(gr, 5);
-      for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < 5; xx++) if (gl[4 - yy][xx]) g.set(x0 + 3 + i * 7 + xx, y + 4 + yy * 2, z1 - 2, col), g.set(x0 + 3 + i * 7 + xx, y + 5 + yy * 2, z1 - 2, col);
-      g.box(x0 + 3 + i * 7 + 2, y, z1 - 2, x0 + 3 + i * 7 + 2, y + 3, z1 - 2, n.steelDark);
-    }
-    b.lamp((x0 + x1) * 0.5 * V, Y(y + 8), (z1 + 2) * V, NEON_RGB[Math.floor(r() * 6)], 9, 0.6);
-  }
-}
-
-
 // ---------------------------------------------------------------------------------------------
 // Lots: who lives where, and what each lot becomes
 
@@ -662,7 +475,73 @@ function group(b: Builder, from: number, id: number) {
   for (let i = from; i < b.occluders.length; i++) b.occluders[i].group = id;
 }
 
-function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls: StallAnchor[]; hidden: LotPlan | null } {
+/** A patch of building ground bounded by streets (worked out from the plan alone, so every worker agrees). */
+interface Blk { id: number; x0: number; z0: number; x1: number; z1: number; area: number; lots: Set<number>; lo: number; hi: number }
+
+/**
+ * The showpieces and where they stand: the aquarium on the Halo's south side, the arcology over a block of the
+ * ridge, the megamall groundscrapers over the biggest flat blocks of the Neon Mile and the Halo.
+ */
+interface Special { aqua: number; arco: Blk | null; arcoBase: number; malls: Blk[]; label: Int32Array }
+
+function specials(p: Plan, uses: Map<number, Use>): Special {
+  const N = SX * SZ, label = new Int32Array(N).fill(-1);
+  const solid = (k: number) => k === K.Lot || k === K.Ground || k === K.Yard;
+  const blocks: Blk[] = [];
+  const stack: number[] = [];
+  for (let c0 = 0; c0 < N; c0++) {
+    if (label[c0] >= 0 || !solid(p.kind[c0])) continue;
+    const blk: Blk = { id: blocks.length, x0: 1e9, z0: 1e9, x1: -1e9, z1: -1e9, area: 0, lots: new Set(), lo: 255, hi: 0 };
+    label[c0] = blk.id; stack.push(c0);
+    while (stack.length) {
+      const c = stack.pop()!;
+      const x = (c % SX) + VX0, z = Math.floor(c / SX) + VZ0;
+      blk.area++;
+      blk.x0 = Math.min(blk.x0, x); blk.x1 = Math.max(blk.x1, x); blk.z0 = Math.min(blk.z0, z); blk.z1 = Math.max(blk.z1, z);
+      if (p.lot[c]) blk.lots.add(p.lot[c]);
+      blk.lo = Math.min(blk.lo, p.walk[c]); blk.hi = Math.max(blk.hi, p.walk[c]);
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const xx = x + dx, zz = z + dz;
+        if (!inMap(xx, zz)) continue;
+        const cc = col(xx, zz);
+        if (label[cc] < 0 && solid(p.kind[cc])) { label[cc] = blk.id; stack.push(cc); }
+      }
+    }
+    blocks.push(blk);
+  }
+  // the aquarium faces the south avenue at the mouth of the square, where the camera looks in from
+  const aquaLot = p.lots.filter((l) => l.d === 'halo' && l.use === 'front' && !uses.has(l.id) && (l.z0 + l.z1) * V / 2 > 18)
+    .sort((a, c) => Math.hypot(a.x0 + a.x1, a.z0 + a.z1) - Math.hypot(c.x0 + c.x1, c.z0 + c.z1) || a.id - c.id)[0];
+  const aqua = aquaLot?.id ?? -1;
+  const ok = (bk: Blk, d: District) => {
+    if (bk.lots.size < 3 || bk.area < 5000 || bk.hi - bk.lo > 10) return false;
+    if (districtAt(((bk.x0 + bk.x1) / 2) * V, ((bk.z0 + bk.z1) / 2) * V) !== d) return false;
+    for (const id of bk.lots) { const l = p.lots[id - 1]; if (id === aqua || l.use === 'podium' || l.d !== d || uses.get(id)?.helix) return false; }
+    return true;
+  };
+  const best = (d: District, n: number) => blocks.filter((bk) => ok(bk, d)).sort((a, c) => c.area - a.area || a.id - c.id).slice(0, n);
+  // the arcology rises over the Halo's north-east block, right over the crossing
+  const arco = best('halo', 1)[0] ?? null;
+  return { aqua, arco, arcoBase: arco ? arco.hi + 64 : 0, malls: [...best('neonmile', 2), ...best('spire', 1)], label };
+}
+
+/**
+ * Lay the megamalls over the roofs of their blocks' shop fronts, three floors of stores right across each block,
+ * its towers rising on through; and raise the arcology over its block of the ridge.
+ */
+function groundscrapers(b: Builder, n: NC, p: Plan, roofs: Map<number, number>, sp: Special) {
+  const top = (bk: Blk) => {
+    let t = 0;
+    for (const id of bk.lots) { const l = p.lots[id - 1]; if (l.use === 'front') t = Math.max(t, roofs.get(id) ?? l.base + 40); }
+    return t;
+  };
+  const foot = (bk: Blk): Foot => (x, z) => inMap(x, z) && sp.label[col(x, z)] === bk.id;
+  for (const bk of sp.malls) megamall(b, n, [bk.x0, bk.z0, bk.x1, bk.z1], foot(bk), Math.max(top(bk) + 3, bk.hi + 64), 3, 9100 + bk.id);
+  if (sp.arco) arcology(b, n, [sp.arco.x0, sp.arco.z0, sp.arco.x1, sp.arco.z1], foot(sp.arco), Math.max(sp.arcoBase, top(sp.arco) + 3), b.grid.sy - 60, 2040 + sp.arco.id);
+}
+
+function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>, sp: Special): { stalls: StallAnchor[]; hidden: LotPlan | null; roofs: Map<number, number> } {
+  const roofs = new Map<number, number>();
   const k = b.k, awn = AWN(b);
   const stalls: StallAnchor[] = [];
   let hidden: LotPlan | null = null;
@@ -677,7 +556,9 @@ function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls
     const occ0 = b.occluders.length;
     if (l.use === 'podium') { podium(b, n, p, l); continue; }
     if (l.use === 'back') {
-      backLot(b, n, l, box, bury, edge);
+      // under the arcology the back lots are plain mass up to its floor
+      if (sp.arco?.lots.has(l.id)) megablock(b, n, box, l.base, sp.arcoBase, l.seed, 's', l.d);
+      else backLot(b, n, l, box, bury, edge);
       group(b, occ0, 20000 + l.id);
       continue;
     }
@@ -689,7 +570,11 @@ function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls
     const lamps = (a: number[]) => (old ? pick(a) : undefined);
     const wall = wallFor(n, l.d, r);
     let H = 0; // the height (voxels) of what the Tokyo builder put up, from the lot's floor
-    if (u?.stall) {
+    if (l.id === sp.aqua) {
+      // the aquarium's tank stands on the square where a shop front would
+      H = 84;
+      aquarium(b, n, box, l.base, l.base + H, l.side, seed);
+    } else if (u?.stall) {
       const sl = STALL_LOOK[u.stall];
       const sa = b.lifted(dy, box, () => stall(lot, { id: u.stall!, foods: sl.foods as never, awning: pick(awn), noren: pick([k.c.norenRed, k.c.navy, k.c.norenBrown, k.c.indigo]), lantern: pick([k.c.lanternRed, k.c.lanternWhite, k.c.lanternAmber]), equip: sl.equip }, 3, seed, wall));
       sa.label[1] += Y(l.base);
@@ -726,12 +611,13 @@ function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls
     // the Mile's taller hotels and the market's odd Kowloon stack
     const roof = l.base + H;
     const inset: Box = [l.x0 + 1, l.z0 + 1, l.x1 - 1, l.z1 - 1];
-    if (u?.helix || u?.stall) { /* their own crowns */ }
+    roofs.set(l.id, roof);
+    if (u?.helix || u?.stall || sp.arco?.lots.has(l.id)) { /* their own crowns, or the arcology over them */ }
     else if ((l.d === 'halo' || l.d === 'spire') && widthOf(l) >= 36 && depthOf(l) >= 36) {
       tower(b, n, inset, roof + 1, Math.min(b.grid.sy - 60, roof + Math.round((l.d === 'halo' ? 200 + r() * 160 : 160 + r() * 200) * edge)), seed, l.d, { screen: l.side });
     } else if (l.d === 'stacks' && !u?.hotel) {
       const top = Math.max(roof + 24, l.base + Math.round((90 + r() * 90) * edge), l.base + bury);
-      megablock(b, n, inset, roof + 1, top, seed, l.side);
+      megablock(b, n, inset, roof + 1, top, seed, l.side, l.d);
       roofClutter(b, n, inset, top, seed, l.d);
     } else if (l.d === 'neonmile' && widthOf(l) >= 28 && depthOf(l) >= 32 && r() < 0.65) {
       // the Mile's hotels and arcades rise into lit towers over the bars
@@ -739,17 +625,17 @@ function buildLots(b: Builder, n: NC, p: Plan, uses: Map<number, Use>): { stalls
       tower(b, n, inset, roof + 1, top, seed, l.d, { screen: l.side, ribs: true });
     } else if (l.d === 'lantern' && r() < 0.3 && widthOf(l) >= 24) {
       const top = roof + 40 + Math.floor(r() * 60);
-      megablock(b, n, inset, roof + 1, top, seed, l.side);
+      megablock(b, n, inset, roof + 1, top, seed, l.side, l.d);
       roofClutter(b, n, inset, top, seed, l.d);
     } else if (roof < l.base + bury) {
       // a lot cut deep into the slope: its back rises with the hill as a plain block over the shop front
       const back: Box = l.side === 's' ? [l.x0, l.z0, l.x1, l.z1 - 12] : l.side === 'n' ? [l.x0, l.z0 + 12, l.x1, l.z1] : l.side === 'e' ? [l.x0, l.z0, l.x1 - 12, l.z1] : [l.x0 + 12, l.z0, l.x1, l.z1];
-      megablock(b, n, back, roof + 1, l.base + bury + 12, seed, l.side);
+      megablock(b, n, back, roof + 1, l.base + bury + 12, seed, l.side, l.d);
       roofClutter(b, n, back, l.base + bury + 12, seed, l.d);
     }
     group(b, occ0, 20000 + l.id);
   }
-  return { stalls, hidden };
+  return { stalls, hidden, roofs };
 }
 
 /** A lot behind the street fronts: no door, just mass, by district. */
@@ -761,13 +647,13 @@ function backLot(b: Builder, n: NC, l: LotPlan, box: Box, bury: number, edge: nu
     case 'spire':
     case 'halo': {
       if (w >= 40 && dd >= 40) { tower(b, n, box, y0, Math.min(b.grid.sy - 60, y0 + Math.max(bury, Math.round((140 + r() * 260) * edge))), l.seed, l.d); return; }
-      megablock(b, n, box, y0, y0 + Math.max(bury, 60 + Math.floor(r() * 60)), l.seed, 's');
+      megablock(b, n, box, y0, y0 + Math.max(bury, 60 + Math.floor(r() * 60)), l.seed, 's', l.d);
       roofClutter(b, n, box, y0 + Math.max(bury, 60), l.seed, l.d);
       return;
     }
     case 'stacks': {
       const top = y0 + Math.max(bury, Math.round((90 + r() * 110) * edge));
-      megablock(b, n, box, y0, top, l.seed, 's');
+      megablock(b, n, box, y0, top, l.seed, 's', l.d);
       roofClutter(b, n, box, top, l.seed, l.d);
       return;
     }
@@ -780,7 +666,7 @@ function backLot(b: Builder, n: NC, l: LotPlan, box: Box, bury: number, edge: nu
     default: {
       const top = y0 + Math.max(bury, Math.round((l.d === 'neonmile' ? 50 + r() * 90 : 36 + r() * 70) * edge));
       if (l.d === 'neonmile' && w >= 36 && dd >= 36 && r() < 0.7) { tower(b, n, box, y0, Math.min(b.grid.sy - 60, top + 140 + Math.floor(r() * 120)), l.seed, l.d, { ribs: true }); return; }
-      megablock(b, n, box, y0, top, l.seed, 's');
+      megablock(b, n, box, y0, top, l.seed, 's', l.d);
       roofClutter(b, n, box, top, l.seed, l.d);
     }
   }
@@ -894,6 +780,72 @@ function holoPole(b: Builder, n: NC, seed: number): Prop {
   return p;
 }
 
+/** A street kiosk of moving adverts: a slim double-sided screen on a steel plinth, a neon cap. */
+function adKiosk(n: NC, seed: number): Prop {
+  const p = new Prop(8, 26, 4);
+  p.box(0, 0, 0, 7, 1, 3, n.steelDark);
+  p.box(0, 2, 0, 7, 23, 3, (x, y) => (x === 0 || x === 7 || y === 2 || y === 23 ? n.steelDark : Math.sin(x * 0.7 + seed) + Math.cos(y * 0.35 + seed) > 0.4 ? n.screen[3] : n.screen[(seed + (y >> 3)) % 3]));
+  p.box(0, 24, 0, 7, 25, 3, n.neon[seed % 6]);
+  return p;
+}
+
+/** A hover bike parked at the kerb, glow under its belly. */
+function hoverBike(n: NC, seed: number): Prop {
+  const p = new Prop(18, 8, 6);
+  const body = [n.container[0], n.chrome, n.navy, n.yellowSteel, n.plum][seed % 5];
+  p.box(2, 1, 2, 13, 1, 3, n.neon[(seed + 1) % 6]);
+  p.box(1, 2, 1, 14, 4, 4, (x, y) => (y === 2 && (x < 3 || x > 12) ? 0 : body));
+  p.box(5, 5, 2, 10, 5, 3, n.screenDark);
+  p.box(12, 5, 1, 15, 6, 4, body);
+  p.box(16, 3, 2, 16, 4, 3, n.flood);
+  p.box(0, 3, 2, 0, 3, 3, n.beacon);
+  p.box(13, 7, 1, 13, 7, 4, n.steelDark);
+  return p;
+}
+
+/** A net terminal: a booth with a lit screen, a keypad and a strip of neon over it. */
+function netBooth(n: NC, seed: number): Prop {
+  const p = new Prop(8, 20, 6);
+  p.box(0, 0, 0, 7, 17, 5, (x, y, z) => (z === 0 && x > 0 && x < 7 && y > 6 && y < 15 ? (y > 8 ? n.screen[seed % 4] : n.chrome) : n.steelDark));
+  p.box(0, 18, 0, 7, 19, 5, n.neon[(seed + 3) % 6]);
+  p.box(1, 6, 0, 6, 6, 0, n.ledG);
+  return p;
+}
+
+/** A steel planter of tough grass with a few glowing seed heads. */
+function neonPlanter(n: NC, seed: number): Prop {
+  const p = new Prop(12, 7, 6);
+  p.box(0, 0, 0, 11, 3, 5, (x, _y, z) => (x === 0 || x === 11 || z === 0 || z === 5 ? n.steelDark : n.soil));
+  for (let x = 1; x < 11; x++) for (let z = 1; z < 5; z++) {
+    const h = hash3(x, z, seed);
+    const t = 4 + Math.floor(h * 3);
+    for (let y = 4; y < t; y++) p.set(x, y, z, h < 0.5 ? n.growLeaf : n.growLeafB);
+    if (h > 0.8) p.set(x, t, z, n.grow);
+  }
+  return p;
+}
+
+/** A lit bollard. */
+function lightBollard(n: NC): Prop {
+  const p = new Prop(3, 8, 3);
+  p.box(0, 0, 0, 2, 7, 2, n.steelDark);
+  p.box(0, 5, 0, 2, 5, 2, n.guideCyan);
+  return p;
+}
+
+/** A sign hung on the wire across a street: glyphs of light in a steel frame. */
+function spanSign(n: NC, seed: number): Prop {
+  const gr = rng(seed), cnt = 3 + (seed % 3);
+  const p = new Prop(cnt * 6 + 3, 9, 1);
+  const ink = n.neon[seed % 6], field = seed % 2 ? n.screenDark : n.plum;
+  p.box(0, 0, 0, cnt * 6 + 2, 8, 0, (x, y) => (x === 0 || y === 0 || x === cnt * 6 + 2 || y === 8 ? n.steelDark : field));
+  for (let i = 0; i < cnt; i++) {
+    const gl = glyph(gr, 5);
+    for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) if (gl[4 - y][x]) p.set(2 + i * 6 + x, 2 + y, 0, ink);
+  }
+  return p;
+}
+
 function trashBags(b: Builder, seed: number): Prop {
   const k = b.k, r = rng(seed);
   const p = new Prop(10, 6, 6);
@@ -997,11 +949,11 @@ function skybridge(b: Builder, n: NC, p: Plan) {
 // ---------------------------------------------------------------------------------------------
 // Street furniture, along every street whatever way it runs
 
-function furnish(b: Builder, n: NC, p: Plan, vending: [number, number, number][]) {
+function furnish(b: Builder, n: NC, p: Plan, vending: [number, number, number][], keep: [number, number][]) {
   const k = b.k;
   const doors = b.rooms.map((rm) => rm.door);
   const stands = b.stallAnchors.map((s) => s.stand);
-  const clear = (x: number, z: number, rad = 1.6) => !doors.some(([dx, dz]) => Math.hypot(dx - x, dz - z) < rad + 1.2) && !stands.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < rad + 1)
+  const clear = (x: number, z: number, rad = 1.6) => !keep.some(([kx, kz]) => Math.hypot(kx - x, kz - z) < rad + 0.8) && !doors.some(([dx, dz]) => Math.hypot(dx - x, dz - z) < rad + 1.2) && !stands.some(([sx, sz]) => Math.hypot(sx - x, sz - z) < rad + 1)
     && !b.blockers.some(([a, c, bb, d]) => x > a - 0.4 && x < bb + 0.4 && z > c - 0.4 && z < d + 0.4);
   // flat path under a prop's footprint, at one level
   const flatAt = (x: number, z: number, r = 2): number => {
@@ -1042,6 +994,8 @@ function furnish(b: Builder, n: NC, p: Plan, vending: [number, number, number][]
           if (pickI < 3) { b.place(trashBags(b, i), wx, y, wz, face); b.block(wx - 0.5, wz - 0.5, wx + 0.5, wz + 0.5); }
           else if (pickI < 5) { b.place(crateStack(k, i), wx, y, wz, face); b.block(wx - 0.5, wz - 0.5, wx + 0.5, wz + 0.5); }
           else if (pickI < 6) { b.place(scooter(k, [k.c.cubRed, k.c.vmBlue, k.c.black][i % 3]), wx, y, wz, alongX ? 0 : 1); b.block(wx - 0.8, wz - 0.8, wx + 0.8, wz + 0.8); }
+          else if (pickI < 7) { b.place(neonPlanter(n, i), wx, y, wz, face); b.block(wx - 0.8, wz - 0.8, wx + 0.8, wz + 0.8); }
+          else if (pickI < 8) { b.place(hoverBike(n, i), wx, y, wz, alongX ? 0 : 1); b.block(wx - 1, wz - 1, wx + 1, wz + 1); }
           continue;
         }
         if (pickI === 0 || pickI === 5) {
@@ -1068,6 +1022,19 @@ function furnish(b: Builder, n: NC, p: Plan, vending: [number, number, number][]
         } else if (pickI === 9 && s.kind !== K.Avenue) {
           b.place(binCorner(k), wx, y, wz, face);
           b.block(wx - 0.4, wz - 0.4, wx + 0.4, wz + 0.4);
+        } else if (pickI === 1) {
+          b.place(adKiosk(n, i), wx, y, wz, face);
+          b.block(wx - 0.55, wz - 0.55, wx + 0.55, wz + 0.55);
+        } else if (pickI === 4) {
+          if (s.kind === K.Avenue) b.place(neonPlanter(n, i), wx, y, wz, face);
+          else b.place(hoverBike(n, i), wx, y, wz, alongX ? 0 : 1);
+          b.block(wx - 1, wz - 1, wx + 1, wz + 1);
+        } else if (pickI === 6) {
+          b.place(netBooth(n, i), wx, y, wz, face);
+          b.block(wx - 0.5, wz - 0.5, wx + 0.5, wz + 0.5);
+        } else if (pickI === 3 || pickI === 9) {
+          for (const o of [-0.6, 0.6]) b.place(lightBollard(n), wx + (alongX ? o : 0), y, wz + (alongX ? 0 : o), 0);
+          b.block(wx - 0.8, wz - 0.8, wx + 0.8, wz + 0.8);
         }
       }
       // wires and signs strung across narrow streets, lanterns over the market's lanes
@@ -1081,7 +1048,15 @@ function furnish(b: Builder, n: NC, p: Plan, vending: [number, number, number][]
           b.place(lantern(k, [k.c.lanternRed, k.c.lanternWhite, k.c.lanternAmber][i % 3], 4, 5, i), cx, y + 4.6 + (i % 4) * 0.5, cz);
           b.swayParent = 0;
           b.lamp(cx, y + 4.8, cz, i % 3 === 1 ? WHITEWARM : RED, 4, 0.6);
+        } else if (i % 4 === 2) {
+          // a sign of light hung on the wire over the middle of the street
+          b.swayParent = b.lastSway[0] ?? 0;
+          b.place(spanSign(n, i), cx, y + 3.9 + (i % 4) * 0.5, cz, alongX ? 1 : 0);
+          b.swayParent = 0;
+          if (i % 8 === 2) b.lamp(cx, y + 4.2, cz, NEON_RGB[i % 6], 5, 0.5);
         }
+        // a second, higher run of cable over the busier streets
+        if (s.kind === K.Street) b.place(wire(k, s.w + 1, 0.6), cx + (alongX ? 1.2 : 0), y + 7.4, cz + (alongX ? 0 : 1.2), alongX ? 1 : 0);
       }
     }
   }
@@ -1115,10 +1090,27 @@ export function buildNeo(win?: Window): BuildResult {
   ground(b, n, p);
   halo(b, n);
   const uses = assign(p.lots);
-  const { stalls, hidden } = buildLots(b, n, p, uses);
+  const sp = specials(p, uses);
+  const { stalls, hidden, roofs } = buildLots(b, n, p, uses, sp);
+  groundscrapers(b, n, p, roofs, sp);
   skybridge(b, n, p);
   const vending: [number, number, number][] = [];
-  furnish(b, n, p, vending);
+  // the city's regulars, where they stand (street furniture keeps clear of them)
+  const idlers: Anchors['idlers'] = [
+    { id: 'saul', pos: [-9.5, 0, 9.5] },
+    { id: 'courier', pos: along(p, 'Meridian Boulevard', 0.6, 3.5) },
+    { id: 'netrunner', pos: along(p, 'Capital Road', 0.5, 2.5) },
+    { id: 'preacher', pos: [12, 0, -12.5] },
+    { id: 'dockhand', pos: along(p, 'Crane Street', 0.5, 2.5) },
+    { id: 'dj', pos: along(p, 'Mile Street', 0.5, 2.4) },
+    { id: 'ripper', pos: along(p, 'Glass Road Low', 0.5, 1.5) },
+    { id: 'gran', pos: along(p, 'Kowloon Road', 0.55, 1.8) },
+    { id: 'busker', pos: along(p, 'Meridian Boulevard', 0.5, -3.5) },
+    { id: 'cop', pos: [21, 0, -4.5] },
+    { id: 'kid', pos: along(p, 'Kiss Lane', 0.5, 1.2) },
+    { id: 'fisher', pos: along(p, 'Canal Walk', 0.5, -1.5) },
+  ];
+  furnish(b, n, p, vending, idlers.map((d) => [d.pos[0], d.pos[2]]));
 
   // the three seed capsules, tucked where only the curious look: the far end of the Sump under the ridge,
   // the top of the Stacks, the end of the North Pier
@@ -1187,20 +1179,7 @@ export function buildNeo(win?: Window): BuildResult {
     interiorExit: [0, 0], interiorSpawn: [0, 0, 0], chef: [0, 0, 0], counterStand: [0, 0],
     manekis,
     graph: { nodes: p.nodes, edges: p.edges },
-    idlers: [
-      { id: 'saul', pos: [-9.5, 0, 9.5] },
-      { id: 'courier', pos: along(p, 'Meridian Boulevard', 0.6, 3.5) },
-      { id: 'netrunner', pos: along(p, 'Capital Road', 0.5, 2.5) },
-      { id: 'preacher', pos: [12, 0, -12.5] },
-      { id: 'dockhand', pos: along(p, 'Crane Street', 0.5, 2.5) },
-      { id: 'dj', pos: along(p, 'Mile Street', 0.5, 2.4) },
-      { id: 'ripper', pos: along(p, 'Glass Road Low', 0.5, 1.5) },
-      { id: 'gran', pos: along(p, 'Kowloon Road', 0.55, 1.8) },
-      { id: 'busker', pos: along(p, 'Meridian Boulevard', 0.5, -3.5) },
-      { id: 'cop', pos: [21, 0, -4.5] },
-      { id: 'kid', pos: along(p, 'Kiss Lane', 0.5, 1.2) },
-      { id: 'fisher', pos: along(p, 'Canal Walk', 0.5, -1.5) },
-    ],
+    idlers,
     benches: b.benches,
     stools: b.stools, cafeTables: b.cafeTables,
     cats: [along(p, 'Kowloon Road', 0.3, -1.8), along(p, 'Fourth Lane', 0.5), along(p, 'Velvet Lane', 0.5), along(p, 'Crane Street', 0.3, -2), along(p, 'Commons Road', 0.4), along(p, 'The Sump', 0.4)],

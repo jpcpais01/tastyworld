@@ -274,6 +274,21 @@ void main() {
   vNormal = normalize(mat3(modelMatrix) * n);
 #endif
   vWorld = wp.xyz;
+#ifdef CHARACTER
+  // First person: your own head sits right round the eye, and once the body leans in to eat or settles on a
+  // seat its back, hair or hat fills the view. A head whose neck is that close to a perspective camera folds
+  // away into the neck; the sun's (orthographic) pass and the iso view still draw it, so the shadow keeps it.
+  if (int(aPack.w + 0.5) == 1 && projectionMatrix[3][3] < 0.5) {
+    vec4 b0 = ROT(0);
+    vec3 nk = rotY(b0.y) * rotX(b0.x) * rotZ(b0.z) * (PIV(1) - PIV(0)) + PIV(0) + off.xyz;
+#ifdef USE_BATCHING
+    nk = (modelMatrix * bm * vec4(nk, 1.0)).xyz;
+#else
+    nk = (modelMatrix * vec4(nk, 1.0)).xyz;
+#endif
+    if (distance(nk, cameraPosition) < 0.45) { wp.xyz = nk; vWorld = nk; }
+  }
+#endif
 #ifdef FAR
   wp.y *= squat;
 #endif

@@ -25,7 +25,7 @@ import { Actor, Anim, geometryFrom, SIT_DROP } from './game/actors';
 import { Crowd } from './game/crowd';
 import { Dining } from './game/dineout';
 import { CharacterBatch } from './game/charbatch';
-import { IsoCamera } from './game/camera';
+import { IsoCamera, EYE_H } from './game/camera';
 import { Particles, Blobs, Koi, SkylightBeams } from './game/fx';
 import { Birds, type Threat } from './game/birds';
 import { Traffic } from './game/traffic';
@@ -318,6 +318,8 @@ class Game {
   private callT = 6;
   private v2 = new THREE.Vector2();
   private v3 = new THREE.Vector3();
+  /** How much the first-person eye follows the bending waist (1 seated or eating). */
+  private eyeW = 0;
 
   constructor() {
     this.s = loadState();
@@ -3435,7 +3437,10 @@ class Game {
   private updateCamera(dt: number): void {
     const meal = this.meal;
     if (this.cam.fp) {
+      // seated or eating, the eye follows the head as the waist bends, so it never ends up behind it
+      this.eyeW += ((meal || this.dine?.seated ? 1 : 0) - this.eyeW) * (1 - Math.exp(-dt * 6));
       this.cam.target.copy(this.player.position);
+      if (this.eyeW > 0.001) this.cam.target.addScaledVector(this.player.eyeShift(EYE_H, this.v3), this.eyeW);
       this.cam.fpSpeed = this.player.speed;
       if (this.inside !== this.wasInside) this.cam.fpYaw = this.player.facing; // just came through a door
       this.cam.fpBack = meal ? 0.12 : 0;

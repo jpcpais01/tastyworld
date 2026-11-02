@@ -8,6 +8,16 @@ export interface PatchNote {
 /** Player-facing patch notes, newest first. Every merge adds an entry. */
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: '0.22.1',
+    date: '2026-11-02',
+    title: 'Rain that lands where it falls (2040)',
+    items: [
+      'Wet streets in Halcyon City now lie on the real ground: every street, stair, terrace and roof up the hills shines in the rain, not one flat layer at your own height.',
+      'Raindrop rings stay put in the world instead of following you around, and they dimple the puddles and the mirrored neon.',
+      'Ground under awnings, balconies and overhangs stays dry.',
+    ],
+  },
+  {
     version: '0.22.0',
     date: '2026-11-02',
     title: 'Travel as a couple',
